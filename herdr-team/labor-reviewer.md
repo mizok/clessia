@@ -921,3 +921,31 @@ G-1B（`auth-google.contract.ts`）還沒開 PR，進來時要完整二讀（保
 6. **p-dialog 的 `close()` 先改內部 `visible` 再 emit**（`primeng-dialog.mjs:628`）：在 `visibleChange` 裡擋關閉只擋得住 signal，畫面照關，signal 停在 true 之後 `set(true)` 不會再推 → 打不開（#2238）。
 7. **路由改吃 pool，既有契約替身會 500**（#2239 CI 才抓到 `class-schedule-classroom`）：作者本機只挑幾支契約跑。看到「改用 `getAuth(c).pool`」就先 `git grep -l "<路由>" apps/api/src/contract` 列出打同一條路由的契約。
 8. **機器重開＝背景鏈全斷、scratchpad 清空**：重開前的「已合」回報不算數，逐張 `gh pr view` 重確認；突變腳本重寫、暫存 worktree 重建（`git worktree prune`）。計畫席說 supabase 好了之前不跑契約。
+
+## 11-05 交接（labor-reviewer-20261104-1152 → 下一任，Ctx 過 70% 輪替）
+
+> 計畫席 **labor-plan-20261103-0852**。上一節（11-04 午間）的「手上的單」已全部處理完，以這一節為準。
+
+本任 11-04 11:52～11-05 二讀＋代合 29 支（前任鏈 #2251～#2257 之後）：#2260、#2258、#2261、#2263、#2262、#2266、#2265、#2268、#2269、#2272、#2270、#2274、#2275、#2271、#2276、#2277、#2280、#2281、#2283、#2284、#2279、#2278、#2273、#2286、#2287、#2294、#2288、#2295、#2297。兩張 migration（#2279 audit_logs 清除排程、#2278 drop profiles）使用者親按 Approve、已 apply＋deploy 綠。保留類的突變表都在各 PR 留言。
+
+### 一、手上的單（2026-11-05）
+
+**沒有在跑的鏈，也沒有待合的單。** 接手先 `ps -A -o pid=,command= | grep -E 'mv\.sh|cimg|steward-merge|chain'` 確認沒有殘留。
+前任（0959）的暫存 worktree 還留 4 個（`wt2245`／`2251`／`2254`／`2255`，在它的 scratchpad），本任沒動；`git worktree list` 看得到，確認沒人在用再 `git worktree remove --force`。
+
+### 二、這一任學到的
+
+1. **接續腳本要同時檢查「前一支 exit 0」和「main verify 綠」**，不能只看前一張 `state=MERGED`。11-04 #2269 合後 main 紅，前一支 mv.sh 照設計停了，但我另外寫的接續腳本只查 MERGED，照樣叫起 #2270 的合併（cimg 還在等 CI，被我 kill 掉，沒合下去）。
+2. **migration 的 run 要等 plan 有結論再判**：run 層級已經 `waiting` 時，plan job 的 `conclusion` 可能還是空的。`mig.sh` 系的判斷要寫成 `until plan=… && [ -n "$plan" ]`，否則會把「還在跑」誤判成「不是綠」。另外計畫席要「兩張都合了再一起按」時，不能用 `mig.sh`（它等 apply 才合下一張）—— 本任用 mv.sh＋自己等 waiting 的接力。
+3. **凍結期間 docs 也不合**，所以 docs／一般類要排在 migration **之前**，不要照字面「排鏈尾」排到 migration 後面卡住。
+4. **契約結果要看 `Test Files` 那行**，不只 `Tests`（beforeAll／afterAll 失敗時 Tests 照樣全綠，見 labor-20261104-1142 交接）。突變腳本的 grep 要把 `Test Files` 一起抓。
+5. **暫存 worktree 跑 web spec 要經 nx**：`npx nx test web --skip-nx-cache --include='apps/web/src/…/x.spec.ts'`（路徑從 workspace 根算）。直接 `cd apps/web && npx vitest run` 解析不到 `@core` 等別名，`no tests` → 基準紅。
+6. **突變要忠實，不然紅錯原因**：
+   - 拿掉 SQL 的 `org_id = $1` 時 `$1` 變成沒人用 → Postgres 推不出型別 → 整句報錯 500。要保留型別寫成 `$1::uuid is not null`（#2271 ③：改了之後契約存活＝縱深防禦）。
+   - 「失敗退回 builder」要 lib 和 route 一起改回；只改 lib 的 `throw → return null`，route 會 `respond(null)` 直接 500，等於沒突變（#2284）。
+   - 「搬出交易」要把整段 insert 移到 `withTx` 之後；只把 `db.query` 換成 `pool.query` 還在 callback 裡，拋錯照樣整筆回滾（#2271 ②）。
+   - 換回 main 的檔案若呼叫端簽名變了，呼叫端也要一起改（#2275 ① 的 `annotateArrivals` 多了 `pool`）。
+7. **紅了也要看紅在哪**：#2286 ③ 三條全紅，看錯誤訊息才確定三條都是 `URI too long`（共用 248 堂的 fixture），不是替身少東西。
+8. **zsh 的變數修飾符**：`$H:supabase/…`、`$H:apps/…` 會被當成 `:s`／`:a` 修飾 → `bad substitution` 或展開成怪路徑。一律寫 `${H}:path`。`git grep` 預設 BRE，`\|` 不是或，要 `-E`；回空前先用同一條查詢抓一個一定存在的東西當正控。
+9. **PostgREST 的 `max_rows` 不截斷 `PATCH … return=representation`**（本機實測 1500／1500），`update().select('id')` 拿得到全部 id。
+10. **head 在鏈排好之後才換**：不要改正在跑的 bash 腳本（bash 邊跑邊讀檔）；讓 steward-merge 擋下舊 SHA（`head 變了`、鏈停），先跟計畫席說一聲會收到「鏈停」，再釘新 SHA 單獨合（#2287）。
