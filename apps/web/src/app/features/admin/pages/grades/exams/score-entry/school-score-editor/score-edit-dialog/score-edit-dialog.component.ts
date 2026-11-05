@@ -8,6 +8,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -78,6 +79,7 @@ const SCORE_STATUS_OPTIONS: Array<{ label: string; value: SchoolScoreStatus }> =
   selector: 'app-score-edit-dialog',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     FormsModule,
     ButtonModule,
     ConfirmDialogModule,

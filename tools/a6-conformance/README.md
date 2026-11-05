@@ -8,7 +8,7 @@
 - **第二層 `diff`**：app 與 A6 同寬抽同一份 part 樹，配對後比幾何與 computed style，出差異表。
 - **第三層 `behave`**：`lib/scenarios.mjs` 裡的情境，兩邊各開一頁照步驟操作，比操作前後的變化量。
 
-A6 稿不進版控；輸出也不進版控（預設 `~/.cache/clessia-a6-conformance/out/<頁>/`）。
+A6 稿在版控（`.design-explorations/973-layout/a6-editorial/`＋`shared/`；`_shots/` 與其他方向稿不進，使用者 2026-11-05 裁）；輸出不進版控（預設 `~/.cache/clessia-a6-conformance/out/<頁>/`）。
 
 ## 安裝與執行
 
@@ -164,6 +164,7 @@ node tools/a6-conformance/run.mjs compare billing schedule --base main --head <P
 
 硬性規則（constitution-enforcement.md 的 A 條）用 `hardRule('A28')` 當 `source`：條號手寫、行號執行時查，查不到就報錯。
 `item`（regex）：只拆樣式列裡的那一項（A28 的對比色），同列其他樣式差照算。
+`delta`（數字）：尺寸列「寬／高 前→後」只在 後−前＝delta（±1）時命中 —— regex 算不出差值，用它只放過預期的那個差、其他變化照報（#2322 二讀：貼底抽屜根高 −8）。
 
 欄位：`status`（必填）、`detail`／`a6`／`app`／`host`（regex；host＝元件宿主，例如 `app-pager`）、`kind`、`pop`（哪個彈出物）、`widths`（只在這些寬度生效）。
 包裝層本身是偏離時（R7 的 search landmark），裡面真正多出／缺少的最上層東西各自拆列、各自歸欄。

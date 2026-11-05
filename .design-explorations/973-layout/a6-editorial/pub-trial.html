@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 試聽申請（公開頁）</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* ── 公開表單（試聽／報名同一套，兩頁逐字相同 —— 收進 a6.css 由主席決定）── */
+  .pf { width: 100%; max-width: 560px; padding-bottom: var(--space-12); }
+  .pf:focus { outline: none; } /* 送出後焦點移到結果，讓讀屏從標題念起；不需要框 */
+  .pf__badge { font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--zinc-600); letter-spacing: 0.04em; }
+  .pf__title { margin-top: var(--space-2); font-size: 32px; font-weight: var(--font-bold); line-height: 1.2; letter-spacing: -0.03em; }
+  .pf__sub { margin-top: var(--space-2); font-size: var(--text-lg); color: var(--zinc-700); }
+  .pf__tip { margin-top: var(--space-5); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--zinc-100); font-size: var(--text-base); color: var(--zinc-800); }
+  .pf__tip a { font-weight: var(--font-semibold); color: var(--zinc-900); text-underline-offset: 3px; }
+  .pf__sec { margin-top: var(--space-8); }
+  .pf__h { margin-bottom: var(--space-4); padding-bottom: var(--space-2); border-bottom: 1px solid var(--zinc-200); font-size: 13px; font-weight: 700; color: var(--zinc-800); }
+  .pf__h small { margin-left: var(--space-2); font-weight: var(--font-medium); color: var(--zinc-600); }
+  .pf__f { margin-bottom: var(--space-4); }
+  .pf__f .acset__in { width: 100%; height: 44px; }
+  .pf__f textarea.acset__in { height: auto; padding: var(--space-2) var(--space-3); resize: vertical; }
+  .pf__two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--space-4); }
+  .pf__req { color: var(--error-700); }
+  .pf__hint { margin-top: var(--space-1); font-size: var(--text-md); color: var(--zinc-600); }
+  .pf__err { display: flex; align-items: center; gap: 4px; margin-top: var(--space-1); font-size: var(--text-md); font-weight: var(--font-medium); color: var(--error-700); }
+  .pf__err[hidden] { display: none; }
+  .is-bad .acset__in, .is-bad .pick { border-color: var(--error-700); }
+  .pf__hp { display: none; } /* honeypot：真人看不到、機器人照 DOM 填表會填到 —— 有值就靜默丟掉 */
+  /* 可勾選的課程列（整列可按，≥44px） */
+  .pick__grp { margin-top: var(--space-4); }
+  .pick__grp:first-child { margin-top: 0; }
+  .pick__gh { margin-bottom: var(--space-2); font-size: var(--text-md); font-weight: var(--font-semibold); color: var(--zinc-700); }
+  .pick { display: flex; align-items: flex-start; gap: var(--space-3); min-height: 44px; padding: var(--space-3); border: 1px solid var(--zinc-200); border-radius: var(--radius-md); cursor: pointer; }
+  .pick + .pick { margin-top: var(--space-2); }
+  .pick:hover { border-color: var(--zinc-400); }
+  .pick:has(input:checked) { border-color: var(--zinc-900); box-shadow: inset 0 0 0 1px var(--zinc-900); }
+  .pick input { flex: none; width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--zinc-900); }
+  .pick__t { font-size: var(--text-base); font-weight: var(--font-semibold); }
+  .pick__d { margin-top: 2px; font-size: var(--text-md); color: var(--zinc-600); }
+  .pick__fit { display: inline-flex; margin-left: var(--space-2); padding: 0 6px; border: 1px solid var(--zinc-900); border-radius: var(--radius-sm); font-size: var(--text-xs); font-weight: var(--font-semibold); line-height: 18px; vertical-align: 1px; }
+  .pf__agree { display: flex; align-items: flex-start; gap: var(--space-3); min-height: 44px; font-size: var(--text-base); cursor: pointer; }
+  .pf__agree input { flex: none; width: 18px; height: 18px; margin: 3px 0 0; accent-color: var(--zinc-900); }
+  .pf__link { padding: 0; border: 0; background: none; font: inherit; color: var(--zinc-900); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .pf__bot { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-4); padding: var(--space-3); border: 1px solid var(--zinc-200); border-radius: var(--radius-md); font-size: var(--text-md); color: var(--zinc-700); }
+  .pf__bot svg { color: var(--success-600); }
+  .pf__foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-6); }
+  .pf__foot .btn--cta { height: 44px; padding: 0 var(--space-6); font-size: var(--text-base); }
+  .pf__why { font-size: var(--text-md); color: var(--zinc-600); }
+  .pf__why.is-shake { color: var(--error-700); animation: why-shake 0.32s var(--arrive); }
+  .pf__fail { display: flex; gap: var(--space-2); margin-top: var(--space-4); font-size: var(--text-base); color: var(--error-700); }
+  .pf__fail[hidden] { display: none; }
+  .pf__fail svg { flex: none; margin-top: 3px; }
+  /* 送出後 */
+  .done__mark { display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--radius-full); background: var(--zinc-100); }
+  .done__mark svg { width: 24px; height: 24px; }
+  .done__sum { margin-top: var(--space-5); padding: var(--space-4); border-radius: var(--radius-md); background: var(--zinc-100); font-size: var(--text-base); line-height: 1.7; }
+  .done__sum b { font-weight: var(--font-semibold); }
+  .done__steps { margin: var(--space-3) 0 0; padding-left: 1.3em; font-size: var(--text-base); line-height: 1.8; color: var(--zinc-800); }
+  .done__tel { display: inline-flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); font-size: var(--text-xl); font-weight: var(--font-bold); font-variant-numeric: tabular-nums; color: var(--zinc-900); text-decoration: none; }
+  .done__acts { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-6); }
+  .done__acts .btn { height: 44px; }
+  .done__login { margin-top: var(--space-6); font-size: var(--text-md); color: var(--zinc-600); }
+  .done__login a { font-weight: var(--font-semibold); color: var(--zinc-900); text-underline-offset: 3px; }
+  @media (max-width: 1024px) { .pf__title { font-size: 28px; } }
+  @media (max-width: 560px) { .pf__two { grid-template-columns: 1fr; } .pf__foot .btn--cta { flex: 1 1 100%; } }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>試聽申請 · 公開頁（#990 批 6）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（specs/public/trial.md）</th><th>產品現況（sitemap/public/trial.md）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>整頁</td><td>公開表單：家長資訊、學生資訊、試聽資訊、同意條款</td><td>佔位頁：眉標「試聽服務」、標題、副標，加一則不可關的「試聽頁面開發中」，<code>&lt;main&gt;</code> 內 0 個互動元素</td><td>照規格畫完整（計畫席裁定 A），整頁都是「新」。眉標、標題、副標沿用產品的字</td></tr>
+      <tr><td>家長資訊</td><td>姓名必填；Email、手機選填但至少一個</td><td>—</td><td>照做。兩個都空時錯誤寫在兩欄底下的同一句「Email 和手機至少填一個」；手機有填就驗格式（09 開頭 10 碼）</td></tr>
+      <tr><td>學生資訊</td><td>姓名、年級（下拉）、就讀學校，全必填</td><td>—</td><td>照做。年級選了之後，適合那個年級的課程標「適合小五」（新）</td></tr>
+      <tr><td>想試聽的課程</td><td>必填可多選；以分類顯示，每個課程顯示名稱與簡介</td><td>—</td><td>依科目分組、整列可按的勾選列（≥44px）；簡介寫年級、上課星期與時段、有幾個班</td></tr>
+      <tr><td>方便的時段、備註</td><td>選填</td><td>—</td><td>照做</td></tr>
+      <tr><td>CAPTCHA／速率限制／Honeypot</td><td>都要</td><td>—</td><td>CAPTCHA 畫成一列「已通過機器人驗證」（假設用 Cloudflare Turnstile 的無感驗證，部署本來就在 Cloudflare；使用者 10/03 08:2x 確認用 Turnstile，標「新」）；Honeypot 是畫面外的隱藏欄；速率限制被擋的樣子看 <a href="pub-trial.html#rate">#rate</a></td></tr>
+      <tr><td>送出後</td><td>「試聽申請已送出」、後續流程、補習班電話</td><td>—</td><td>照做（直接看 <a href="pub-trial.html#done">#done</a>）。電話是可撥的連結；「再幫另一個孩子申請」清空孩子與課程、保留家長資訊（新）</td></tr>
+    </tbody>
+  </table>
+  <h3>跟家長端「試聽申請」（p-trial.html）的差別</h3>
+  <ul>
+    <li>這一頁給<b>還不是家長</b>的訪客：沒有帳號，所以家長資訊、學生資訊都要自己填；沒有「申請紀錄」可以追，後續全靠補習班打電話或寄信。</li>
+    <li>家長端是登入後的版本：從已綁定的孩子裡挑、不用填聯絡方式、有申請紀錄分頁、不需要機器人驗證。</li>
+  </ul>
+  <h3>這一頁</h3>
+  <ul>
+    <li>送出鈕不停用：按下去才把缺的欄位逐欄標紅、寫在按鈕旁，並捲到第一個缺的欄位 —— 長表單停用送出鈕的話，使用者找不到是哪一欄沒填。</li>
+    <li>Email 的用途照規格寫在欄位提示：不是登入帳號，是日後補習班寄登入連結用的。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, esc, act, toast } = A2;
+  const GRADES = [['P1', '小一'], ['P2', '小二'], ['P3', '小三'], ['P4', '小四'], ['P5', '小五'], ['P6', '小六'], ['J1', '國一'], ['J2', '國二'], ['J3', '國三'], ['H1', '高一'], ['H2', '高二'], ['H3', '高三']];
+  const GL = Object.fromEntries(GRADES);
+  const WD = ['', '一', '二', '三', '四', '五', '六', '日'];
+  // 課程＝開課班去掉「A 班／B 班」；每個課程列出它有幾個班、哪幾個時段（試聽是試「課程」，班由補習班安排）
+  const courses = [];
+  C.classes.forEach((c) => {
+    const name = c.name.replace(/\s?[A-Z] 班$/, '');
+    let co = courses.find((x) => x.name === name);
+    if (!co) courses.push((co = { id: 'co' + (courses.length + 1), name, subject: c.subject, grades: c.grades, slots: [] }));
+    co.slots.push(`週${WD[c.weekday]} ${c.start}`);
+  });
+  const SUBJ = ['數學', '英文', '國文', '自然'];
+  const desc = (co) => `${co.grades.map((g) => GL[g]).join('、')} · ${co.slots.join('、')}${co.slots.length > 1 ? ` · ${co.slots.length} 個班可選` : ''}`;
+  const phone = C.campus.phone;
+
+  const field = (k, label, input, { req, hint, cls = '' } = {}) => `<div class="pf__f ${cls}" data-f="${k}"><label class="acset__l" for="f-${k}">${label}${req ? ' <span class="pf__req" aria-hidden="true">*</span>' : ''}</label>${input}${hint ? `<p class="pf__hint">${hint}</p>` : ''}<p class="pf__err" id="e-${k}" hidden>${icon.alert}<span></span></p></div>`;
+  const txt = (k, ph = '', type = 'text', extra = '') => `<input class="acset__in" id="f-${k}" name="${k}" type="${type}" placeholder="${ph}" autocomplete="off" aria-describedby="e-${k}"${extra}>`;
+
+  function formHtml() {
+    return `
+      <form class="pf" id="pf" novalidate>
+        <p class="pf__badge">試聽服務</p>
+        <h1 class="pf__title">試聽申請</h1>
+        <p class="pf__sub">填寫表單預約試聽課程。補習班收到後會打電話跟你約時間。</p>
+        <p class="pf__tip">已經想好要上哪一班？可以直接<a href="pub-enrollment.html">填報名表</a>。</p>
+
+        <section class="pf__sec" aria-labelledby="h-parent">
+          <h2 class="pf__h" id="h-parent">家長資訊</h2>
+          ${field('pname', '家長姓名', txt('pname', '例：王小明'), { req: true })}
+          <div class="pf__two">
+            ${field('email', 'Email', txt('email', 'name@example.com', 'email'), { hint: '不是登入帳號，是之後寄登入連結用的' })}
+            ${field('phone', '手機號碼', txt('phone', '0912-345-678', 'tel', ' inputmode="tel"'))}
+          </div>
+          <p class="pf__hint" style="margin-top:calc(var(--space-2) * -1)">Email 和手機至少填一個，補習班才聯絡得到你。</p>
+        </section>
+
+        <section class="pf__sec" aria-labelledby="h-kid">
+          <h2 class="pf__h" id="h-kid">學生資訊</h2>
+          ${field('sname', '學生姓名', txt('sname', '例：王柏翰'), { req: true })}
+          <div class="pf__two">
+            ${field('grade', '年級', `<select class="acset__in" id="f-grade" name="grade"><option value="">選擇年級</option>${GRADES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>`, { req: true })}
+            ${field('school', '就讀學校', txt('school', '例：興隆國小'), { req: true })}
+          </div>
+        </section>
+
+        <section class="pf__sec" aria-labelledby="h-course">
+          <h2 class="pf__h" id="h-course">想試聽的課程<small>可以選好幾個</small></h2>
+          <div class="pf__f" data-f="courses" role="group" aria-labelledby="h-course" aria-describedby="e-courses">
+            ${SUBJ.map((s) => `<div class="pick__grp"><p class="pick__gh">${s}</p>${courses.filter((co) => co.subject === s).map((co) => `<label class="pick"><input type="checkbox" name="courses" value="${co.id}"><span><span class="pick__t">${co.name}</span><span class="pick__fitbox" data-grades="${co.grades.join(',')}"></span><span class="pick__d" style="display:block">${desc(co)}</span></span></label>`).join('')}</div>`).join('')}
+            <p class="pf__err" id="e-courses" hidden>${icon.alert}<span></span></p>
+          </div>
+          ${field('when', '方便的時段（選填）', txt('when', '例：週三晚上、週六上午'))}
+          ${field('note', '備註（選填）', `<textarea class="acset__in" id="f-note" name="note" rows="3" placeholder="例：孩子數學比較弱，想先看看程度"></textarea>`)}
+        </section>
+
+        <div class="pf__hp" aria-hidden="true"><label>網站 <input name="website" tabindex="-1" autocomplete="off"></label></div>
+
+        <section class="pf__sec" aria-label="同意與送出">
+          <div class="pf__f" data-f="agree">
+            <label class="pf__agree"><input type="checkbox" name="agree" id="f-agree" aria-describedby="e-agree"><span>我同意補習班依<button class="pf__link" type="button" data-privacy>個資使用聲明</button>，用以上資料聯絡試聽事宜。</span></label>
+            <p class="pf__err" id="e-agree" hidden>${icon.alert}<span></span></p>
+          </div>
+          <p class="pf__bot">${icon.check}已通過機器人驗證<span class="new">新</span></p>
+          <p class="pf__fail" id="fail" role="alert" hidden>${icon.alert}<span></span></p>
+          <div class="pf__foot"><button class="btn btn--cta" type="submit" id="go">送出試聽申請</button><p class="pf__why" id="why" aria-live="polite"></p></div>
+        </section>
+      </form>
+      <dialog class="acset" id="privacy" aria-labelledby="privacy-t">
+        <div class="acset__head"><h2 class="acset__t" id="privacy-t">個資使用聲明</h2><button class="acset__x" type="button" aria-label="關閉" data-close>${icon.x}</button></div>
+        <div class="acset__body"><p class="acset__hint" style="font-size:var(--text-base);line-height:1.7;color:var(--zinc-800)">${esc(C.org.name)}蒐集你填寫的家長與學生資料，只用於聯絡試聽、安排課程與後續報名。資料保存到試聽結束後 6 個月；你可以隨時打 ${phone} 要求查詢、更正或刪除。</p></div>
+      </dialog>`;
+  }
+
+  function doneHtml(v) {
+    return `
+      <div class="pf" id="done" tabindex="-1">
+        <span class="done__mark" aria-hidden="true">${icon.check}</span>
+        <h1 class="pf__title" style="margin-top:var(--space-4)">試聽申請已送出</h1>
+        <p class="pf__sub">謝謝你，我們收到了。</p>
+        <div class="done__sum">
+          <b>${esc(v.sname)}</b>（${GL[v.grade]} · ${esc(v.school)}）<br>
+          想試聽：${v.courses.map((id) => courses.find((c) => c.id === id).name).join('、')}${v.when ? `<br>方便的時段：${esc(v.when)}` : ''}
+        </div>
+        <section class="pf__sec">
+          <h2 class="pf__h">接下來</h2>
+          <ol class="done__steps">
+            <li>補習班會在 1–2 個工作天內${v.phone ? `打 ${esc(v.phone)}` : `寄信到 ${esc(v.email)}`}，跟你約試聽的日期與班級。</li>
+            <li>試聽當天直接到 ${esc(C.campus.name)}（${esc(C.campus.address)}）找櫃台。</li>
+            <li>試聽後想報名，可以<a href="pub-enrollment.html">填報名表</a>，或請櫃台幫你登記。</li>
+          </ol>
+        </section>
+        <section class="pf__sec">
+          <h2 class="pf__h">等不及？直接打給我們</h2>
+          <a class="done__tel" href="tel:${phone.replace(/-/g, '')}">${icon.phone}${phone}</a>
+          <p class="pf__hint">週一到週五 14:00–21:30、週六 09:00–17:00</p>
+        </section>
+        <div class="done__acts"><button class="btn" type="button" id="again">再幫另一個孩子申請</button><a class="btn" href="pub-enrollment.html">看報名表</a></div>
+        <p class="done__login">已經是我們的家長？<a href="pub-login.html">用 LINE 登入</a>，在家長端申請比較快。</p>
+      </div>`;
+  }
+
+  A2.pub({ page: 'pub-trial' }, '<div id="slot" style="width:100%;display:flex;justify-content:center"></div>');
+  const slot = document.getElementById('slot');
+  let keep = null; // 「再幫另一個孩子申請」保留的家長資訊
+
+  const DEMO = { pname: '王小明', email: '', phone: '0912-345-678', sname: '王柏翰', grade: 'P5', school: '興隆國小', courses: ['co6'], when: '週六下午', note: '', agree: true };
+
+  function vals(f) {
+    const g = (k) => (f.elements[k] ? f.elements[k].value.trim() : '');
+    return { pname: g('pname'), email: g('email'), phone: g('phone'), sname: g('sname'), grade: g('grade'), school: g('school'), when: g('when'), note: g('note'),
+      courses: [...f.querySelectorAll('[name=courses]:checked')].map((x) => x.value), agree: f.elements.agree.checked, bot: g('website') };
+  }
+  function check(v) {
+    const e = {};
+    if (!v.pname) e.pname = '還沒填家長姓名';
+    if (!v.email && !v.phone) e.email = e.phone = 'Email 和手機至少填一個';
+    if (v.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) e.email = 'Email 格式不對，例：name@example.com';
+    if (v.phone && !/^09\d{8}$/.test(v.phone.replace(/[-\s]/g, ''))) e.phone = '手機要是 09 開頭的 10 碼數字';
+    if (!v.sname) e.sname = '還沒填學生姓名';
+    if (!v.grade) e.grade = '還沒選年級';
+    if (!v.school) e.school = '還沒填就讀學校';
+    if (!v.courses.length) e.courses = '至少選一個想試聽的課程';
+    if (!v.agree) e.agree = '要先同意個資使用聲明，補習班才能聯絡你';
+    return e;
+  }
+  const LABEL = { pname: '家長姓名', email: 'Email 或手機', phone: 'Email 或手機', sname: '學生姓名', grade: '年級', school: '就讀學校', courses: '課程', agree: '同意聲明' };
+  function show(f, e) {
+    f.querySelectorAll('[data-f]').forEach((box) => {
+      const k = box.dataset.f, msg = e[k], p = box.querySelector('.pf__err');
+      box.classList.toggle('is-bad', !!msg);
+      if (p) { p.hidden = !msg; p.querySelector('span').textContent = msg || ''; }
+    });
+  }
+
+  function renderForm() {
+    slot.innerHTML = formHtml();
+    const f = document.getElementById('pf');
+    if (keep) ['pname', 'email', 'phone'].forEach((k) => (f.elements[k].value = keep[k]));
+    let tried = false;
+    const fit = () => {
+      const g = f.elements.grade.value;
+      f.querySelectorAll('.pick__fitbox').forEach((b) => (b.innerHTML = g && b.dataset.grades.split(',').includes(g) ? `<span class="pick__fit">適合${GL[g]}</span>` : ''));
+    };
+    f.addEventListener('change', () => { fit(); if (tried) show(f, check(vals(f))); });
+    f.addEventListener('input', () => { if (tried) show(f, check(vals(f))); });
+    document.querySelector('[data-privacy]').addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); document.getElementById('privacy').showModal(); });
+    document.getElementById('privacy').addEventListener('click', (ev) => { if (ev.target.id === 'privacy' || ev.target.closest('[data-close]')) ev.currentTarget.close(); });
+    f.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const v = vals(f), e = check(v), why = document.getElementById('why'), go = document.getElementById('go');
+      tried = true; show(f, e);
+      const miss = [...new Set(Object.keys(e).map((k) => LABEL[k]))];
+      if (miss.length) {
+        why.textContent = `還沒填好：${miss.join('、')}`; why.classList.remove('is-shake'); void why.offsetWidth; why.classList.add('is-shake');
+        const first = f.querySelector('.is-bad'); first.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+        const inp = first.querySelector('input, select, textarea'); if (inp && inp.type !== 'checkbox' && inp.tagName !== 'SELECT') inp.focus({ preventScroll: true });
+        return;
+      }
+      why.textContent = '';
+      if (v.bot) return; // honeypot 有值＝機器人：產品端靜默丟掉，畫面照常（不給機器人回饋）
+      if (location.hash.includes('rate')) {
+        const fail = document.getElementById('fail');
+        act(go, { busy: '送出中…', run: () => { fail.hidden = false; fail.querySelector('span').textContent = `送出太多次了，請 10 分鐘後再試，或直接打 ${phone}。你填的資料都還在。`; } });
+        return;
+      }
+      act(go, { busy: '送出中…', ok: '試聽申請已送出', run: () => done(v) });
+    });
+  }
+  function done(v) {
+    keep = { pname: v.pname, email: v.email, phone: v.phone };
+    slot.innerHTML = doneHtml(v);
+    scrollTo(0, 0);
+    document.getElementById('done').focus({ preventScroll: true });
+    document.getElementById('again').addEventListener('click', () => { renderForm(); scrollTo(0, 0); toast('已保留家長資訊，填孩子的部分就好'); document.getElementById('f-sname').focus(); });
+  }
+
+  if (location.hash === '#done') done(DEMO); else renderForm();
+})();
+</script>
+</body>
+</html>

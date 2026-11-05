@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 營收報表</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .ff { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); }
+  .ff label { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--on-ink-2, var(--zinc-700)); }
+  .ff .acset__in { width: 180px; height: 40px; }
+  .ff__clear { height: 40px; border: 0; padding: 0 var(--space-2); background: none; font: inherit; font-size: var(--text-md); font-weight: var(--font-semibold); color: var(--zinc-900); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .flow { margin-top: var(--space-10); }
+  .flow__h { font-size: var(--text-md); font-weight: var(--font-bold); color: var(--zinc-800); }
+  .flow__n { margin-top: var(--space-1); font-size: 40px; font-weight: var(--font-bold); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+  .flow__n small { font-size: var(--text-lg); font-weight: var(--font-semibold); margin-right: 4px; letter-spacing: 0; }
+  .flow__bar { display: flex; height: 12px; margin-top: var(--space-4); border-radius: 6px; overflow: hidden; background: var(--zinc-200); }
+  .flow__bar span { display: block; height: 100%; }
+  .flow__got { background: var(--zinc-900); }
+  .flow__owe { background: var(--zinc-300); }
+  .flow__late { background: var(--error-700); }
+  .flow__keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-4); }
+  .key { display: flex; flex-direction: column; gap: 2px; padding-left: var(--space-3); border-left: 3px solid var(--zinc-900); }
+  .key--owe { border-left-color: var(--zinc-300); }
+  .key--late { border-left-color: var(--error-700); }
+  .key__t { font-size: var(--text-md); color: var(--zinc-700); }
+  .key__v { font-size: var(--text-xl); font-weight: var(--font-bold); font-variant-numeric: tabular-nums; }
+  .key--late .key__v { color: var(--error-700); }
+  .key a { font-size: var(--text-md); font-weight: var(--font-semibold); color: var(--zinc-900); text-underline-offset: 3px; }
+  .cash { display: flex; gap: var(--space-2); margin-top: var(--space-6); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--zinc-100); font-size: var(--text-base); color: var(--zinc-800); line-height: 1.6; }
+  .cash svg { flex: none; margin-top: 4px; }
+  .cash b { font-variant-numeric: tabular-nums; }
+  .grp__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-12); padding-bottom: var(--space-3); border-bottom: 1px solid var(--zinc-900); }
+  .grp__head h2 { font-size: var(--text-2xl); font-weight: var(--font-bold); }
+  .seg { display: inline-flex; margin-left: auto; padding: 2px; border-radius: var(--radius-md); background: var(--zinc-200); }
+  .seg button { height: 32px; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-sm); background: none; font: inherit; font-size: var(--text-md); font-weight: var(--font-semibold); color: var(--zinc-700); cursor: pointer; }
+  .seg button[aria-pressed='true'] { background: #fff; color: var(--zinc-900); box-shadow: 0 1px 2px rgb(26 22 20 / 12%); }
+  .gt { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .gt th { padding: var(--space-3) var(--space-2); font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--zinc-600); text-align: right; border-bottom: 1px solid var(--zinc-200); }
+  .gt th:first-child, .gt td:first-child { text-align: left; padding-left: 0; }
+  .gt td { padding: var(--space-3) var(--space-2); text-align: right; border-bottom: 1px solid var(--zinc-200); font-size: var(--text-base); vertical-align: top; }
+  .gt td:first-child { width: 34%; }
+  .gt__name { font-weight: var(--font-bold); color: var(--zinc-900); text-decoration: none; }
+  .gt__name:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .gt__why { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--zinc-600); line-height: 1.5; }
+  .gt__bar { display: block; height: 4px; margin-top: 6px; border-radius: 2px; background: var(--zinc-200); overflow: hidden; }
+  .gt__bar span { display: block; height: 100%; background: var(--zinc-900); }
+  .gt__late { color: var(--error-700); font-weight: var(--font-semibold); }
+  .gt tfoot td { font-weight: var(--font-bold); border-bottom: 0; border-top: 1px solid var(--zinc-900); }
+  .gt td small { display: none; }
+  .empty { padding: var(--space-10) 0; font-size: var(--text-base); color: var(--zinc-700); }
+  .empty .btn { margin-left: var(--space-2); }
+  @media (max-width: 860px) {
+    .ff { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); flex: 1 1 100%; width: 100%; }
+    .ff .acset__in { width: 100%; height: 44px; }
+    .ff__clear { justify-self: start; }
+    /* a6.css 給帳單頁的「有下載圖示就不換行」也會套到這裡；這頁的工具列要換行 */
+    .tbar .tbar__in:has(.ff) { flex-wrap: wrap; }
+    .tbar .tbar__in:has(.ff) .tbar__act { flex: 1 1 100%; justify-content: space-between; }
+    .flow__n { font-size: 32px; }
+    .flow__keys { grid-template-columns: minmax(0, 1fr); }
+    .seg { margin-left: 0; }
+    .gt thead { display: none; }
+    .gt tr { display: grid; grid-template-columns: 1fr 1fr; gap: 4px var(--space-4); padding: var(--space-4) 0; border-bottom: 1px solid var(--zinc-200); }
+    .gt td { display: flex; justify-content: space-between; gap: var(--space-2); padding: 0; border: 0; text-align: right; }
+    .gt td:first-child { grid-column: 1 / -1; display: block; width: auto; margin-bottom: var(--space-1); }
+    .gt td small { display: inline; font-size: var(--text-sm); color: var(--zinc-600); }
+    .gt tfoot tr { border-top: 1px solid var(--zinc-900); border-bottom: 0; }
+    .gt tfoot td { border: 0; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>營收報表（#990 批 3）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然（specs/admin/finance/reports.md、rules/billing-rules）</th><th>產品現況（sitemap/admin/reports）</th><th>設計稿</th></tr></thead>
+    <tbody>
+      <tr><td>權限</td><td>view_reports（唯讀），不是 manage_finance</td><td>同</td><td>同；頁面上沒有任何寫入</td></tr>
+      <tr><td>篩選</td><td>日期範圍、分校、課程</td><td>日期區間（預設本月 1 號到今天）、分校、課程（可搜尋）、清除篩選</td><td>期間改成月份與「近三個月」（行政是按月對帳）；分校、課程照做，課程超過 8 項有搜尋；清除篩選只清分校與課程（同產品）</td></tr>
+      <tr><td>摘要</td><td>實收、退款（單獨列）、應收未收（逾期另標）</td><td>橘色開帳流向帶＋現金註腳</td><td>開場句先寫結論；流向條旁邊每段都寫字與金額（行政不用讀圖）；實收與退款放灰色註腳，寫明「不從實收扣掉、跟開帳是不同的一群帳單」</td></tr>
+      <tr><td>分組統計</td><td>分校、課程、月份</td><td>同，六欄；模糊桶（跨分校／跨課程／未分類）用 tooltip 說明</td><td>同；模糊桶的說明直接寫在那一列底下（不藏在 tooltip）；多一列「合計」證明小計加得回總計</td></tr>
+      <tr><td>匯出 CSV</td><td>有（依篩選匯出明細）</td><td>沒有（後端只有聚合端點，明細端點未派工）</td><td>下載圖示＋面板，標「新」</td></tr>
+      <tr><td>導覽</td><td>—</td><td>沒有任何連結</td><td>分校、月份的名字連到帳單頁；課程連到課程管理；「看逾期帳單」連到帳單頁（產品沒有，屬導覽補強，不標新）</td></tr>
+      <tr><td>預設期間</td><td>—</td><td>本月 1 號到今天（10/1 開頁時整頁是 0）</td><td>預設上個完整月（9 月）；「10 月（到今天）」照樣可選，可以看空狀態</td></tr>
+    </tbody>
+  </table>
+  <h3>不在前端加總</h3>
+  <p>規格的實作陷阱：摘要數字一律來自後端聚合端點。設計稿的數字是頁內合成的，只示範長相。</p>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, money, esc } = A2;
+  // ── 資料：拿 C.invoices 的 50 張當樣板，合成 7、8、9 月三個月的開帳（越舊的月份收得越齊）──
+  let r = 7;
+  const rnd = () => ((r = (r * 16807) % 2147483647) - 1) / 2147483646;
+  const courseOf = (label) => label.replace(/\s*[A-Z]\s*班$/, '').replace(/班$/, '');
+  const INV = [];
+  ['2026-07', '2026-08', '2026-09'].forEach((m, mi) => C.invoices.forEach((t, k) => {
+    const courses = [...new Set(t.items.filter((x) => x.type === 'tuition' || x.type === 'session_pack').map((x) => courseOf(x.label)))];
+    const campus = k % 13 === 5 ? '（跨分校）' : k % 4 === 3 ? '景美分校' : '文山旗艦校';
+    const course = courses.length === 0 ? '（未分類）' : courses.length > 1 ? '（跨課程）' : courses[0];
+    const total = Math.round(t.total * (0.85 + rnd() * 0.3) / 50) * 50;
+    let paid, late;
+    if (mi < 2) { paid = rnd() < 0.92 - mi * 0.08 ? total : rnd() < 0.5 ? Math.round(total / 2 / 50) * 50 : 0; late = paid < total; }
+    else { paid = t.status === 'paid' ? total : Math.min(total, Math.round(t.paid / 50) * 50); late = t.status === 'overdue' && paid < total; }
+    const payDay = String(Math.min(28, 8 + Math.floor(rnd() * 18))).padStart(2, '0');
+    INV.push({ m, issued: `${m}-21`, campus, course, courses, total, paid, owe: total - paid, late: late ? total - paid : 0, paidAt: paid ? (mi === 2 ? '2026-09-' + payDay : `2026-0${8 + mi}-${payDay}`) : '' });
+  }));
+  // 退款（負向收款）：只有幾筆，單獨列
+  const REFUND = [{ at: '2026-08-12', amt: 3600, campus: '文山旗艦校', course: '國小六年級英文' }, { at: '2026-09-05', amt: 4800, campus: '景美分校', course: '國三數學' }, { at: '2026-09-18', amt: 1200, campus: '文山旗艦校', course: '（未分類）' }];
+  const PERIOD = { '2026-09': ['9 月', '2026-09-01', '2026-09-30'], '2026-08': ['8 月', '2026-08-01', '2026-08-31'], '2026-07': ['7 月', '2026-07-01', '2026-07-31'], q: ['近三個月', '2026-07-01', '2026-09-30'], '2026-10': ['10 月（到今天）', '2026-10-01', C.TODAY] };
+  const COURSES = [...new Set(INV.flatMap((i) => i.courses))].sort();
+  const st = { p: '2026-09', campus: '', course: '', by: 'campus' };
+  const NT = (n) => `NT$ ${money(n)}`;
+  const hit = (i) => (!st.campus || i.campus === st.campus) && (!st.course || i.courses.includes(st.course) || i.course === st.course);
+  const inP = (d) => { const [, a, b] = PERIOD[st.p]; return d >= a && d <= b; };
+  const WHY = { '（跨分校）': '同一張帳單有兩個分校的課。不拆比例、也不重複算，自成一組，小計才加得回總計。', '（跨課程）': '同一張帳單有兩門以上的課（例如同時修數學和英文）。理由同上。', '（未分類）': '帳單上沒有任何課（例如只有講義費、餐費）。' };
+  const link = (by, k) => (by === 'course' && !WHY[k] ? 'courses.html' : 'billing.html');
+  const keyOf = (by, i) => (by === 'month' ? i.m : i[by]);
+  const mLabel = (m) => `${m.slice(0, 4)} 年 ${+m.slice(5)} 月`;
+
+  function render() {
+    const bills = INV.filter((i) => inP(i.issued) && hit(i));
+    const billed = bills.reduce((a, i) => a + i.total, 0), owe = bills.reduce((a, i) => a + i.owe, 0), late = bills.reduce((a, i) => a + i.late, 0);
+    const got = INV.filter((i) => i.paidAt && inP(i.paidAt) && hit(i)).reduce((a, i) => a + i.paid, 0);
+    const refs = REFUND.filter((x) => inP(x.at) && (!st.campus || x.campus === st.campus) && (!st.course || x.course === st.course));
+    const ref = refs.reduce((a, x) => a + x.amt, 0);
+    const name = PERIOD[st.p][0];
+    document.querySelector('.open__title').innerHTML = billed ? `${name}開帳 ${NT(billed)}，<br>還有 ${NT(owe)} 沒收到。` : `${name}還沒有開帳。`;
+    document.querySelector('.open__sub').textContent = billed ? `已收回 ${Math.round(((billed - owe) / billed) * 100)}%；沒收到的裡面，逾期 ${NT(late)}。` : '月繳帳單在每月 21 日開立。';
+    document.getElementById('clear').hidden = !(st.campus || st.course);
+    document.querySelectorAll('[data-by]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.by === st.by));
+    const main = document.getElementById('rep');
+    if (!billed) { main.innerHTML = `<p class="empty">這段期間沒有資料。換一個期間，或放寬分校與課程的篩選。<button class="btn btn--sm" type="button" data-p="2026-09">看 9 月</button></p>`; return; }
+    const pct = (n) => `${((n / billed) * 100).toFixed(1)}%`;
+    // 分組：一張帳單只進一組（模糊桶自成一組），小計加得回總計
+    const G = new Map();
+    const row = (k) => (G.has(k) ? G.get(k) : (G.set(k, { got: 0, ref: 0, billed: 0, owe: 0, late: 0 }), G.get(k)));
+    bills.forEach((i) => { const g = row(keyOf(st.by, i)); g.billed += i.total; g.owe += i.owe; g.late += i.late; });
+    INV.filter((i) => i.paidAt && inP(i.paidAt) && hit(i)).forEach((i) => (row(keyOf(st.by, i)).got += i.paid));
+    refs.forEach((x) => (row(st.by === 'month' ? x.at.slice(0, 7) : x[st.by]).ref += x.amt));
+    const keys = [...G.keys()].sort((a, b) => (st.by === 'month' ? b.localeCompare(a) : (WHY[a] ? 1 : 0) - (WHY[b] ? 1 : 0) || G.get(b).billed - G.get(a).billed));
+    const head = { campus: '分校', course: '課程', month: '月份' }[st.by];
+    const td = (v, lab, cls = '') => `<td${cls ? ` class="${cls}"` : ''}><small>${lab}</small>${v ? money(v) : '0'}</td>`;
+    main.innerHTML = `
+      <section class="flow" aria-labelledby="flow-h">
+        <p class="flow__h" id="flow-h">${name}開帳（看開帳日）</p>
+        <p class="flow__n"><small>NT$</small>${money(billed)}</p>
+        <div class="flow__bar" role="img" aria-label="已收回 ${pct(billed - owe)}，應收未收 ${pct(owe)}，其中逾期 ${pct(late)}"><span class="flow__got" style="width:${pct(billed - owe)}"></span><span class="flow__owe" style="width:${pct(owe - late)}"></span><span class="flow__late" style="width:${pct(late)}"></span></div>
+        <div class="flow__keys">
+          <p class="key"><span class="key__t">已收回 · ${pct(billed - owe)}</span><span class="key__v">${NT(billed - owe)}</span></p>
+          <p class="key key--owe"><span class="key__t">應收未收 · ${pct(owe)}</span><span class="key__v">${NT(owe)}</span><a href="billing.html">看還沒繳清的帳單</a></p>
+          <p class="key key--late"><span class="key__t">其中逾期 · ${pct(late)}</span><span class="key__v">${NT(late)}</span><a href="billing.html">看逾期帳單</a></p>
+        </div>
+      </section>
+      <p class="cash">${icon.info}<span>這段期間實收 <b>${NT(got)}</b>、退款 <b>${NT(ref)}</b>（退款單獨列，沒有從實收扣掉）。實收看收款日，跟上面看開帳日的是不同的一群帳單，兩個數字不能相除當收款率。</span></p>
+      <div class="grp__head"><h2>分組統計</h2></div>
+      <table class="gt">
+        <thead><tr><th>${head}</th><th>實收</th><th>退款</th><th>已開帳</th><th>應收未收</th><th>其中逾期</th></tr></thead>
+        <tbody>${keys.map((k) => { const g = G.get(k); return `<tr>
+          <td><a class="gt__name" href="${link(st.by, k)}">${st.by === 'month' ? mLabel(k) : esc(k)}</a>${WHY[k] ? `<span class="gt__why">${WHY[k]}</span>` : ''}${g.billed ? `<span class="gt__bar" aria-hidden="true"><span style="width:${(g.billed / billed) * 100}%"></span></span>` : ''}</td>
+          ${td(g.got, '實收')}${td(g.ref, '退款')}${td(g.billed, '已開帳')}${td(g.owe, '應收未收')}${td(g.late, '其中逾期', g.late ? 'gt__late' : '')}</tr>`; }).join('')}</tbody>
+        <tfoot><tr><td>合計</td>${td(got, '實收')}${td(ref, '退款')}${td(billed, '已開帳')}${td(owe, '應收未收')}${td(late, '其中逾期', late ? 'gt__late' : '')}</tr></tfoot>
+      </table>`;
+  }
+
+  shell({
+    page: 'reports',
+    title: '',
+    sub: ' ',
+    bar: `<div class="ff">
+        <label>期間<select class="acset__in" id="f-p">${Object.entries(PERIOD).map(([k, [l]]) => `<option value="${k}"${k === st.p ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label>分校<select class="acset__in" id="f-campus"><option value="">全部分校</option>${C.campuses.map((c) => `<option>${c}</option>`).join('')}</select></label>
+        <label>課程<select class="acset__in" id="f-course"><option value="">全部課程</option>${COURSES.map((c) => `<option>${c}</option>`).join('')}</select></label>
+        <button class="ff__clear" type="button" id="clear" hidden>清除篩選</button>
+      </div>
+      <div class="tbar__act"><span class="seg" role="group" aria-label="分組方式"><button type="button" data-by="campus">分校</button><button type="button" data-by="course">課程</button><button type="button" data-by="month">月份</button></span>
+        <button class="btn tbar__icon" type="button" popovertarget="rexp" aria-label="匯出" title="匯出"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v7.5M4.8 7l3.2 3.2L11.2 7M2.5 11.5v1.5a.5.5 0 00.5.5h10a.5.5 0 00.5-.5v-1.5"/></svg></button></div>
+      <div class="xp" id="rexp" popover aria-labelledby="rexp-h">
+        <div class="xp__head"><h2 class="xp__h" id="rexp-h">匯出明細</h2><span class="new">新</span><button class="xp__x" type="button" popovertarget="rexp" popovertargetaction="hide" aria-label="關閉">${icon.x}</button></div>
+        <div class="xp__body">
+          <div class="xp__f"><span class="xp__l">範圍</span><span class="xp__fixed" id="rexp-scope"></span></div>
+          <div class="xp__f"><span class="xp__l">欄位</span><span class="xp__fixed">日期、分校、課程、金額、類型（實收／退款）</span></div>
+          <div class="xp__f"><span class="xp__l">格式</span><span class="xp__fixed">CSV</span></div>
+          <div class="xp__foot"><button class="btn" type="button" popovertarget="rexp" popovertargetaction="hide">取消</button><button class="btn btn--cta" type="button" id="rexp-go">匯出</button></div>
+        </div>
+      </div>`,
+    phase: 2200,
+  }, `<div id="rep"></div>`);
+
+  const scope = () => [PERIOD[st.p][0], st.campus || '全部分校', st.course || '全部課程'].join(' · ');
+  const xp = document.getElementById('rexp');
+  xp.addEventListener('toggle', (e) => {
+    if (e.newState !== 'open') return;
+    document.getElementById('rexp-scope').textContent = scope();
+    if (matchMedia('(max-width: 860px)').matches) { xp.removeAttribute('style'); return; }
+    const b = document.querySelector('.tbar__icon[popovertarget="rexp"]').getBoundingClientRect();
+    Object.assign(xp.style, { position: 'fixed', left: Math.max(16, b.right - xp.offsetWidth) + 'px', top: b.bottom + 8 + 'px' });
+  });
+  document.getElementById('rexp-go').addEventListener('click', (e) => A2.act(e.currentTarget, { busy: '匯出中…', ok: `已匯出 ${scope()} 的明細（CSV）`, run: () => xp.hidePopover() }));
+  document.getElementById('f-p').addEventListener('change', (e) => { st.p = e.target.value; render(); });
+  document.getElementById('f-campus').addEventListener('change', (e) => { st.campus = e.target.value; render(); });
+  document.getElementById('f-course').addEventListener('change', (e) => { st.course = e.target.value; render(); });
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-by]'); if (b) { st.by = b.dataset.by; render(); }
+    const p = e.target.closest('[data-p]'); if (p) { st.p = p.dataset.p; document.getElementById('f-p').value = st.p; render(); }
+    if (e.target.closest('#clear')) { st.campus = ''; st.course = ''; document.getElementById('f-campus').value = ''; document.getElementById('f-course').value = ''; render(); }
+  });
+  render();
+})();
+</script>
+</body>
+</html>

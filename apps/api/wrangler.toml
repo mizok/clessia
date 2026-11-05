@@ -88,6 +88,9 @@ LINE_CLIENT_ID = "2011235423"
 # Google 登入（#1842，選用）：用戶端 ID 不是機密；密鑰 GOOGLE_CLIENT_SECRET 走 `wrangler secret put`。
 # 兩個都設了才掛 Google（socialProvidersFromEnv），只設這一個不會出 Google 鍵。
 GOOGLE_CLIENT_ID = "431302528123-2epjvjr9d84vv2irqu8j43j5dmhmf677.apps.googleusercontent.com"
+# 公開頁（試聽、報名、課程目錄）屬於哪個 org（#1125）；沒設、或對不到 organizations.slug → /api/public/* 一律 404。
+# 使用者 11-05 裁定開（#2311）。值要等於正式 DB 示範補習班的 organizations.slug（seed 是 demo）
+PUBLIC_ORG_SLUG = "demo"
 # 推播（#1661）：拿到 VAPID 金鑰後在這裡補兩行（非機密），私鑰與 CRON_SECRET 走 `wrangler secret put`。
 # 步驟見 kb/wiki/architecture/deploying.md「推播」一節。
 # VAPID_PUBLIC_KEY = "<generate-vapid-keys.ts 印出的公鑰>"

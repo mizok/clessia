@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 成績（家長端）</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .seg { display: inline-flex; border: 1px solid var(--zinc-300); border-radius: var(--radius-md); overflow: hidden; background: #fff; }
+  .seg button { height: 38px; padding: 0 var(--space-4); border: 0; background: #fff; font: inherit; font-size: var(--text-md); color: var(--zinc-900); cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--zinc-300); }
+  .seg button[aria-pressed='true'] { background: var(--zinc-900); color: #fff; font-weight: var(--font-semibold); }
+  .tfilter { height: 40px; }
+  .tfilter .dd, .tfilter select { height: 40px; min-width: 150px; }
+  .count { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3); margin-top: var(--space-6); font-size: var(--text-md); color: var(--zinc-600); }
+  .count button { border: 0; padding: 0; background: none; font: inherit; font-weight: var(--font-semibold); color: var(--zinc-900); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  /* 依課程一段：左欄課程名，右欄考試列 */
+  .grp { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: var(--space-2) var(--space-6); padding: var(--space-5) 0; border-bottom: 1px solid var(--surface-border); }
+  .grp__h { font-size: var(--text-lg); font-weight: var(--font-bold); }
+  .grp__h small { display: block; margin-top: 2px; font-size: var(--text-sm); font-weight: var(--font-medium); color: var(--zinc-600); }
+  .ex + .ex { margin-top: var(--space-1); }
+  .ex__b { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto 16px; align-items: center; gap: var(--space-3); width: 100%; min-height: 48px; padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-md); background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .ex__b:hover { background: var(--zinc-50); }
+  .ex__b:focus-visible { outline: 2px solid var(--zinc-900); outline-offset: 2px; }
+  .ex__b > svg:last-child { color: var(--zinc-600); transition: transform var(--transition-fast); }
+  .ex__b[aria-expanded='true'] { background: var(--zinc-100); border-radius: var(--radius-md) var(--radius-md) 0 0; }
+  .ex__b[aria-expanded='true'] > svg:last-child { transform: rotate(180deg); }
+  .ex__d { font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .ex__n { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-weight: var(--font-semibold); }
+  .ex__v { font-size: var(--text-xl); font-weight: var(--font-bold); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .ex__v small { font-size: var(--text-sm); font-weight: var(--font-medium); color: var(--zinc-600); }
+  .ex__v--fail { display: inline-flex; align-items: center; gap: 4px; color: var(--error-700); }
+  .ex__more { display: grid; gap: var(--space-1); padding: var(--space-2) var(--space-3) var(--space-3) calc(56px + var(--space-3) * 2); border-radius: 0 0 var(--radius-md) var(--radius-md); background: var(--zinc-100); font-size: var(--text-md); color: var(--zinc-800); }
+  .newtag { display: inline-flex; padding: 0 6px; border-radius: var(--radius-full); background: var(--zinc-900); color: #fff; font-size: var(--text-xs); font-weight: var(--font-bold); letter-spacing: 0.04em; line-height: 18px; }
+  .empty { padding: var(--space-10) 0; font-size: var(--text-base); color: var(--zinc-700); }
+  .empty button { margin-top: var(--space-3); }
+  @media (max-width: 860px) {
+    .tbar__in { gap: var(--space-2); }
+    .tfilter { flex: 1 1 0; min-width: 0; height: 44px; }
+    .tfilter .dd, .tfilter select { min-width: 0; }
+    .tfilter .dd, .tfilter select { width: 100%; height: 44px; }
+    .seg { flex: 1 1 100%; }
+    .seg button { flex: 1; height: 44px; padding: 0 var(--space-2); }
+    .grp { grid-template-columns: minmax(0, 1fr); }
+    .ex__b { grid-template-columns: minmax(0, 1fr) auto 16px; gap: 2px var(--space-3); padding: var(--space-2); }
+    .ex__d { grid-column: 1; grid-row: 2; }
+    .ex__v { grid-column: 2; grid-row: 1 / 3; }
+    .ex__b > svg:last-child { grid-column: 3; grid-row: 1 / 3; }
+    .ex__more { padding-left: var(--space-3); }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>成績 · 家長端（#990 批 5）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（specs/parent/grades.md）</th><th>產品現況（sitemap/parent/grades.md）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>孩子</td><td>—（共用切換器）</td><td>橘帶左上孩子徽章；切換孩子時清掉科目篩選（#703）</td><td>共用 <code>A2.kids</code>；切換後整頁重載，篩選自然歸零</td></tr>
+      <tr><td>頁首錨點</td><td>—（規格沒寫）</td><td>「N 筆新成績／過去 7 天內登錄」，算的是<b>登錄日</b>，不受篩選影響</td><td>保留並註記；標題改成回答家長最常問的一句：<b>最近一次考幾分</b></td></tr>
+      <tr><td>清單</td><td>按課程分組；日期、考試名稱、分數</td><td>依科目分組；分數／總分，不及格加警示圖示</td><td>照規格按<b>課程</b>（班）分組。不及格＝紅字＋警示圖示（不只靠顏色）</td></tr>
+      <tr><td>特殊狀態</td><td>缺考、補考用標籤</td><td>非 scored 時顯示狀態 chip（本機沒驗到）</td><td>缺考寫在分數欄位置；補考是考試名稱旁的中性標籤</td></tr>
+      <tr><td>NEW</td><td>7 天內新成績加 NEW 標籤</td><td>只有頁首錨點，清單沒有 NEW</td><td>照規格：近黑小標「NEW」（登錄日 7 天內；不用橘，橘是品牌色不是狀態）</td></tr>
+      <tr><td>篩選</td><td>課程（全部／特定）、學期（預設當學期）</td><td>科目下拉＋近1月／近3月／近半年／全部；<b>沒有學期</b></td><td>課程下拉（照規格，選項只列這個孩子有成績的課）＋學期下拉（照規格）＋期間切換（產品有、保留）</td></tr>
+      <tr><td>展開詳情</td><td>點考試展開，顯示考試描述</td><td>成績列是 <code>&lt;div&gt;</code>，<b>點不了</b>（規格與產品不一致，列給計畫席）</td><td>照規格：列內展開，一次一筆；顯示考試描述、滿分、登錄日</td></tr>
+      <tr><td>篩光了</td><td>—</td><td>「完全沒成績」與「被篩光」同一句話</td><td>分開：篩光時寫「目前的篩選下沒有成績」＋「清除篩選」</td></tr>
+      <tr><td>學校段考</td><td>資料依賴列了 school_scores</td><td>只有補習班考試</td><td>示範資料沒有學校段考，沒畫；要加時另成一組「學校段考」</td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>示範孩子林子晴三個班 9 場考試，頁內另合成一筆 48 分不及格（NEW）與一筆補考；張宇軒合成一筆缺考。</li>
+    <li>MVP 不做圖表（規格明寫），只列原始分數，不算平均。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, kids } = A2;
+  const kid = kids.active;
+  const cls = kid ? kid.enrollments.map((e) => e.classId) : [];
+  const DESC = { 第一次小考: '範圍：第一、二章。', 期中模擬考: '範圍：開學到第五章，比照學校段考題型。', 第三次小考: '範圍：第六章。', 隨堂測驗: '課堂最後 20 分鐘的小測驗。' };
+  // 這個孩子的成績；登錄日＝考試日 +2（示範資料沒有登錄日）
+  const recs = C.exams.filter((e) => cls.includes(e.classId) && e.scores[kid.id] != null)
+    .map((e) => ({ id: e.id, classId: e.classId, name: e.name, date: e.date, at: C.addDays(e.date, 2), score: e.scores[kid.id] }));
+  // ponytail: 頁內合成最壞情況（不及格＋NEW、補考、缺考）—— data.js 裡這三個孩子都沒有
+  if (kid && kid.id === 's5') recs.push({ id: 'x1', classId: 'c9', name: '隨堂測驗', date: '2026-09-29', at: '2026-09-30', score: 48 }, { id: 'x2', classId: 'c7', name: '第一次小考', makeup: true, date: '2026-08-13', at: '2026-08-14', score: 71 });
+  if (kid && kid.id === 's3') recs.push({ id: 'x3', classId: 'c10', name: '隨堂測驗', date: '2026-09-28', at: '2026-09-29', score: null });
+  recs.sort((a, b) => (a.date < b.date ? 1 : -1));
+  const isNew = (r) => r.at >= C.addDays(C.TODAY, -6);
+  const fresh = recs.filter(isNew).length;
+
+  let title = '成績';
+  if (kid) {
+    const last = recs.find((r) => r.score != null);
+    title = last ? `${kid.name}<br>最近一次 ${C.classById[last.classId].subject} ${last.score} 分。` : `${kid.name}<br>還沒有成績。`;
+  }
+  const st = { cls: '', term: 'now', period: 'all', open: null };
+  const PER = [['1', '近 1 月'], ['3', '近 3 月'], ['6', '近半年'], ['all', '全部']];
+  const mine = [...new Set(recs.map((r) => r.classId))];
+  shell({
+    role: 'parent', page: 'p-grades', child: true,
+    title, sub: kid && recs.length ? `${mine.length} 個班、${recs.length} 場考試。點一場看範圍與滿分。` : '',
+    stats: kid && recs.length ? [{ n: fresh, label: '新成績 · 過去 7 天登錄', unit: '筆' }] : [],
+    bar: kid ? `<label class="tfilter"><span class="sr">課程</span><select class="acset__in" id="cls"><option value="">全部課程</option>${mine.map((id) => `<option value="${id}">${C.classById[id].name}</option>`).join('')}</select></label>
+      <label class="tfilter"><span class="sr">學期</span><select class="acset__in" id="term"><option value="now">本學期（7/27 起）</option><option value="prev">上學期</option></select></label>
+      <div class="seg" role="group" aria-label="期間">${PER.map(([k, l]) => `<button type="button" data-p="${k}" aria-pressed="${k === st.period}">${l}</button>`).join('')}</div>` : '',
+    phase: 2600,
+  }, kids.gate(`<p class="count" id="count"></p><div id="list"></div>`));
+  if (!kid) return;
+
+  const exHtml = (r) => {
+    const v = r.score == null ? '<span class="ex__v"><span class="tag tag--quiet">缺考</span></span>'
+      : r.score < 60 ? `<span class="ex__v ex__v--fail">${icon.alert}${r.score}<small>／100</small></span>` : `<span class="ex__v">${r.score}<small>／100</small></span>`;
+    return `<div class="ex"><button class="ex__b" type="button" aria-expanded="${st.open === r.id}" aria-controls="e-${r.id}" data-e="${r.id}">
+      <span class="ex__d">${md(r.date)}</span><span class="ex__n">${r.name}${r.makeup ? '<span class="tag tag--quiet">補考</span>' : ''}${isNew(r) ? '<span class="newtag">NEW</span>' : ''}</span>${v}${icon.down}</button>
+      <div class="ex__more" id="e-${r.id}"${st.open === r.id ? '' : ' hidden'}>
+        <span>${DESC[r.name] || '沒有考試說明。'}</span>
+        <span>${r.score == null ? '這場沒有成績：缺考。要補考請聯絡補習班。' : `${r.score < 60 ? '不及格（60 分及格）。' : ''}滿分 100 分。`}</span>
+        <span>${md(r.at)} 登錄 · ${C.classById[r.classId].teacher} 老師</span></div></div>`;
+  };
+  function render() {
+    const from = st.period === 'all' ? '' : C.addDays(C.TODAY, -30 * +st.period);
+    const hit = st.term === 'prev' ? [] : recs.filter((r) => (!st.cls || r.classId === st.cls) && r.date >= from);
+    const filtered = st.cls || st.term !== 'now' || st.period !== 'all';
+    document.getElementById('count').innerHTML = filtered ? `<span>${hit.length} 場考試</span><button type="button" data-clear>清除篩選</button>` : '';
+    if (!recs.length) { document.getElementById('list').innerHTML = '<p class="empty">還沒有任何成績。考試成績登錄之後會出現在這裡。</p>'; return; }
+    if (!hit.length) { document.getElementById('list').innerHTML = '<div class="empty"><p>目前的篩選下沒有成績。</p><button class="btn" type="button" data-clear>清除篩選</button></div>'; return; }
+    const groups = [...new Set(hit.map((r) => r.classId))];
+    document.getElementById('list').innerHTML = groups.map((id) => {
+      const c = C.classById[id], rs = hit.filter((r) => r.classId === id);
+      return `<section class="grp"><h2 class="grp__h">${c.name}<small>${c.teacher} 老師 · ${rs.length} 場</small></h2><div>${rs.map(exHtml).join('')}</div></section>`;
+    }).join('');
+  }
+  render();
+
+  const sel = (id, k) => document.getElementById(id).addEventListener('change', (e) => { st[k] = e.target.value; st.open = null; render(); });
+  sel('cls', 'cls'); sel('term', 'term');
+  document.addEventListener('click', (e) => {
+    const p = e.target.closest('[data-p]');
+    if (p) { st.period = p.dataset.p; document.querySelectorAll('[data-p]').forEach((x) => x.setAttribute('aria-pressed', x === p)); render(); return; }
+    if (e.target.closest('[data-clear]')) {
+      Object.assign(st, { cls: '', term: 'now', period: 'all', open: null });
+      document.getElementById('cls').value = ''; document.getElementById('term').value = 'now';
+      document.getElementById('cls').dispatchEvent(new Event('change')); document.getElementById('term').dispatchEvent(new Event('change'));
+      document.querySelectorAll('[data-p]').forEach((x) => x.setAttribute('aria-pressed', x.dataset.p === 'all'));
+      render(); return;
+    }
+    const b = e.target.closest('[data-e]');
+    if (b) { st.open = st.open === b.dataset.e ? null : b.dataset.e; render(); document.querySelector(`[data-e="${b.dataset.e}"]`).focus(); }
+  });
+})();
+</script>
+</body>
+</html>

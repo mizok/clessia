@@ -5,6 +5,7 @@ import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageService } from 'primeng/api';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { BillingPeriodsService, type BillingPeriod } from '@core/billing-periods.service';
@@ -19,7 +20,7 @@ import { BillingPeriodsService, type BillingPeriod } from '@core/billing-periods
 @Component({
   selector: 'app-billing-period-form-dialog',
   standalone: true,
-  imports: [FormsModule, ButtonModule, InputTextModule, DatePickerModule],
+  imports: [DialogFrameComponent, FormsModule, ButtonModule, InputTextModule, DatePickerModule],
   templateUrl: './billing-period-form-dialog.component.html',
 })
 export class BillingPeriodFormDialogComponent {

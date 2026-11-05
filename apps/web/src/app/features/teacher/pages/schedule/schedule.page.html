@@ -388,8 +388,10 @@
                   寫日誌
                 </button>
               }
-              @if (isTeacherLed() && canWriteContactBook(session)) {
-                <!-- 聯絡簿模式的班：同一個位置，開的是學生名單不是日誌表單 -->
+              @if (canWriteContactBook(session)) {
+                <!-- 聯絡簿模式的班：同一個位置，開的是學生名單不是日誌表單。
+                     不看 isTeacherLed()：聯絡簿不是點名動作，誰點名跟誰寫聯絡簿無關 ——
+                     綁在一起時行政負責點名的機構沒有人寫得了聯絡簿，卻照樣印「N 則未寫」（#2315） -->
                 <button
                   type="button"
                   class="min-h-11"

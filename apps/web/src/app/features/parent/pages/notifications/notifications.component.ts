@@ -13,6 +13,7 @@ import { PushService } from '@core/push.service';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { AnnouncementInboxComponent } from '@shared/components/announcement-inbox/announcement-inbox.component';
 import { PushSettingsComponent } from '../../shared/push-settings/push-settings.component';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 
 /**
  * 家長的通知中心 —— 收件匣本身在 `shared/components/announcement-inbox`，
@@ -24,7 +25,7 @@ import { PushSettingsComponent } from '../../shared/push-settings/push-settings.
  */
 @Component({
   selector: 'app-notifications',
-  imports: [PushSettingsComponent, AnnouncementInboxComponent],
+  imports: [DialogFrameComponent, PushSettingsComponent, AnnouncementInboxComponent],
   templateUrl: './notifications.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

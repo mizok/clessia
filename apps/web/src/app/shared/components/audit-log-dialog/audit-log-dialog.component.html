@@ -1,26 +1,12 @@
-<!-- A6 `.acset`（courses.html 操作紀錄）：h2 當對話框可及名稱；form-dialog--a6 給圓角 8、手機灰底、內容區內距歸 0 -->
-<div class="form-dialog form-dialog--a6">
-  <div class="dialog-header-inline">
-    <div class="dialog-header-inline__content">
-      <h2 appDialogTitle class="dialog-header-inline__title">操作紀錄</h2>
-    </div>
-    <button
-      type="button"
-      class="dialog-header-inline__close size-11 wide:size-10"
-      aria-label="關閉"
-      (click)="cancel()"
-    >
-      <i class="pi pi-times" aria-hidden="true"></i>
-    </button>
-  </div>
-
+<!-- A6 `.acset`（courses.html 操作紀錄）：共用殼（#2290），內距照殼（A6 `.logwrap` 左右 24、底 24） -->
+<app-dialog-frame title="操作紀錄" (closed)="cancel()">
   <!--
   A6 `.logt`（courses.html 的操作紀錄，#2006）：四欄都顯示，**不收進展開箭頭** ——
   手機原本只剩「操作者」「時間」，「對象」「動作」藏在箭頭裡，使用者讀成「內容被切掉」。
   桌機一列四欄；手機一筆兩行（動作＋對象／操作者 · 時間）。底部留 24px（A6 `.logwrap`）。
   高度不寫死：彈窗的 max-height（扣鍵盤）與 `.p-dialog-content` 的捲動已經處理。
 -->
-  <div class="audit-log-dialog px-6 pb-6">
+  <div class="audit-log-dialog">
     @if (tabs().length > 0) {
       <p-tabs [value]="tabIndex()" (valueChange)="onTab($event)">
         <p-tablist>
@@ -132,4 +118,4 @@
       }
     </div>
   </div>
-</div>
+</app-dialog-frame>

@@ -1071,10 +1071,10 @@ describe('DashboardComponent（管理端）', () => {
       expect(el().querySelector('app-page-actions')!.textContent).toContain('櫃台代刷到班');
     });
 
-    /** #2037（使用者 10-24）：不要 inline 展開，改彈窗；手機置中、桌機一般對話框 */
+    /** #2037（使用者 10-24）：不要 inline 展開，改彈窗；#2290 起手機貼底、桌機置中 */
     describe('彈窗（#2037）', () => {
       const dialogEl = () =>
-        el().querySelector<HTMLDialogElement>('dialog[aria-labelledby="phone-leave-title"]')!;
+        el().querySelector<HTMLDialogElement>('dialog[data-testid="phone-leave-dialog"]')!;
       const panel = () => dialogEl().querySelector('app-phone-leave');
       let showModal: ReturnType<typeof vi.fn>;
       let close: ReturnType<typeof vi.fn>;
@@ -1088,7 +1088,7 @@ describe('DashboardComponent（管理端）', () => {
         Object.assign(d, { showModal, close });
       });
 
-      it('打開：內容放進原生 <dialog> 並 showModal（有遮罩、置中），不是頁內面板', () => {
+      it('打開：內容放進原生 <dialog> 並 showModal（有遮罩），不是頁內面板', () => {
         expect(panel()).toBeNull();
         component['openPhoneLeave']();
         fixture.detectChanges();
@@ -1098,7 +1098,18 @@ describe('DashboardComponent（管理端）', () => {
         expect(el().querySelectorAll('app-phone-leave').length).toBe(1);
       });
 
-      it('收起鈕關彈窗；Esc（瀏覽器發 close 事件）也關', () => {
+      it('共用殼：h2「登記請假」是彈窗的可及名稱，✕ 關彈窗（#2290）', () => {
+        component['openPhoneLeave']();
+        fixture.detectChanges();
+        const h2 = dialogEl().querySelector('h2')!;
+        expect(h2.textContent?.trim()).toBe('登記請假');
+        expect(dialogEl().getAttribute('aria-labelledby')).toBe(h2.id);
+        dialogEl().querySelector<HTMLButtonElement>('button[aria-label="關閉"]')!.click();
+        fixture.detectChanges();
+        expect(close).toHaveBeenCalledTimes(1);
+      });
+
+      it('✕（原本的收起）關彈窗；Esc（瀏覽器發 close 事件）也關', () => {
         component['openPhoneLeave']();
         fixture.detectChanges();
         fixture.debugElement.query(By.css('app-phone-leave')).componentInstance.closed.emit();

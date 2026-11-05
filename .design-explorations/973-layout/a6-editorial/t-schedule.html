@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 老師課表</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .week { display: flex; align-items: center; gap: var(--space-2); width: 100%; }
+  .week__days { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .week__d { flex: 1 0 64px; display: flex; flex-direction: column; align-items: center; gap: 1px; min-height: 52px; padding: 6px 4px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--zinc-700); font: inherit; cursor: pointer; }
+  .week__d b { font-size: var(--text-lg); color: var(--zinc-900); font-variant-numeric: tabular-nums; }
+  .week__d small { font-size: var(--text-xs); color: var(--zinc-600); }
+  .week__d[aria-current='true'] { border-bottom-color: var(--accent-vivid); font-weight: var(--font-semibold); }
+  .week__d:hover { background: var(--zinc-200); }
+  .week__nav { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--zinc-300); border-radius: var(--radius-md); background: #fff; cursor: pointer; }
+  .day__h { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+  .card { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: var(--space-2) var(--space-5); align-items: start; padding: var(--space-5) 0; border-bottom: 1px solid var(--zinc-200); }
+  .card[aria-current='true'] { outline: 2px solid var(--accent-vivid); outline-offset: 4px; border-radius: var(--radius-md); }
+  .card--next { margin-top: var(--space-4); padding: var(--space-5); border: 1.5px solid var(--zinc-900); border-radius: var(--radius-lg); }
+  .card--off .card__cls, .card--off .card__t { color: var(--zinc-600); text-decoration: line-through; }
+  /* 使用者 10/03 08:4x：卡片內部一欄 —— 時間在上、課名在下；桌機動作鈕仍在右欄 */
+  .card { grid-template-columns: minmax(0, 1fr) auto; }
+  .card__tm { grid-column: 1; }
+  .card__act { grid-column: 2; grid-row: 1 / span 2; }
+  .card__t { font-size: var(--text-xl); font-weight: var(--font-bold); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  .card__state { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--zinc-600); font-weight: var(--font-medium); }
+  .card__cls { font-size: var(--text-lg); font-weight: var(--font-bold); }
+  .card__meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; font-size: var(--text-md); color: var(--zinc-700); }
+  .card__meta a { color: var(--zinc-900); text-underline-offset: 3px; }
+  .card__att { margin-top: var(--space-2); font-size: var(--text-md); color: var(--zinc-700); font-variant-numeric: tabular-nums; }
+  .card__att strong { color: var(--zinc-900); }
+  .card__todo { margin-top: var(--space-2); display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: var(--text-md); }
+  .card__act { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); min-width: 128px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; border: 1px solid var(--zinc-300); border-radius: var(--radius-sm); font-size: var(--text-xs); font-weight: var(--font-semibold); color: var(--zinc-800); line-height: 18px; }
+  .chip--sub { border-color: var(--zinc-900); }
+  .pend { display: inline-flex; align-items: center; gap: 6px; }
+  .pend::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-vivid); }
+  .chg li { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--zinc-200); }
+  .chg button { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 0; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; }
+  .chg button:hover b { text-decoration: underline; text-underline-offset: 3px; }
+  .empty-day { padding: var(--space-8) 0; color: var(--zinc-600); }
+  .ro { display: grid; gap: 0; }
+  .ro__r { display: flex; align-items: center; gap: var(--space-3); min-height: 52px; padding: 4px 0; border-bottom: 1px solid var(--zinc-200); }
+  .ro__n { flex: 1; min-width: 0; font-weight: var(--font-semibold); }
+  .ro__n small { display: block; font-weight: var(--font-normal); font-size: var(--text-sm); color: var(--zinc-600); }
+  .ro__tg { display: flex; gap: 4px; }
+  .ro__tg button { height: 40px; min-width: 56px; padding: 0 var(--space-3); border: 1px solid var(--zinc-300); border-radius: var(--radius-md); background: #fff; font: inherit; font-weight: var(--font-semibold); cursor: pointer; }
+  .ro__tg button[aria-pressed='true'] { background: var(--zinc-900); border-color: var(--zinc-900); color: #fff; }
+  .ro__tg button.is-absent[aria-pressed='true'] { background: #fff; border-color: var(--error-700); color: var(--error-700); box-shadow: inset 0 0 0 1px var(--error-700); }
+  .ro__sum { margin-bottom: var(--space-3); font-size: var(--text-md); color: var(--zinc-700); font-variant-numeric: tabular-nums; }
+  .vis { font-size: var(--text-sm); font-weight: var(--font-normal); color: var(--zinc-600); margin-left: 6px; }
+  @media (max-width: 860px) {
+    .card { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+    .card__act { grid-column: 1; grid-row: auto; }
+    .card__act { flex-direction: row; flex-wrap: wrap; min-width: 0; }
+    .card__act .btn { flex: 1 1 auto; height: 44px; }
+    .card__tm { display: flex; align-items: baseline; gap: var(--space-3); }
+    .week__d { flex-basis: 52px; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>老師課表（#990 批 4）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然（specs/teacher/schedule.md、attendance.md、rules/attendance-rules.md、flows/attendance.md）</th><th>產品現況（sitemap/teacher/schedule.md）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>版面</td><td>手機與桌機同構：一次一天；桌機多一條週條</td><td>橘帶＋週條＋一日一屏水平軌道（scroll-snap）</td><td>週條（手機也有、可橫捲）＋單日清單；手機首屏是「接下來那堂」一張卡。換日用週條，不靠滑動</td></tr>
+      <tr><td>老師儀表板</td><td>2026-09-03 刪除，由課表（今日流）取代</td><td>/teacher、/teacher/dashboard 都導到課表</td><td>開場句回答「下一堂是什麼、還有多久」；待點名、聯絡簿還沒寫放在開場數字</td></tr>
+      <tr><td>出勤模式</td><td>日到班（預設）：掃碼即算當天的課出席，沒有逐堂點名；隨堂模式才由老師逐堂點名。rules 寫分校層級（計畫席 10/02 裁定照 rules）</td><td>全機構一個值；只有老師負責點名時才有點名入口</td><td>依那堂課所在分校的模式：日到班的課是「到班名單」（誰掃了碼、誰還沒到，今天可以手動標「他到了」）；隨堂的課才有「開始點名／修改點名」。示範：文山＝日到班、景美＝隨堂（分校層級是新的）</td></tr>
+      <tr><td>點名面板</td><td>出席／缺席兩顆、零預選；標一半不准存；請假鎖住、當天可「他來了」</td><td>同（共用面板）</td><td>照做：還有人沒標時儲存鈕旁寫「還有 N 位沒標」；請假列鎖住、今天的課有「他來了」</td></tr>
+      <tr><td>補登窗</td><td>不是「僅限當天」，有補登期限</td><td>超過期限顯示「點名已截止」</td><td>示範補登窗 2 天：之前的課沒點顯示「點名已截止」（文字，不是灰掉的按鈕）</td></tr>
+      <tr><td>寫日誌／寫聯絡簿</td><td>依該班 usesContactBook 二選一；日誌一班一天一篇、開啟預載、兩欄寫明誰看得到；發布要二次確認、收不回</td><td>同</td><td>照做；聯絡簿列出還沒寫的學生，點名字寫一則</td></tr>
+      <tr><td>待處理標記</td><td>聯絡簿未填、成績未登錄</td><td>只有聯絡簿那一半（成績 API 尚無）</td><td>兩種都寫成字（「聯絡簿還差 6 則」「第四次小考成績未登錄」）；成績那一半標新</td></tr>
+      <tr><td>課務異動</td><td>卡片上標調課／停課</td><td>停課、代課 chip</td><td>卡片 chip 照做，另加「這週你的課務異動」一段，點一則跳到那天（新）</td></tr>
+    </tbody>
+  </table>
+  <h3>示範</h3>
+  <ul>
+    <li>今天 10/1（四）17:40。同一天兩個分校兩種模式：文山（日到班）看到班名單，景美（隨堂）要點名。</li>
+    <li>點名送出只做示範：toast＋那堂變「已點名」與到／假／缺。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, wd, toMin, esc, toast, act } = A2;
+  const TODAY = C.TODAY, NOW = C.NOW;
+  const ZH = '日一二三四五六';
+  const addD = (iso, n) => C.addDays(iso, n);
+  const monday = (iso) => { const d = new Date(iso + 'T00:00:00'); return addD(iso, -((d.getDay() + 6) % 7)); };
+  // 分校層級的出勤模式（rules/attendance-rules.md、計畫席 10/02 裁定 A）
+  const MODE = { [C.campuses[0]]: 'daily', [C.campuses[1]]: 'session' };
+  const MODE_L = { daily: '日到班', session: '隨堂點名' };
+  const WINDOW = 2; // 補登窗（天）—— 示範值
+  const cls = C.classes.slice(0, 5).map((c, i) => ({ ...c, campus: C.campuses[i < 3 ? 0 : 1], book: i < 2 }));
+
+  // 一週的課：週一到週六，每天 2–4 堂；本週放進代課、調課、停課、小考（最壞情況：跨分校、一天 4 堂）
+  const PLAN = [
+    [[0, '15:30', '17:00'], [3, '19:00', '20:30']],
+    [[1, '16:00', '17:30'], [4, '18:00', '19:30'], [2, '19:45', '21:15']],
+    [[0, '15:30', '17:00'], [3, '19:00', '20:30']],
+    [[0, '15:30', '17:00'], [3, '17:00', '18:30', 'sub'], [1, '19:00', '20:30', 'exam'], [4, '20:30', '21:30', 'moved']],
+    [[2, '16:00', '17:30'], [1, '18:00', '19:30'], [3, '19:45', '21:15']],
+    [[0, '09:30', '12:00', 'off'], [4, '13:30', '15:00']],
+  ];
+  const sess = {};
+  function week(mon) {
+    if (sess[mon]) return sess[mon];
+    const thisWeek = mon === monday(TODAY);
+    const out = PLAN.flatMap((day, di) => day.map(([ci, start, end, tag], k) => {
+      const c = cls[ci], date = addD(mon, di);
+      const ids = c.studentIds.length ? c.studentIds : C.students.slice(ci * 20, ci * 20 + 22).map((s) => s.id);
+      const s = { id: `${date}-${k}`, date, start, end, c, campus: c.campus, mode: MODE[c.campus], ids, tag: thisWeek ? tag : null };
+      const when = date < TODAY || (date === TODAY && end <= NOW) ? 'past' : date === TODAY && start <= NOW ? 'live' : 'future';
+      s.when = s.tag === 'off' ? 'off' : when;
+      const age = (new Date(TODAY) - new Date(date)) / 864e5;
+      // 過去的課：大多已點名；本週有一堂隨堂的課沒點（還在補登窗內）、一堂超過補登窗
+      s.taken = s.when === 'past' && !(thisWeek && s.mode === 'session' && (age === 1 || age === 3));
+      s.lock = s.when === 'past' && !s.taken && age > WINDOW;
+      const n = ids.length;
+      s.att = s.taken ? { p: n - 2, l: 1, a: 1 } : null;
+      s.bookLeft = c.book && s.when !== 'future' && s.when !== 'off' ? (date === TODAY ? 6 - k : date === addD(TODAY, -1) ? 2 : 0) : 0;
+      s.examTodo = s.tag === 'exam' ? false : thisWeek && date === addD(TODAY, -2) && k === 1;
+      return s;
+    }));
+    return (sess[mon] = out);
+  }
+  const st = { mon: monday(TODAY), day: TODAY };
+  const byId = (id) => week(st.mon).find((s) => s.id === id) || Object.values(sess).flat().find((s) => s.id === id);
+
+  const chips = (s) => [
+    s.tag === 'sub' ? '<span class="chip chip--sub">代課 · 代江承睿</span>' : '',
+    s.tag === 'moved' ? `<span class="chip">調課 · 從 ${md(addD(TODAY, -1))} 移來</span>` : '',
+    s.tag === 'exam' ? '<span class="chip">小考</span>' : '',
+    s.tag === 'off' ? '<span class="chip">停課 · 老師請假</span>' : '',
+  ].join('');
+  const stateText = (s) => s.when === 'off' ? '已停課' : s.when === 'live' ? `上課中 · 還有 ${toMin(s.end) - toMin(NOW)} 分下課`
+    : s.when === 'future' ? (s.date === TODAY ? `還有 ${toMin(s.start) - toMin(NOW)} 分開始` : '還沒開始') : '已上完';
+  function attLine(s) {
+    if (s.when === 'off' || s.when === 'future') return '';
+    if (s.mode === 'daily') { const a = s.date === TODAY ? Math.round(s.ids.length * 0.82) : s.ids.length - 1; return `<p class="card__att">${MODE_L.daily} · 掃碼 <strong>到 ${a}／${s.ids.length}</strong>${s.date === TODAY ? ` · 還沒到 ${s.ids.length - a - 1} · 請假 1` : ''}</p>`; }
+    if (s.taken) return `<p class="card__att">${MODE_L.session} · <strong>已點名</strong> · 到 ${s.att.p} · 假 ${s.att.l} · 缺 ${s.att.a}</p>`;
+    if (s.lock) return `<p class="card__att">${MODE_L.session} · 點名已截止（超過 ${WINDOW} 天，要改請找行政）</p>`;
+    return `<p class="card__att"><span class="pend">${MODE_L.session} · ${s.when === 'live' ? '還沒點名' : '漏點名，還來得及補'}</span></p>`;
+  }
+  function acts(s) {
+    if (s.when === 'off') return '';
+    const b = [];
+    if (s.mode === 'daily' && s.when !== 'future') b.push(`<button class="btn${s.when === 'live' ? ' btn--cta' : ''}" type="button" data-roster="${s.id}">到班名單</button>`);
+    if (s.mode === 'session' && (s.when === 'live' || (s.when === 'past' && !s.lock))) b.push(`<button class="btn${s.taken ? '' : ' btn--cta'}" type="button" data-roster="${s.id}">${s.taken ? '修改點名' : s.when === 'live' ? '開始點名' : '補點名'}</button>`);
+    if (s.c.book) { if (s.when !== 'future') b.push(`<button class="btn" type="button" data-book="${s.id}">寫聯絡簿${s.bookLeft ? `（還差 ${s.bookLeft}）` : ''}</button>`); }
+    else b.push(`<button class="btn" type="button" data-log="${s.id}">寫日誌</button>`);
+    return b.join('');
+  }
+  const todo = (s) => [s.bookLeft ? `<span class="pend">聯絡簿還差 ${s.bookLeft} 則</span>` : '', s.examTodo ? '<span class="pend">第四次小考成績未登錄<span class="new">新</span></span>' : ''].filter(Boolean).join('');
+  const card = (s, next) => `<article class="card${next ? ' card--next' : ''}${s.when === 'off' ? ' card--off' : ''}" id="c-${s.id}" data-id="${s.id}">
+      <div class="card__tm"><p class="card__t">${s.start}–${s.end}</p><span class="card__state">${stateText(s)}</span></div>
+      <div><p class="card__cls">${esc(s.c.name)}</p>
+        <p class="card__meta">${chips(s)}<span>${esc(s.campus)}</span><a href="t-students.html">${s.ids.length} 位學生</a></p>
+        ${attLine(s)}${todo(s) ? `<p class="card__todo">${todo(s)}</p>` : ''}</div>
+      <div class="card__act">${acts(s)}</div>
+    </article>`;
+
+  function render() {
+    const W = week(st.mon), list = W.filter((s) => s.date === st.day);
+    const days = [0, 1, 2, 3, 4, 5].map((i) => addD(st.mon, i));
+    document.getElementById('week').innerHTML = `<button class="week__nav" type="button" data-wk="-7" aria-label="上一週">${icon.left}</button>
+      <div class="week__days">${days.map((d) => { const n = W.filter((s) => s.date === d && s.when !== 'off').length; return `<button class="week__d" type="button" data-day="${d}"${d === st.day ? ' aria-current="true"' : ''}><small>週${ZH[new Date(d + 'T00:00:00').getDay()]}${d === TODAY ? ' · 今天' : ''}</small><b>${md(d)}</b><small>${n ? `${n} 堂` : '沒課'}</small></button>`; }).join('')}</div>
+      <button class="week__nav" type="button" data-wk="7" aria-label="下一週">${icon.right}</button>`;
+    const next = st.day === TODAY ? list.find((s) => s.when === 'live' || s.when === 'future') : null;
+    const rest = list.filter((s) => s !== next);
+    document.getElementById('day').innerHTML = `
+      <div class="sec__head day__h"><h2 class="sec__title">${md(st.day)}（${ZH[new Date(st.day + 'T00:00:00').getDay()]}）${st.day === TODAY ? ' 今天' : ''}</h2><span class="sec__count">${list.filter((s) => s.when !== 'off').length} 堂</span></div>
+      ${next ? card(next, true) : ''}
+      ${rest.length || next ? rest.map((s) => card(s)).join('') : '<p class="empty-day">這天沒有你的課。</p>'}`;
+  }
+
+  // 開場：下一堂是什麼、還有多久；待點名與聯絡簿放數字
+  const W0 = week(st.mon), todays = W0.filter((s) => s.date === TODAY && s.when !== 'off');
+  const nx = todays.find((s) => s.when === 'future'), live = todays.find((s) => s.when === 'live');
+  const toRoll = W0.filter((s) => s.mode === 'session' && s.when !== 'off' && !s.taken && !s.lock && s.when !== 'future').length;
+  const books = W0.reduce((a, s) => a + s.bookLeft, 0);
+  shell({
+    role: 'teacher', page: 't-schedule',
+    title: nx ? `下一堂 ${nx.start} ${esc(nx.c.name)}，<br>還有 ${toMin(nx.start) - toMin(NOW)} 分。` : '今天的課都上完了。',
+    sub: `${live ? `現在：${esc(live.c.name)}（${live.campus}）上課中 · ` : ''}今天 ${todays.length} 堂 · 本週 ${W0.filter((s) => s.when !== 'off').length} 堂`,
+    stats: [{ n: toRoll, label: '堂待點名（隨堂）' }, { n: books, label: '則聯絡簿還沒寫' }],
+    bar: `<div class="week" id="week"></div>`,
+    phase: 4100,
+  }, `<section class="sec" id="day"></section>
+    <details class="coll" style="margin-top:var(--space-10)"><summary class="coll__sum"><span class="coll__t">這週你的課務異動<span class="new">新</span></span><span class="coll__m">3 則</span></summary>
+      <div class="coll__body"><ul class="chg">
+        <li><button type="button" data-goto="${TODAY}-1"><b>代課</b><span>${md(TODAY)} 17:00 ${esc(cls[3].name)} · 代江承睿老師</span></button></li>
+        <li><button type="button" data-goto="${TODAY}-3"><b>調課</b><span>${esc(cls[4].name)} 從 ${md(addD(TODAY, -1))} 移到 ${md(TODAY)} 20:30</span></button></li>
+        <li><button type="button" data-goto="${addD(TODAY, 2)}-0"><b>停課</b><span>${md(addD(TODAY, 2))} 09:30 ${esc(cls[0].name)} · 老師請假</span></button></li>
+      </ul><p style="margin-top:var(--space-3)"><a class="sec__link" style="margin-left:0" href="t-notifications.html">全部通知${icon.right}</a></p></div>
+    </details>`);
+  render();
+
+  // ── 對話框（沿用 .acset.fdlg 的樣子）──
+  function dlg(title, sub, body, { goLabel, why, onGo, busy = '儲存中…', ok } = {}) {
+    const d = document.createElement('dialog');
+    d.className = 'acset fdlg';
+    d.setAttribute('aria-labelledby', 'td-t');
+    d.innerHTML = `<div class="acset__head"><div><h2 class="acset__t" id="td-t">${esc(title)}</h2>${sub ? `<p class="fdlg__sub">${esc(sub)}</p>` : ''}</div><button class="acset__x" type="button" aria-label="關閉" data-x>${icon.x}</button></div>
+      <div class="acset__body">${body}</div>
+      <div class="fdlg__foot"><p class="fdlg__why" aria-live="polite"></p><button class="btn" type="button" data-x>${goLabel ? '取消' : '關閉'}</button>${goLabel ? `<button class="btn btn--cta" type="button" data-go>${esc(goLabel)}</button>` : ''}</div>`;
+    document.body.append(d);
+    const go = d.querySelector('[data-go]'), w = d.querySelector('.fdlg__why');
+    const check = () => { if (!why || !go) return; const m = why(d); go.setAttribute('aria-disabled', m ? 'true' : 'false'); w.textContent = m || ''; };
+    d.addEventListener('click', (e) => {
+      if (e.target === d || e.target.closest('[data-x]')) d.close();
+      if (e.target.closest('[data-go]')) {
+        if (go.getAttribute('aria-disabled') === 'true') { w.classList.remove('is-shake'); void w.offsetWidth; w.classList.add('is-shake'); return; }
+        act(go, { busy, ok: typeof ok === 'function' ? ok(d) : ok, run: () => { onGo && onGo(d); d.close(); } });
+      }
+      check();
+    });
+    d.addEventListener('input', check);
+    d.addEventListener('close', () => setTimeout(() => d.remove(), 200));
+    check(); d.showModal();
+    return d;
+  }
+  const stu = (id) => C.studentById[id];
+
+  function roster(s) {
+    const isToday = s.date === TODAY;
+    if (s.mode === 'daily') {
+      // 日到班：掃碼就算到，沒有逐堂點名；今天的課老師可以手動標「他到了」（rules：老師限自己任課、限當天）
+      const arrived = s.ids.slice(0, Math.round(s.ids.length * 0.82));
+      const rows = s.ids.map((id, i) => {
+        const leave = i === s.ids.length - 1, came = arrived.includes(id);
+        const meta = leave ? '請假' : came ? `${String(16 + (i % 2)).padStart(2, '0')}:${String(10 + i * 2).slice(-2)} 掃碼到` : isToday ? '還沒到' : '當天到班（掃碼）';
+        return `<div class="ro__r"><p class="ro__n">${esc(stu(id).name)}<small>${meta}</small></p>${!leave && !came && isToday ? `<button class="btn btn--sm" type="button" data-came="${id}">他到了</button>` : ''}</div>`;
+      }).join('');
+      const d = dlg('到班名單', `${md(s.date)} ${s.start} ${s.c.name} · ${s.campus} · 日到班：掃碼就算今天的課都到了`, `<p class="ro__sum">到 ${arrived.length}／${s.ids.length} · 請假 1</p><div class="ro">${rows}</div>`);
+      d.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-came]'); if (!b) return;
+        act(b, { busy: '記錄中…', ok: `已記 ${stu(b.dataset.came).name} ${NOW} 到班`, run: () => { b.closest('.ro__r').querySelector('small').textContent = `${NOW} 到班（老師標記）`; b.remove(); } });
+      });
+      return;
+    }
+    // 隨堂點名：出席／缺席零預選；標一半不准存；請假鎖住，今天的課可「他來了」
+    const leaveId = s.ids[s.ids.length - 1];
+    const rows = s.ids.map((id) => id === leaveId
+      ? `<div class="ro__r" data-sid="${id}" data-leave><p class="ro__n">${esc(stu(id).name)}<small>請假 · 不需點名</small></p>${isToday ? '<button class="btn btn--sm" type="button" data-back>他來了</button>' : ''}</div>`
+      : `<div class="ro__r" data-sid="${id}"><p class="ro__n">${esc(stu(id).name)}</p><div class="ro__tg" role="group" aria-label="${esc(stu(id).name)} 的出缺席"><button type="button" data-v="p" aria-pressed="${s.taken}">出席</button><button type="button" class="is-absent" data-v="a" aria-pressed="false">缺席</button></div></div>`).join('');
+    const d = dlg(s.taken ? '修改點名' : '點名', `${md(s.date)} ${s.start}–${s.end} ${s.c.name} · ${s.campus} · 隨堂點名`, `<p class="ro__sum" id="ro-sum"></p><div class="ro">${rows}</div>`, {
+      goLabel: '儲存點名', busy: '儲存中…',
+      why: (d) => { const left = d.querySelectorAll('.ro__r:not([data-leave]) .ro__tg:not(:has([aria-pressed="true"]))').length; d.querySelector('#ro-sum').textContent = `已標 ${d.querySelectorAll('.ro__tg:has([aria-pressed="true"])').length}／${d.querySelectorAll('.ro__tg').length}`; return left ? `還有 ${left} 位沒標` : ''; },
+      ok: (d) => { const p = d.querySelectorAll('[data-v="p"][aria-pressed="true"]').length, a = d.querySelectorAll('[data-v="a"][aria-pressed="true"]').length; return `已點名 ${s.c.name}：到 ${p} · 假 ${d.querySelectorAll('[data-leave]').length} · 缺 ${a}`; },
+      onGo: (d) => { s.taken = true; s.att = { p: d.querySelectorAll('[data-v="p"][aria-pressed="true"]').length, l: d.querySelectorAll('[data-leave]').length, a: d.querySelectorAll('[data-v="a"][aria-pressed="true"]').length }; render(); },
+    });
+    d.addEventListener('click', (e) => {
+      const t = e.target.closest('.ro__tg button');
+      if (t) t.parentElement.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === t)));
+      const back = e.target.closest('[data-back]');
+      if (back) {
+        const r = back.closest('.ro__r'); r.removeAttribute('data-leave');
+        r.querySelector('small').textContent = `已銷假（${NOW}），請標記`; back.replaceWith(Object.assign(document.createElement('div'), { className: 'ro__tg', innerHTML: '<button type="button" data-v="p" aria-pressed="false">出席</button><button type="button" class="is-absent" data-v="a" aria-pressed="false">缺席</button>' }));
+        toast(`已銷假：${r.querySelector('.ro__n').firstChild.textContent}，今天的假取消`);
+      }
+    }, true);
+  }
+
+  const LOGS = {};
+  function classLog(s) {
+    const key = `${s.c.id}-${s.date}`, cur = LOGS[key] || { a: s.when === 'past' ? '分數的四則運算，講義 p.12–15。' : '', b: '', pub: false };
+    const d = dlg('教務日誌', `${md(s.date)} ${s.c.name} · 一班一天一篇（同一天兩堂寫的是同一篇）`, `
+      <div class="acset__f"><label class="acset__l" for="lg-a">教學紀錄<span class="vis">只有老師和行政看得到</span></label><textarea class="acset__in" id="lg-a" rows="4">${esc(cur.a)}</textarea></div>
+      <div class="acset__f"><label class="acset__l" for="lg-b">作業<span class="vis">發布後家長看得到</span></label><textarea class="acset__in" id="lg-b" rows="3" placeholder="例：講義 p.16 第 1–10 題">${esc(cur.b)}</textarea></div>
+      ${cur.pub ? '<p class="acset__hint">已發布給家長。</p>' : (cur.a || cur.b) && LOGS[key] ? '<button class="btn btn--sm" type="button" data-pub>發布給家長</button>' : ''}`, {
+      goLabel: '儲存', ok: '已儲存教務日誌',
+      onGo: (d) => { LOGS[key] = { a: d.querySelector('#lg-a').value, b: d.querySelector('#lg-b').value, pub: cur.pub }; },
+    });
+    d.addEventListener('click', (e) => {
+      if (!e.target.closest('[data-pub]')) return;
+      d.close();
+      dlg('發布給家長？', `${s.c.name} ${md(s.date)}`, '<p>發布後家長就會看到這篇的作業安排，收不回。教學紀錄不會給家長看。</p>', { goLabel: '發布', busy: '發布中…', ok: '已發布給家長', onGo: () => { LOGS[key].pub = true; } });
+    });
+  }
+
+  function contactBook(s) {
+    const left = s.ids.slice(0, s.bookLeft);
+    if (!left.length) { dlg('聯絡簿', `${md(s.date)} ${s.c.name}`, '<p>這天的聯絡簿都寫了。</p>'); return; }
+    const d = dlg('聯絡簿', `${md(s.date)} ${s.c.name} · 還沒寫的 ${left.length} 位，點名字寫一則`, `<div class="ro">${left.map((id) => `<div class="ro__r"><button class="btn btn--sm" type="button" data-w="${id}">${esc(stu(id).name)}</button><p class="ro__n"><small>還沒寫</small></p></div>`).join('')}</div>`);
+    d.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-w]'); if (!b) return;
+      d.close();
+      A2.form({ title: `聯絡簿 · ${stu(b.dataset.w).name}`, sub: `${md(s.date)} · 每生每天一則，不分科目`, fields: [{ k: 'txt', label: '今天的狀況', type: 'textarea', req: true, ph: '例：數學講義完成，訂正兩題。' }],
+        submit: '儲存', busy: '儲存中…', ok: `已寫 ${stu(b.dataset.w).name} 的聯絡簿`, apply: () => { s.bookLeft = Math.max(0, s.bookLeft - 1); s.ids = s.ids.filter((x) => x !== b.dataset.w).concat(b.dataset.w); render(); } });
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    const day = t.closest('[data-day]'); if (day) { st.day = day.dataset.day; render(); }
+    const wk = t.closest('[data-wk]'); if (wk) { st.mon = addD(st.mon, +wk.dataset.wk); st.day = st.mon; render(); }
+    const r = t.closest('[data-roster]'); if (r) roster(byId(r.dataset.roster));
+    const lg = t.closest('[data-log]'); if (lg) classLog(byId(lg.dataset.log));
+    const bk = t.closest('[data-book]'); if (bk) contactBook(byId(bk.dataset.book));
+    const g = t.closest('[data-goto]');
+    if (g) { const id = g.dataset.goto; st.mon = monday(TODAY); st.day = id.slice(0, 10); render(); const el = document.getElementById('c-' + id); if (el) { el.setAttribute('aria-current', 'true'); el.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); } }
+  });
+})();
+</script>
+</body>
+</html>

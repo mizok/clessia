@@ -138,18 +138,17 @@
 
 <!--
   學生面板（TST1）：外框照家長端「幫孩子請假」—— 原生 <dialog> + showModal()（Esc、焦點圈住、關掉後焦點
-  回到名字由瀏覽器做），桌機置中、≤860 底部面板，進出場走 overlay-motion。內容只在打開時存在，每次都是新的。
+  回到名字由瀏覽器做），桌機置中、≤860 底部面板，進出場走 overlay-motion。標頭／sticky 底部在共用殼（#2290）。內容只在打開時存在，每次都是新的。
 -->
 <dialog
   #panelDialog
-  class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(520px,calc(100%-32px))] flex-col overflow-visible rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-(--sheet-bg) open:flex"
-  aria-labelledby="student-panel-title"
+  class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(var(--dlg-w-md),calc(100%-32px))] rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-(--sheet-bg)"
+  role="dialog"
   (click)="onPanelBackdrop($event)"
   (close)="panel.set(null)"
 >
   @if (panel(); as p) {
     <app-student-panel
-      class="min-h-0 flex-1"
       [student]="p.student"
       [classId]="p.classId"
       [className]="p.className"

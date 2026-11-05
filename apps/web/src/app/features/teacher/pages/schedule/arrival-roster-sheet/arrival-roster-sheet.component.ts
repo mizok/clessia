@@ -6,12 +6,13 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { DatePipe, formatDate } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ButtonModule } from 'primeng/button';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { AttendanceService, type RosterStudent } from '@core/attendance.service';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 /** 開到班名單需要的資料 —— 課堂卡上都有 */
@@ -35,7 +36,7 @@ export interface ArrivalRosterInput {
  */
 @Component({
   selector: 'app-arrival-roster-sheet',
-  imports: [SkeletonComponent, ButtonModule, DatePipe],
+  imports: [DialogFrameComponent, SkeletonComponent, ButtonModule, DatePipe],
   templateUrl: './arrival-roster-sheet.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -46,6 +47,15 @@ export class ArrivalRosterSheetComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly input = this.config.data as ArrivalRosterInput;
+
+  /** 殼的副標（A6：`M/d 開始 班名 · 分校 · 日到班：…`） */
+  protected readonly sub = [
+    `${formatDate(this.input.eventDate, 'M/d', 'en-US')} ${this.input.startTime ?? ''} ${this.input.className}`,
+    this.input.campusName,
+    '日到班：掃碼就算今天的課都到了',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   protected readonly loading = signal(true);
   protected readonly loadError = signal(false);

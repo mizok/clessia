@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 餐費紀錄（家長端）</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .mf { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); flex: 1; min-width: 0; }
+  .mf__range { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--on-ink-2); font-size: var(--text-md); }
+  .mf__range input { height: 40px; }
+  .mf select { height: 40px; min-width: 9em; }
+  .tbar__act { margin-left: auto; }
+  .mo__sum { flex-wrap: wrap; }
+  .mo__state { font-size: var(--text-md); color: var(--zinc-700); font-weight: var(--font-medium); }
+  .mo__state a { color: var(--zinc-900); text-underline-offset: 3px; }
+  .ml { display: grid; }
+  .ml__r { display: grid; grid-template-columns: 128px 64px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-4); align-items: baseline; padding: var(--space-3) 0; border-bottom: 1px solid var(--zinc-200); font-size: var(--text-base); font-variant-numeric: tabular-nums; }
+  .ml__r:last-child { border-bottom: 0; }
+  .ml__note { color: var(--zinc-700); font-size: var(--text-md); }
+  .ml__amt { text-align: right; font-weight: var(--font-semibold); }
+  .ml__free { color: var(--zinc-600); font-weight: var(--font-medium); }
+  .ml__head { color: var(--zinc-600); font-size: var(--text-sm); font-weight: var(--font-semibold); }
+  .empty { margin-top: var(--space-8); padding: var(--space-6); border-radius: var(--radius-lg); background: var(--gray); }
+  .empty p:first-child { font-size: var(--text-lg); font-weight: var(--font-bold); }
+  .empty p + p { margin-top: var(--space-1); color: var(--zinc-700); }
+  @media (max-width: 860px) {
+    .ml__head { display: none; }
+    .ml__r { grid-template-columns: minmax(0, 1fr) auto; }
+    .ml__type { grid-row: 1; grid-column: 1; justify-self: end; margin-right: var(--space-2); color: var(--zinc-700); }
+    .ml__d { grid-row: 1; grid-column: 1; }
+    .ml__amt { grid-row: 1; grid-column: 2; }
+    .ml__note { grid-column: 1 / -1; }
+    .mf { width: 100%; }
+    .mf select { flex: 1; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>餐費紀錄 · 家長端（#990 批 5）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（specs/parent/meals.md、rules/meal-rules.md）</th><th>產品現況（sitemap/parent/meals.md）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>整頁</td><td>按月份分組、每月總額與明細</td><td><b>佔位頁</b>：只有一個 EmptyState「這個功能還在準備中」，不打 API、不顯示孩子</td><td>照規格畫完整頁（計畫席裁 A）。依孩子看（左上切換器），因為 meal_records 是每生每日一筆</td></tr>
+      <tr><td>餐別</td><td>spec：早／午／晚／點心，每筆一個餐別</td><td>—</td><td><b>rules 比 spec 新</b>：meal-rules §2「每生每日一筆」—— 所以一天只有一列。餐別保留成一欄（依上課時段：平日晚餐、週六午餐），若 schema 沒有餐別欄就拿掉這欄</td></tr>
+      <tr><td>收不收費</td><td>rules §3：每筆一個人工開關（請假後便當已送到，行政決定收不收）</td><td>—</td><td>不收的那筆金額寫「不收費」＋行政的備註，家長才知道為什麼那天沒算錢</td></tr>
+      <tr><td>結算</td><td>rules §2：月底把未結算的餐費併進帳單</td><td>—</td><td>每月標頭寫「已併入帳單」，展開後「併入 N 月的帳單」（連到繳費紀錄）或「還沒結算 · 月底併入帳單」</td></tr>
+      <tr><td>篩選</td><td>近 3 個月（預設）、近 6 個月、指定月份範圍</td><td>—</td><td>工具列下拉；選「指定範圍」才出現兩個原生月份欄位</td></tr>
+      <tr><td>匯出</td><td>頁面頂部右側、CSV、依篩選範圍、欄位：日期、餐別、金額、備註</td><td>產品沒有任何匯出功能</td><td>匯出圖示＋popup（跟營收報表同一種），標「新」</td></tr>
+      <tr><td>空狀態</td><td>無紀錄顯示空狀態</td><td>—</td><td>「這段期間沒有餐費紀錄」＋改成近 6 個月的捷徑（例：指定範圍選 2026-01～2026-03）</td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>手機首屏只回答「這個月吃了幾餐、多少錢」：開場色面的數字。</li>
+    <li>示範：國三的林子晴三個班排在週三、週四兩晚，每月 6–9 筆；資料從 4 月起，選近 6 個月可看到 6 段。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, wd, money, esc, kids } = A2;
+  const k = kids.active;
+  const PRICE = 80;
+  const ym = (iso) => iso.slice(0, 7);
+  const mLabel = (m) => `${+m.slice(0, 4) === +C.TODAY.slice(0, 4) ? '' : m.slice(0, 4) + ' 年 '}${+m.slice(5)} 月`;
+  const monthsBack = (n) => { const t = +C.TODAY.slice(0, 4) * 12 + +C.TODAY.slice(5, 7) - 1 - (n - 1); return `${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, '0')}`; };
+
+  // 餐記錄（頁內合成）：孩子上課的那幾天各一筆；報名起始日（2026-04 起示範）到今天
+  function records(kid) {
+    if (!kid) return [];
+    const days = kid.enrollments.map((e) => C.classById[e.classId]);
+    const wds = [...new Set(days.map((c) => c.weekday % 7))];
+    const out = [];
+    const start = new Date('2026-04-01T00:00:00'), end = new Date(C.TODAY + 'T00:00:00');
+    let i = 0;
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      if (!wds.includes(d.getDay())) continue;
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      i++;
+      if (i % 9 === 4) continue; // 有幾天到班但沒訂（訂餐與出席解耦）
+      const free = i % 17 === 5;
+      const r = { date: iso, type: d.getDay() === 6 ? '午餐' : '晚餐', amount: free ? 0 : i % 23 === 7 ? 90 : PRICE, note: '' };
+      if (free) r.note = '請假，行政決定不收';
+      else if (r.amount === 90) r.note = '當天換加大便當';
+      else if (i % 19 === 3) r.note = '下午才請假，便當已送達照收';
+      out.push(r);
+    }
+    return out;
+  }
+  const ALL = records(k);
+  const st = { p: '3', from: monthsBack(3), to: ym(C.TODAY) };
+  const range = () => st.p === 'custom' ? [st.from, st.to] : [monthsBack(+st.p), ym(C.TODAY)];
+  const thisMonth = ALL.filter((r) => ym(r.date) === ym(C.TODAY));
+  const sum = (rs) => rs.reduce((a, r) => a + r.amount, 0);
+  const nextM = (m) => `${(+m.slice(5) % 12) + 1} 月`;
+
+  function render() {
+    const [a, b] = range();
+    const rs = ALL.filter((r) => ym(r.date) >= a && ym(r.date) <= b);
+    const months = [...new Set(rs.map((r) => ym(r.date)))].sort().reverse();
+    const el = document.getElementById('meals');
+    if (!months.length) {
+      el.innerHTML = `<div class="empty"><p>這段期間沒有餐費紀錄</p><p>${mLabel(a)}～${mLabel(b)}沒有訂餐。</p><p style="margin-top:var(--space-3)"><button class="btn" type="button" data-p="6">看近 6 個月</button></p></div>`;
+      return;
+    }
+    el.innerHTML = `<div class="colls">${months.map((m, i) => {
+      const mr = rs.filter((r) => ym(r.date) === m);
+      const cur = m === ym(C.TODAY);
+      return `<details class="coll"${i === 0 ? ' open' : ''}><summary class="coll__sum mo__sum"><span class="coll__t">${mLabel(m)}</span>
+          <span class="mo__state">${cur ? '還沒結算 · 月底併入帳單' : '已併入帳單'}</span>
+          <span class="coll__m"><b>${money(sum(mr))} 元</b> · ${mr.filter((r) => r.amount).length} 餐</span></summary>
+        <div class="coll__body">${cur ? '' : `<p class="mo__state" style="margin:var(--space-2) 0">併入 <a href="p-payments.html">${nextM(m)}的帳單</a></p>`}
+          <div class="ml"><div class="ml__r ml__head"><span>日期</span><span>餐別</span><span>備註</span><span class="ml__amt">金額</span></div>
+          ${mr.slice().reverse().map((r) => `<div class="ml__r"><span class="ml__d">${md(r.date)}（${wd(r.date)}）</span><span class="ml__type">${r.type}</span><span class="ml__note">${esc(r.note)}</span><span class="ml__amt${r.amount ? '' : ' ml__free'}">${r.amount ? `${r.amount} 元` : '不收費'}</span></div>`).join('')}</div></div></details>`;
+    }).join('')}</div>`;
+    document.getElementById('xp-scope').textContent = `${mLabel(a)}～${mLabel(b)} · ${rs.length} 筆`;
+  }
+
+  const DL = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v7.5M4.8 7l3.2 3.2L11.2 7M2.5 11.5v1.5a.5.5 0 00.5.5h10a.5.5 0 00.5-.5v-1.5"/></svg>';
+  shell({
+    role: 'parent', page: 'p-meals', child: true,
+    title: k ? `${esc(k.name)} 這個月<br>${thisMonth.filter((r) => r.amount).length} 餐，${money(sum(thisMonth))} 元。` : '餐費紀錄',
+    sub: k ? `一個便當 ${PRICE} 元 · 每月月底併入帳單` : ' ',
+    phase: 6100,
+    bar: k ? `<div class="mf"><label><span class="sr">期間</span><select class="acset__in" id="f-p"><option value="3">近 3 個月</option><option value="6">近 6 個月</option><option value="custom">指定月份範圍</option></select></label>
+        <span class="mf__range" id="f-range" hidden><input class="acset__in" type="month" id="f-from" value="${st.from}" aria-label="從"> 到 <input class="acset__in" type="month" id="f-to" value="${st.to}" aria-label="到"></span></div>
+      <div class="tbar__act"><button class="btn tbar__icon" type="button" popovertarget="mexp" aria-label="匯出" title="匯出">${DL}</button></div>
+      <div class="xp" id="mexp" popover aria-labelledby="mexp-h">
+        <div class="xp__head"><h2 class="xp__h" id="mexp-h">匯出餐費</h2><span class="new">新</span><button class="xp__x" type="button" popovertarget="mexp" popovertargetaction="hide" aria-label="關閉">${icon.x}</button></div>
+        <div class="xp__body">
+          <div class="xp__f"><span class="xp__l">範圍</span><span class="xp__fixed" id="xp-scope"></span></div>
+          <div class="xp__f"><span class="xp__l">欄位</span><span class="xp__fixed">日期、餐別、金額、備註</span></div>
+          <div class="xp__f"><span class="xp__l">格式</span><span class="xp__fixed">CSV</span></div>
+          <div class="xp__foot"><button class="btn" type="button" popovertarget="mexp" popovertargetaction="hide">取消</button><button class="btn btn--cta" type="button" id="mexp-go">匯出</button></div>
+        </div>
+      </div>` : '',
+  }, kids.gate(`<div id="meals"></div>`));
+
+  if (!k) return;
+  render();
+  const xp = document.getElementById('mexp');
+  xp.addEventListener('toggle', (e) => {
+    if (e.newState !== 'open') return;
+    if (matchMedia('(max-width: 860px)').matches) { xp.removeAttribute('style'); return; }
+    const b = document.querySelector('.tbar__icon[popovertarget="mexp"]').getBoundingClientRect();
+    Object.assign(xp.style, { position: 'fixed', left: Math.max(16, b.right - xp.offsetWidth) + 'px', top: b.bottom + 8 + 'px' });
+  });
+  document.getElementById('mexp-go').addEventListener('click', (e) => A2.act(e.currentTarget, { busy: '匯出中…', ok: `已匯出 ${k.name} ${document.getElementById('xp-scope').textContent} 的餐費（CSV）`, run: () => xp.hidePopover() }));
+  const sel = document.getElementById('f-p');
+  const setP = (v) => { st.p = v; sel.value = v; document.getElementById('f-range').hidden = v !== 'custom'; render(); };
+  sel.addEventListener('change', () => setP(sel.value));
+  document.getElementById('f-from').addEventListener('change', (e) => { st.from = e.target.value || st.from; render(); });
+  document.getElementById('f-to').addEventListener('change', (e) => { st.to = e.target.value || st.to; render(); });
+  document.addEventListener('click', (e) => { const b = e.target.closest('[data-p]'); if (b) setP(b.dataset.p); });
+})();
+</script>
+</body>
+</html>

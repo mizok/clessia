@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 共用零件</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .kit { display: grid; gap: var(--space-4) var(--space-8); grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); margin-top: var(--space-5); }
+  .kit__cell { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); min-width: 0; }
+  .kit__cell > span { font-size: var(--text-md); font-weight: var(--font-semibold); color: var(--zinc-800); }
+  .kit__cell .in, .kit__cell .xp__in { width: 100%; height: 40px; }
+  .kit__out { font-size: var(--text-md); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .kit__row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .kit .fold__body, .kit details p { padding: var(--space-3) 0; font-size: var(--text-base); color: var(--zinc-700); }
+  .kit details { width: 100%; border-top: 1px solid var(--zinc-200); border-bottom: 1px solid var(--zinc-200); }
+  .kit summary { padding: var(--space-3) 0; font-weight: var(--font-semibold); cursor: pointer; }
+  .kdlg { width: min(420px, calc(100% - 32px)); padding: 0; border: 0; border-radius: var(--radius-xl); background: #fff; box-shadow: 0 24px 48px -16px rgb(26 22 20 / 40%); }
+  .kdlg::backdrop { background: rgb(26 22 20 / 40%); }
+  .kdlg__in { display: grid; gap: var(--space-4); padding: var(--space-6); }
+  .kdlg h2 { font-size: var(--text-xl); }
+  .kdlg__f { display: flex; justify-content: flex-end; gap: var(--space-2); }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>共用零件（#990 批 0）</h2>
+  <ul>
+    <li><strong>下拉</strong>：原生下拉留在頁面裡當資料來源但看不到；看到的是自己畫的按鈕＋清單。超過 8 項有搜尋。手機是深灰底部面板。</li>
+    <li><strong>回饋</strong>：寫入類按鈕先「處理中…」再 toast；可復原的 toast 上有「復原」。toast 蓋得過對話框。</li>
+    <li><strong>動效</strong>：所有浮層、對話框、底部面板都有進場與出場；收合段落的高度有過渡。系統「減少動態」時直接出現與消失。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/stress.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(() => {
+  const { C, icon } = A2;
+  const teachers = CLESSIA_STRESS.teachers.map((t) => t.name);
+  A2.shell({ page: 'kit', title: '共用零件', sub: '三條標準要用到的零件，後面 41 頁都套這一套。每一個都可以按。' }, `
+    <section class="sec">
+      <div class="sec__head"><h2 class="sec__title">下拉</h2></div>
+      <div class="kit">
+        <label class="kit__cell"><span>月份（3 項）</span><select class="in" id="k-month"><option>2026 年 10 月</option><option>2026 年 9 月</option><option>2026 年 8 月</option></select><output class="kit__out" for="k-month">目前：2026 年 10 月</output></label>
+        <label class="kit__cell"><span>代課老師（${teachers.length + 1} 項，有搜尋）</span><select class="in" id="k-teacher"><option value="">選一位老師</option>${teachers.map((t) => `<option>${t}</option>`).join('')}</select><output class="kit__out" for="k-teacher">還沒選</output></label>
+        <label class="kit__cell"><span>異動類型（有一項不能選）</span><select class="in" id="k-type"><option>全部異動</option><option>調課</option><option>代課</option><option>停課</option><option disabled>補課（這個月沒有）</option></select><output class="kit__out" for="k-type">目前：全部異動</output></label>
+      </div>
+      <p class="sec__lede">頁首右上的分校切換也換成同一種（黑底上維持文字式的樣子）。</p>
+    </section>
+
+    <section class="sec">
+      <div class="sec__head"><h2 class="sec__title">按了之後</h2></div>
+      <div class="kit">
+        <div class="kit__cell"><span>只有 toast</span><button class="btn" type="button" data-ok="已複製家長電話 0912-345-678">複製電話</button></div>
+        <div class="kit__cell"><span>寫入：處理中 → toast</span><button class="btn btn--cta" type="button" data-busy="儲存中…" data-ok="已儲存帳號設定">儲存</button></div>
+        <div class="kit__cell"><span>寫入後按鈕換字，可復原</span><button class="btn" type="button" data-busy="寄送中…" data-ok="已提醒王柏翰的家長" data-done="已提醒" data-undo>${icon.bell}提醒</button></div>
+        <div class="kit__cell"><span>打電話（demo 以記一筆聯絡表示）</span><button class="btn btn--cta" type="button" data-ok="已撥出 0912-345-678，記了一筆聯絡（17:42）" data-done="已聯絡 17:42">${icon.phone}打給家長</button></div>
+      </div>
+    </section>
+
+    <section class="sec">
+      <div class="sec__head"><h2 class="sec__title">彈出與收合</h2></div>
+      <div class="kit">
+        <div class="kit__cell"><span>浮層選單</span><button class="btn" type="button" popovertarget="k-pop">${icon.dots}更多動作</button></div>
+        <div class="kit__cell"><span>對話框（裡面再開下拉、再跳 toast）</span><button class="btn" type="button" data-open="k-dlg">停課…</button></div>
+        <div class="kit__cell"><span>帳號選單（手機是底部面板）</span><button class="btn" type="button" data-acct>打開帳號選單</button></div>
+        <div class="kit__cell"><details><summary>收合段落：今天的請假 2 人</summary><p>林語彤（家長請假）、陳品睿（生病）。展開與收起的高度有過渡。</p></details></div>
+      </div>
+    </section>
+    <div class="pop pop--menu" id="k-pop" popover><button type="button" data-ok="已開啟編輯資料（示範）">編輯資料</button><button type="button" data-ok="已開啟報名新班（示範）">${icon.plus}報名新班</button></div>
+    <dialog class="kdlg" id="k-dlg" aria-labelledby="k-dlg-t"><div class="kdlg__in">
+      <h2 id="k-dlg-t">停課：國三數學 D 班 10/2（五）</h2>
+      <label class="kit__cell"><span>原因</span><select class="in"><option>颱風</option><option>老師請假</option><option>場地</option><option>其他</option></select></label>
+      <div class="kdlg__f"><button class="btn" type="button" data-close>取消</button><button class="btn btn--cta" type="button" data-busy="停課中…" data-ok="已停課 1 堂，家長會收到通知" data-close-after>確定停課</button></div>
+    </div></dialog>`);
+
+  const out = (id, f) => { const s = document.getElementById(id); s.addEventListener('change', () => (s.closest('label').querySelector('output').textContent = f(s))); };
+  out('k-month', (s) => `目前：${s.value}`);
+  out('k-teacher', (s) => (s.value ? `已選：${s.value}` : '還沒選'));
+  out('k-type', (s) => `目前：${s.value}`);
+  const dlg = document.getElementById('k-dlg');
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-open]')) dlg.showModal();
+    if (e.target.closest('[data-close]') || e.target === dlg) dlg.close();
+    if (e.target.closest('[data-close-after]')) setTimeout(() => dlg.close(), 720);
+    if (e.target.closest('[data-acct]')) document.getElementById('acct').showPopover();
+    if (e.target.closest('#k-pop [data-ok]')) document.getElementById('k-pop').hidePopover();
+  });
+})();
+</script>
+</body>
+</html>

@@ -160,8 +160,15 @@ export const LIMITS = {
 
 /**
  * 每列歸一欄：`資料差` → `工具限制` → `已記錄偏離`（命中 deviations）→ `待修`。
- * deviation：{ status, detail?, a6?, app?（regex 字串）, kind?, pop?, widths?（只在這些寬度生效）, reason, source }。
+ * deviation：{ status, detail?, a6?, app?（regex 字串）, kind?, pop?, widths?（只在這些寬度生效）, delta?, reason, source }。
+ * `delta`（數字）：尺寸列「寬／高 前→後」只在 後−前＝delta（±1，四捨五入）時命中 —— regex 算不出差值，
+ * 只放過預期的那個差（例：貼底抽屜底部留白 24→16 的 −8），其他變化照報（#2322 二讀）。
  */
+const sizeDelta = (detail) => {
+  const m = /(?:寬|高) (-?\d+)→(-?\d+)/.exec(detail ?? '');
+  return m ? Number(m[2]) - Number(m[1]) : null;
+};
+
 export function classify(rows, deviations = [], width, site = []) {
   const hit = (r, d) =>
     d.status === r.status &&
@@ -171,7 +178,9 @@ export function classify(rows, deviations = [], width, site = []) {
     (!d.host || new RegExp(d.host).test(r.host ?? '')) &&
     (!d.detail || new RegExp(d.detail).test(r.detail)) &&
     (!d.a6 || new RegExp(d.a6).test(r.a6 ?? '')) &&
-    (!d.app || new RegExp(d.app).test(r.app ?? ''));
+    (!d.app || new RegExp(d.app).test(r.app ?? '')) &&
+    (d.delta === undefined ||
+      (sizeDelta(r.detail) !== null && Math.abs(sizeDelta(r.detail) - d.delta) <= 1));
   // 全站項（#1591）：每頁都有的同一組差異收成一條，不計入各頁待修
   const siteHits = new Map();
   const siteOf = (r) =>

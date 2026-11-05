@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 儀表板</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* 該到沒到：大列。每一列回答「誰、哪一堂、打給誰」，動作就在列上 */
+  /* #990：處理過的列（請假／代刷到班）留在原處、退成灰字，看得出剛剛做了什麼 */
+  .call--settled .call__name, .call--settled .call__cls { color: var(--zinc-600); }
+  .call { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr) auto; gap: var(--space-2) var(--space-8); align-items: center; padding: var(--space-6) 0; border-bottom: 1px solid var(--surface-border); }
+  .call__name { font-size: var(--text-3xl); font-weight: var(--font-bold); letter-spacing: -0.03em; line-height: 1.1; text-decoration: none; }
+  .call__name:hover { text-decoration: underline; text-underline-offset: 5px; text-decoration-thickness: 2px; }
+  .call__cls { font-size: var(--text-lg); font-weight: var(--font-semibold); font-variant-numeric: tabular-nums; }
+  .call__why { margin-top: var(--space-2); }
+  .call__parent { font-size: var(--text-md); color: var(--zinc-600); }
+  .call__tel { display: block; font-size: var(--text-xl); font-weight: var(--font-semibold); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--zinc-900); text-decoration-color: var(--zinc-300); text-underline-offset: 4px; }
+  .call__act { display: flex; gap: var(--space-2); }
+  .ok-note { padding: var(--space-5) 0; color: var(--zinc-700); }
+
+  .item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--space-3); align-items: center; padding: var(--space-3) 0; border-top: 1px solid var(--surface-border); }
+  .item__name { font-weight: var(--font-semibold); text-decoration: none; }
+  .item__name:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .item__sub { grid-column: 1; font-size: var(--text-md); color: var(--zinc-600); }
+  .item__right { grid-column: 2; grid-row: 1 / span 2; display: flex; align-items: center; gap: var(--space-3); font-variant-numeric: tabular-nums; }
+  .item__amt { font-weight: var(--font-semibold); }
+  .item__late { color: var(--error-700); font-weight: var(--font-semibold); }
+  .todo__total { display: flex; justify-content: space-between; padding-top: var(--space-3); border-top: 1px solid var(--zinc-900); font-size: var(--text-md); color: var(--zinc-600); }
+  .todo__total strong { color: var(--zinc-900); font-variant-numeric: tabular-nums; }
+
+  @media (max-width: 860px) {
+    /* 手機一張卡只講三件事：誰 → 哪堂、為什麼在這 → 打給誰。年級學校、電話號碼拿掉（按鈕直接撥） */
+    .call { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); padding: var(--space-5) 0; }
+    .call__name { font-size: var(--text-2xl); }
+    .call__cls { font-size: var(--text-base); }
+    /* 10/02：按鈕不再撐滿兩欄 —— 依內容寬、高 40px（使用者：按鈕不要這麼大） */
+    .call__act { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+    .call__act .btn { height: 40px; padding: 0 var(--space-4); font-size: var(--text-base); }
+    .item { min-height: 56px; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>儀表板 · 排版（A6 第六輪）</h2>
+<h3>10/02 修正：主要按鈕改橘、縮小</h3>
+<p>你說「太大的黑色區塊就是在說按鈕」「可以改橘色，但按鈕不要這麼大」。這頁的主要按鈕改成品牌橘實心（跟課表「停課」同一個橘、近黑字），手機上高度 48 → 40px、寬度依內容，不再撐滿；底部動作列的兩顆靠右、依內容寬。桌機同步改色（同一顆按鈕不該兩種寬度兩種顏色），尺寸沿用桌機原本的 36px。</p>
+
+<h3>這一輪（A6）</h3>
+<ul>
+  <li><strong>帳戶＋切換身分合成一個入口</strong>（五頁共用的頁首）：桌機右上「頭像＋林主任 · 管理員 ▾」；手機右上「頭像＋管理員 ▾」。點開最上面是人（大頭像、名字、email），接著灰底的「切換身分」（列出其他角色），再來「帳號設定」「登出」（紅字）。桌機是貼著入口的浮層，手機是底部抽屜（同一份內容）。網址加 <code>#account</code> 直接打開。</li>
+  <li><strong>示範使用者改成管理員＋任課老師＋家長</strong>（DIRECTION 原寫管理員＋家長），好讓「切換身分」列出兩個選項；只有一個角色的人，產品是只顯示徽章、不能切換，這一區就不會出現。</li>
+  <li><strong>點切換身分</strong> → 整面白的過場「正在切換到 家長…」，1.4 秒後變「已切換到 家長」。家長頁不在這一輪，所以留一顆「回到管理員」讓你回來。</li>
+  <li><strong>帳號設定</strong>：照產品的對話框欄位（顯示名稱、生日、Email、電話，每欄各自「儲存」；家長身份）。因為示範使用者已經是家長，家長身份那塊顯示「已啟用」（產品在已是家長時整塊不顯示 —— 這裡畫出來是為了讓你看到它的位置）。手機是從底部升起的全寬面板。</li>
+  <li><strong>頭像</strong>：產品是 jdenticon（依使用者 id 產生的幾何圖），設計稿用名字首字「林」代替。</li>
+  <li><strong>第四種面：灰</strong>（zinc-100 為主）＝次要分區與收起來的東西。這頁用在：色面下的工具列（取代 A5 的白底＋黑細線）、三列摘要（名冊／請假／逾期帳單 —— 每列一塊灰，點開後內容嵌在一塊白裡，取代原本的細線分隔）、手機底部動作列。灰上的字都是 zinc-600 以上；可點的灰列 hover 時底再深一階，停用仍是原本的半透明樣式 —— 灰不是停用。</li>
+  <li><strong>臨時狀況的入口</strong>：摘要列下面一列小字「臨時狀況？」＋三個連結 —— 颱風、停電整天停課／老師請假整週找人代課／班級改時段整期一起改，各連到課表頁的對應情境（<code>schedule.html#typhoon</code>、<code>#teacher-leave</code>、<code>#retime</code>）。放在最下面、用白面文字連結，不搶「該到沒到」；手機是三列 48px 高的連結。</li>
+  <li>儀表板的小跑馬燈這一輪沒做（DIRECTION 第 5 點標為可選）。</li>
+</ul>
+
+<h3>A5：黑色減量（這一輪改的）</h3>
+<p>你說手機版黑色塊面太多、桌機也略多。這一輪把「黑」的意思縮小：<strong>黑只用在全站導覽（頁首），以及暫時出現的操作</strong>（勾了課之後的批次動作列、步驟頁的底部按鈕列）。頁面自己的工具列和手機底部動作列改回白底，用一條近黑細線分區 —— 分區靠線，不靠整片黑。手機頁首只有字標那一列是黑，導覽那一列改成白底分頁。下面各段裡講到「黑工具列」「黑動作列」的地方，現在都是白底。</p>
+<h3>這一輪：拿掉說明按鈕、改用字</h3>
+<p>你說「這頁怎麼看」不該存在 —— 要用戶去點一顆說明很尷尬，好的畫面不需要它。所以按鈕與浮層整個拿掉，原本收在裡面的每一項不是讓畫面自己說清楚，就是刪掉；沒有搬去別處藏（沒有 ⓘ、沒有說明 tooltip、沒有註腳）。</p>
+<ul>
+  <li><strong>名冊名字旁的四種記號</strong>（實心／空心／紅空心／斜線）→ <strong>記號刪掉，只留字</strong>：「16:42 到」「還沒到」「該到沒到」（紅字）「請假」。字本來就在，記號是多餘的那一半。</li>
+  <li><strong>「為什麼有人該到沒到」（日到班：掃一次碼＝當天的課都算出席）</strong>→ <strong>刪掉</strong>。這是行政本來就知道的規則；每一列的紅色標籤已經寫了原因（「上課 40 分鐘了，還沒掃碼」「已下課，今天沒掃碼」）。</li>
+  <li><strong>名冊裡那條「現在」線的意思</strong>→ <strong>畫面本來就說了</strong>：線上寫著「現在 17:40 · 以下的課還沒開始」。說明刪掉。</li>
+</ul>
+
+  <p class="lede">打開就是一件事：誰該到沒到、打給誰。其他東西都還在，只是收成一列，點了才開。</p>
+  <h3>收了什麼、收到哪、怎麼叫出來</h3>
+  <ul>
+    <li><strong>色面的四個數字</strong>（已到／還沒到時間／該到沒到／請假）→ <strong>刪掉</strong>。「已到 45」大字句子裡講過，「該到沒到 2」就是下面那段的標題，「請假 2」在名冊摘要列上。色面只剩一句話，也因此變矮，「該到沒到」在 1440×900 首屏完整露出。</li>
+    <li><strong>「該到沒到」標題旁的灰字</strong>「課開始了還沒掃碼 · 先打給家長」→ 併進標題本身：「該到沒到的 2 位，先打給家長」。</li>
+    <li><strong>每一列的年級・學校</strong> → 刪掉（點名字進檔案）。<strong>長版原因</strong>「該到沒到 · 課 15:30 開始，已下課，今天沒有掃碼」→ 改成短版「已下課，今天沒掃碼」，桌機手機同一句。家長稱呼＋電話號碼桌機保留（櫃台用桌上電話撥）。</li>
+    <li><strong>到班名冊（70 人、6 章）</strong>→ 桌機也收成一列「今天的到班名冊 · 到 45／70 · 請假 2」，點開才是名冊。展開後章邊只留時間大字、班名、「到 17／18」；老師、上課狀態、「其中幾位晚上還有一堂」刪掉；名字旁「· 櫃台代刷」刪掉；「現在」線的長說明縮成「現在 17:40 · 以下的課還沒開始」。</li>
+    <li><strong>「其他要處理的」標題＋今天的請假＋逾期帳單</strong>→ 標題刪掉，兩塊各收成一列（「2 筆 · 已登記」「9 張 · NT$ 81,050」），跟名冊排在同一組摘要列。清單裡的年級刪掉。</li>
+    <li><strong>手機「學生到了沒掃碼、家長打來請假：」那一段＋兩顆按鈕</strong>→ 移到手機底部的黑色固定動作列（櫃台代刷／登記請假），永遠按得到。</li>
+  </ul>
+  <h3>黑色塊面用在哪、為什麼</h3>
+  <ul>
+    <li><strong>頁首</strong>（已有）：導覽。</li>
+    <li><strong>色面正下方的全寬黑工具列</strong>：今天的日期・時間・分校（這頁在講哪一天）＋櫃台兩個常用動作。它是「動手」的地方，所以跟頁首同色：黑＝你用來移動與動手的東西。五頁都在同一個位置。</li>
+    <li><strong>手機底部固定動作列</strong>：櫃台代刷、登記請假。停在 bottom 64px，讓出設計稿右下角的導覽膠囊。</li>
+    <li><strong>沒有變黑的</strong>：該到沒到的列、名冊、摘要列 —— 那些是內容，留在白面；紅色標籤只在白面。</li>
+  </ul>
+  <h3>第一次看的人會怎麼讀</h3>
+  <ul>
+    <li><strong>橘色大字</strong>：今天要來幾個人、到了幾個。</li>
+    <li><strong>黑色工具列</strong>：今天幾號、幾點、哪個分校；學生到了沒掃碼按「櫃台代刷到班」、家長打來按「登記請假」。</li>
+    <li><strong>「該到沒到的 2 位，先打給家長」</strong>：這頁唯一要你做的事。每列：名字 → 哪一堂、為什麼在這 → 家長電話 →「打電話」。</li>
+    <li><strong>下面三列摘要</strong>：名冊、請假、逾期帳單。右邊是摘要數字，要看才點開。</li>
+  </ul>
+  <h3>代價</h3>
+  <ul>
+    <li>名冊從「攤開的排版」變成「點了才開」—— A2 那份索引式版面的辨識度只在展開後才看得到。</li>
+    <li>名冊仍是排版不是表格：不能排序、不能多選。</li>
+    <li>色面沒有數字之後，「還沒到上課時間 21」這個數字只在展開名冊時看得到（現在線下面那幾章）。</li>
+    <li>流場持續流動（同 A3），捲過色面就停。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, days, money, phone, toMin, todayMeta } = A2;
+  const ex = C.todayExpected;
+  const n = (k) => ex.filter((e) => e.state === k).length;
+  const stu = (id) => C.studentById[id];
+  const todays = C.sessions.filter((s) => s.date === C.TODAY && s.status !== 'cancelled');
+  const sessOf = (cid) => todays.find((s) => s.classId === cid);
+  const ago = (t) => { const m = toMin(C.NOW) - toMin(t); return m >= 60 ? `${Math.floor(m / 60)} 小時 ${m % 60} 分` : `${m} 分鐘`; };
+
+  // 1 · 該到沒到：名字 → 哪堂＋短原因 → 家長 → 動作
+  const missing = ex.filter((e) => e.state === 'missing').sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+  const callRow = (e) => {
+    const s = stu(e.studentId), ss = sessOf(e.classIds[0]), p = s.parent;
+    const short = ss.status === 'completed' ? '已下課，今天沒掃碼' : `上課 ${ago(ss.start)} 了，還沒掃碼`;
+    return `<article class="call" data-sid="${s.id}">
+      <div><a class="call__name" href="student.html">${s.name}</a></div>
+      <div><p class="call__cls">${ss.start} ${ss.className}</p><p class="call__why"><span class="tag tag--error">${icon.alert}${short}</span></p></div>
+      <div class="only-d"><p class="call__parent">${p.name}（${p.relation}）</p><span class="call__tel">${phone(p.phone)}</span></div>
+      <div class="call__act"><button class="btn btn--cta" type="button" data-ok="已撥出 ${phone(p.phone)} 給${p.name}（${p.relation}），記了一筆聯絡（${C.NOW}）" data-done="已聯絡 ${C.NOW}">${icon.phone}<span class="only-d">打電話</span><span class="only-m">打給${p.name}（${p.relation}）</span></button><button class="btn" type="button" data-leave="${s.id}" data-from="${ss.start}" data-to="${ss.end}">${icon.leave}登記請假</button></div>
+    </article>`;
+  };
+
+  // 2 · 到班名冊：依「今天最早那堂」分章（收著，點開才看）
+  const slots = [...new Set(ex.map((e) => e.dueAt))].sort();
+  const rank = { missing: 0, arrived: 1, not_yet: 2, on_leave: 3 };
+  const chapter = (t) => {
+    const people = ex.filter((e) => e.dueAt === t).sort((a, b) => rank[a.state] - rank[b.state] || (a.arrivedAt || '').localeCompare(b.arrivedAt || ''));
+    const ss = todays.filter((s) => s.start === t);
+    const arrived = people.filter((e) => e.state === 'arrived').length;
+    return `<section class="chap chap--row" aria-label="${t} 開始的課">
+      <div class="chap__side">
+        <div class="chap__big">${t}</div>
+        ${ss.map((s) => `<p class="chap__name">${s.className}</p>`).join('')}
+        <p class="chap__tally">到 ${arrived}／${people.length}</p>
+      </div>
+      <ul class="roster roster--rows">${people.map((e) => `<li><a class="who${e.state === 'missing' ? ' who--missing' : ''}${e.state === 'on_leave' || e.state === 'not_yet' ? ' who--quiet' : ''}" href="student.html">
+        <span class="who__name">${stu(e.studentId).name}</span><span class="who__meta">${todayMeta(e).replace(/ · \d\d:\d\d 的課/, '').replace(' · 櫃台代刷', '')}</span></a></li>`).join('')}</ul>
+    </section>`;
+  };
+  let roster = '', placed = false;
+  slots.forEach((t) => {
+    if (!placed && t > C.NOW) { roster += `<div class="nowline" role="separator">現在 ${C.NOW}<span>以下的課還沒開始</span></div>`; placed = true; }
+    roster += chapter(t);
+  });
+
+  // 3 · 請假、逾期帳單
+  const leaves = C.leaves.filter((l) => l.date === C.TODAY);
+  const overdue = C.invoices.filter((i) => i.status === 'overdue').sort((a, b) => a.due.localeCompare(b.due));
+  const overdueSum = overdue.reduce((a, i) => a + i.balance, 0);
+
+  const main = `
+    <section class="sec" aria-labelledby="h-miss">
+      <div class="sec__head"><h2 class="sec__title" id="h-miss">${missing.length ? `該到沒到的 ${missing.length} 位，先打給家長` : '現在沒有該到沒到的人'}</h2></div>
+      ${missing.length ? missing.map(callRow).join('') : '<p class="ok-note">課開始後還沒掃碼的學生會出現在這裡，附家長電話。</p>'}
+    </section>
+
+    <div class="colls">
+      <details class="coll">
+        <summary class="coll__sum"><span class="coll__t">今天的到班名冊</span><span class="coll__m">到 ${n('arrived')}／${ex.length} · 請假 ${n('on_leave')}</span></summary>
+        <div class="coll__body">${roster}<p style="margin-top:var(--space-4)"><a class="sec__link" href="schedule.html">今天的課表${icon.right}</a></p></div>
+      </details>
+      <details class="coll">
+        <summary class="coll__sum"><span class="coll__t">今天的請假</span><span class="coll__m">${leaves.length} 筆 · 已登記</span></summary>
+        <div class="coll__body">${leaves.map((l) => { const s = stu(l.studentId); return `<div class="item"><a class="item__name" href="student.html">${s.name}</a><div class="item__right"><span class="sub">${l.via} · ${l.at}</span></div><span class="item__sub">${C.classById[l.classId].name} · ${l.reason}</span></div>`; }).join('')}</div>
+      </details>
+      <details class="coll">
+        <summary class="coll__sum"><span class="coll__t">逾期帳單</span><span class="coll__m">${overdue.length} 張 · NT$ ${money(overdueSum)}</span></summary>
+        <div class="coll__body">${overdue.slice(0, 4).map((i) => `<div class="item"><a class="item__name" href="billing.html">${i.studentName}</a><div class="item__right"><span class="item__amt">${money(i.balance)}</span><button class="btn btn--sm btn--touch" type="button" data-busy="寄送中…" data-ok="已用 LINE 提醒${i.studentName}的家長繳費" data-done="今天提醒過">${icon.bell}提醒</button></div><span class="item__sub"><span class="item__late">逾期 ${days(i.due, C.TODAY)} 天</span>${i.lastReminder ? ` · ${md(i.lastReminder)} 提醒過` : ' · 還沒提醒'}</span></div>`).join('')}
+          <p class="todo__total"><span>${overdue.length} 張 · <a href="billing.html">到帳單頁看全部</a></span><strong>NT$ ${money(overdueSum)}</strong></p></div>
+      </details>
+    </div>
+
+    <nav class="quick" aria-label="臨時狀況">
+      <span class="quick__t">臨時狀況？</span>
+      <a class="quick__a" href="schedule.html#typhoon">颱風、停電<span>整天停課</span>${icon.right}</a>
+      <a class="quick__a" href="schedule.html#teacher-leave">老師請假<span>整週找人代課</span>${icon.right}</a>
+      <a class="quick__a" href="schedule.html#retime">班級改時段<span>整期一起改</span>${icon.right}</a>
+    </nav>`;
+
+  shell({
+    page: 'dashboard',
+    // 10/02：主標換成機構名稱（使用者：「儀表板的主 banner 我希望可以換成補習班機構的名稱」）；
+    // 原本的狀態句降成副行，數字不丟；分校名放在機構名旁邊的小字，工具列就不再重複寫分校
+    title: `${C.org.name}<span class="open__branch">${C.campus.name}</span>`,
+    sub: `今天 ${ex.length} 人要來，已經到了 ${n('arrived')} 位。`,
+    bar: `<p class="tbar__txt"><strong>10 月 1 日 週四 ${C.NOW}</strong></p>
+      <div class="tbar__act"><button class="btn only-d" type="button" data-checkin>${icon.check}櫃台代刷到班</button><button class="btn only-d" type="button" data-leave>${icon.leave}登記請假</button></div>`,
+    dock: `<button class="btn" type="button" data-checkin>${icon.check}櫃台代刷</button><button class="btn btn--cta" type="button" data-leave>${icon.leave}登記請假</button>`,
+    phase: 0,
+  }, main);
+
+  // #990 批 0：寫入動作接上表單，完成後畫面就地更新（該到沒到的列、標題人數、已到人數）
+  let arrived = n('arrived');
+  const head = document.getElementById('h-miss'), sub = document.querySelector('.open__sub');
+  const recount = () => {
+    const left = document.querySelectorAll('.call:not(.call--settled)').length;
+    head.textContent = left ? `該到沒到的 ${left} 位，先打給家長` : '該到沒到的都處理好了';
+    sub.textContent = `今天 ${ex.length} 人要來，已經到了 ${arrived} 位。`;
+  };
+  const row = (sid) => document.querySelector(`.call[data-sid="${sid}"]`);
+  document.addEventListener('click', (e) => {
+    const lv = e.target.closest('[data-leave]');
+    if (lv) A2.forms.leave({ studentId: lv.dataset.leave || null, from: lv.dataset.from, to: lv.dataset.to, onDone: (sid) => {
+      const r = row(sid); if (!r) return;
+      r.classList.add('call--settled');
+      r.querySelector(".call__why").innerHTML = `<span class="tag tag--quiet">${icon.leave}已登記請假 · ${C.NOW}</span>`;
+      r.querySelector('.call__act').innerHTML = '';
+      recount();
+    } });
+    if (e.target.closest('[data-checkin]')) A2.forms.checkin({ onDone: (sid, v) => {
+      arrived += 1;
+      const r = row(sid);
+      if (r) { r.classList.add('call--settled'); r.querySelector('.call__why').innerHTML = `<span class="tag tag--ok">${icon.check}${v.t} 到班 · 櫃台代刷</span>`; r.querySelector('.call__act').innerHTML = ''; }
+      recount();
+    } });
+  });
+})();
+</script>
+</body>
+</html>

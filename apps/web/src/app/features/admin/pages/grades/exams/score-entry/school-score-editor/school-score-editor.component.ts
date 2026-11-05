@@ -222,15 +222,10 @@ export class SchoolScoreEditorComponent implements OnInit {
 
   protected openStudentDialog(student: SchoolExamStudent): void {
     const ref = this.dialogService.open(ScoreEditDialogComponent, {
-      width: '640px',
-      breakpoints: { '640px': '95%' },
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: 'body',
-      contentStyle: {
-        'max-height': 'calc(var(--window-height, 800px) * 0.85)',
-        overflow: 'auto',
-      },
       data: {
         examId: this.examId(),
         examSubjectId: this.exam().subjectId,

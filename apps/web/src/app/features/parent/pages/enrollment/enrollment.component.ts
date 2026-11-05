@@ -32,6 +32,7 @@ import {
   type RequestTagTone,
 } from '../../shared/request-row/request-row.component';
 import { effectiveFromSuffix } from '@shared/utils/schedule-effective.util';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 
 /**
  * 家長端報名申請（#1727 ③，A6 p-enrollment，設計稿 kb/wiki/specs/parent/applications.md）。
@@ -62,7 +63,13 @@ const PER = { monthly: '月', period: '期', session_pack: '堂數包' } as cons
 @Component({
   selector: 'app-enrollment',
   standalone: true,
-  imports: [PageOpenComponent, ChildScopeGateComponent, RequestRowComponent, RouterLink],
+  imports: [
+    DialogFrameComponent,
+    PageOpenComponent,
+    ChildScopeGateComponent,
+    RequestRowComponent,
+    RouterLink,
+  ],
   templateUrl: './enrollment.component.html',
 })
 export class EnrollmentComponent {

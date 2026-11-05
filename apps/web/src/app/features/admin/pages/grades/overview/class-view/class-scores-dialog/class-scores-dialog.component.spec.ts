@@ -112,6 +112,21 @@ describe('ClassScoresDialogComponent', () => {
    *
    * 這條測試釘住的是「兩軌都要有形狀訊號」。修好卻不釘住，它會再漂一次。
    */
+  // #2290：共用殼 —— 班名當 h2（可及名稱）、「國一 · 上限 20 人」當副標，按 ✕ 關閉
+  it('共用殼：班名 h2＋年級與上限副標，按關閉', async () => {
+    listMock.mockReturnValue(of({ data: [exam], meta: { total: 1 } }));
+    getClassExamStatsMock.mockReturnValue(of({ data: { ...stats, scores: [] } }));
+    fixture = TestBed.createComponent(ClassScoresDialogComponent);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('app-dialog-frame h2')?.textContent?.trim()).toBe('A班');
+    expect(el.querySelector('.dialog-header-inline__sub')?.textContent?.trim()).toBe(
+      '國一 · 上限 20 人',
+    );
+    el.querySelector<HTMLButtonElement>('.dialog-header-inline__close')!.click();
+    expect(closeMock).toHaveBeenCalled();
+  });
+
   it('不及格有形狀訊號（圖示＋字），不只顏色', async () => {
     listMock.mockReturnValue(of({ data: [exam], meta: { total: 1 } }));
     getClassExamStatsMock.mockReturnValue(

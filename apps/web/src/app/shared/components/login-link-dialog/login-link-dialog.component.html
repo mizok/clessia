@@ -1,18 +1,5 @@
-<div class="dialog-header-inline">
-  <div class="dialog-header-inline__content">
-    <span class="dialog-header-inline__title">帳號已建立</span>
-  </div>
-  <button
-    type="button"
-    class="dialog-header-inline__close size-11"
-    (click)="onHide()"
-    aria-label="關閉"
-  >
-    <i class="pi pi-times"></i>
-  </button>
-</div>
-
-<div class="login-link flex flex-col gap-4 p-4">
+<!-- 共用殼（#2290）：h2 當可及名稱，內距與底部照殼 -->
+<app-dialog-frame title="帳號已建立" (closed)="onHide()">
   <app-inline-notice severity="info" [detail]="noticeDetail()" [dismissible]="false" />
 
   <div
@@ -38,14 +25,15 @@
     </button>
   </div>
 
-  <div class="login-link__actions flex justify-end gap-2 print:hidden">
+  <ng-container dialogFoot>
     <p-button
+      class="print:hidden"
       label="列印給對方帶走"
       icon="pi pi-print"
       severity="secondary"
       [outlined]="true"
       (onClick)="print()"
     />
-    <p-button label="完成" (onClick)="onHide()" />
-  </div>
-</div>
+    <p-button class="print:hidden" label="完成" (onClick)="onHide()" />
+  </ng-container>
+</app-dialog-frame>

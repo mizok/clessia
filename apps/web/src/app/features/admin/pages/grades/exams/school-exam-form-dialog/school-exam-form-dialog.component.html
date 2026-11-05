@@ -1,21 +1,5 @@
-<div class="form-dialog">
-  <div class="dialog-header-inline">
-    <div class="dialog-header-inline__content">
-      <span class="dialog-header-inline__breadcrumb">學校考試</span>
-      <span class="dialog-header-inline__title">{{
-        isEditing() ? '編輯學校考試' : '新增學校考試'
-      }}</span>
-    </div>
-    <button
-      type="button"
-      class="dialog-header-inline__close size-11"
-      (click)="cancel()"
-      aria-label="關閉"
-    >
-      <i class="pi pi-times"></i>
-    </button>
-  </div>
-
+<!-- 共用殼（#2290）：麵包屑拿掉，標題已經講了是學校考試 -->
+<app-dialog-frame [title]="isEditing() ? '編輯學校考試' : '新增學校考試'" (closed)="cancel()">
   @if (isInitialLoading()) {
     <div class="flex items-center justify-center gap-2 p-8 text-sm text-zinc-500">
       <i class="pi pi-spinner pi-spin"></i>
@@ -159,24 +143,25 @@
         />
         <span class="mt-1 block text-xs text-zinc-500">若日期尚未確定可稍後再補</span>
       </div>
-
-      <!-- Footer -->
-      <div class="form-dialog__footer">
-        <p-button
-          label="取消"
-          [text]="true"
-          severity="secondary"
-          [disabled]="saving()"
-          (onClick)="cancel()"
-        />
-        <p-button
-          [label]="isEditing() ? '儲存' : '建立'"
-          [icon]="saving() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
-          [loading]="saving()"
-          [disabled]="!canSave()"
-          (onClick)="save()"
-        />
-      </div>
     </ng-container>
   }
-</div>
+  <!-- 底部列要在殼的最上層才投影得到；條件同上面表單那一支 -->
+  @if (!isInitialLoading() && !hasNoSchools()) {
+    <ng-container dialogFoot>
+      <p-button
+        label="取消"
+        [text]="true"
+        severity="secondary"
+        [disabled]="saving()"
+        (onClick)="cancel()"
+      />
+      <p-button
+        [label]="isEditing() ? '儲存' : '建立'"
+        [icon]="saving() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
+        [loading]="saving()"
+        [disabled]="!canSave()"
+        (onClick)="save()"
+      />
+    </ng-container>
+  }
+</app-dialog-frame>
