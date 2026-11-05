@@ -548,6 +548,7 @@ const listRoute = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -696,7 +697,7 @@ app.openapi(listRoute, async (c) => {
         .range(rangeFrom, rangeTo);
     });
     if (candidates.error) {
-      return c.json({ error: (candidates.error as Error).message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: (candidates.error as Error).message, code: 'DB_ERROR' }, 500);
     }
     type CandidateRow = { id: string; exam_date: string; scope?: Array<{ class_id: string }> };
     // 任期窗口（考試日落在那一班的任期內）是跨表的日期比較，embed 表達不了 ——
@@ -745,7 +746,7 @@ app.openapi(listRoute, async (c) => {
     );
     const failed = batches.find((batch) => batch.error);
     if (failed?.error) {
-      return c.json({ error: failed.error.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: failed.error.message, code: 'DB_ERROR' }, 500);
     }
     fetched = batches.flatMap((batch) => (batch.data ?? []) as ExamListRow[]);
   } else {
@@ -753,7 +754,7 @@ app.openapi(listRoute, async (c) => {
       .range(from, from + pageSize - 1)
       .order('exam_date', { ascending: isDateAsc, nullsFirst: false });
     if (result.error) {
-      return c.json({ error: result.error.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: result.error.message, code: 'DB_ERROR' }, 500);
     }
     fetched = (result.data ?? []) as unknown as ExamListRow[];
     count = result.count;
@@ -851,6 +852,7 @@ const todoCountRoute = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -863,7 +865,7 @@ app.openapi(todoCountRoute, async (c) => {
   // 這跟這支工單要修的「告警數字跟落地頁對不上」是同一族，順手收掉。
   const active = await loadActiveExams(supabase, orgId, getCampusScope(c), undefined);
   if (active.error) {
-    return c.json({ error: (active.error as Error).message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: (active.error as Error).message, code: 'DB_ERROR' }, 500);
   }
   const activeExams = active.exams;
   if (activeExams.length === 0) {
@@ -928,6 +930,7 @@ const todoByClassRoute = createRoute({
       description: '查詢失敗',
       content: { 'application/json': { schema: ErrorSchema } },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -957,7 +960,7 @@ app.openapi(todoByClassRoute, async (c) => {
 
   const active = await loadActiveExams(supabase, orgId, getCampusScope(c), campusId);
   if (active.error) {
-    return c.json({ error: (active.error as Error).message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: (active.error as Error).message, code: 'DB_ERROR' }, 500);
   }
   if (active.exams.length === 0) {
     return c.json({ data: [] }, 200);
@@ -1201,6 +1204,7 @@ const createRouteDef = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -1269,7 +1273,7 @@ app.openapi(createRouteDef, async (c) => {
     .single();
 
   if (examError || !exam) {
-    return c.json({ error: examError?.message ?? '建立考試失敗', code: 'DB_ERROR' }, 400);
+    return c.json({ error: examError?.message ?? '建立考試失敗', code: 'DB_ERROR' }, 500);
   }
 
   if (classIds.length > 0) {
@@ -1282,7 +1286,7 @@ app.openapi(createRouteDef, async (c) => {
 
     if (classesError) {
       await supabase.from('academy_exams').delete().eq('id', exam.id).eq('org_id', orgId);
-      return c.json({ error: classesError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: classesError.message, code: 'DB_ERROR' }, 500);
     }
   }
 
@@ -1351,6 +1355,7 @@ const updateRouteDef = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -1438,7 +1443,7 @@ app.openapi(updateRouteDef, async (c) => {
       .eq('org_id', orgId);
 
     if (updateError) {
-      return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: updateError.message, code: 'DB_ERROR' }, 500);
     }
   }
 
@@ -1451,7 +1456,7 @@ app.openapi(updateRouteDef, async (c) => {
       .eq('exam_id', id);
 
     if (deleteError) {
-      return c.json({ error: deleteError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: deleteError.message, code: 'DB_ERROR' }, 500);
     }
 
     if (dedupedClassIds.length > 0) {
@@ -1463,7 +1468,7 @@ app.openapi(updateRouteDef, async (c) => {
       );
 
       if (insertError) {
-        return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
+        return c.json({ error: insertError.message, code: 'DB_ERROR' }, 500);
       }
     }
   }
@@ -1525,6 +1530,7 @@ const deleteRouteDef = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -1556,7 +1562,7 @@ app.openapi(deleteRouteDef, async (c) => {
     .eq('exam_id', id);
 
   if (scoreCountError) {
-    return c.json({ error: scoreCountError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: scoreCountError.message, code: 'DB_ERROR' }, 500);
   }
 
   if ((scoreCount ?? 0) > 0) {
@@ -1570,7 +1576,7 @@ app.openapi(deleteRouteDef, async (c) => {
     .eq('org_id', orgId);
 
   if (deleteError) {
-    return c.json({ error: deleteError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: deleteError.message, code: 'DB_ERROR' }, 500);
   }
 
   logAudit(
@@ -1629,6 +1635,7 @@ const listScoresRoute = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -1660,7 +1667,7 @@ app.openapi(listScoresRoute, async (c) => {
     .eq('exam_id', id);
 
   if (examClassesError) {
-    return c.json({ error: examClassesError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: examClassesError.message, code: 'DB_ERROR' }, 500);
   }
 
   const classIds = (examClasses ?? []).map((row) => row.class_id);
@@ -1678,7 +1685,7 @@ app.openapi(listScoresRoute, async (c) => {
       : { data: [], error: null };
 
   if (enrolledStudentsError) {
-    return c.json({ error: enrolledStudentsError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: enrolledStudentsError.message, code: 'DB_ERROR' }, 500);
   }
 
   // **考試日在籍，不是「現在在籍」**（issue #424 使用者裁定）。
@@ -1701,7 +1708,7 @@ app.openapi(listScoresRoute, async (c) => {
     .order('updated_at', { ascending: false });
 
   if (scoredRowsError) {
-    return c.json({ error: scoredRowsError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: scoredRowsError.message, code: 'DB_ERROR' }, 500);
   }
 
   const data = buildAcademyScoreRows(enrolledStudents, scoredRows ?? []);
@@ -1808,7 +1815,7 @@ app.openapi(upsertScoresRoute, async (c) => {
           .in('student_id', part),
     );
     if (allowedError) {
-      return c.json({ error: allowedError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: allowedError.message, code: 'DB_ERROR' }, 500);
     }
     const allowed = new Set(
       (allowedRows ?? []).map((row: { student_id: string }) => row.student_id),
@@ -1824,7 +1831,7 @@ app.openapi(upsertScoresRoute, async (c) => {
   );
 
   if (studentsError) {
-    return c.json({ error: studentsError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: studentsError.message, code: 'DB_ERROR' }, 500);
   }
 
   if ((students ?? []).length !== studentIds.length) {
@@ -1907,6 +1914,7 @@ const closeRoute = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -1943,7 +1951,7 @@ app.openapi(closeRoute, async (c) => {
     .eq('org_id', orgId);
 
   if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
   logAudit(
@@ -1999,6 +2007,7 @@ const reopenRoute = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -2035,7 +2044,7 @@ app.openapi(reopenRoute, async (c) => {
     .eq('org_id', orgId);
 
   if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
   logAudit(

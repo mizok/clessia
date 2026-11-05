@@ -979,7 +979,7 @@ app.openapi(listSessionsRoute, async (c) => {
       dateToValue: to,
     });
     if (ensureResult.error) {
-      return c.json({ error: '補齊課堂事件失敗', code: 'DB_ERROR' }, 400);
+      return c.json({ error: '補齊課堂事件失敗', code: 'DB_ERROR' }, 500);
     }
   }
 
@@ -1074,7 +1074,7 @@ app.openapi(listSessionsRoute, async (c) => {
     cancelledQuery ?? Promise.resolve(null),
   ]);
   if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
   // 算不出來就給 0 —— 一個猜的數字比沒有數字糟（沿用前端原本的處理）
@@ -1152,7 +1152,7 @@ app.openapi(listSessionsRoute, async (c) => {
     ]);
 
     if (changesResult.error) {
-      return c.json({ error: changesResult.error.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: changesResult.error.message, code: 'DB_ERROR' }, 500);
     }
     // 出勤數、在籍數讀不到就不回（#1928）：原本只拿 data，`.in()` 帶 500 個 id 回 414 時
     // 兩個數字靜默變 0、照樣 200 —— 畫面上「0 人到」跟「讀不到」分不出來
@@ -1527,6 +1527,7 @@ const getSubstitutedAwayRoute = createRoute({
       },
     },
     400: { description: '查詢失敗', content: { 'application/json': { schema: ErrorSchema } } },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -1553,7 +1554,7 @@ app.openapi(getSubstitutedAwayRoute, async (c) => {
     .lte('sessions.session_date', to);
 
   if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
   return c.json(
@@ -1615,6 +1616,7 @@ const listChangeLogRoute = createRoute({
       },
     },
     400: { description: '查詢失敗', content: { 'application/json': { schema: ErrorSchema } } },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -1634,7 +1636,7 @@ app.openapi(listChangeLogRoute, async (c) => {
       supabase.from('staff').select('id').eq('org_id', orgId).ilike('display_name', `%${term}%`),
     ]);
     const searchError = classesResult.error ?? staffResult.error;
-    if (searchError) return c.json({ error: searchError.message, code: 'DB_ERROR' }, 400);
+    if (searchError) return c.json({ error: searchError.message, code: 'DB_ERROR' }, 500);
     search = {
       classIds: (classesResult.data ?? []).map((row) => row.id as string),
       staffIds: (staffResult.data ?? []).map((row) => row.id as string),
@@ -1675,7 +1677,7 @@ app.openapi(listChangeLogRoute, async (c) => {
   const { data, error, count } = await query;
 
   if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
   return c.json(
@@ -1712,6 +1714,7 @@ const getSessionChangesRoute = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -1735,7 +1738,7 @@ app.openapi(getSessionChangesRoute, async (c) => {
     .maybeSingle();
 
   if (sessionError) {
-    return c.json({ error: sessionError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: sessionError.message, code: 'DB_ERROR' }, 500);
   }
 
   if (!sessionData) {
@@ -1750,7 +1753,7 @@ app.openapi(getSessionChangesRoute, async (c) => {
     .order('created_at', { ascending: false });
 
   if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
   const sessionId = sessionData['id'] as string;
@@ -1994,6 +1997,7 @@ const listMakeupCandidatesRoute = createRoute({
       content: { 'application/json': { schema: ErrorSchema } },
     },
     404: { description: '課堂不存在', content: { 'application/json': { schema: ErrorSchema } } },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -2038,7 +2042,7 @@ app.openapi(listMakeupCandidatesRoute, async (c) => {
     .limit(MAKEUP_CANDIDATE_LIMIT);
 
   if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
   return c.json(
@@ -2099,6 +2103,7 @@ const cancelSessionRoute = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -2132,7 +2137,7 @@ app.openapi(cancelSessionRoute, async (c) => {
     .maybeSingle();
 
   if (updateError) {
-    return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: updateError.message, code: 'DB_ERROR' }, 500);
   }
   if (!updatedSession) {
     return c.json({ error: '課堂不存在', code: 'NOT_FOUND' }, 404);
@@ -2152,7 +2157,7 @@ app.openapi(cancelSessionRoute, async (c) => {
   );
 
   if (insertError) {
-    return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: insertError.message, code: 'DB_ERROR' }, 500);
   }
 
   // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
@@ -2232,6 +2237,7 @@ const substituteSessionRoute = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -2288,16 +2294,16 @@ app.openapi(substituteSessionRoute, async (c) => {
   ]);
 
   if (classRowError) {
-    return c.json({ error: classRowError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: classRowError.message, code: 'DB_ERROR' }, 500);
   }
   if (teacherSubjectRowsError) {
-    return c.json({ error: teacherSubjectRowsError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: teacherSubjectRowsError.message, code: 'DB_ERROR' }, 500);
   }
   if (teacherCampusRowsError) {
-    return c.json({ error: teacherCampusRowsError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: teacherCampusRowsError.message, code: 'DB_ERROR' }, 500);
   }
   if (teacherRowError) {
-    return c.json({ error: teacherRowError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: teacherRowError.message, code: 'DB_ERROR' }, 500);
   }
 
   const classCourseId = classRow?.['course_id'] as string | undefined;
@@ -2320,7 +2326,7 @@ app.openapi(substituteSessionRoute, async (c) => {
     .maybeSingle();
 
   if (substituteTeacherRoleError) {
-    return c.json({ error: substituteTeacherRoleError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: substituteTeacherRoleError.message, code: 'DB_ERROR' }, 500);
   }
 
   if (!substituteTeacherRole) {
@@ -2335,7 +2341,7 @@ app.openapi(substituteSessionRoute, async (c) => {
     .maybeSingle();
 
   if (courseRowError) {
-    return c.json({ error: courseRowError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: courseRowError.message, code: 'DB_ERROR' }, 500);
   }
 
   const courseSubjectId = courseRow?.['subject_id'] as string | undefined;
@@ -2381,7 +2387,7 @@ app.openapi(substituteSessionRoute, async (c) => {
     .neq('id', id);
 
   if (teacherConflictError) {
-    return c.json({ error: teacherConflictError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: teacherConflictError.message, code: 'DB_ERROR' }, 500);
   }
 
   const substituteStartTime = normalizeTime(sessionState.startTime);
@@ -2410,7 +2416,7 @@ app.openapi(substituteSessionRoute, async (c) => {
     .maybeSingle();
 
   if (updateError) {
-    return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: updateError.message, code: 'DB_ERROR' }, 500);
   }
   if (!updatedSession) {
     return c.json({ error: '更新失敗', code: 'UPDATE_FAILED' }, 400);
@@ -2431,7 +2437,7 @@ app.openapi(substituteSessionRoute, async (c) => {
   );
 
   if (insertError) {
-    return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: insertError.message, code: 'DB_ERROR' }, 500);
   }
 
   // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
@@ -2518,6 +2524,7 @@ const rescheduleSessionRoute = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -2585,11 +2592,11 @@ app.openapi(rescheduleSessionRoute, async (c) => {
   ]);
 
   if (classSessionsResult.error) {
-    return c.json({ error: classSessionsResult.error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: classSessionsResult.error.message, code: 'DB_ERROR' }, 500);
   }
 
   if (teacherSessionsResult.error) {
-    return c.json({ error: teacherSessionsResult.error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: teacherSessionsResult.error.message, code: 'DB_ERROR' }, 500);
   }
 
   const classConflict = (classSessionsResult.data ?? []).find((peer) =>
@@ -2631,7 +2638,7 @@ app.openapi(rescheduleSessionRoute, async (c) => {
     .maybeSingle();
 
   if (updateError) {
-    return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: updateError.message, code: 'DB_ERROR' }, 500);
   }
   if (!updatedSession) {
     return c.json({ error: '更新失敗', code: 'UPDATE_FAILED' }, 400);
@@ -2654,7 +2661,7 @@ app.openapi(rescheduleSessionRoute, async (c) => {
   );
 
   if (insertError) {
-    return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: insertError.message, code: 'DB_ERROR' }, 500);
   }
 
   // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
@@ -2752,7 +2759,7 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
   );
 
   if (sessionRowsError) {
-    return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 500);
   }
 
   const targetSessions = (sessionRows ?? []) as Array<{
@@ -2802,7 +2809,7 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
   ]);
 
   if (classRowsError) {
-    return c.json({ error: classRowsError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: classRowsError.message, code: 'DB_ERROR' }, 500);
   }
   if (
     batchOutOfCampusScope(
@@ -2814,13 +2821,13 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
     return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
   if (teacherSubjectRowsError) {
-    return c.json({ error: teacherSubjectRowsError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: teacherSubjectRowsError.message, code: 'DB_ERROR' }, 500);
   }
   if (teacherCampusRowsError) {
-    return c.json({ error: teacherCampusRowsError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: teacherCampusRowsError.message, code: 'DB_ERROR' }, 500);
   }
   if (teacherRowError) {
-    return c.json({ error: teacherRowError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: teacherRowError.message, code: 'DB_ERROR' }, 500);
   }
   if (!teacherRow) {
     return c.json(
@@ -2858,7 +2865,7 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
     .maybeSingle();
 
   if (batchTeacherRoleError) {
-    return c.json({ error: batchTeacherRoleError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: batchTeacherRoleError.message, code: 'DB_ERROR' }, 500);
   }
   if (!batchTeacherRole) {
     return c.json(
@@ -2897,7 +2904,7 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
       .in('id', courseIds);
 
     if (courseRowsError) {
-      return c.json({ error: courseRowsError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: courseRowsError.message, code: 'DB_ERROR' }, 500);
     }
 
     for (const row of courseRows ?? []) {
@@ -2939,7 +2946,7 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
     .lte('session_date', maxDate);
 
   if (teacherBusyError) {
-    return c.json({ error: teacherBusyError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: teacherBusyError.message, code: 'DB_ERROR' }, 500);
   }
 
   const teacherBusySlots = (teacherBusyRows ?? []).map((row) => ({
@@ -3146,7 +3153,7 @@ app.openapi(batchSubstituteRoute, async (c) => {
       .in('id', part),
   );
   if (sessionRowsError) {
-    return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 500);
   }
   const targets = (sessionRows ?? []) as Array<{
     id: string;
@@ -3179,7 +3186,7 @@ app.openapi(batchSubstituteRoute, async (c) => {
   const queryError =
     classResult.error ?? teacherResult.error ?? subjectResult.error ?? campusResult.error;
   if (queryError) {
-    return c.json({ error: queryError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: queryError.message, code: 'DB_ERROR' }, 500);
   }
 
   const campusByClass = new Map<string, string>();
@@ -3230,7 +3237,7 @@ app.openapi(batchSubstituteRoute, async (c) => {
           .lte('session_date', dates[dates.length - 1])
       : { data: [], error: null };
   if (busyError) {
-    return c.json({ error: busyError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: busyError.message, code: 'DB_ERROR' }, 500);
   }
   const busySlots = ((busyRows ?? []) as Array<Record<string, unknown>>).map((row) => ({
     sessionId: row['id'] as string,
@@ -3455,7 +3462,7 @@ app.openapi(batchUpdateTimeRoute, async (c) => {
   );
 
   if (sessionRowsError) {
-    return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 500);
   }
 
   const targetSessions = (sessionRows ?? []) as Array<{
@@ -3514,7 +3521,7 @@ app.openapi(batchUpdateTimeRoute, async (c) => {
     .in('session_date', targetDates);
 
   if (classDateError) {
-    return c.json({ error: classDateError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: classDateError.message, code: 'DB_ERROR' }, 500);
   }
 
   const teacherDateResult =
@@ -3529,7 +3536,7 @@ app.openapi(batchUpdateTimeRoute, async (c) => {
           .in('session_date', targetDates);
 
   if (teacherDateResult.error) {
-    return c.json({ error: teacherDateResult.error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: teacherDateResult.error.message, code: 'DB_ERROR' }, 500);
   }
 
   const classPeers = (classDateRows ?? []) as Array<{
@@ -3760,7 +3767,7 @@ app.openapi(batchRescheduleRoute, async (c) => {
       .in('id', part),
   );
   if (sessionRowsError) {
-    return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 500);
   }
   const targets = (sessionRows ?? []) as Array<{
     id: string;
@@ -3839,7 +3846,7 @@ app.openapi(batchRescheduleRoute, async (c) => {
   ]);
   const peerError = classPeerResult.error ?? teacherPeerResult.error;
   if (peerError) {
-    return c.json({ error: peerError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: peerError.message, code: 'DB_ERROR' }, 500);
   }
   // 同一批要搬走的堂不擋位（它們的新位置由 planner 的 plannedSlots 比）。
   // ponytail: 被 planner 判衝突、留在原地的堂不會回頭擋後面的堂 —— 由唯一鍵兜底（下面 23505 → 409、全部搬回）
@@ -4068,7 +4075,7 @@ app.openapi(batchCancelRoute, async (c) => {
   );
 
   if (sessionRowsError) {
-    return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 500);
   }
 
   const targetSessions = (sessionRows ?? []) as Array<{
@@ -4260,7 +4267,7 @@ app.openapi(batchUncancelRoute, async (c) => {
   );
 
   if (sessionRowsError) {
-    return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 500);
   }
 
   const targetSessions = (sessionRows ?? []) as Array<{
@@ -4319,7 +4326,7 @@ app.openapi(batchUncancelRoute, async (c) => {
     .in('session_date', targetDates);
 
   if (classDateError) {
-    return c.json({ error: classDateError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: classDateError.message, code: 'DB_ERROR' }, 500);
   }
 
   const teacherDateResult =
@@ -4334,7 +4341,7 @@ app.openapi(batchUncancelRoute, async (c) => {
           .in('session_date', targetDates);
 
   if (teacherDateResult.error) {
-    return c.json({ error: teacherDateResult.error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: teacherDateResult.error.message, code: 'DB_ERROR' }, 500);
   }
 
   const classPeers = (classDateRows ?? []) as Array<{
@@ -4500,7 +4507,7 @@ app.openapi(batchUncancelRoute, async (c) => {
         .in('id', teacherIdsToCheck);
 
       if (staffError) {
-        return c.json({ error: staffError.message, code: 'DB_ERROR' }, 400);
+        return c.json({ error: staffError.message, code: 'DB_ERROR' }, 500);
       }
 
       for (const staff of staffRows ?? []) {
