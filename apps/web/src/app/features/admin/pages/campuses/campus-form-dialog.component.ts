@@ -20,6 +20,7 @@ import {
   type UpdateCampusInput,
 } from '@core/campuses.service';
 import { AuthService } from '@core/auth.service';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import {
   SelectFieldComponent,
   type SelectFieldOption,
@@ -42,171 +43,157 @@ type Mode = '' | 'per_session' | 'daily_checkin';
 @Component({
   selector: 'app-campus-form-dialog',
   standalone: true,
-  imports: [FormsModule, SelectFieldComponent],
+  imports: [DialogFrameComponent, FormsModule, SelectFieldComponent],
   template: `
     <dialog
       #dialog
       class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(520px,calc(100%-32px))] overflow-y-auto overscroll-contain rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-zinc-200"
-      aria-labelledby="campus-form-title"
+      role="dialog"
       (click)="onBackdrop($event)"
       (close)="onClosed()"
     >
       @if (isOpen()) {
-        <div class="flex items-center justify-between pt-4 pr-4 pb-2 pl-6">
-          <div>
-            <h2 id="campus-form-title" class="m-0 text-xl font-bold">
-              {{ campus() ? '編輯分校：' + campus()!.name : '新增分校' }}
-            </h2>
-            @if (!campus()) {
-              <p class="m-0 mt-0.5 text-md text-zinc-600">建好之後就可以在這個分校開課</p>
-            }
-          </div>
-          <button
-            type="button"
-            class="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 wide:size-10"
-            aria-label="關閉"
-            (click)="close()"
-          >
-            <i class="pi pi-times" aria-hidden="true"></i>
-          </button>
-        </div>
-
-        <form
-          ngNoForm
-          class="grid grid-cols-2 gap-x-3 gap-y-4 px-6 pt-2 pb-6 max-wide:grid-cols-1 max-wide:px-4"
-          (submit)="$event.preventDefault(); save()"
+        <!-- 共用殼（#2290）：h2 掛 appDialogTitle，指回這個 dialog 的 aria-labelledby（所以 dialog 帶 role） -->
+        <app-dialog-frame
+          [title]="campus() ? '編輯分校：' + campus()!.name : '新增分校'"
+          [sub]="campus() ? '' : '建好之後就可以在這個分校開課'"
+          (closed)="close()"
         >
-          <div class="col-span-full min-w-0">
-            <label class="mb-1 block text-md font-semibold text-zinc-700" for="campus-name"
-              >分校名稱 <span class="text-error-700" aria-hidden="true">*</span></label
-            >
-            <input
-              id="campus-name"
-              type="text"
-              maxlength="100"
-              autocomplete="off"
-              placeholder="例如：台北分校"
-              [attr.autofocus]="autofocus() ? '' : null"
-              class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
-              [ngModel]="name()"
-              (ngModelChange)="name.set($event); error.set(null)"
-            />
-          </div>
-          <div class="min-w-0">
-            <label class="mb-1 block text-md font-semibold text-zinc-700" for="campus-phone"
-              >電話</label
-            >
-            <input
-              id="campus-phone"
-              type="text"
-              maxlength="30"
-              autocomplete="off"
-              placeholder="02-12345678"
-              class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
-              [(ngModel)]="phone"
-            />
-          </div>
-          <div class="min-w-0">
-            <!-- 稿是 label（同其他欄位）；radiogroup 沒有單一控制項可以 for，靠 aria-labelledby 指回來 -->
-            <label class="mb-1 block text-md font-semibold text-zinc-700" id="campus-status-label"
-              >狀態</label
-            >
-            <!-- A6 .fdlg__seg／.fdlg__opt：radio 包成框，選中的框加深 -->
-            <div
-              class="flex flex-wrap gap-2"
-              role="radiogroup"
-              aria-labelledby="campus-status-label"
-            >
-              @for (opt of statusOptions; track opt.label) {
-                <label
-                  class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 font-semibold has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset max-wide:h-11"
-                >
-                  <input
-                    type="radio"
-                    name="campus-status"
-                    class="m-0 accent-zinc-900"
-                    [checked]="isActive() === opt.value"
-                    (change)="isActive.set(opt.value)"
-                  />{{ opt.label }}
-                </label>
-              }
-            </div>
-          </div>
-          <div class="col-span-full min-w-0">
-            <label class="mb-1 block text-md font-semibold text-zinc-700" for="campus-address"
-              >地址</label
-            >
-            <input
-              id="campus-address"
-              type="text"
-              maxlength="255"
-              autocomplete="off"
-              placeholder="完整收件地址"
-              class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
-              [(ngModel)]="address"
-            />
-          </div>
-          @if (canEditAttendanceMode()) {
+          <form
+            ngNoForm
+            class="grid grid-cols-2 gap-x-3 gap-y-4 max-wide:grid-cols-1"
+            (submit)="$event.preventDefault(); save()"
+          >
             <div class="col-span-full min-w-0">
-              <app-select-field
-                label="出勤紀錄模式"
-                labelSize="md"
-                [options]="modeOptions"
-                [value]="attendanceMode()"
-                (valueChange)="attendanceMode.set($event ?? '')"
-                [appendTo]="dialog"
-              />
-              <p class="m-0 mt-1 text-sm text-zinc-600">預設跟著「一般」的設定</p>
-            </div>
-          }
-          @if (canEditPaymentInfo()) {
-            <div class="col-span-full min-w-0">
-              <label
-                class="mb-1 block text-md font-semibold text-zinc-700"
-                for="campus-payment-info"
-                >收款帳戶</label
+              <label class="mb-1 block text-md font-semibold text-zinc-700" for="campus-name"
+                >分校名稱 <span class="text-error-700" aria-hidden="true">*</span></label
               >
-              <textarea
-                id="campus-payment-info"
-                rows="4"
-                maxlength="1000"
-                class="min-h-24 w-full resize-y rounded-md border border-solid border-zinc-300 bg-white px-3 py-2 text-base leading-normal text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:text-lg"
-                placeholder="例如：台灣銀行 景美分行（004）&#10;帳號 000-000-000000&#10;留白＝沿用「一般」設定的機構帳戶"
-                [(ngModel)]="paymentInfo"
-              ></textarea>
+              <input
+                id="campus-name"
+                type="text"
+                maxlength="100"
+                autocomplete="off"
+                placeholder="例如：台北分校"
+                [attr.autofocus]="autofocus() ? '' : null"
+                class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+                [ngModel]="name()"
+                (ngModelChange)="name.set($event); error.set(null)"
+              />
             </div>
-          }
-        </form>
+            <div class="min-w-0">
+              <label class="mb-1 block text-md font-semibold text-zinc-700" for="campus-phone"
+                >電話</label
+              >
+              <input
+                id="campus-phone"
+                type="text"
+                maxlength="30"
+                autocomplete="off"
+                placeholder="02-12345678"
+                class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+                [(ngModel)]="phone"
+              />
+            </div>
+            <div class="min-w-0">
+              <!-- 稿是 label（同其他欄位）；radiogroup 沒有單一控制項可以 for，靠 aria-labelledby 指回來 -->
+              <label class="mb-1 block text-md font-semibold text-zinc-700" id="campus-status-label"
+                >狀態</label
+              >
+              <!-- A6 .fdlg__seg／.fdlg__opt：radio 包成框，選中的框加深 -->
+              <div
+                class="flex flex-wrap gap-2"
+                role="radiogroup"
+                aria-labelledby="campus-status-label"
+              >
+                @for (opt of statusOptions; track opt.label) {
+                  <label
+                    class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 font-semibold has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset max-wide:h-11"
+                  >
+                    <input
+                      type="radio"
+                      name="campus-status"
+                      class="m-0 accent-zinc-900"
+                      [checked]="isActive() === opt.value"
+                      (change)="isActive.set(opt.value)"
+                    />{{ opt.label }}
+                  </label>
+                }
+              </div>
+            </div>
+            <div class="col-span-full min-w-0">
+              <label class="mb-1 block text-md font-semibold text-zinc-700" for="campus-address"
+                >地址</label
+              >
+              <input
+                id="campus-address"
+                type="text"
+                maxlength="255"
+                autocomplete="off"
+                placeholder="完整收件地址"
+                class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+                [(ngModel)]="address"
+              />
+            </div>
+            @if (canEditAttendanceMode()) {
+              <div class="col-span-full min-w-0">
+                <app-select-field
+                  label="出勤紀錄模式"
+                  labelSize="md"
+                  [options]="modeOptions"
+                  [value]="attendanceMode()"
+                  (valueChange)="attendanceMode.set($event ?? '')"
+                  [appendTo]="dialog"
+                />
+                <p class="m-0 mt-1 text-sm text-zinc-600">預設跟著「一般」的設定</p>
+              </div>
+            }
+            @if (canEditPaymentInfo()) {
+              <div class="col-span-full min-w-0">
+                <label
+                  class="mb-1 block text-md font-semibold text-zinc-700"
+                  for="campus-payment-info"
+                  >收款帳戶</label
+                >
+                <textarea
+                  id="campus-payment-info"
+                  rows="4"
+                  maxlength="1000"
+                  class="min-h-24 w-full resize-y rounded-md border border-solid border-zinc-300 bg-white px-3 py-2 text-base leading-normal text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:text-lg"
+                  placeholder="例如：台灣銀行 景美分行（004）&#10;帳號 000-000-000000&#10;留白＝沿用「一般」設定的機構帳戶"
+                  [(ngModel)]="paymentInfo"
+                ></textarea>
+              </div>
+            }
+          </form>
 
-        <!-- A6 .fdlg__foot：必填沒填不鎖死送出鈕，旁邊寫還差什麼（#723）；失敗訊息也寫這裡，填的內容不清 -->
-        <div
-          class="sticky bottom-0 z-[1] flex flex-wrap items-center justify-end gap-2 bg-inherit px-6 pt-3 pb-6 max-wide:px-4 max-wide:pt-2 max-wide:pb-[calc(16px+env(safe-area-inset-bottom,0px))]"
-        >
-          <p
-            class="m-0 mr-auto text-md max-wide:basis-full"
-            [class.text-error-700]="!!error()"
-            [class.text-zinc-600]="!error()"
-            aria-live="polite"
-          >
-            {{ error() ?? missingHint() }}
-          </p>
-          <button
-            type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-zinc-300 bg-white hover:border-zinc-400 hover:bg-zinc-50"
-            [disabled]="loading()"
-            (click)="close()"
-          >
-            取消
-          </button>
-          <button
-            type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-accent-vivid bg-accent-vivid hover:border-accent-vivid-2 hover:bg-accent-vivid-2"
-            [attr.aria-disabled]="!!missingHint() || loading()"
-            (click)="save()"
-          >
-            {{ loading() ? (campus() ? '儲存中…' : '建立中…') : campus() ? '儲存' : '建立' }}
-          </button>
-        </div>
+          <!-- A6 .fdlg__foot：必填沒填不鎖死送出鈕，旁邊寫還差什麼（#723）；失敗訊息也寫這裡，填的內容不清 -->
+          <ng-container dialogFoot>
+            <p
+              class="form-dialog__why"
+              [class.text-error-700]="!!error()"
+              [class.text-zinc-600]="!error()"
+              aria-live="polite"
+            >
+              {{ error() ?? missingHint() }}
+            </p>
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-zinc-300 bg-white hover:border-zinc-400 hover:bg-zinc-50"
+              [disabled]="loading()"
+              (click)="close()"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-accent-vivid bg-accent-vivid hover:border-accent-vivid-2 hover:bg-accent-vivid-2"
+              [attr.aria-disabled]="!!missingHint() || loading()"
+              (click)="save()"
+            >
+              {{ loading() ? (campus() ? '儲存中…' : '建立中…') : campus() ? '儲存' : '建立' }}
+            </button>
+          </ng-container>
+        </app-dialog-frame>
       }
     </dialog>
   `,
