@@ -688,6 +688,15 @@ const FORM_DIALOGS = {
       '[data-testid^="permission-count-"]',
       'app-permission-dialog',
     ),
+    // 授課紀錄（#2290 B 批）：老師章第一列的「⋯」→「授課紀錄」
+    'teaching-log': dlgOpen(
+      ['[aria-label="老師"] .pp__more', '[data-log-t]'],
+      [
+        '[aria-label="老師"] button[aria-label$="的更多動作"]',
+        '[role=menuitem]:has-text("授課紀錄")',
+      ],
+      'app-teaching-log-dialog',
+    ),
   },
   parents: { 'new-parent': formOpen('[data-new]', 'button:has-text("新增家長")') },
   exams: {
