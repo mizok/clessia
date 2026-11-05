@@ -74,7 +74,9 @@ async function searchClauseOf(
 
   const { data: relationRows, error: relationError } = await supabase
     .from('parent_student_relations')
-    .select('student_id, parents!inner(name)')
+    .select('student_id, parents!inner(name, org_id)')
+    // 只比本 org 的家長（#1595 P2 ② 裁定 (c)：原本沒有這條，別 org 同名家長的孩子會被撈進來）
+    .eq('parents.org_id', p.orgId)
     .ilike('parents.name', `%${search}%`);
   if (relationError) fail('家長姓名搜尋', relationError);
 

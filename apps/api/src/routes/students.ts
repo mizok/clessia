@@ -513,8 +513,8 @@ app.openapi(
             .map(([id]) => id)
         : null;
 
-    // 有 pool 就走 SQL（Hyperdrive，一次往返，#1595 P2 ② 刀 1a）；失敗 → 500，不退回 builder（#2230 (c)）。
-    // 帶 search／today 的請求這刀還走 builder（刀 1b 收）。沒有 pool 才走 builder（單元測試）——
+    // 有 pool 就走 SQL（Hyperdrive，一次往返，#1595 P2 ②）；失敗 → 500，不退回 builder（#2230 (c)）。
+    // 搜尋與今日到班也在 SQL 裡（刀 1b）。沒有 pool 才走 builder（單元測試）——
     // 兩條路吃**同一份參數**，條件由 contract/student-list-sql.contract.ts 逐欄比對
     const pool = c.get('auth')?.pool;
     const cardDay = getCurrentTaipeiDateString();
@@ -542,7 +542,7 @@ app.openapi(
       total,
       activeCount,
       byGrade: countByGrade,
-    } = pool && !search && todayFilter === undefined
+    } = pool
       ? await loadStudentListViaSql(pool, listParams)
       : await loadStudentListViaBuilder(supabase, listParams);
     if (todayFilter === undefined) {
