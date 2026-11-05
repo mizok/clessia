@@ -363,9 +363,9 @@ export class AttendanceRosterPanelComponent implements OnInit {
 
     const dialogRef = this.dialogService.open(ConfirmDialogComponent, {
       header: '有未儲存的點名紀錄',
-      width: '380px',
+      width: 'var(--dlg-w-sm)',
       modal: true,
-      showHeader: true,
+      showHeader: false,
       appendTo: 'body',
       data: {
         message: '關閉後這些改動不會存檔，確定要離開嗎？',

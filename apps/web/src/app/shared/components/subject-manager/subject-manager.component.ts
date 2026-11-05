@@ -166,9 +166,9 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
     if (subject.academyExamCount > 0) parts.push(`${subject.academyExamCount} 場校內考`);
     const dialogRef = this.dialogService.open(ConfirmDialogComponent, {
       header: `「${subject.name}」不能刪除`,
-      width: '420px',
+      width: 'var(--dlg-w-sm)',
       modal: true,
-      showHeader: true,
+      showHeader: false,
       appendTo: 'body',
       data: {
         message: `已被 ${parts.join('、')}使用中。要整理名稱可以改名；不再開課的科目留著不影響。`,
@@ -189,9 +189,9 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
     }
     const dialogRef = this.dialogService.open(ConfirmDialogComponent, {
       header: '確認刪除科目',
-      width: '420px',
+      width: 'var(--dlg-w-sm)',
       modal: true,
-      showHeader: true,
+      showHeader: false,
       appendTo: 'body',
       data: {
         message: `確定要刪除「${subject.name}」嗎？此操作無法復原。`,
