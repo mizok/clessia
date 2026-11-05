@@ -379,7 +379,8 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     expect(compared).toBe(330);
     expect(diffs).toEqual([]);
     expect(nonEmpty).toBeGreaterThan(50); // 不是兩邊都空
-  });
+    // 660 支請求：負載高時（load 50）跑到 29 秒撞上預設 30 秒，突變基準因此誤紅
+  }, 120_000);
 
   it('第一頁（含今日到班）也逐欄相同', async () => {
     for (const who of Object.values(WHO)) {
