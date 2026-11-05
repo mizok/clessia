@@ -82,7 +82,7 @@ interface Clock {
     >
       @for (t of items(); track t.id) {
         <div
-          class="toast pointer-events-auto flex min-h-11 items-center gap-2 rounded-lg border border-zinc-300 bg-zinc-200 pl-4 text-base font-medium text-zinc-900 shadow-[0_14px_32px_-12px_rgb(26_22_20/38%),0_2px_6px_-2px_rgb(26_22_20/12%)] transition-[opacity,translate] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] starting:translate-y-3 starting:opacity-0 data-leaving:translate-y-1.5 data-leaving:opacity-0 data-leaving:duration-[140ms] data-leaving:ease-[cubic-bezier(0.4,0,1,1)] motion-reduce:transition-none"
+          class="toast pointer-events-auto flex min-h-11 items-center gap-2 rounded-lg border border-zinc-300 bg-zinc-200 pl-4 text-base font-medium text-zinc-900 shadow-[0_14px_32px_-12px_rgb(26_22_20/38%),0_2px_6px_-2px_rgb(26_22_20/12%)] transition-[opacity,translate] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] starting:translate-y-3 starting:opacity-0 data-leaving:translate-y-1.5 data-leaving:opacity-0 data-leaving:duration-[140ms] data-leaving:ease-[cubic-bezier(0.4,0,1,1)] motion-reduce:starting:translate-y-0 motion-reduce:data-leaving:translate-y-0"
           [class.pr-4]="!hasAction(t)"
           [class.pr-2]="hasAction(t)"
           [class.py-2]="!!t.detail"

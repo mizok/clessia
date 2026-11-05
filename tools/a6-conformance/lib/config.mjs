@@ -74,6 +74,15 @@ export function rule(id, note = '') {
 
 export const DEVIATIONS = [
   {
+    // #2290：對話框手機標頭左距跟內容對齊（16），稿是 24 —— 標頭的 h2／副標 Δx −8
+    status: '位置',
+    widths: [360],
+    a6: '(^|>)landmark:dialog\\[[^\\]]*\\]>(heading:h2|text:p)\\[[^\\]]*\\]$',
+    detail: '^相對「[^」]*」 Δx -8、',
+    reason: '對話框手機標頭左距 16，跟內容對齊（稿 24）',
+    source: `${rule('R5')}「對話框手機標頭左距 16」2026-11-05；#2290`,
+  },
+  {
     // 家長頁量的是 parent03 → 張宇軒（國二）；稿的示範孩子是國三。年級不在人名樣板裡
     status: '文案',
     a6: 'control:button\\[目前看的是\\{名\\}，切換孩子\\]>text:span\\[[^\\]]*\\]$',

@@ -101,6 +101,7 @@
 @source './app/shared/components/attendance-roster-panel';
 @source './app/shared/components/confirm-dialog';
 @source './app/shared/components/audit-log-dialog';
+@source './app/shared/components/dialog-frame';
 @source './app/shared/components/login-link-dialog';
 @source './app/shared/components/parent-form-dialog';
 @source './app/shared/components/leave-form-dialog';
@@ -306,6 +307,22 @@
 }
 @utility tbar-control {
   height: var(--tbar-control);
+}
+/*
+ * 手機底部動作托盤（page-actions 的 .page-actions__dock，A6 `.dock`）的位置只在這裡定（#2293）：
+ * - `--tray-bottom-gap`：托盤離視窗底（不含 safe-area）。原本 12px，使用者 11-05 嫌太貼底、拇指區太靠邊 → 16px
+ * - `--tray-height`：托盤本身高（p-2 上下 8＋按鈕 h-12 48＋框 1×2）
+ * - `--tray-clearance`：有托盤時內容底部要留的空間＝托盤高＋上下各一個間距＋safe-area，捲到底時最後一列不被蓋
+ * - `--tray-top`：托盤頂離視窗底的距離（疊在托盤上方的浮條用，例如課程頁的手機批次列）
+ * A6 的 `.dock` 是 bottom: 64px —— 那是讓位給設計稿自己的翻頁膠囊（`.proto-*`），產品裡沒有，不照
+ */
+:root {
+  --tray-bottom-gap: 16px;
+  --tray-height: 66px;
+  --tray-clearance: calc(
+    var(--tray-height) + var(--tray-bottom-gap) * 2 + env(safe-area-inset-bottom, 0px)
+  );
+  --tray-top: calc(var(--tray-bottom-gap) + var(--tray-height) + env(safe-area-inset-bottom, 0px));
 }
 /* 只有圖示的方鈕（匯出、操作紀錄、⋯）：寬＝高 */
 @utility tbar-control-square {

@@ -1,14 +1,14 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { loadDailyAttendance, type TodaySession } from './today-attendance';
+import { DAILY_ATTENDANCE_SQL, loadDailyAttendance, type TodaySession } from './today-attendance';
 
 /**
- * **日到班的「今天該有誰、誰到了、誰請假」讀取失敗要失敗，不能當成空的**（#1928）。
+ * 日到班「今天該有誰、誰到了、誰請假」（#1314 SL1）。原料走一支 pg SQL（#1595 P2 ①）；判準在 JS。
  *
- * 原本三支讀取都不看 error：在籍讀失敗 → 今天沒人該來；打卡讀失敗 → 全部「該到沒到」；
- * 請假讀失敗 → 請假的學生顯示成「該到沒到」（作業台會叫行政去追請了假的人）。
- * 失敗一律丟例外，呼叫端（作業台、學生名冊）由全域 onError 回 500。
+ * - **讀取失敗要失敗，不能當成空的**（#1928）：在籍空＝今天沒人該來、打卡空＝全部「該到沒到」、
+ *   請假空＝請假的學生顯示成「該到沒到」。SQL 拋錯或結果形狀不對一律丟例外（呼叫端回 500）
+ * - 範圍只吃參數：分校、班（老師）照呼叫端給的傳進去；SQL 的語意（org、停課、生效區間）由
+ *   `contract/workbench-today-sql.contract.ts`、`contract/today-attendance.contract.ts` 對真 DB 驗
  */
 
 const DATE = '2026-06-01';
@@ -23,124 +23,123 @@ const SESSIONS: TodaySession[] = [
   },
 ];
 
-type Result = { data: unknown; error: unknown };
-const ok = (data: unknown): Result => ({ data, error: null });
-const boom: Result = { data: null, error: { message: 'boom' } };
+const leave = (studentId: string, extra: Record<string, unknown> = {}) => ({
+  student_id: studentId,
+  submitted_by_role: 'parent',
+  reason: '感冒',
+  start_date: DATE,
+  end_date: DATE,
+  start_time: null,
+  end_time: null,
+  leave_request_sessions: [],
+  ...extra,
+});
 
-function fake(results: Partial<Record<string, Result>>, calls: string[] = []) {
-  return {
-    from(table: string) {
-      const q: Record<string, unknown> = {};
-      let range: [number, number] | null = null;
-      for (const m of ['select', 'eq', 'neq', 'in', 'lte', 'gte', 'or', 'order'])
-        q[m] = (col: unknown) => (calls.push(`${table}.${m}(${String(col)})`), q);
-      // 照 PostgREST 切頁（max_rows 1000）：沒下 range 也最多回 1000 列
-      q['range'] = (from: number, to: number) => ((range = [from, to]), q);
-      q['then'] = (resolve: (v: unknown) => unknown) => {
-        const r = results[table] ?? ok([]);
-        if (!Array.isArray(r.data)) return resolve(r);
-        const [from, to] = range ?? [0, 999];
-        return resolve({ ...r, data: r.data.slice(from, Math.min(to, from + 999) + 1) });
-      };
-      return q;
+const RAW = {
+  enrollments: [
+    {
+      id: 'en-1',
+      student_id: 'stu-1',
+      class_id: 'class-1',
+      students: { name: '小明', grade: 'J1' },
     },
-  } as unknown as SupabaseClient;
-}
+    {
+      id: 'en-2',
+      student_id: 'stu-2',
+      class_id: 'class-1',
+      students: { name: '小華', grade: 'J1' },
+    },
+  ],
+  checkins: [{ id: 'ck-1', student_id: 'stu-1', checked_in_at: '2026-06-01T08:00:00+00:00' }],
+  leaves: [leave('stu-2')],
+};
 
-const ENROLLED = ok([
-  { student_id: 'stu-1', class_id: 'class-1', students: { name: '小明', grade: 'J1' } },
-  { student_id: 'stu-2', class_id: 'class-1', students: { name: '小華', grade: 'J1' } },
-]);
-
+const poolReturning = (result: unknown) => ({
+  query: vi.fn().mockResolvedValue({ rows: [{ result }] }),
+});
 const NO_SCOPE = { campusIds: null, classIds: null };
 
-describe('loadDailyAttendance（#1928）', () => {
-  it('正常：應到、到了、請假各自讀到', async () => {
+describe('loadDailyAttendance', () => {
+  it('應到、到了、請假各自讀到', async () => {
+    const res = await loadDailyAttendance(poolReturning(RAW), 'org-1', DATE, SESSIONS, NO_SCOPE);
+    expect(res.expected.map((s) => s.studentId).sort()).toEqual(['stu-1', 'stu-2']);
+    expect(res.expected[0]).toMatchObject({
+      campusName: '總校',
+      firstSession: { startTime: '16:00', className: 'A 班' },
+    });
+    expect(res.arrived).toEqual([
+      { studentId: 'stu-1', checkedInAt: '2026-06-01T08:00:00+00:00', checkinId: 'ck-1' },
+    ]);
+    expect(res.onLeave.map((l) => l.studentId)).toEqual(['stu-2']);
+  });
+
+  it('一支 SQL：org、日期、分校、班照呼叫端給的傳（null＝不篩，空陣列照樣傳 → 零筆）', async () => {
+    const pool = poolReturning(RAW);
+    await loadDailyAttendance(pool, 'org-1', DATE, SESSIONS, {
+      campusIds: ['campus-1'],
+      classIds: [],
+    });
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    expect(pool.query).toHaveBeenCalledWith(DAILY_ATTENDANCE_SQL, [
+      'org-1',
+      DATE,
+      ['campus-1'],
+      [],
+    ]);
+    const unscoped = poolReturning(RAW);
+    await loadDailyAttendance(unscoped, 'org-1', DATE, SESSIONS, NO_SCOPE);
+    expect(unscoped.query.mock.calls[0]![1]).toEqual(['org-1', DATE, null, null]);
+  });
+
+  it('今天的課全部停課 → 沒人該到，不查 DB', async () => {
+    const pool = poolReturning(RAW);
     const res = await loadDailyAttendance(
-      fake({
-        enrollments: ENROLLED,
-        daily_checkins: ok([
-          { id: 'ck-1', student_id: 'stu-1', checked_in_at: '2026-06-01T08:00:00Z' },
-        ]),
-        leave_requests: ok([
-          {
-            student_id: 'stu-2',
-            submitted_by_role: 'parent',
-            reason: '感冒',
-            start_date: DATE,
-            end_date: DATE,
-            start_time: null,
-            end_time: null,
-          },
-        ]),
+      pool,
+      'org-1',
+      DATE,
+      [{ ...SESSIONS[0]!, status: 'cancelled' }],
+      NO_SCOPE,
+    );
+    expect(res).toEqual({ expected: [], arrived: [], onLeave: [] });
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it('請假：名單外的人不列；綁定堂次的假看綁的那堂是不是今天', async () => {
+    const res = await loadDailyAttendance(
+      poolReturning({
+        ...RAW,
+        leaves: [
+          leave('stu-other'),
+          leave('stu-1', {
+            leave_request_sessions: [
+              { session_id: 's-x', sessions: { session_date: '2026-06-02' } },
+            ],
+          }),
+          leave('stu-2', {
+            leave_request_sessions: [{ session_id: 's-y', sessions: { session_date: DATE } }],
+          }),
+        ],
       }),
       'org-1',
       DATE,
       SESSIONS,
       NO_SCOPE,
     );
-    expect(res.expected.map((s) => s.studentId).sort()).toEqual(['stu-1', 'stu-2']);
-    expect(res.arrived.map((a) => a.studentId)).toEqual(['stu-1']);
     expect(res.onLeave.map((l) => l.studentId)).toEqual(['stu-2']);
+  });
+
+  it('SQL 拋錯 → 丟例外，不是當成空的', async () => {
+    const pool = { query: vi.fn().mockRejectedValue(new Error('boom')) };
+    await expect(loadDailyAttendance(pool, 'org-1', DATE, SESSIONS, NO_SCOPE)).rejects.toThrow();
   });
 
   it.each([
-    ['在籍（enrollments）', { enrollments: boom }],
-    ['打卡（daily_checkins）', { enrollments: ENROLLED, daily_checkins: boom }],
-    ['請假（leave_requests）', { enrollments: ENROLLED, leave_requests: boom }],
-  ])('%s讀取失敗 → 丟例外，不是當成空的', async (_name, results) => {
-    await expect(loadDailyAttendance(fake(results), 'org-1', DATE, SESSIONS, NO_SCOPE)).rejects.toThrow();
-  });
-
-  it('請假不把應到學生 id 塞進 .in（會 414）；名單外的人的假不列', async () => {
-    const calls: string[] = [];
-    const leave = (studentId: string) => ({
-      student_id: studentId,
-      submitted_by_role: 'parent',
-      reason: null,
-      start_date: DATE,
-      end_date: DATE,
-      start_time: null,
-      end_time: null,
-    });
-    const res = await loadDailyAttendance(
-      fake(
-        { enrollments: ENROLLED, leave_requests: ok([leave('stu-2'), leave('stu-other')]) },
-        calls,
-      ),
-      'org-1',
-      DATE,
-      SESSIONS,
-      NO_SCOPE,
-    );
-    expect(calls).not.toContain('leave_requests.in(student_id)');
-    expect(res.onLeave.map((l) => l.studentId)).toEqual(['stu-2']);
-  });
-
-  it('在籍、打卡超過 max_rows（1000）也翻到底，不會靜默截斷', async () => {
-    const many = (n: number) =>
-      Array.from({ length: n }, (_, i) => ({
-        student_id: `stu-${i}`,
-        class_id: 'class-1',
-        students: { name: `生${i}`, grade: 'J1' },
-      }));
-    const res = await loadDailyAttendance(
-      fake({
-        enrollments: ok(many(2500)),
-        daily_checkins: ok(
-          Array.from({ length: 1200 }, (_, i) => ({
-            id: `ck-${i}`,
-            student_id: `stu-${i}`,
-            checked_in_at: '2026-06-01T08:00:00Z',
-          })),
-        ),
-      }),
-      'org-1',
-      DATE,
-      SESSIONS,
-      NO_SCOPE,
-    );
-    expect(res.expected).toHaveLength(2500);
-    expect(res.arrived).toHaveLength(1200);
+    ['沒有列', undefined],
+    ['在籍不是陣列', { ...RAW, enrollments: null }],
+    ['打卡不是陣列', { ...RAW, checkins: null }],
+    ['請假不是陣列', { ...RAW, leaves: null }],
+  ])('結果形狀不對（%s）→ 丟例外', async (_label, result) => {
+    const pool = { query: vi.fn().mockResolvedValue({ rows: result ? [{ result }] : [] }) };
+    await expect(loadDailyAttendance(pool, 'org-1', DATE, SESSIONS, NO_SCOPE)).rejects.toThrow();
   });
 });

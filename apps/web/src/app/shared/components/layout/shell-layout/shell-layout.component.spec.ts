@@ -114,6 +114,15 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
     it('代理對（𠮷）不被拆半', async () => expect(await initialFor('𠮷野')).toBe('𠮷'));
   });
 
+  // #2293：有托盤時的內容留白讀 tailwind.css 的 --tray-clearance（托盤高＋上下間距＋safe-area），
+  // 跟托盤離底的 --tray-bottom-gap 同一組；不再手寫 92px。jsdom 不跑 Tailwind，斷言 class 是意圖
+  it('手機有托盤時，內容底部留白讀 --tray-clearance', async () => {
+    const { el } = await setup(['admin'], 'admin');
+    const content = el.querySelector('.shell-content')!;
+    expect(content.className).toContain('has-[.page-actions\\_\\_dock]:pb-(--tray-clearance)');
+    expect(content.className).not.toContain('92px');
+  });
+
   it('頂欄列出 topItems，字標連到第一項（角色首頁）', async () => {
     const { el } = await setup(['admin'], 'admin');
     const nav = el.querySelector('nav[aria-label="主要導覽"]')!;

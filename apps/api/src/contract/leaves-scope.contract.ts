@@ -52,6 +52,7 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('studentScope', null);
       set('childDb', createChildDb(supabase as never, null, ctx.orgId));
       set('campusScope', ctx.campusScope);
+      set('auth', { pool: { query: pool!.query.bind(pool), end: async () => {} } });
       set('selfRows', { staff: null, parent: null, assignedCampusIds: [] });
       await next();
     }),
