@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal, viewChild, type ElementRef } from '@angular/core';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { DecimalPipe, SlicePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -55,6 +56,7 @@ import { RtRowDirective } from '@shared/components/responsive-table/rt-row.direc
   selector: 'app-invoice-detail-dialog',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     ResponsiveTableComponent,
     RtColDefDirective,
     RtColCellDirective,

@@ -162,7 +162,7 @@ export class StudentBillingChapterComponent implements OnInit {
 
   protected openDetail(invoice: Invoice): void {
     const ref = this.dialogService.open(InvoiceDetailDialogComponent, {
-      width: '720px',
+      width: 'var(--dlg-w-lg)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainerService.getContainer() || 'body',

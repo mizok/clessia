@@ -528,7 +528,10 @@ describe('FeeTemplatesComponent', () => {
       choose('two-terms');
       submit().click();
       fixture.detectChanges();
-      document.querySelector<HTMLButtonElement>('.p-dialog-close-button')!.click();
+      // 換殼後 ✕ 是共用殼的（#2290）
+      document
+        .querySelector<HTMLButtonElement>('[role="dialog"] button[aria-label="關閉"]')!
+        .click();
       fixture.detectChanges();
       await fixture.whenStable();
       fixture.detectChanges();
