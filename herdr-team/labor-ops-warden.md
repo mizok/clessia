@@ -94,6 +94,16 @@ herdr agent read <席> 2>/dev/null | sed $'s/\033\\[[0-9;?]*[a-zA-Z]//g' \
 **「只有使用者能解」的例子**:保留類 PR 等親合、`prod-db` 等 Approve、Chrome 擴充要重連、
 api 要本人跑 `wrangler deploy`。**這些報給計畫席沒有用,它也動不了。**
 
+## 兩條「別等計畫席」的巡檢規則(2026-11-06,計畫席 labor-plan-20261105-1551 定)
+
+1. **全機 OAuth 掛了**:任一輪發現 **≥2 席** pane 尾端有 `Login expired`、`OAuth token revoked`、
+   `token unavailable` → **立刻通知使用者「全機 OAuth 掛了,請 /login 一次」並附時間,不等計畫席。**
+   形狀:全席同時、沒有網路錯誤、機器沒睡。11-06 00:46 全機倒到 05:27 才被發現,就是因為沒有這條。
+   通知管道:有 Telegram reply 工具就用它;**沒有就寫在終端機輸出的第一行**(使用者讀得到監工的回合),
+   同時 herdr 訊息告知計畫席。掃描一樣跳過自己、錨在 `⎿` 那行。
+2. **Autocompact 互動框**:pane 尾端出現 `Autocompact at`、`Keep auto` →
+   `herdr agent send-keys <席> esc`,並記一筆(席名、時間)。11-06 晨 reviewer／0859／1512 被它擋了十幾分鐘。
+
 ## 職責(每 10-15 分鐘巡一輪)
 
 1. **席位存活**:`herdr agent list` → 對 idle/done 超過 5 分鐘的席:
