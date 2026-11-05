@@ -8,11 +8,14 @@ import {
   inject,
   input,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { endOfMonth, format, parseISO, startOfMonth, subDays, subMonths } from 'date-fns';
+import { MessageService, type MenuItem } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
 import { SelectModule } from 'primeng/select';
 
 import { Subject, catchError, debounceTime, map, of, skip, switchMap } from 'rxjs';
@@ -21,6 +24,9 @@ import { BILLING_MODE_LABELS, FeeTemplatesService } from '@core/fee-templates.se
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { CampusContextService } from '@core/campus-context.service';
 import { SystemClockService } from '@core/system-clock.service';
+import { OverlayContainerService } from '@core/overlay-container.service';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import { CampusScopeNoteComponent } from '@shared/components/campus-scope-note/campus-scope-note.component';
 import {
   ENROLLMENT_STATUS_LABELS,
@@ -46,6 +52,7 @@ import {
   toEnrollmentEvent,
   type EnrollmentEvent,
 } from './enrollment-event.util';
+import { EnrollmentBillingDialogComponent } from '../courses/class-detail/enrollment-billing-dialog/enrollment-billing-dialog.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
@@ -90,7 +97,9 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
     FormsModule,
     RouterLink,
     SelectModule,
+    PopupMenuComponent,
   ],
+  providers: [DialogService],
   templateUrl: './enrollments.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -105,6 +114,32 @@ export class EnrollmentsPage {
   private readonly classesService = inject(ClassesService);
   private readonly feeTemplatesService = inject(FeeTemplatesService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly dialogService = inject(DialogService);
+  private readonly messageService = inject(MessageService);
+  private readonly overlayContainer = inject(OverlayContainerService);
+
+  /**
+   * 列尾 ⋯（#1314 EN1，A6 `#evm`）：只是入口 —— 開的是班級詳情頁同一支計費對話框、
+   * 同一支 `PATCH /:id/status`，不新增寫入路徑（使用者 11-05 裁定）。
+   * 稿的「編輯生效期間與計費模式」只做得到計費（沒有改生效期間的介面），所以文案用班級頁的「計費設定」（R5）。
+   */
+  private readonly rowMenu = viewChild.required<PopupMenuComponent>('rowMenu');
+  private readonly menuRow = signal<Enrollment | null>(null);
+  protected readonly rowMenuItems = computed<MenuItem[]>(() => {
+    const e = this.menuRow();
+    if (!e) return [];
+    const toClass: MenuItem = {
+      label: '到班級詳情',
+      command: () => this.router.navigate(this.classRoute(e)),
+    };
+    // 退班／作廢是終態，API 會擋（TERMINAL_STATE），不給按
+    if (['withdrawal', 'void'].includes(e.status)) return [toClass];
+    return [
+      { label: '計費設定', command: () => this.openBillingDialog(e) },
+      { label: '終止報名', command: () => this.confirmEnd(e) },
+      toClass,
+    ];
+  });
 
   protected readonly EVENT_LABELS = EVENT_LABELS;
   /** 事件 pill 只用字＋細框，不用底色塊（A6：新報名黑框、退班紅、暫停／作廢灰）。完整 class 字串，Tailwind 才掃得到 */
@@ -434,12 +469,76 @@ export class EnrollmentsPage {
     return RoutesCatalog.ADMIN_STUDENT_DETAIL.absolutePath.replace(':id', id);
   }
 
-  protected classRoute(row: EnrollmentRow): string[] {
-    return ['/admin/courses', row.enrollment.courseId, 'classes', row.enrollment.classId];
+  protected classRoute(e: Enrollment): string[] {
+    return ['/admin/courses', e.courseId, 'classes', e.classId];
   }
 
   protected openClass(row: EnrollmentRow): void {
-    this.router.navigate(this.classRoute(row));
+    this.router.navigate(this.classRoute(row.enrollment));
+  }
+
+  protected openRowMenu(event: MouseEvent, e: Enrollment): void {
+    event.stopPropagation(); // 整列會點進班級
+    this.menuRow.set(e);
+    this.rowMenu().toggle(event);
+  }
+
+  private openBillingDialog(enrollment: Enrollment): void {
+    this.dialogService
+      .open(EnrollmentBillingDialogComponent, {
+        width: '460px',
+        modal: true,
+        showHeader: false,
+        appendTo: this.overlayContainer.getContainer() || 'body',
+        data: { enrollment },
+      })
+      ?.onClose.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((saved?: Enrollment) => {
+        if (saved) this.loadList();
+      });
+  }
+
+  /** 同班級頁的「退班」：要填原因，寫 withdrawal（API 同時把生效迄寫成今天） */
+  private confirmEnd(enrollment: Enrollment): void {
+    this.dialogService
+      .open(ConfirmDialogComponent, {
+        header: '終止報名',
+        width: '420px',
+        modal: true,
+        appendTo: this.overlayContainer.getContainer() || 'body',
+        data: {
+          message: `${enrollment.studentName} · ${enrollment.className} · 終止後狀態變成「退班」`,
+          acceptLabel: '終止報名',
+          rejectLabel: '取消',
+          acceptSeverity: 'danger',
+          requireNotes: true,
+          notesPlaceholder: '例如：搬家、時間衝突',
+        },
+      })
+      ?.onClose.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result?: { notes?: string } | boolean) => {
+        if (!result) return;
+        const notes = typeof result === 'object' ? result.notes : undefined;
+        this.enrollmentsService
+          .updateStatus(enrollment.id, 'withdrawal', notes)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: () => {
+              this.messageService.add({
+                severity: 'success',
+                summary: '已終止報名',
+                detail: `已終止 ${enrollment.studentName} 在 ${enrollment.className} 的報名`,
+              });
+              this.resetToFirstPage();
+            },
+            error: () =>
+              this.messageService.add({
+                severity: 'error',
+                summary: '終止失敗',
+                detail: '請稍後再試',
+              }),
+          });
+      });
   }
 
   private loadList(): void {

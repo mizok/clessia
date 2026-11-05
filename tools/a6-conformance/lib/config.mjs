@@ -1497,16 +1497,14 @@ export const PAGES = {
         reason: '語意結構依內容：篩選區是有名字的 search landmark',
         source: `${rule('R7', '，#1590')}`,
       },
-      // EN1（列的 ⋯：編輯／終止報名）、EN2（直接報名）已裁照 A6，是保留類，要使用者親合，另開單
+      // EN2（直接報名）已裁先做不開帳單的版本（11-05），還沒做
       ...[
-        { status: '缺', a6: '>landmark:main\\[\\]>row>control:button$' },
-        { status: '位置', a6: '>landmark:main\\[\\]>row>text:span\\[退班\\]$' },
         { status: '缺', a6: '>control:button\\[直接報名新\\]$' },
         { status: '缺', a6: '>landmark:toolbar\\[主要動作\\]>control:button\\[直接報名\\]$' },
       ].map((d) => ({
         ...d,
-        reason: 'EN1／EN2 保留類未做：列尾 ⋯（稿多一欄 40px）與「直接報名」',
-        source: '#1314 盤點 issuecomment-6513520494（EN1／EN2 已裁照 A6、保留類）',
+        reason: 'EN2 未做：「直接報名」',
+        source: '#1314 issuecomment-6647075054（11-05 裁定 EN2 先做不開帳單的版本）',
       })),
       // seed 近 30 天只有一筆退班：沒有新報名／暫停的 pill、不滿一頁，工具把稿的 pill 配到別的 span
       { status: '缺', a6: '>landmark:main\\[\\]>landmark:navigation\\[分頁\\](>.*)?$' },
@@ -1532,12 +1530,6 @@ export const PAGES = {
           reason: '現況有、稿沒畫：退班註記一行（辦理退班／到期結束），列內 span 序號錯開',
           source: `${rule('R2')}；enrollments.page.html event-note`,
         })),
-        {
-          status: '多',
-          app: '>landmark:region\\[這一頁的摘要\\]>text:p\\[這段期間的報名進出。此頁唯讀，要調整報名狀態請點進班級。\\]$',
-          reason: '現況有、稿沒畫：產品副標「此頁唯讀，要調整報名狀態請點進班級」',
-          source: `${rule('R2')}；enrollments.html notes「產品現況」欄`,
-        },
         {
           status: '多',
           app: '>heading:h1\\[[^\\]]*\\]>text:span\\[[^\\]]*\\]$',
