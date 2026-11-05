@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 學生</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .flag { font-size: var(--text-xs); font-weight: var(--font-semibold); padding: 0 6px; border-radius: var(--radius-full); line-height: 18px; white-space: nowrap; }
+  .flag--pending_payment { background: var(--warning-50); color: var(--warning-800); box-shadow: inset 0 0 0 1px var(--warning-200); }
+  .flag--suspended { background: var(--zinc-100); color: var(--zinc-700); }
+  .flag--withdrawal { color: var(--zinc-700); box-shadow: inset 0 0 0 1px var(--zinc-300); }
+  .count { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3); margin-top: var(--space-6); font-size: var(--text-md); color: var(--zinc-600); }
+  .count strong { color: var(--zinc-900); }
+  .count button { border: 0; padding: 0; background: none; font-weight: var(--font-semibold); color: var(--zinc-900); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .count[hidden] { display: none; }
+  #list { margin-top: var(--space-2); }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>學生 · 排版（A6 第六輪）</h2>
+<h3>這一輪（A6）</h3>
+<ul>
+  <li><strong>帳戶＋切換身分合成一個入口</strong>（五頁共用的頁首）：桌機右上「頭像＋林主任 · 管理員 ▾」；手機右上「頭像＋管理員 ▾」。點開最上面是人（大頭像、名字、email），接著灰底的「切換身分」（列出其他角色），再來「帳號設定」「登出」（紅字）。桌機是貼著入口的浮層，手機是底部抽屜（同一份內容）。網址加 <code>#account</code> 直接打開。</li>
+  <li><strong>示範使用者改成管理員＋任課老師＋家長</strong>（DIRECTION 原寫管理員＋家長），好讓「切換身分」列出兩個選項；只有一個角色的人，產品是只顯示徽章、不能切換，這一區就不會出現。</li>
+  <li><strong>點切換身分</strong> → 整面白的過場「正在切換到 家長…」，1.4 秒後變「已切換到 家長」。家長頁不在這一輪，所以留一顆「回到管理員」讓你回來。</li>
+  <li><strong>帳號設定</strong>：照產品的對話框欄位（顯示名稱、生日、Email、電話，每欄各自「儲存」；家長身份）。因為示範使用者已經是家長，家長身份那塊顯示「已啟用」（產品在已是家長時整塊不顯示 —— 這裡畫出來是為了讓你看到它的位置）。手機是從底部升起的全寬面板。</li>
+  <li><strong>頭像</strong>：產品是 jdenticon（依使用者 id 產生的幾何圖），設計稿用名字首字「林」代替。</li>
+  <li><strong>第四種面：灰</strong>（zinc-100 為主）＝次要分區與收起來的東西。這頁用在：色面下的工具列（搜尋框在灰上變成白底輸入框，更像一個可以打字的地方）。灰上的字都是 zinc-600 以上；可點的灰列 hover 時底再深一階，停用仍是原本的半透明樣式 —— 灰不是停用。</li>
+  
+</ul>
+
+<h3>A5：黑色減量（這一輪改的）</h3>
+<p>你說手機版黑色塊面太多、桌機也略多。這一輪把「黑」的意思縮小：<strong>黑只用在全站導覽（頁首），以及暫時出現的操作</strong>（勾了課之後的批次動作列、步驟頁的底部按鈕列）。頁面自己的工具列和手機底部動作列改回白底，用一條近黑細線分區 —— 分區靠線，不靠整片黑。手機頁首只有字標那一列是黑，導覽那一列改成白底分頁。下面各段裡講到「黑工具列」「黑動作列」的地方，現在都是白底。</p>
+<h3>這一輪：拿掉說明按鈕、改用字</h3>
+<p>「這頁怎麼看」按鈕與浮層整個拿掉。原本收在裡面的每一項：</p>
+<ul>
+  <li><strong>名字右邊的四種記號</strong>（實心／空心／紅空心／斜線）→ <strong>記號刪掉，只留字</strong>：「16:42 到」「還沒到」「該到沒到」（紅字）「請假」。</li>
+  <li><strong>「沒有字＝今天沒課」</strong>→ <strong>刪掉</strong>。沒寫就是沒事；要只看今天有課的人，按「篩選：今天有課」。</li>
+  <li><strong>名字旁小標的意思</strong>（待繳費／暫停／退班）→ <strong>畫面本來就說了</strong>：小標就是那三個字。說明刪掉。</li>
+  <li><strong>「怎麼找」</strong>（可以打名字、學校、家長電話）→ <strong>畫面本來就說了</strong>：搜尋框的提示字就是「找名字、學校或家長電話」。說明刪掉。</li>
+</ul>
+
+  <p class="lede">這頁只做一件事：找到某個人。所以搜尋框是黑工具列的主角，篩選收進一顆按鈕；名字右邊只用字，不用要圖例的記號。</p>
+  <h3>收了什麼、收到哪、怎麼叫出來</h3>
+  <ul>
+    <li><strong>色面的五個年級人數</strong>（桌機）與<strong>今天已到／該到沒到</strong>（手機）→ <strong>刪掉</strong>。年級人數就寫在每章的章名上；已到／該到沒到是儀表板的事，不是「找人」的事。色面只剩一句話。</li>
+    <li><strong>兩列篩選（今天 6 個、年級 6 個）</strong>→ 收進黑工具列的「篩選」按鈕（白色浮層）。按鈕上直接寫目前的篩選（「篩選：全部」「篩選：國三 · 該到沒到」），收著也知道自己在看什麼。</li>
+    <li><strong>「顯示 120 位 · 依年級分章」</strong>→ 沒篩選時刪掉；有篩選或搜尋時才出現「顯示 12 位（共 120）· 清除篩選」。</li>
+    <li><strong>章邊的「今天有課 30」</strong>→ 刪掉，章邊只剩「國三 48 位」。</li>
+    <li><strong>今天沒課的人名字旁的學校</strong>→ 刪掉（列尾灰字）。現在只有今天有課的人才有右邊那段字，所以「今天的人」更容易浮出來。到班時間旁的「· 櫃台代刷」、還沒到旁的「· 17:00 的課」也刪掉。</li>
+  </ul>
+  <h3>黑色塊面用在哪、為什麼</h3>
+  <ul>
+    <li><strong>頁首</strong>（已有）：導覽。</li>
+    <li><strong>色面正下方的全寬黑工具列</strong>：搜尋框（黑底輸入框）＋「篩選」。搜尋與篩選是「用來移動」的工具，不是內容，所以跟頁首同一種面；在手機上它就是首屏的第一個可操作物（48px、16px 字，iOS 不放大）。</li>
+    <li><strong>沒有手機底部動作列</strong>：這頁沒有「主要動作」，找到人點進去才有事做。硬塞一條黑列只是把黑當裝飾。</li>
+    <li>名冊、章名都留白面；「待繳費」琥珀小標只在白面。</li>
+  </ul>
+  <h3>第一次看的人會怎麼讀</h3>
+  <ul>
+    <li><strong>橘色大字</strong>：全校幾位、今天幾位有課。</li>
+    <li><strong>黑工具列的搜尋框</strong>：打名字、學校或家長電話就找到人。要縮小範圍按「篩選」。</li>
+    <li><strong>年級大字</strong>：章名＋人數；<strong>名字</strong>點進去是學生檔案。名字右邊有字的是今天有課的人（幾點到／還沒到／該到沒到／請假）。</li>
+  </ul>
+  <h3>代價</h3>
+  <ul>
+    <li>篩選多一次點擊（以前桌機是攤開的）。常用的「該到沒到」從儀表板進比較快。</li>
+    <li>今天沒課的人不再顯示學校，同名同姓時要點進檔案分辨。</li>
+    <li>仍沒有表格檢視、多選與批次操作。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, todayOf, todayMeta } = A2;
+  const EL = C.statusLabel.enrollment;
+  const stateOf = (s) => {
+    const st = s.enrollments.map((e) => e.status);
+    if (st.includes('pending_payment')) return 'pending_payment';
+    if (st.includes('active')) return 'active';
+    if (st.includes('suspended')) return 'suspended';
+    return 'withdrawal';
+  };
+  C.students.forEach((s) => (s.state = stateOf(s)));
+  const order = ['J3', 'J2', 'J1', 'P6', 'P5'];
+  const label = { P5: '小五', P6: '小六', J1: '國一', J2: '國二', J3: '國三' };
+  const cnt = (f) => C.students.filter(f).length;
+  const tcnt = (k) => C.todayExpected.filter((e) => k === 'any' || e.state === k).length;
+
+  const TODAY_F = [['all', '全部', C.students.length], ['any', '今天有課', tcnt('any')], ['arrived', '已到', tcnt('arrived')], ['not_yet', '還沒到', tcnt('not_yet')], ['missing', '該到沒到', tcnt('missing')], ['on_leave', '請假', tcnt('on_leave')]];
+  const state = { today: 'all', grade: 'all', q: '' };
+
+  const filters = `<button class="btn" type="button" popovertarget="filt">${icon.filter}<span id="fmeta">篩選</span></button>
+    <div class="pop" id="filt" popover>
+      <div class="filters__row"><span class="filters__label">今天</span>${TODAY_F.map(([k, l, n]) => `<button class="tlink" data-today="${k}">${l} <span class="tlink__n">${n}</span></button>`).join('')}</div>
+      <div class="filters__row"><span class="filters__label">年級</span><button class="tlink" data-grade="all">全部</button>${order.map((g) => `<button class="tlink" data-grade="${g}">${label[g]} <span class="tlink__n">${cnt((s) => s.grade === g)}</span></button>`).join('')}</div>
+    </div>`;
+
+  shell({
+    page: 'students',
+    title: `${C.students.length} 位學生，<br>今天有 ${tcnt('any')} 位有課。`,
+    bar: `<label class="tsearch">${icon.search}<input type="search" placeholder="找名字、學校或家長電話" aria-label="搜尋學生"></label>
+      <div class="tbar__act">${filters}</div>`,
+    phase: 400,
+  }, `<p class="count" id="count" hidden></p><div id="list"></div>`);
+
+  const render = () => {
+    const q = state.q.trim();
+    const hit = C.students.filter((s) => {
+      const e = todayOf[s.id];
+      const okT = state.today === 'all' || (state.today === 'any' ? !!e : e && e.state === state.today);
+      return okT && (state.grade === 'all' || s.grade === state.grade) && (!q || s.name.includes(q) || s.school.includes(q) || s.parent.phone.includes(q));
+    });
+    const narrowed = state.today !== 'all' || state.grade !== 'all' || q;
+    const cEl = document.getElementById('count');
+    cEl.hidden = !narrowed;
+    cEl.innerHTML = `<span>顯示 <strong>${hit.length}</strong> 位（共 ${C.students.length}）</span><button type="button" data-clear>清除篩選</button>`;
+    const groups = order.map((g) => [g, hit.filter((s) => s.grade === g)]).filter(([, a]) => a.length);
+    document.getElementById('list').innerHTML = groups.length ? groups.map(([g, a]) => `<section class="chap chap--row" aria-label="${label[g]}">
+        <div class="chap__side"><div class="chap__big">${label[g]}</div><p class="chap__tally">${a.length} 位</p></div>
+        <ul class="roster roster--rows">${a.map((s) => {
+          const e = todayOf[s.id];
+          const out = s.state === 'suspended' || s.state === 'withdrawal';
+          return `<li><a class="who${e && e.state === 'missing' ? ' who--missing' : ''}${out ? ' who--quiet' : ''}" href="student.html">
+            <span class="who__name">${s.name}${s.state !== 'active' ? `<span class="flag flag--${s.state}">${EL[s.state]}</span>` : ''}</span>
+            <span class="who__meta">${e ? todayMeta(e).replace(/ · \d\d:\d\d 的課/, '').replace(' · 櫃台代刷', '') : ''}</span></a></li>`;
+        }).join('')}</ul>
+      </section>`).join('') : `<p class="empty">沒有符合「${q || '這組篩選'}」的學生。試試只打姓氏，或按「清除篩選」。</p>`;
+    const tl = TODAY_F.find((f) => f[0] === state.today)[1];
+    const parts = [state.grade === 'all' ? '' : label[state.grade], state.today === 'all' ? '' : tl].filter(Boolean);
+    document.getElementById('fmeta').textContent = `篩選：${parts.length ? parts.join(' · ') : '全部'}`;
+    document.querySelectorAll('[data-today]').forEach((b) => b.setAttribute('aria-current', b.dataset.today === state.today));
+    document.querySelectorAll('[data-grade]').forEach((b) => b.setAttribute('aria-current', b.dataset.grade === state.grade));
+  };
+  const input = document.querySelector('.tsearch input');
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-clear]')) { Object.assign(state, { today: 'all', grade: 'all', q: '' }); input.value = ''; render(); return; }
+    const b = e.target.closest('[data-today],[data-grade]');
+    if (!b) return;
+    if (b.dataset.today) state.today = b.dataset.today; else state.grade = b.dataset.grade;
+    render();
+  });
+  input.addEventListener('input', (e) => { state.q = e.target.value; render(); });
+  render();
+})();
+</script>
+</body>
+</html>

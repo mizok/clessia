@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 聯絡簿</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* 還沒寫的：一班一列 —— 哪一班、帶班老師、還差幾則、誰還沒寫（名字就是補寫的按鈕） */
+  .gap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: var(--space-2) var(--space-8); align-items: start; padding: var(--space-5) 0; border-bottom: 1px solid var(--surface-border); }
+  .gap__cls { font-size: var(--text-xl); font-weight: var(--font-bold); letter-spacing: -0.01em; }
+  .gap__meta { margin-top: 2px; font-size: var(--text-md); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .gap__left { color: var(--error-700); font-weight: var(--font-semibold); }
+  .gap__who { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .gap__who .btn { height: 32px; }
+  .gap__act { display: flex; gap: var(--space-2); }
+  .gap--done .gap__cls, .gap--done .gap__meta { color: var(--zinc-600); }
+  .gap-day { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+  .gap-day .dd { height: 36px; }
+  .gap-ok { padding: var(--space-5) 0; font-size: var(--text-lg); color: var(--zinc-700); }
+  .gap-foot { margin-top: var(--space-3); font-size: var(--text-md); color: var(--zinc-600); }
+
+  /* 這段期間的聯絡簿：一天一段可收合，今天展開；每則一列，整列可按（開編輯） */
+  .cbsum { margin-top: var(--space-4); font-size: var(--text-md); color: var(--zinc-700); font-variant-numeric: tabular-nums; }
+  .cbsum strong { color: var(--zinc-900); }
+  .ent { display: grid; grid-template-columns: 7rem minmax(0, 1fr) 9.5rem 10rem; gap: var(--space-1) var(--space-6); align-items: baseline; width: 100%; padding: var(--space-3) var(--space-2); margin: 0 calc(var(--space-2) * -1);
+    border: 0; border-bottom: 1px solid var(--surface-border); border-radius: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; transition: background var(--transition-fast); }
+  .ent:hover { background: var(--zinc-50); }
+  .ent:focus-visible { outline: 2px solid var(--zinc-900); outline-offset: -2px; }
+  .ent__who { font-weight: var(--font-semibold); }
+  .ent__who small { display: block; font-size: var(--text-sm); font-weight: var(--font-medium); color: var(--zinc-600); }
+  .ent__txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--zinc-800); }
+  .ent__ed, .ent__sig { font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .ent__sig .tag { font-size: var(--text-sm); }
+  .ent.is-new { background: var(--zinc-50); }
+  /* 篩選只作用在下面的清單，所以放在這一段裡，不放全頁工具列（手機首屏留給「還沒寫的」） */
+  .cbtool { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-4); padding: var(--space-3); border-radius: var(--radius-lg); background: var(--gray); }
+  .cbtool .tsearch { flex: 0 1 280px; background: #fff; border-color: var(--zinc-300); color: var(--zinc-600); }
+  .cbtool .tsearch input { color: var(--zinc-900); }
+  .cbtool .tsearch input::placeholder { color: var(--zinc-500); }
+  .cbtool .dd, .gap-day .dd { flex: none; width: auto; height: 40px; }
+  [hidden] { display: none !important; }
+  .toggle[aria-pressed='true'] { border-color: var(--zinc-900); box-shadow: inset 0 0 0 1px var(--zinc-900); }
+  .cb-ta { height: auto !important; min-height: 132px; padding: var(--space-2) var(--space-3) !important; line-height: 1.6; resize: vertical; }
+  @media (max-width: 860px) {
+    .gap { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding: var(--space-4) 0; }
+    .gap__who .btn { height: 40px; }
+    .gap__act .btn { height: 40px; }
+    .ent { grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--space-3); }
+    .ent__txt { grid-column: 1 / -1; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .ent__ed { grid-column: 1; }
+    .ent__sig { grid-column: 2; grid-row: 1; justify-self: end; }
+    .cbtool .tsearch { flex: 1 1 100%; }
+    .cbtool .dd, .cbtool .btn { height: 44px; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>聯絡簿 · 排版（#990 批 1）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>依據（應然）</th><th>產品現況</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>哪些班用聯絡簿</td><td>rules/contact-book-rules：國小模式，班級層級開關（國小開、國中關）</td><td>示範資料把開關標在國三數學 A、國二英文 B（國中班）</td><td>改用三個國小班示範；國小班當成週一到週五每天來（安親型）</td></tr>
+      <tr><td>每生每日一則、不分科目、共編記最後編輯者</td><td>rules §1、§3</td><td>有（編輯對話框的說明文就是這句）</td><td>照做；編輯／補寫都寫明這句</td></tr>
+      <tr><td>家長簽收記「誰、何時」</td><td>rules §4</td><td>列表只有「已簽收／未簽收」</td><td>簽收欄寫「王媽媽 20:15 簽」，標「新」</td></tr>
+      <tr><td>管理端看得到哪些還沒簽</td><td>rules §4</td><td>有：「只看未簽收」開關</td><td>照做</td></tr>
+      <tr><td>還沒寫的（缺漏名單）</td><td>—（產品有，規則沒寫）</td><td>一筆一列＋補寫</td><td>改成一班一列：還差幾則、名字就是補寫按鈕；保留在最上面</td></tr>
+      <tr><td>提醒帶班老師補寫</td><td>—（規則 §3：撰寫在老師端）</td><td>沒有</td><td>每班一顆「提醒老師補寫」，標「新」</td></tr>
+      <tr><td>預設區間</td><td>—</td><td>最近 7 天（示範資料落在 8 月，整頁是空的）</td><td>最近 7 天，畫有資料的樣子；空狀態另外設計</td></tr>
+      <tr><td>儲存鈕</td><td>—</td><td>內容沒改時停用</td><td>內容空白時停用並寫原因（共用表單目前只擋必填，沒改動的判斷待共用零件補）</td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁怎麼讀</h3>
+  <ul>
+    <li><strong>最上面只回答一件事</strong>：哪幾班今天還沒寫完。名字直接按就是補寫；寫完那位就從名單消失，整班寫完那一列退成灰字。</li>
+    <li><strong>下面是這段期間寫好的</strong>，一天一段，今天展開，其他天收成一列摘要（幾則、幾則沒簽）。整列可按，打開就能修改。</li>
+    <li>產品的「撰寫在老師端」保留在副標：這裡是補寫與修正，不是主要的寫作地方。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, wd, esc } = A2;
+  const ME = '林主任';
+
+  // ── 合成資料（頁內）：國小班才用聯絡簿（rules 的國小模式）；國小班當成週一到週五每天來 ──
+  const CB = C.classes.filter((c) => c.name.startsWith('國小'));
+  const DAYS = [0, -1, -2, -3, -4, -5, -6].map((n) => C.addDays(C.TODAY, n)).filter((d) => { const w = new Date(d + 'T00:00:00').getDay(); return w >= 1 && w <= 5; });
+  const LINES = ['今天數學練習卷完成，訂正兩題分數加減。', '上課專心，英文單字小考 18/20，回家複習第 5 課。', '作業寫得比較慢，回家請陪他完成講義第 3 頁。', '下課跟同學有點小爭執，已經和好，請家長關心一下。', '今天主動舉手回答，表現很好。', '鉛筆盒忘在教室，明天記得帶走。', '國語圈詞寫完了，造句還差兩句，明天補。', '數學乘法直式進步很多，錯一題。', '今天有點咳嗽，精神還可以，請留意。', '英文聽力練習完成，發音要再多練習。'];
+  const pick = (i) => LINES[i % LINES.length];
+  const TEACH = Object.fromEntries(CB.map((c) => [c.id, c.teacher]));
+  // 每生每日一則、不分班（rules §1）：同時在兩個國小班的學生只歸第一個班
+  const CBC = {};
+  CB.forEach((c) => c.studentIds.forEach((sid) => (CBC[sid] = CBC[sid] || c.id)));
+  const own = (c) => c.studentIds.filter((sid) => CBC[sid] === c.id);
+  const entries = [];
+  CB.forEach((c, ci) => DAYS.forEach((d, di) => own(c).forEach((sid, k) => {
+    const s = C.studentById[sid];
+    // 今天：第一班差 4 位、第二班差 2 位、第三班都寫了；過去的日子全都寫了
+    if (d === C.TODAY && ((ci === 0 && k < 4) || (ci === 1 && k < 2))) return;
+    const signed = d !== C.TODAY ? (k + di) % 7 !== 0 : k % 3 === 0;
+    entries.push({ id: `${sid}-${d}`, sid, cid: c.id, date: d, text: pick(k + di * 3 + ci), by: c.teacher, at: `${16 + (k % 2)}:${String(10 + ((k * 7) % 49)).padStart(2, '0')}`,
+      sig: signed ? { who: s.parent.name, at: `${20 + (k % 3)}:${String((k * 11) % 60).padStart(2, '0')}` } : null });
+  })));
+  const missingOn = (d) => CB.map((c) => [c, own(c).filter((sid) => !entries.some((e) => e.sid === sid && e.date === d))]);
+
+  const state = { day: C.TODAY, range: '7', q: '', unsigned: false };
+  const RANGE = [['7', '最近 7 天'], ['3', '最近 3 天'], ['1', '今天']];
+  const dayLabel = (d) => `${d === C.TODAY ? '今天 ' : d === C.addDays(C.TODAY, -1) ? '昨天 ' : ''}${md(d)}（${wd(d)}）`;
+  const todayMissing = () => missingOn(C.TODAY).reduce((a, [, m]) => a + m.length, 0);
+  const unsignedCnt = () => entries.filter((e) => !e.sig && DAYS.slice(0, 5).includes(e.date)).length;
+
+  shell({
+    page: 'contact-book',
+    title: '聯絡簿',
+    sub: `看老師寫了什麼、家長簽了沒。撰寫在老師端 —— 這裡可以補寫、修正。`,
+    stats: [{ n: `<span id="st-miss">${todayMissing()}</span>`, unit: '則', label: '今天還沒寫' }, { n: `<span id="st-uns">${unsignedCnt()}</span>`, unit: '則', label: '這週家長還沒簽' }],
+    phase: 2200,
+  }, `
+    <section class="sec" aria-labelledby="h-gap">
+      <div class="sec__head"><h2 class="sec__title" id="h-gap">還沒寫的</h2>
+        <div class="gap-day" style="margin-left:auto"><select class="acset__in" id="gap-day" aria-label="缺漏名單的日期">${DAYS.map((d) => `<option value="${d}">${dayLabel(d)}</option>`).join('')}</select></div></div>
+      <div id="gaps"></div>
+    </section>
+    <section class="sec" aria-labelledby="h-list">
+      <div class="sec__head"><h2 class="sec__title" id="h-list">這段期間的聯絡簿</h2></div>
+      <div class="cbtool">
+        <label class="tsearch">${icon.search}<input type="search" id="cb-q" placeholder="輸入學生姓名篩選" aria-label="輸入學生姓名篩選"></label>
+        <select class="acset__in" id="cb-range" aria-label="期間">${RANGE.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+        <button class="btn toggle" type="button" id="cb-uns" aria-pressed="false">只看未簽收</button>
+        <button class="btn" type="button" id="cb-clear" hidden>清除篩選</button>
+      </div>
+      <p class="cbsum" id="cbsum"></p>
+      <div class="colls" id="days" style="margin-top:var(--space-4)"></div>
+    </section>`);
+
+  // ── 還沒寫的 ──
+  function renderGaps() {
+    const d = state.day, rows = missingOn(d);
+    const left = rows.filter(([, m]) => m.length), done = rows.filter(([, m]) => !m.length);
+    document.getElementById('gaps').innerHTML = left.length ? left.map(([c, m]) => `<article class="gap" data-cid="${c.id}">
+        <div><h3 class="gap__cls">${esc(c.name)}</h3><p class="gap__meta">${esc(c.teacher)} 老師 · <span class="gap__left">還差 ${m.length} 則</span>／${own(c).length}</p></div>
+        <div class="gap__who" aria-label="還沒寫的學生（按名字補寫）">${m.map((sid) => `<button class="btn btn--sm" type="button" data-write="${sid}" data-cid="${c.id}">${icon.plus}${esc(C.studentById[sid].name)}</button>`).join('')}</div>
+        <div class="gap__act"><button class="btn btn--sm" type="button" data-busy="寄送中…" data-ok="已用 LINE 提醒${esc(c.teacher)}老師補寫 ${m.length} 則（${md(d)}）" data-done="已提醒老師">${icon.bell}提醒老師補寫<span class="new" style="margin-left:6px">新</span></button></div>
+      </article>`).join('') + (done.length ? `<p class="gap-foot">${done.map(([c]) => c.name).join('、')} 都寫了。</p>` : '')
+      : `<p class="gap-ok">${icon.check} ${dayLabel(d)}該寫的都寫了。</p>`;
+  }
+
+  // ── 這段期間的聯絡簿 ──
+  function renderList() {
+    const days = DAYS.slice(0, +state.range === 1 ? 1 : +state.range === 3 ? 3 : DAYS.length);
+    const q = state.q.trim();
+    const hit = entries.filter((e) => days.includes(e.date) && (!q || C.studentById[e.sid].name.includes(q)) && (!state.unsigned || !e.sig));
+    const all = entries.filter((e) => days.includes(e.date));
+    const filtered = q || state.unsigned;
+    document.getElementById('cb-clear').hidden = !filtered;
+    document.getElementById('cbsum').innerHTML = all.length ? `這段期間共 <strong>${all.length}</strong> 則，<strong>${all.filter((e) => !e.sig).length}</strong> 則家長還沒簽收。${filtered ? ` 顯示 <strong>${hit.length}</strong> 則。` : ''}` : '';
+    const box = document.getElementById('days');
+    if (!hit.length) {
+      box.innerHTML = state.unsigned && !q ? `<p class="empty">這段期間的家長都簽了。<button class="btn btn--sm" type="button" data-showall style="margin-left:8px">顯示全部</button></p>`
+        : filtered ? `<p class="empty">找不到「${esc(q)}」的聯絡簿。試試只打姓氏。<button class="btn btn--sm" type="button" data-clearall style="margin-left:8px">清除篩選</button></p>`
+        : `<p class="empty">這段期間沒有聯絡簿。聯絡簿由帶班老師撰寫，只有開了「使用聯絡簿」的班級才會有。</p>`;
+      return;
+    }
+    box.innerHTML = days.map((d) => [d, hit.filter((e) => e.date === d)]).filter(([, a]) => a.length).map(([d, a], i) => `<details class="coll"${i === 0 || filtered ? ' open' : ''}>
+        <summary class="coll__sum"><span class="coll__t">${dayLabel(d)}</span><span class="coll__m">${a.length} 則 · ${a.filter((e) => !e.sig).length} 則未簽收</span></summary>
+        <div class="coll__body">${a.map(row).join('')}</div></details>`).join('');
+  }
+  const sigCell = (e) => e.sig ? `<span class="tag tag--ok">${icon.check}${esc(e.sig.who)} ${e.sig.at} 簽</span>` : `<span class="tag tag--quiet">未簽收</span>`;
+  const row = (e) => { const s = C.studentById[e.sid]; return `<button class="ent" type="button" data-ent="${e.id}">
+      <span class="ent__who">${esc(s.name)}<small>${esc(C.classById[e.cid].name.replace('國小', ''))}</small></span>
+      <span class="ent__txt">${esc(e.text)}</span>
+      <span class="ent__ed">${esc(e.by)} ${e.at} 編輯</span>
+      <span class="ent__sig">${sigCell(e)}</span></button>`; };
+  const refreshStats = () => { document.getElementById('st-miss').textContent = todayMissing(); document.getElementById('st-uns').textContent = unsignedCnt(); };
+
+  // ── 編輯／補寫：共用表單，內容欄換成多行（共用表單目前沒有多行欄位）──
+  function editor({ sid, date, entry }) {
+    const s = C.studentById[sid];
+    const d = A2.form({
+      title: s.name,
+      sub: entry ? `${md(date)}（${wd(date)}）· 最後由 ${entry.by} 編輯 · ${entry.sig ? `${entry.sig.who} ${entry.sig.at} 簽收` : '家長還沒簽收'}` : `${md(date)}（${wd(date)}）· 補寫 · ${C.classById[CBC[sid]].name}`,
+      fields: [{ k: 'body', label: '內容', value: entry ? entry.text : '', req: true, ph: '今天的上課狀況…', hint: '每生每日一則，不分科目。共同編輯會直接覆寫並記下最後編輯者。' }],
+      submit: entry ? '儲存' : '補寫', busy: '儲存中…',
+      ok: entry ? `已儲存 ${s.name} ${md(date)} 的聯絡簿` : `已補寫 ${s.name} ${md(date)} 的聯絡簿，家長會收到通知`,
+      apply: (v) => {
+        if (entry) { entry.text = v.body; entry.by = ME; entry.at = C.NOW; }
+        else entries.unshift({ id: `${sid}-${date}`, sid, cid: CBC[sid], date, text: v.body, by: ME, at: C.NOW, sig: null, fresh: true });
+        renderGaps(); renderList(); refreshStats();
+        const el = document.querySelector(`[data-ent="${sid}-${date}"]`);
+        if (el) { el.closest('details').open = true; el.classList.add('is-new'); }
+      },
+    });
+    const i = d.querySelector('[data-k="body"]');
+    const ta = Object.assign(document.createElement('textarea'), { className: 'acset__in cb-ta', id: i.id, value: i.value, placeholder: i.placeholder, rows: 5 });
+    ta.dataset.k = 'body';
+    i.replaceWith(ta);
+    d.querySelector('[data-go]').setAttribute('aria-disabled', ta.value.trim() ? 'false' : 'true');
+    if (!matchMedia('(max-width: 860px)').matches) ta.focus();
+  }
+
+  // ── 事件 ──
+  document.getElementById('gap-day').addEventListener('change', (e) => { state.day = e.target.value; renderGaps(); });
+  document.getElementById('cb-range').addEventListener('change', (e) => { state.range = e.target.value; renderList(); });
+  document.getElementById('cb-q').addEventListener('input', (e) => { state.q = e.target.value; renderList(); });
+  const uns = document.getElementById('cb-uns');
+  const setUns = (on) => { state.unsigned = on; uns.setAttribute('aria-pressed', on); renderList(); };
+  uns.addEventListener('click', () => setUns(!state.unsigned));
+  const clearAll = () => { state.q = ''; document.getElementById('cb-q').value = ''; setUns(false); };
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#cb-clear, [data-clearall]')) clearAll();
+    if (e.target.closest('[data-showall]')) setUns(false);
+    const w = e.target.closest('[data-write]');
+    if (w) editor({ sid: w.dataset.write, date: state.day });
+    const r = e.target.closest('[data-ent]');
+    if (r) { const en = entries.find((x) => x.id === r.dataset.ent); editor({ sid: en.sid, date: en.date, entry: en }); }
+  });
+  renderGaps(); renderList();
+})();
+</script>
+</body>
+</html>

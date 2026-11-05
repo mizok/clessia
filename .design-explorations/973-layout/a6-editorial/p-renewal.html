@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 續課資訊（家長端）</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* ── 家長端「行政服務」四頁共用（報名申請／試聽申請／加選課程／續課資訊；同一族，四頁逐字相同 —— 主席收進 a6.css 時整段搬） ── */
+  .tabs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-5); }
+  .tabs .tlink { font-size: var(--text-base); text-decoration: none; min-height: 40px; }
+  /* 申請表：一欄、步驟編號在標題前；手機與桌機同一個順序 */
+  .apf { display: grid; gap: var(--space-8); max-width: 760px; margin-top: var(--space-8); }
+  .apf__step { display: grid; gap: var(--space-3); min-width: 0; margin: 0; padding: 0; border: 0; }
+  .apf__h { display: flex; align-items: center; gap: var(--space-2); padding: 0; font-size: var(--text-lg); font-weight: var(--font-bold); }
+  /* 使用者 10/03 08:4x：步驟標題跟內容之間要有間距。.apf__step 用 grid gap 撐開，但 fieldset 的 legend 不是 grid 項目、吃不到 gap（原本 0px）—— 只補 legend，跟 div 步驟一樣 12 */
+  legend.apf__h { margin-bottom: var(--space-3); }
+  .apf__n { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: var(--radius-full); background: var(--zinc-900); color: #fff; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+  .apf__opt { font-size: var(--text-md); font-weight: var(--font-medium); color: var(--zinc-600); }
+  .apf__hint { font-size: var(--text-md); color: var(--zinc-600); }
+  .apf .acset__in { width: 100%; max-width: 360px; height: 40px; }
+  .apf textarea.acset__in { max-width: none; }
+  .apf__foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding-top: var(--space-5); border-top: 1px solid var(--surface-border); }
+  .apf__why { font-size: var(--text-md); color: var(--zinc-700); }
+  /* 可選的開課班／課程：一列一個，選中＝近黑框（跟 .fdlg__opt 同一套） */
+  .find { display: flex; align-items: center; gap: var(--space-2); max-width: 420px; height: 40px; padding: 0 var(--space-3); border: 1px solid var(--zinc-300); border-radius: var(--radius-md); color: var(--zinc-600); }
+  .find:focus-within { border-color: var(--zinc-900); }
+  .find input { flex: 1; min-width: 0; border: 0; outline: none; background: none; font: inherit; font-size: var(--text-base); color: var(--zinc-900); }
+  .grp__h { margin: var(--space-4) 0 var(--space-2); font-size: 13px; font-weight: 700; color: var(--zinc-800); letter-spacing: 0.04em; }
+  .pick { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-1) var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--zinc-300); border-radius: var(--radius-md); background: #fff; cursor: pointer; }
+  .pick + .pick { margin-top: var(--space-2); }
+  .pick:hover { border-color: var(--zinc-500); }
+  .pick:has(input:checked) { border-color: var(--zinc-900); box-shadow: inset 0 0 0 1px var(--zinc-900); }
+  .pick:has(input:disabled) { cursor: default; background: var(--zinc-50); color: var(--zinc-600); }
+  .pick input { width: 18px; height: 18px; margin: 0; accent-color: var(--zinc-900); }
+  .pick__t { font-size: var(--text-base); font-weight: var(--font-semibold); }
+  .pick__m { grid-column: 2; font-size: var(--text-md); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .pick__r { grid-row: 1 / span 2; grid-column: 3; text-align: right; font-size: var(--text-md); font-variant-numeric: tabular-nums; }
+  .pick__r b { display: block; font-size: var(--text-base); color: var(--zinc-900); }
+  .seat--low { color: var(--error-700); font-weight: var(--font-semibold); }
+  /* 申請紀錄：一列一筆，整列是按鈕（點開詳情） */
+  .rq { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px var(--space-4); width: 100%; min-height: 64px; padding: var(--space-3) 0; border: 0; border-bottom: 1px solid var(--surface-border); background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .rq:hover .rq__t { text-decoration: underline; text-underline-offset: 4px; }
+  .rq:focus-visible { outline: 2px solid var(--zinc-900); outline-offset: 2px; }
+  .rq__t { font-size: var(--text-lg); font-weight: var(--font-semibold); }
+  .rq__m { grid-column: 1; font-size: var(--text-md); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .rq__s { grid-row: 1 / span 2; grid-column: 2; display: flex; align-items: center; gap: var(--space-2); }
+  .rq.is-new { animation: rq-in 1.2s var(--arrive); }
+  @keyframes rq-in { from { background: var(--zinc-100); } }
+  /* 狀態：色相只編碼嚴重度 —— 要家長動作的（待付款）琥珀、被拒紅字、完成綠字；其餘都是灰 */
+  .tag--line { box-shadow: inset 0 0 0 1px var(--zinc-400); color: var(--zinc-800); }
+  .tag--off { padding-left: 0; color: var(--zinc-600); font-weight: var(--font-medium); }
+  /* 詳情對話框（唯讀）：沿用 .acset 的殼 */
+  .dt { display: grid; grid-template-columns: 7em minmax(0, 1fr); gap: var(--space-2) var(--space-4); font-size: var(--text-base); }
+  .dt dt { color: var(--zinc-600); }
+  .dt dd { margin: 0; font-weight: var(--font-medium); }
+  .tl { display: grid; gap: var(--space-3); padding-left: var(--space-4); border-left: 2px solid var(--zinc-200); }
+  .tl li { position: relative; list-style: none; font-size: var(--text-md); }
+  .tl li::before { content: ''; position: absolute; left: calc(-1 * var(--space-4) - 6px); top: 6px; width: 10px; height: 10px; border-radius: var(--radius-full); background: var(--zinc-900); }
+  .tl li.is-todo::before { background: #fff; box-shadow: inset 0 0 0 2px var(--zinc-400); }
+  .tl li.is-todo { color: var(--zinc-600); }
+  .tl small { display: block; color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .box { padding: var(--space-4); border-radius: var(--radius-md); background: var(--gray); font-size: var(--text-base); }
+  .box h3 { margin-bottom: var(--space-2); font-size: 13px; font-weight: 700; color: var(--zinc-800); }
+  .box p + p { margin-top: var(--space-1); }
+  .box b { font-variant-numeric: tabular-nums; }
+  .dfoot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); padding: 0 var(--space-6) var(--space-6); }
+  @media (max-width: 860px) {
+    .apf { gap: var(--space-6); margin-top: var(--space-6); }
+    .apf .acset__in { max-width: none; height: 44px; }
+    .apf__foot .btn { flex: 1; height: 44px; }
+    .pick { grid-template-columns: auto minmax(0, 1fr); }
+    .pick__r { grid-row: auto; grid-column: 2; text-align: left; }
+    .pick__r b { display: inline; margin-right: var(--space-2); }
+    .find { max-width: none; height: 44px; }
+    .dt { grid-template-columns: 5.5em minmax(0, 1fr); }
+    .dfoot { padding: 0 var(--space-4) var(--space-6); }
+    .dfoot .btn { flex: 1; height: 44px; }
+    .tabs .tlink { min-height: 44px; }
+  }
+  /* 狀態提示：灰面一條（第四種面），處理中多一行申請內容 */
+  .rn-state { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-4); margin-top: var(--space-8); padding: var(--space-4) var(--space-5); border-radius: var(--radius-lg); background: var(--gray); }
+  .rn-state > svg { flex: none; }
+  .rn-state__t { flex: 1 1 280px; font-size: var(--text-base); }
+  .rn-state__t b { font-variant-numeric: tabular-nums; }
+  .rn-state__t small { display: block; margin-top: 2px; font-size: var(--text-md); color: var(--zinc-700); }
+  .rn { margin-top: var(--space-8); }
+  .rn__row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--space-4); padding: var(--space-4) 0; border-bottom: 1px solid var(--surface-border); }
+  .rn__t { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--text-lg); font-weight: var(--font-semibold); }
+  .rn__m { font-size: var(--text-md); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .rn__m s { color: var(--zinc-600); }
+  .rn__fee { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-size: var(--text-lg); font-weight: var(--font-bold); font-variant-numeric: tabular-nums; text-align: right; }
+  .rn__fee small { display: block; font-size: var(--text-sm); font-weight: var(--font-medium); color: var(--zinc-600); }
+  .rn__sum { display: flex; justify-content: space-between; padding: var(--space-4) 0; font-size: var(--text-base); font-weight: var(--font-semibold); font-variant-numeric: tabular-nums; }
+  .rn-more { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-4); margin-top: var(--space-8); padding-top: var(--space-5); border-top: 1px solid var(--zinc-900); font-size: var(--text-base); }
+  @media (max-width: 860px) {
+    .rn-state { margin-top: var(--space-6); padding: var(--space-4); }
+    .rn-state .btn { flex: 1; height: 44px; }
+    .rn-more .btn { flex: 1; height: 44px; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>續課資訊 · 家長端（#990 批 5）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（specs/parent/renewal.md）</th><th>產品現況（sitemap/parent/renewal.md）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>整頁</td><td>預覽即將自動續課的內容、申請異動</td><td><b>佔位頁</b>：只有 EmptyState，不打任何 API</td><td>照規格畫完整頁（已裁 A）；整頁都是「新」</td></tr>
+      <tr><td>看哪個孩子</td><td>規格沒寫（「該生的自動開單流程暫停」—— 異動是逐生的）</td><td>—</td><td>用家長端共用的孩子切換器，一次看一個孩子；異動狀態也是逐生</td></tr>
+      <tr><td>標題區塊</td><td>下期適用期間（如「2026 春季」）</td><td>—</td><td>標題直接寫「下期 11/13 起續 N 個班」；期間寫在副行。期別名稱示範資料沒有，用日期</td></tr>
+      <tr><td>狀態提示</td><td>正常：「系統將於 [日期] 自動開立繳費單，無需操作。」／異動處理中：「已提交異動申請，管理員處理中，自動開單已暫停。」</td><td>—</td><td>照字面；灰面一條（五種面的灰），處理中多寫申請的內容。<code>#pending</code> 直接看處理中</td></tr>
+      <tr><td>續課預覽</td><td>課程、新班級（升班標「升級」）、上課時間、預計費用；只能看不能勾</td><td>—</td><td>照做；升班的舊班名劃掉、新班名＋灰框「升級」；最後一列合計</td></tr>
+      <tr><td>申請異動</td><td>選課程 → 轉班／停課（不續報）／變更繳費方式 → 依類型填內容 → 備註 → 送出；之後狀態變「處理中」、該生自動開單暫停</td><td>—</td><td>用共用的 <code>A2.form</code>。<b>依類型換欄位</b>做不到（A2.form 沒有條件欄位），改成一個必填的「想怎麼改」欄、提示依類型寫什麼 —— 主席收 A2.form 時可以補條件欄位</td></tr>
+      <tr><td>加選連結</td><td>「想加選其他課程？」＋「瀏覽可加選課程」→ /parent/add-course</td><td>—</td><td>照做</td></tr>
+      <tr><td>無待確認</td><td>「目前沒有即將到來的續課」＋下次預計開單日期</td><td>—</td><td><code>#none</code> 看這個狀態</td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>示範：林子晴續 3 個班、其中一班升級；張宇軒 2 個；王柏翰 1 個。本期到 11/12（示範資料的期末），系統在期末前兩週（10/29）開下期繳費單。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, money, esc, kids, form } = A2;
+  // ── 四頁共用（逐字相同）：唯讀詳情對話框、hash 分頁、頁內申請表的必填檢查 ──
+  const sheet = (title, body, foot = '') => {
+    const d = document.createElement('dialog');
+    d.className = 'acset'; d.setAttribute('aria-labelledby', 'sh-t');
+    d.innerHTML = `<div class="acset__head"><h2 class="acset__t" id="sh-t">${title}</h2><button class="acset__x" type="button" aria-label="關閉" data-x>${icon.x}</button></div><div class="acset__body">${body}</div>${foot ? `<div class="dfoot">${foot}</div>` : ''}`;
+    document.body.append(d);
+    d.addEventListener('click', (e) => { if (e.target === d || e.target.closest('[data-x]')) d.close(); });
+    d.addEventListener('close', () => setTimeout(() => d.remove(), 200));
+    d.showModal();
+    return d;
+  };
+  const tabsHtml = (list, cur) => list.map(([k, l, n]) => `<a class="tlink" href="#${k}"${k === cur ? ' aria-current="true"' : ''}>${l}${n != null ? ` <span class="tlink__n">${n}</span>` : ''}</a>`).join('');
+  // 必填沒填：送出鈕不能按，旁邊一行字寫還差什麼；硬按就抖一下（跟 A2.form 同一套）
+  const need = (root, miss) => {
+    root.querySelector('.apf__why').textContent = miss.length ? `還沒填：${miss.join('、')}` : '';
+    root.querySelector('[data-send]').setAttribute('aria-disabled', miss.length ? 'true' : 'false');
+    return !miss.length;
+  };
+  const shake = (root) => { const w = root.querySelector('.apf__why'); w.classList.remove('is-shake'); void w.offsetWidth; w.classList.add('is-shake'); };
+  const kidOpts = (name, cur) => kids.list.length === 1
+    ? `<p class="pick__t">${kids.list[0].name}（${kids.list[0].gradeLabel}）</p><input type="hidden" name="${name}" value="${kids.list[0].id}">`
+    : `<div class="fdlg__seg" role="radiogroup" aria-label="孩子">${kids.list.map((k) => `<label class="fdlg__opt"><input type="radio" name="${name}" value="${k.id}"${k.id === cur ? ' checked' : ''}>${k.name}<span class="apf__opt">${k.gradeLabel}</span></label>`).join('')}</div>`;
+  const wdl = (c) => `每${C.weekdayLabel[c.weekday]} ${c.start}–${c.end}`;
+  const seats = (c) => c.capacity - c.n;
+  // 開課班：示範資料 14 班，再補 7 班成最壞情況（兩班額滿、一班只剩 1 位、一班跟林子晴現有的課撞時間）；rec ＝管理端標「推薦加選」的課
+  const CLS = C.classes.map((c) => ({ ...c, n: c.studentIds.length })).concat([
+    { id: 'x1', name: '國三理化 A 班', subject: '理化', grades: 'J3', weekday: 2, start: '19:00', end: '20:30', teacher: '蕭立恆', room: 'C 教室', fee: 4800, billingMode: 'monthly', capacity: 24, n: 24 },
+    { id: 'x2', name: '國一國文 A 班', subject: '國文', grades: 'J1', weekday: 3, start: '15:30', end: '17:00', teacher: '何靜宜', room: 'C 教室', fee: 4200, billingMode: 'monthly', capacity: 24, n: 23 },
+    { id: 'x3', name: '國三英文 B 班', subject: '英文', grades: 'J3', weekday: 4, start: '17:30', end: '19:00', teacher: '江承睿', room: 'C 教室', fee: 4800, billingMode: 'monthly', capacity: 28, n: 15 },
+    { id: 'x4', name: '國三作文班', subject: '作文', grades: 'J3', weekday: 6, start: '13:30', end: '15:30', teacher: '何靜宜', room: '小教室', fee: 3200, billingMode: 'monthly', capacity: 16, n: 9 },
+    { id: 'x5', name: '國一自然 A 班', subject: '自然', grades: 'J1', weekday: 5, start: '19:00', end: '20:30', teacher: '蕭立恆', room: 'A 教室', fee: 4200, billingMode: 'monthly', capacity: 28, n: 12 },
+    { id: 'x6', name: '國一數學 B 班', subject: '數學', grades: 'J1', weekday: 2, start: '19:00', end: '20:30', teacher: '游佩珊', room: 'B 教室', fee: 4200, billingMode: 'monthly', capacity: 26, n: 26 },
+    { id: 'x7', name: '國小五年級數學班', subject: '數學', grades: 'P5', weekday: 3, start: '15:00', end: '16:30', teacher: '游佩珊', room: 'B 教室', fee: 3600, billingMode: 'monthly', capacity: 18, n: 14 },
+  ]);
+  CLS.forEach((c) => (c.rec = ['c14', 'x1', 'c10', 'c13', 'x5'].includes(c.id)));
+  const clsById = Object.fromEntries(CLS.map((c) => [c.id, c]));
+  const mine = (k) => (k.enrollments || []).filter((e) => e.status === 'active').map((e) => e.classId);
+
+  const NEXT_FROM = C.addDays(C.TERM_END, 1), NEXT_TO = '2027-01-29', BILL_ON = C.addDays(C.TERM_END, -14), NEXT_BILL = '2027-01-15';
+  const none = /none/.test(location.hash);
+  const pend = {}; // 孩子 id → 送出的異動申請
+  if (/pending/.test(location.hash) && kids.active) pend[kids.active.id] = { cid: mine(kids.active)[0], type: '轉班', what: '想改到週六的班，平日社團比較忙', at: C.addDays(C.TODAY, -1) };
+  // 升班：國三自然 B 班 → A 班（示範一筆「升級」）
+  const UP = { c12: { name: '國三自然 A 班', weekday: 2, start: '19:00', end: '20:30' } };
+
+  shell({
+    role: 'parent',
+    page: 'p-renewal',
+    child: true,
+    title: '',
+    sub: ' ',
+    phase: 5500,
+  }, kids.gate(`<div id="view"></div>`));
+
+  function render() {
+    const k = kids.active;
+    if (!k) { document.querySelector('.open__title').textContent = '續課資訊'; document.querySelector('.open__sub').hidden = true; return; }
+    const rows = none ? [] : mine(k).map((id) => clsById[id]);
+    const p = pend[k.id];
+    document.querySelector('.open__title').innerHTML = rows.length ? `${k.name}下期<br>續 ${rows.length} 個班。` : `${k.name}目前沒有<br>即將到來的續課。`;
+    document.querySelector('.open__sub').textContent = rows.length ? `下期 ${md(NEXT_FROM)} – ${md(NEXT_TO)}` : `下次預計開單日期 ${md(NEXT_BILL)}`;
+    if (!rows.length) {
+      document.getElementById('view').innerHTML = `<p class="empty">目前沒有即將到來的續課。下次預計在 ${md(NEXT_BILL)} 開單，到時候這裡會列出要續的課。</p>
+        <div class="rn-more"><span>想加選其他課程？</span><a class="btn" href="p-add-course.html">瀏覽可加選課程${icon.right}</a></div>`;
+      return;
+    }
+    const state = p
+      ? `<div class="rn-state" role="status">${icon.clock}<p class="rn-state__t">你已提交異動申請，管理員處理中，<b>自動開單已暫停</b>。<small>${md(p.at)} 送出 · ${clsById[p.cid].name} · ${p.type}：${esc(p.what)}</small></p></div>`
+      : `<div class="rn-state">${icon.info}<p class="rn-state__t">系統將於 <b>${md(BILL_ON)}</b> 自動開立繳費單，無需操作。</p><button class="btn" type="button" data-change>申請異動</button></div>`;
+    const total = rows.reduce((a, c) => a + c.fee, 0);
+    document.getElementById('view').innerHTML = `${state}
+      <section class="rn" aria-labelledby="rn-h"><div class="sec__head"><h2 class="sec__title" id="rn-h">下期會自動續的課</h2><span class="sec__count">只供檢視</span></div>
+        ${rows.map((c) => { const u = UP[c.id], t = u ? { ...c, ...u } : c; return `<div class="rn__row">
+          <p class="rn__t">${u ? `${u.name}<span class="tag tag--line">升級</span>` : c.name}${p && p.cid === c.id ? '<span class="tag tag--quiet">異動處理中</span>' : ''}</p>
+          <p class="rn__m">${u ? `<s>${c.name}</s> → ` : ''}${wdl(t)} · ${c.teacher}</p>
+          <p class="rn__fee">${money(c.fee)} 元<small>月繳，預計</small></p></div>`; }).join('')}
+        <p class="rn__sum"><span>每月合計（預計）</span><span>${money(total)} 元</span></p></section>
+      <div class="rn-more"><span>想加選其他課程？</span><a class="btn" href="p-add-course.html">瀏覽可加選課程${icon.right}</a></div>`;
+  }
+  render();
+  kids.on(() => render());
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-change]')) return;
+    const k = kids.active;
+    form({
+      title: '申請異動', sub: `${k.name} · 下期 ${md(NEXT_FROM)} 起`,
+      fields: [
+        { k: 'cid', label: '要異動的課', type: 'select', ph: '選一門課', options: mine(k).map((id) => [id, clsById[id].name]), req: true },
+        { k: 'type', label: '異動類型', type: 'radio', options: ['轉班', '停課（不續報）', '變更繳費方式'] },
+        { k: 'what', label: '想怎麼改', type: 'textarea', req: true, ph: '轉班：想轉到哪一班或哪個時段　停課：原因　變更繳費方式：想改成月繳或期繳' },
+        { k: 'note', label: '備註（選填）' },
+      ],
+      submit: '送出異動申請', busy: '送出中…',
+      ok: (v) => `已送出 ${clsById[v.cid].name} 的異動申請，${k.name}的自動開單先暫停`,
+      apply: (v) => { pend[k.id] = { ...v, at: C.TODAY }; render(); },
+    });
+  });
+})();
+</script>
+</body>
+</html>

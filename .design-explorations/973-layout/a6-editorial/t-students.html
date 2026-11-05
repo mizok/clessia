@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 學生（老師端）</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* 學生列是按鈕（點開看這位學生），樣子沿用名冊的 .who */
+  .who--btn { width: 100%; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .who--btn:focus-visible { outline: 2px solid var(--zinc-900); outline-offset: 2px; border-radius: var(--radius-sm); }
+  .tfilter { height: 40px; }
+  .count { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3); margin-top: var(--space-6); font-size: var(--text-md); color: var(--zinc-600); }
+  .count strong { color: var(--zinc-900); }
+  .count button { border: 0; padding: 0; background: none; font: inherit; font-weight: var(--font-semibold); color: var(--zinc-900); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  /* 學生面板（新）：家長聯絡、這班最近到班、最近成績 */
+  .sp { display: grid; gap: var(--space-5); }
+  .sp__h { margin-bottom: var(--space-2); font-size: var(--text-md); font-weight: var(--font-bold); color: var(--zinc-800); }
+  .sp__tel { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+  .sp__tel b { font-size: var(--text-xl); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; user-select: all; }
+  .sp__days { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-2); }
+  .sp__day { padding: var(--space-2); border-radius: var(--radius-md); background: #fff; box-shadow: inset 0 0 0 1px var(--zinc-200); text-align: center; }
+  .sp__day small { display: block; font-size: var(--text-xs); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .sp__day span { font-size: var(--text-base); font-weight: var(--font-semibold); }
+  .sp__day--absent span { color: var(--error-700); }
+  .sp__day--on_leave span { color: var(--zinc-600); }
+  .sp__ex { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--zinc-200); font-size: var(--text-md); }
+  .sp__ex b { font-size: var(--text-lg); font-variant-numeric: tabular-nums; }
+  .sp__ex .is-fail { color: var(--error-700); }
+  .sp__ex small { color: var(--zinc-600); }
+  .sp__none { font-size: var(--text-md); color: var(--zinc-600); }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>學生 · 老師端（#990 批 4）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（specs/teacher/students.md）</th><th>產品現況（sitemap/teacher/students.md）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>清單</td><td>依開課班分組；每位學生顯示姓名、年級</td><td>同，班名＋N 人，底下一列一位</td><td>照做。依班分章（左欄班名、上課時間、人數），同一位學生在兩個班就出現兩次（產品也是，不是重複資料）</td></tr>
+      <tr><td>篩選</td><td>開課班篩選、姓名搜尋</td><td>搜尋框＋班級下拉，純前端過濾</td><td>照做；篩掉全部時寫「沒有符合條件的學生」＋清除篩選（跟「你沒有任課班級」分開）</td></tr>
+      <tr><td>點一位學生</td><td>「老師要看單一學生的細節時走學生詳情」—— 規格提到詳情，但沒有定義老師端的詳情頁</td><td>學生列是 <code>&lt;li&gt;</code>，點了不會發生任何事；老師端沒有詳情頁</td><td>點了開頁內面板（標「新」）：家長聯絡（電話純文字＋複製）、這班最近 5 堂到班、這班最近 3 次考試。<b>不連到管理端的學生檔案</b>（老師沒有那頁的權限）</td></tr>
+      <tr><td>統計摘要</td><td>2026-08-30 裁決刪除（出勤率、平均分不放名單頁）</td><td>沒有</td><td>名單頁不放統計；面板裡只列最近幾筆原始紀錄，不算比率</td></tr>
+      <tr><td>遲到</td><td>系統沒有遲到（attendance_status 只有 present／absent／on_leave）</td><td>—</td><td>示範資料裡的 late 一律當「到」</td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>示範的老師帶 5 個數學班、共 100 多位學生（最壞情況）。手機首屏只回答「我要找的那個學生在哪」：搜尋框在最上面。</li>
+    <li>面板底部「到課表點名」連到老師端課表。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, phone, esc } = A2;
+  // 示範老師任課的 5 個數學班（最壞情況：4–6 班、每班 17–26 人）
+  // 跟 t-schedule.html 同一組班（示範老師帶 C.classes 前 5 班），兩頁才對得上
+  const MINE = C.classes.slice(0, 5);
+  const total = MINE.reduce((a, c) => a + c.studentIds.length, 0);
+  const st = { q: '', cls: '' };
+  const ATT = { present: '到', late: '到', absent: '沒到', on_leave: '請假' };
+
+  shell({
+    role: 'teacher',
+    page: 't-students',
+    title: `${MINE.length} 個班，<br>共 ${total} 位學生。`,
+    sub: '你任課班級的在籍學生。',
+    bar: `<label class="tsearch">${icon.search}<input type="search" placeholder="搜尋姓名" aria-label="搜尋姓名" id="q"></label>
+      <label class="tfilter"><span class="sr">班級</span><select class="acset__in" id="cls"><option value="">全部班級</option>${MINE.map((c) => `<option value="${c.id}">${c.name}</option>`).join('')}</select></label>`,
+    phase: 4200,
+  }, `<p class="count" id="count"></p><div id="list"></div>`);
+
+  const render = () => {
+    const q = st.q.trim();
+    const groups = MINE.filter((c) => !st.cls || c.id === st.cls)
+      .map((c) => [c, c.studentIds.map((id) => C.studentById[id]).filter((s) => !q || s.name.includes(q))])
+      .filter(([, a]) => a.length);
+    const n = groups.reduce((a, [, s]) => a + s.length, 0);
+    const on = q || st.cls;
+    document.getElementById('count').innerHTML = on ? `<span>找到 <strong>${n}</strong> 位</span><button type="button" data-clear>清除篩選</button>` : `<span>點名字看家長電話、最近到班與成績</span>`;
+    document.getElementById('list').innerHTML = groups.length ? groups.map(([c, a]) => `<section class="chap" aria-label="${esc(c.name)}">
+      <div class="chap__side"><p class="chap__name" style="margin-top:0;font-size:var(--text-xl);font-weight:700">${esc(c.name)}</p><p class="chap__meta">${C.weekdayLabel[c.weekday]} ${c.start}–${c.end}</p><p class="chap__tally">${a.length} <span>人</span></p></div>
+      <ul class="roster roster--rows">${a.map((s) => `<li><button class="who who--btn" type="button" data-sid="${s.id}" data-cid="${c.id}"><span class="who__name">${esc(s.name)}</span><span class="who__meta">${s.gradeLabel}</span></button></li>`).join('')}</ul>
+    </section>`).join('') : `<p class="empty">沒有符合條件的學生。試試只打姓氏，或按「清除篩選」。</p>`;
+  };
+  render();
+
+  function panel(sid, cid) {
+    const s = C.studentById[sid], c = C.classById[cid], p = s.parent;
+    const days = C.sessions.filter((x) => x.classId === cid && x.attendanceTaken).slice(-5)
+      .map((x) => [x.date, (C.attendance[x.id] || {})[sid]]).filter(([, k]) => k);
+    const ex = C.exams.filter((x) => x.classId === cid && sid in x.scores).slice(-3).reverse();
+    const avg = (x) => Math.round(Object.values(x.scores).reduce((a, b) => a + b, 0) / Object.values(x.scores).length);
+    const d = document.createElement('dialog');
+    d.className = 'acset fdlg';
+    d.setAttribute('aria-labelledby', 'sp-t');
+    d.innerHTML = `<div class="acset__head"><div><h2 class="acset__t" id="sp-t">${esc(s.name)}<span class="new">新</span></h2><p class="fdlg__sub">${s.gradeLabel} · ${esc(s.school)} · ${esc(c.name)}</p></div><button class="acset__x" type="button" aria-label="關閉" data-x>${icon.x}</button></div>
+      <div class="acset__body sp">
+        <section><p class="sp__h">家長</p><div class="sp__tel"><span>${esc(p.name)}（${p.relation}）</span><b>${phone(p.phone)}</b><button class="btn btn--sm" type="button" data-copy="${phone(p.phone)}">複製電話</button></div></section>
+        <section><p class="sp__h">這班最近 ${days.length} 堂</p>${days.length ? `<div class="sp__days">${days.map(([dt, k]) => `<div class="sp__day sp__day--${k}"><small>${md(dt)}</small><span>${ATT[k]}</span></div>`).join('')}</div>` : '<p class="sp__none">這班還沒有點過名。</p>'}</section>
+        <section><p class="sp__h">這班最近的考試</p>${ex.length ? ex.map((x) => `<div class="sp__ex"><span>${esc(x.name)} <small>${md(x.date)} · 班平均 ${avg(x)}</small></span><b class="${x.scores[sid] < 60 ? 'is-fail' : ''}">${x.scores[sid]}${x.scores[sid] < 60 ? ' 不及格' : ''}</b></div>`).join('') : '<p class="sp__none">這班還沒有考試成績。</p>'}</section>
+      </div>
+      <div class="fdlg__foot"><p class="fdlg__why"></p><button class="btn" type="button" data-x>關閉</button><a class="btn btn--cta" href="t-schedule.html">到課表點名${icon.right}</a></div>`;
+    document.body.append(d);
+    d.addEventListener('click', (e) => {
+      if (e.target === d || e.target.closest('[data-x]')) d.close();
+      const cp = e.target.closest('[data-copy]');
+      if (cp) { try { navigator.clipboard.writeText(cp.dataset.copy).catch(() => {}); } catch (_) {} A2.toast(`已複製 ${p.name} 的電話 ${cp.dataset.copy}`); }
+    });
+    d.addEventListener('close', () => setTimeout(() => d.remove(), 200));
+    d.showModal();
+  }
+
+  const q = document.getElementById('q'), cls = document.getElementById('cls');
+  q.addEventListener('input', () => { st.q = q.value; render(); });
+  cls.addEventListener('change', () => { st.cls = cls.value; render(); });
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-clear]')) { st.q = ''; st.cls = ''; q.value = ''; cls.value = ''; render(); return; }
+    const b = e.target.closest('[data-sid]');
+    if (b) panel(b.dataset.sid, b.dataset.cid);
+  });
+})();
+</script>
+</body>
+</html>

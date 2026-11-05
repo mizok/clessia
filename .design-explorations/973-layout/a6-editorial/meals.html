@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 餐費管理</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .tabs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+  .tabs .tlink { font-size: var(--text-base); }
+  .ctl { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+  .ctl label { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-md); font-weight: var(--font-semibold); color: var(--zinc-700); }
+  .ctl .acset__in { width: auto; height: 36px; }
+  .ctl .acset__in[type='search'] { width: 180px; }
+  .sum { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-6); margin-top: var(--space-6); font-size: var(--text-base); color: var(--zinc-700); }
+  .sum b { font-size: var(--text-2xl); font-weight: var(--font-bold); color: var(--zinc-900); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .sum__acts { display: flex; gap: var(--space-2); margin-left: auto; }
+  .hint { margin-top: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--zinc-100); font-size: var(--text-md); color: var(--zinc-800); }
+  .hint b { font-weight: var(--font-bold); }
+  .hint a { color: inherit; font-weight: var(--font-semibold); }
+  .ml { display: grid; grid-template-columns: minmax(0, 1.3fr) 92px 120px 92px minmax(0, 1.2fr) 92px; gap: var(--space-2) var(--space-4); align-items: center; min-height: 56px; padding: var(--space-2) 0; border-bottom: 1px solid var(--surface-border); }
+  .ml__who a { font-weight: var(--font-bold); text-decoration: none; }
+  .ml__who a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .ml__who small { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--zinc-600); }
+  .ml__who .tag { margin-top: 4px; }
+  .ml--off .ml__who a { color: var(--zinc-600); }
+  .tick { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; font-size: var(--text-md); font-weight: var(--font-semibold); cursor: pointer; }
+  .tick input { width: 18px; height: 18px; margin: 0; accent-color: var(--zinc-900); }
+  .tick:has(input:disabled) { color: var(--zinc-500); cursor: default; }
+  .price { display: flex; align-items: center; gap: 4px; font-size: var(--text-sm); color: var(--zinc-600); }
+  .price input { width: 72px; height: 36px; padding: 0 var(--space-2); border: 1px solid var(--zinc-300); border-radius: var(--radius-md); font: inherit; font-size: var(--text-base); text-align: right; font-variant-numeric: tabular-nums; color: var(--zinc-900); }
+  .price input:disabled, .memo:disabled { background: var(--zinc-100); color: var(--zinc-600); }
+  .memo { width: 100%; height: 36px; padding: 0 var(--space-3); border: 1px solid var(--zinc-300); border-radius: var(--radius-md); font: inherit; font-size: var(--text-md); }
+  .stt { font-size: var(--text-sm); color: var(--zinc-700); }
+  .stt--todo { font-weight: var(--font-semibold); color: var(--zinc-900); }
+  .stt--lock { color: var(--zinc-600); }
+  .bulk { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+  .rg { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 100px 92px minmax(0, 1fr); gap: var(--space-2) var(--space-4); align-items: center; min-height: 48px; padding: var(--space-2) 0; border-bottom: 1px solid var(--surface-border); font-size: var(--text-md); }
+  .rg__amt { text-align: right; font-variant-numeric: tabular-nums; font-weight: var(--font-semibold); }
+  .savebar { position: sticky; bottom: 16px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-top: var(--space-6); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--zinc-900); color: #fff; box-shadow: 0 16px 36px -14px rgb(26 22 20 / 45%); }
+  .savebar p { margin-right: auto; font-size: var(--text-base); font-variant-numeric: tabular-nums; }
+  .savebar small { display: block; font-size: var(--text-sm); color: rgb(255 255 255 / 72%); }
+  .empty { padding: var(--space-8) 0; font-size: var(--text-base); color: var(--zinc-700); }
+  .pager { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-4); font-size: var(--text-md); color: var(--zinc-700); }
+  .xp2 { width: min(360px, calc(100% - 32px)); padding: var(--space-4); border: 1px solid var(--zinc-200); border-radius: var(--radius-lg); background: #fff; box-shadow: 0 16px 36px -14px rgb(26 22 20 / 32%); }
+  .xp2 p { font-size: var(--text-md); color: var(--zinc-700); margin-bottom: var(--space-3); }
+  @media (max-width: 860px) {
+    .ml { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); padding: var(--space-3) 0; }
+    .ml__who { grid-column: 1 / -1; }
+    .ml .memo { grid-column: 1 / -1; }
+    .ml .stt { grid-column: 2; grid-row: 1; text-align: right; }
+    .ml__who { grid-column: 1; }
+    .rg { grid-template-columns: minmax(0, 1fr) auto; }
+    .rg__cls, .rg__memo { grid-column: 1 / -1; color: var(--zinc-600); font-size: var(--text-sm); }
+    .chap { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding: var(--space-6) 0 var(--space-2); }
+    .chap__side { position: static; display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+    .chap__big { font-size: 24px; }
+    .chap__tally { margin-top: 0; font-size: var(--text-base); }
+    .sum__acts { margin-left: 0; }
+    .savebar { bottom: 136px; }
+    .ctl .acset__in[type='search'] { width: 100%; }
+    .ctl { width: 100%; }
+    .ctl label { flex: 1 1 140px; min-width: 0; }
+    .ctl .acset__in { flex: 1; width: 100%; min-width: 0; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>餐費管理 · A6（#990 批 3）</h2>
+  <h3>規格 vs 現況</h3>
+  <p>依據：<code>specs/admin/finance/meals.md</code>（2026-08-29 依 <code>rules/meal-rules.md</code> 重寫）；現況：<code>specs/sitemap/admin/meals.md</code>。</p>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格</th><th>產品現況（sitemap 實測）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>主畫面</td><td>每日名單勾選：選日期（預設今天）→ 當天候選學生</td><td>同；當日名單／區間查詢兩種模式</td><td>照做：兩個分頁「當日名單」「區間查詢」，當日依班級分章</td></tr>
+      <tr><td>每列</td><td>學生、班級、訂了沒、單價、收不收費、備註</td><td>同，另有狀態（已結算／未處理／已確認）；API 已回班級、備註可讀寫（spec 記的三個缺口已補，<code>specs/admin/finance/meals.md:90-97</code> 過期）</td><td>照應然：班級與備註都畫；保留產品的狀態欄（註記）</td></tr>
+      <tr><td>訂餐與出席</td><td>解耦；請假只<b>提示</b>行政別訂，不自動改</td><td>沒有請假提示</td><td>今天請假的學生在名字下寫「今天請假 · 別訂他的便當」（<span class="new">新</span>），勾選照原樣不自動改</td></tr>
+      <tr><td>收不收費</td><td>人工開關，不要自動化截止時間</td><td>同</td><td>照做；底部固定一句說明</td></tr>
+      <tr><td>已結算</td><td>鎖住「收不收費」；要改走帳單作廢或下期調整</td><td>整列（含訂餐、單價、備註）鎖住</td><td>照產品鎖整列，狀態寫「已結算 · 要改走帳單」並連到帳單頁</td></tr>
+      <tr><td>月結</td><td>選月份 → 加總要收費且尚未結算 → 開帳單；冪等，可以重跑</td><td>同；結果畫面有「查看這批帳單」</td><td>照做：處理中 → 訊息 → 頁上多一列結果，附「查看這批帳單」連到帳單頁</td></tr>
+      <tr><td>區間查詢</td><td>日期範圍、學生；總金額與筆數</td><td>API 已有區間查詢（spec 記的缺口已補）</td><td>照應然畫有資料的樣子：起訖日、學生搜尋、區間合計（筆數／金額／其中已結算）</td></tr>
+      <tr><td>匯出</td><td>依篩選匯出 CSV</td><td>沒有</td><td>區間查詢的下載圖示＋面板（<span class="new">新</span>）</td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>當日名單：改了勾選、單價、收費、備註，底部出現「確認名單」列；按下才寫入，狀態從「未處理」變「已確認」。</li>
+    <li>選 8 月的日期看「已結算」整列鎖住的樣子。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, wd, money, esc } = A2;
+  const T = C.TODAY;
+  const leaveToday = new Set(C.todayExpected.filter((e) => e.state === 'on_leave').map((e) => e.studentId));
+
+  // ── 資料：最壞情況一天上百份。候選名單＝那天有課的學生（設計稿用全體學生依星期決定，週日沒有）──
+  const h = (s) => { let x = 7; for (const ch of s) x = (x * 31 + ch.charCodeAt(0)) % 100003; return x; };
+  const clsOf = (st) => (st.enrollments && st.enrollments[0] && C.classById[st.enrollments[0].classId]) || C.classes[h(st.id) % C.classes.length];
+  const priceOn = (d) => (d < '2026-09-16' ? 60 : 65); // 便當價格會變動：9/16 起漲到 65
+  const R = {}; // date → rows（存在記憶體，切日期回來還在）
+  const roster = (d) => {
+    if (R[d]) return R[d];
+    const dow = new Date(d + 'T00:00:00').getDay();
+    if (dow === 0) return (R[d] = []);
+    const past = d < T, settled = d < '2026-09-01';
+    R[d] = C.students.filter((st) => (h(st.id + dow) % 10) < 9).map((st) => {
+      const optIn = h(st.id) % 6 !== 0;
+      const done = past || (d === T && h(st.id) % 4 !== 0); // 今天大部分已確認、少部分還沒處理
+      return { sid: st.id, name: st.name, cls: clsOf(st).name, grade: st.gradeLabel, ordered: optIn, price: priceOn(d), charge: !(h(st.id + d) % 23 === 0), memo: h(st.id) % 17 === 0 ? '素食' : '', state: settled ? 'settled' : done ? 'ok' : 'todo' };
+    });
+    return R[d];
+  };
+  const dirty = new Set();
+  const st = { tab: 'day', date: T, from: '2026-09-01', to: T, q: '', page: 1, closed: null };
+
+  const sttText = (r) => (r.state === 'settled' ? `<span class="stt stt--lock">已結算 · <a href="billing.html">要改走帳單</a></span>` : r.state === 'ok' ? `<span class="stt">已確認</span>` : `<span class="stt stt--todo">${st.date < T ? '未處理（過期）' : '未處理'}</span>`);
+  const row = (r, i) => {
+    const lock = r.state === 'settled', off = !r.ordered;
+    return `<div class="ml${off ? ' ml--off' : ''}" data-i="${i}">
+      <div class="ml__who"><a href="student.html">${esc(r.name)}</a>${st.date === T && leaveToday.has(r.sid) ? `<span class="tag tag--quiet">今天請假 · 別訂他的便當<span class="new">新</span></span>` : ''}</div>
+      <label class="tick"><input type="checkbox" data-f="ordered"${r.ordered ? ' checked' : ''}${lock ? ' disabled' : ''}>訂餐</label>
+      <label class="price">NT$<input inputmode="numeric" data-f="price" value="${r.price}" aria-label="${esc(r.name)} 的單價"${lock || off ? ' disabled' : ''}></label>
+      <label class="tick"><input type="checkbox" data-f="charge"${r.charge ? ' checked' : ''}${lock || off ? ' disabled' : ''}>收費</label>
+      <input class="memo" data-f="memo" value="${esc(r.memo)}" placeholder="如：素食" aria-label="${esc(r.name)} 的備註"${lock ? ' disabled' : ''}>
+      ${sttText(r)}
+    </div>`;
+  };
+  const totals = (rows) => { const o = rows.filter((r) => r.ordered); const c = o.filter((r) => r.charge); return { n: rows.length, o: o.length, amt: c.reduce((a, r) => a + r.price, 0), todo: rows.filter((r) => r.state === 'todo').length, settled: rows.filter((r) => r.state === 'settled').length }; };
+
+  function renderDay() {
+    const rows = roster(st.date), t = totals(rows);
+    document.querySelector('.open__title').innerHTML = rows.length
+      ? `${st.date === T ? '今天' : `${md(st.date)}（${wd(st.date)}）`} ${t.o} 份便當，<br>${t.todo ? `還有 ${t.todo} 位沒處理。` : '名單都確認了。'}`
+      : `${md(st.date)}（${wd(st.date)}）<br>沒有候選名單。`;
+    const groups = [...new Set(rows.map((r) => r.cls))].map((c) => [c, rows.map((r, i) => [r, i]).filter(([r]) => r.cls === c)]);
+    document.getElementById('body').innerHTML = rows.length ? `
+      <p class="sum"><span><b>${t.n}</b> 位候選</span><span>訂 <b>${t.o}</b> 份</span><span>要收費 <b>NT$ ${money(t.amt)}</b></span>${t.settled ? `<span>（${t.settled} 筆已結算，鎖住不能改）</span>` : ''}
+        ${t.settled ? '' : `<span class="sum__acts"><button class="btn btn--sm" type="button" data-all="1">全部訂</button><button class="btn btn--sm" type="button" data-all="0">全部不訂</button></span>`}</p>
+      <p class="hint">「收不收費」是人工判斷 —— 便當送到了才請假要不要收，由你決定，系統不自動判斷。${leaveToday.size && st.date === T ? `今天請假的 <b>${[...leaveToday].filter((id) => rows.some((r) => r.sid === id)).length} 位</b>名字下有提示，訂不訂照你勾的。` : ''}</p>
+      ${groups.map(([c, list]) => `<section class="chap" aria-label="${esc(c)}"><div class="chap__side"><div class="chap__big" style="font-size:24px;letter-spacing:-0.02em">${esc(c)}</div><p class="chap__tally">訂 ${list.filter(([r]) => r.ordered).length}<span>／${list.length}</span></p></div><div>${list.map(([r, i]) => row(r, i)).join('')}</div></section>`).join('')}
+      <div id="save"></div>`
+      : `<p class="empty">這天沒有候選名單。候選名單來自當天有課的班級 —— 這天可能沒有排課。</p>`;
+    paintSave();
+  }
+  const paintSave = () => {
+    const el = document.getElementById('save'); if (!el) return;
+    const rows = roster(st.date), t = totals(rows);
+    el.innerHTML = dirty.size || t.todo ? `<div class="savebar" role="region" aria-label="確認名單"><p>${dirty.size ? `改了 ${dirty.size} 位` : `${t.todo} 位還沒處理`}<small>共 ${t.n} 位 · 訂 ${t.o} 份 · 要收費 NT$ ${money(t.amt)}</small></p><button class="btn btn--cta" type="button" data-confirm>確認名單</button></div>` : '';
+  };
+
+  function renderRange() {
+    const all = [];
+    for (let d = st.from; d <= st.to; d = C.addDays(d, 1)) roster(d).forEach((r) => r.ordered && all.push(Object.assign({ date: d }, r)));
+    const q = st.q.trim();
+    const list = q ? all.filter((r) => r.name.includes(q)) : all;
+    const charged = list.filter((r) => r.charge), amt = charged.reduce((a, r) => a + r.price, 0), settled = list.filter((r) => r.state === 'settled').length;
+    document.querySelector('.open__title').innerHTML = `${md(st.from)}–${md(st.to)}<br>${list.length} 份便當，NT$ ${money(amt)}。`;
+    const PER = 50, pages = Math.max(1, Math.ceil(list.length / PER)); st.page = Math.min(st.page, pages);
+    const slice = list.slice((st.page - 1) * PER, st.page * PER);
+    const days = [...new Set(slice.map((r) => r.date))];
+    document.getElementById('body').innerHTML = list.length ? `
+      <p class="sum"><span><b>${list.length}</b> 筆</span><span>要收費 <b>NT$ ${money(amt)}</b></span><span>${settled} 筆已結算</span>
+        <span class="sum__acts"><button class="btn btn--sm" type="button" popovertarget="xp2">${icon.right}匯出 CSV<span class="new">新</span></button></span></p>
+      ${days.map((d) => { const a = slice.filter((r) => r.date === d); return `<section class="chap" aria-label="${md(d)}"><div class="chap__side"><div class="chap__big" style="font-size:28px">${md(d)}</div><p class="chap__tally">${a.length} 份<span> · ${wd(d)}</span></p></div><div>${a.map((r) => `<div class="rg"><a href="student.html">${esc(r.name)}</a><span class="rg__cls">${esc(r.cls)}</span><span class="rg__amt">${r.charge ? `NT$ ${r.price}` : '不收費'}</span><span class="stt">${r.state === 'settled' ? '已結算' : r.state === 'ok' ? '已確認' : '未處理'}</span><span class="rg__memo">${esc(r.memo)}</span></div>`).join('')}</div></section>`; }).join('')}
+      ${pages > 1 ? `<div class="pager"><span>第 ${st.page}／${pages} 頁</span><button class="btn btn--sm" type="button" data-pg="-1"${st.page === 1 ? ' disabled' : ''}>上一頁</button><button class="btn btn--sm" type="button" data-pg="1"${st.page === pages ? ' disabled' : ''}>下一頁</button></div>` : ''}`
+      : `<p class="empty">這段期間沒有餐記錄。${md(st.from)} ~ ${md(st.to)}${q ? `、找「${esc(q)}」` : ''}沒有任何學生被登記過餐。${q ? '<button class="btn btn--sm" type="button" data-clear>清除搜尋</button>' : ''}</p>`;
+  }
+
+  const ctl = () => st.tab === 'day'
+    ? `<label>名單日期<input class="acset__in" type="date" id="f-date" value="${st.date}"></label>`
+    : `<label>從<input class="acset__in" type="date" id="f-from" value="${st.from}"></label><label>到<input class="acset__in" type="date" id="f-to" value="${st.to}"></label><label>學生<input class="acset__in" type="search" id="f-q" value="${esc(st.q)}" placeholder="輸入姓名" autocomplete="off"></label>`;
+  function render() {
+    document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === st.tab));
+    document.getElementById('ctl').innerHTML = ctl();
+    st.tab === 'day' ? renderDay() : renderRange();
+    const res = document.getElementById('closed');
+    res.hidden = !st.closed;
+    if (st.closed) res.innerHTML = `${icon.check}<span><b>${st.closed.m} 月結</b>：開立 ${st.closed.inv} 張帳單（餐費明細 ${st.closed.items} 筆，NT$ ${money(st.closed.amt)}）。同一個月可以重跑，已結算的不會重複收。</span><a class="btn btn--sm" href="billing.html">查看這批帳單</a>`;
+  }
+
+  shell({
+    page: 'meals',
+    title: '',
+    sub: '每日勾選誰要訂餐，月底一次結算成帳單。有上課不一定訂餐 —— 課表只給候選名單。',
+    bar: `<nav class="tabs" aria-label="餐費"><button class="tlink" type="button" data-tab="day">當日名單</button><button class="tlink" type="button" data-tab="range">區間查詢</button></nav>
+      <div class="ctl" id="ctl"></div>
+      <div class="tbar__act only-d"><button class="btn btn--cta" type="button" data-close>月結</button></div>`,
+    dock: `<button class="btn btn--cta" type="button" data-close>月結</button>`,
+    phase: 4300,
+  }, `<p class="hint" id="closed" hidden style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center"></p><div id="body"></div>
+    <div class="xp2" id="xp2" popover><p>匯出 ${'目前篩選'} 的餐記錄（CSV），供對帳用。</p><div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" type="button" popovertarget="xp2" popovertargetaction="hide">取消</button><button class="btn btn--cta" type="button" data-export>匯出</button></div></div>`);
+  render();
+
+  const months = ['2026-09', '2026-08', '2026-07'];
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    const tab = t.closest('[data-tab]'); if (tab) { st.tab = tab.dataset.tab; render(); }
+    const all = t.closest('[data-all]');
+    if (all) { roster(st.date).forEach((r, i) => { if (r.state !== 'settled') { r.ordered = all.dataset.all === '1'; dirty.add(i); } }); renderDay(); A2.toast(all.dataset.all === '1' ? '全部勾成要訂（還沒存，按「確認名單」才寫入）' : '全部勾成不訂（還沒存，按「確認名單」才寫入）'); }
+    const cf = t.closest('[data-confirm]');
+    if (cf) { const t2 = totals(roster(st.date)); A2.act(cf, { busy: '確認中…', ok: `已確認 ${md(st.date)} 名單：訂 ${t2.o} 份，要收費 NT$ ${money(t2.amt)}`, run: () => { roster(st.date).forEach((r) => { if (r.state !== 'settled') r.state = 'ok'; }); dirty.clear(); renderDay(); } }); }
+    const pg = t.closest('[data-pg]'); if (pg) { st.page += +pg.dataset.pg; renderRange(); }
+    if (t.closest('[data-clear]')) { st.q = ''; render(); }
+    const ex = t.closest('[data-export]');
+    if (ex) A2.act(ex, { busy: '匯出中…', ok: `已匯出 ${md(st.from)}–${md(st.to)} 的餐記錄（CSV）`, run: () => document.getElementById('xp2').hidePopover() });
+    if (t.closest('[data-close]')) A2.form({
+      title: '月結', sub: '把這個月「要收費且尚未結算」的餐費與學費加總成帳單。',
+      fields: [{ k: 'm', label: '結算月份', type: 'select', options: months.map((m) => [m, `${m.slice(0, 4)} 年 ${+m.slice(5)} 月`]), value: '2026-09', hint: '同一個月可以重複跑。月結只撈「尚未結算」的記錄，處理完就蓋上結算標記 —— 跑第二次不會重複開帳單，之後補登的舊記錄下次會自動被撈進來。' }],
+      submit: '執行月結', busy: '結算中…',
+      ok: (v) => `${+v.m.slice(5)} 月結完成，帳單已開立`,
+      apply: (v) => {
+        let items = 0, amt = 0; const who = new Set();
+        Object.entries(R).forEach(([d, rows]) => { if (!d.startsWith(v.m)) return; rows.forEach((r) => { if (r.ordered && r.charge && r.state !== 'settled') { items++; amt += r.price; who.add(r.sid); r.state = 'settled'; } }); });
+        if (!items) { const days = 21; items = days * 92; amt = items * 62; who.add('x'); } // 那個月還沒打開過：用合計示意
+        st.closed = { m: +v.m.slice(5), inv: who.size > 1 ? who.size : 104, items, amt }; render();
+      },
+    });
+  });
+  document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.id === 'f-date') { st.date = t.value || T; dirty.clear(); renderDay(); }
+    if (t.id === 'f-from' || t.id === 'f-to') { st[t.id === 'f-from' ? 'from' : 'to'] = t.value; if (st.from > st.to) [st.from, st.to] = [st.to, st.from]; st.page = 1; render(); }
+    const f = t.dataset && t.dataset.f, rowEl = t.closest('.ml');
+    if (f && rowEl) {
+      const i = +rowEl.dataset.i, r = roster(st.date)[i];
+      if (f === 'ordered' || f === 'charge') r[f] = t.checked; else if (f === 'price') r.price = +t.value.replace(/\D/g, '') || 0; else r.memo = t.value;
+      r.state = 'todo'; dirty.add(i);
+      if (f === 'ordered') { renderDay(); } else { rowEl.querySelector('.stt').outerHTML = sttText(r); paintSave(); }
+    }
+  });
+  document.addEventListener('input', (e) => { if (e.target.id === 'f-q') { st.q = e.target.value; st.page = 1; renderRange(); } });
+})();
+</script>
+</body>
+</html>

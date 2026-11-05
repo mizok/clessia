@@ -72,8 +72,16 @@ Thumbs.db
 .claude/tdd-guard/
 lint-report-*.md
 
-# 設計方向探索的過程產物（mockup、工具輸入），不進版控
-.design-explorations/
+# 設計方向探索的過程產物（被否決的方向、截圖）不進版控；
+# A6 稿（a6-editorial＋shared）是 #1314 對齊與 tools/a6-conformance 的基準，進版控（使用者 2026-11-05）
+.design-explorations/*
+!.design-explorations/973-layout/
+.design-explorations/973-layout/*
+!.design-explorations/973-layout/a6-editorial/
+!.design-explorations/973-layout/shared/
+.design-explorations/973-layout/a6-editorial/_shots/
+# 走查 driver 的截圖輸出
+tools/ux-walk/shots/
 
 # 席位的截圖腳本，不進版控
 .pw-regression/
