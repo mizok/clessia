@@ -1041,6 +1041,9 @@ export const PAGES = {
   // 公開表單（#1665 PR-4）：未登入也進得來，用訪客登入態（跟登入頁同一份）。偏離是 10-16 第一次 diff 跑出來的 key
   trial: {
     a6: 'pub-trial.html',
+    // 個資使用聲明（同意那一行的連結鈕）：稿用 JS showModal（`[data-privacy]`），app 是原生 dialog（#2290 換殼）
+    a6Open: { privacy: { click: '[data-privacy]', root: 'dialog[open]' } },
+    appOpen: { privacy: { click: 'button:has-text("個資使用聲明")', root: 'dialog[open]' } },
     app: '/trial',
     state: path.join(cache, 'state-guest.json'),
     deviations: [
@@ -1065,6 +1068,9 @@ export const PAGES = {
   },
   enrollment: {
     a6: 'pub-enrollment.html',
+    // 個資使用聲明（同意那一行的連結鈕）：稿用 JS showModal（`[data-privacy]`），app 是原生 dialog（#2290 換殼）
+    a6Open: { privacy: { click: '[data-privacy]', root: 'dialog[open]' } },
+    appOpen: { privacy: { click: 'button:has-text("個資使用聲明")', root: 'dialog[open]' } },
     app: '/enrollment',
     state: path.join(cache, 'state-guest.json'),
     deviations: [...PUBLIC_FORM_DEVIATIONS, ...PUBLIC_BRAND_DEVIATIONS],
