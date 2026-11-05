@@ -3,13 +3,15 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createAuth } from '../auth';
 import { createChildDb } from '../lib/child-db';
+import { loadStudentListViaBuilder } from '../lib/student-list-builder';
+import { STUDENT_LIST_SQL, studentListParamsFromArgs } from '../lib/student-list-sql';
 import { PERMISSIONS } from '../lib/permissions';
 import { createServiceClientFromEnv } from '../lib/supabase';
 
 /**
  * **`GET /api/students` 的兩條路對真 DB 逐欄相同**（#1595 P2 ② 刀 1a，計畫席 11-05 裁定）。
  *
- * SQL（`lib/student-list-sql.ts`，有 pool 時）與 query builder（沒有 pool 時）各一份條件。同一組請求各打
+ * SQL（`lib/student-list-sql.ts`）與 query builder（`lib/student-list-builder.ts`，同一份參數）各一份條件。同一組請求各打
  * 一次，回應要**完全相同**：身分（不受限／受限一間／多間／沒指派／老師）× 指定分校（無／一校／二校）×
  * 篩選（年級、在籍、學制不合、卡片兩種、分頁）。fixture 每一筆都是為了讓某個條件寫錯時兩邊分岔：
  * - `onlyC2`：只在二校報名 —— 分校範圍少了就會出現在受限一校的名單
@@ -30,6 +32,12 @@ if ((!URL || !KEY || !DB) && process.env['CONTRACT_REQUIRED']) {
   );
 }
 const run = URL && KEY && DB ? describe : describe.skip;
+
+/**
+ * 家長電話每輪隨機（`ba_user.phone` 是 unique）：寫死的話，中斷過一次（afterAll 沒跑到）或兩輪並行，
+ * 下一輪的 beforeAll 就撞 `ba_user_phone_key`，整支 describe 被略過 —— 突變看起來「紅了」，其實斷言一條都沒跑
+ */
+const PHONE = `09${String(Math.floor(Math.random() * 1e6)).padStart(6, '0')}`;
 
 const pool = DB ? new Pool({ connectionString: DB }) : null;
 afterAll(() => pool?.end());
@@ -65,10 +73,30 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('studentScope', null);
       set('childDb', createChildDb(supabase as never, null, ctx.orgId));
       set('campusScope', ctx.teacher ? null : ctx.campusScope);
-      // builder 模式不設 auth（不能設 `{ pool: undefined }`：authPoolCleanup 會呼叫 `.end()`）
-      if (ctx.usePool) {
-        set('auth', { pool: { query: pool!.query.bind(pool), end: async () => undefined } });
-      }
+      // 兩側都給 pool（#2303 之後今日到班沒有 pool 就 500）。builder 側只把**列表那一句**換成 builder 版，
+      // 其餘 SQL（今日到班）照常打真 DB —— 兩側唯一的差別就是 STUDENT_LIST_SQL 對 builder
+      const real = (sql: string, v: unknown[]) => pool!.query(sql, v);
+      set('auth', {
+        pool: {
+          query: ctx.usePool
+            ? real
+            : async (sql: string, v: unknown[]) =>
+                sql === STUDENT_LIST_SQL
+                  ? {
+                      rows: [
+                        {
+                          result: await loadStudentListViaBuilder(
+                            supabase as never,
+                            studentListParamsFromArgs(v),
+                          ),
+                        },
+                      ],
+                    }
+                  : real(sql, v),
+          // authPoolCleanup 每個請求都會呼叫 end，而這裡所有請求共用同一個 pool
+          end: async () => undefined,
+        },
+      });
       set('selfRows', { staff: null, parent: null, assignedCampusIds: [] });
       await next();
     }),
@@ -266,9 +294,9 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
 
     // 家長：甲有主要＋次要，乙只有一位非主要；電話經 better-auth 建（c2）
     for (const [studentId, name, isPrimary, phone] of [
-      [s.a, '甲爸', true, '0912000001'],
-      [s.a, '甲媽', false, '0912000002'],
-      [s.b, '乙媽', false, '0912000003'],
+      [s.a, '甲爸', true, `${PHONE}01`],
+      [s.a, '甲媽', false, `${PHONE}02`],
+      [s.b, '乙媽', false, `${PHONE}03`],
     ] as const) {
       const { user } = (await auth.api.createUser({
         body: {
@@ -333,6 +361,8 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
         'delete from parent_student_relations where student_id in (select id from students where org_id = $1)',
         'delete from parents where org_id = $1',
         'delete from checkin_cards where org_id = $1',
+        'delete from daily_checkins where org_id = $1',
+        'delete from sessions where org_id = $1',
         'delete from enrollments where org_id = $1',
         'delete from students where org_id = $1',
         'delete from schools where org_id = $1',
@@ -350,6 +380,37 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     }
     for (const id of parentUsers) await authCtx.internalAdapter.deleteUser(id);
   }, 60_000);
+
+  /**
+   * **範圍的絕對斷言**（#1928 那套：跨校、跨老師不可見）。兩側吃同一份參數，所以 route 把範圍參數算錯
+   * （例：老師的任課班沒傳）時兩側一起錯、逐欄比對抓不到 —— 這條直接對名單
+   */
+  it('範圍：受限一校看得到一校退班的、看不到只在二校的；老師只看得到任課班 active／pending 的', async () => {
+    const names = async () =>
+      (
+        (await hit('/api/students?withToday=false&pageSize=100', true)).body['data'] as Array<{
+          name: string;
+        }>
+      )
+        .map((r) => r.name)
+        .sort();
+    try {
+      ctx.campusScope = [campus.c1];
+      const c1 = await names();
+      expect(c1).toContain('一校退班');
+      expect(c1).not.toContain('只在二校');
+      ctx.campusScope = [];
+      expect(await names()).toEqual([]);
+      ctx.campusScope = null;
+      ctx.teacher = true;
+      expect(await names()).toEqual(
+        ['甲', '甲', '乙', '學制不合', '別 org 學校', '未分類學校', '停用', '待繳費'].sort(),
+      );
+    } finally {
+      ctx.teacher = false;
+      ctx.campusScope = null;
+    }
+  });
 
   const sqlFailures = (log: { mock: { calls: unknown[][] } }) =>
     log.mock.calls.filter((c) => String(c[0]).includes('[students-sql]')).length;
@@ -386,11 +447,11 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
       `search=${encodeURIComponent('媽')}`,
       `search=${encodeURIComponent('國中')}`,
       `search=${encodeURIComponent('名*小')}`,
-      'search=0912000003',
+      `search=${PHONE}03`,
       `search=${encodeURIComponent('冊中')}`,
       // 別 org 的學校（misB 掛著）：學校名搜尋要限本 org，同 builder
       `search=${encodeURIComponent('別 org 國小')}`,
-      'search=0912',
+      `search=${PHONE}`, // 三位家長都中（前綴）
       `search=${encodeURIComponent('媽')}&searchScope=student_name`,
       'today=any',
       'today=arrived',
@@ -440,8 +501,8 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     const { body } = await hit('/api/students?withToday=false', true);
     const rows = body['data'] as Array<Record<string, unknown>>;
     const byName = (n: string) => rows.filter((r) => r['name'] === n);
-    expect(byName('甲').map((r) => r['primaryParentPhone'])).toContain('0912000001');
-    expect(byName('乙')[0]!['primaryParentPhone']).toBe('0912000003');
+    expect(byName('甲').map((r) => r['primaryParentPhone'])).toContain(`${PHONE}01`);
+    expect(byName('乙')[0]!['primaryParentPhone']).toBe(`${PHONE}03`);
     expect(byName('甲').some((r) => r['hasActiveCard'])).toBe(true);
     const mis = (await hit('/api/students?withToday=false&schoolMismatch=true', true)).body;
     expect((mis['data'] as Array<{ name: string }>).map((r) => r.name)).toEqual(['學制不合']);
@@ -457,7 +518,7 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
         .sort();
     expect(await names('today=arrived')).toEqual(['甲']);
     expect((await names('today=missing')).length).toBeGreaterThan(3);
-    expect(await names('search=0912000003')).toEqual(['乙']);
+    expect(await names(`search=${PHONE}03`)).toEqual(['乙']);
     expect(await names(`search=${encodeURIComponent('甲媽')}`)).toEqual(['甲']);
     expect(await names(`search=${encodeURIComponent('名冊國中')}`)).toEqual(['甲', '甲']);
     // `*` 是萬用字元；別 org 的國小（misB 的學校）不算

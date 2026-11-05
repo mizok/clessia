@@ -1,11 +1,9 @@
-<div class="flex flex-col gap-4 p-2">
-  <div class="flex flex-col gap-1">
-    <h2 class="m-0 text-lg font-semibold text-zinc-900">從某日起改時段</h2>
-    <p class="m-0 text-sm text-zinc-600">
-      原本的「{{ oldLabel }}」上到 {{ oldEndLabel() }}，之後改成下面的時間。
-    </p>
-  </div>
-
+<!-- 共用殼（#2290）：說明句當副標；✕＝取消 -->
+<app-dialog-frame
+  title="從某日起改時段"
+  [sub]="'原本的「' + oldLabel + '」上到 ' + oldEndLabel() + '，之後改成下面的時間。'"
+  (closed)="cancel()"
+>
   <div class="flex flex-col gap-3">
     <label class="flex flex-col gap-1 text-sm text-zinc-700">
       從哪天起
@@ -105,8 +103,7 @@
       </div>
     }
   </div>
-
-  <div class="flex justify-end gap-2">
+  <ng-container dialogFoot>
     <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
     @if (preview()) {
       <p-button label="確定改時段" [loading]="loading()" (onClick)="confirm()" />
@@ -119,5 +116,5 @@
         (onClick)="runPreview()"
       />
     }
-  </div>
-</div>
+  </ng-container>
+</app-dialog-frame>

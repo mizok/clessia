@@ -5,7 +5,7 @@ import { signal } from '@angular/core';
 import { ConfirmEventType, ConfirmationService, MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import type { Campus } from '@core/campuses.service';
-import type { LeaveRequest } from '@core/leave.service';
+import type { LeaveListItem, LeaveRequest } from '@core/leave.service';
 import { LeaveService } from '@core/leave.service';
 import { CampusContextService } from '@core/campus-context.service';
 import { ReferenceDataService } from '@core/reference-data.service';
@@ -56,7 +56,7 @@ describe('LeavePage', () => {
   let component: LeavePage;
   let fixture: ComponentFixture<LeavePage>;
 
-  const activeRecord: LeaveRequest = {
+  const activeRecord: LeaveListItem = {
     id: 'leave-1',
     orgId: 'org-1',
     studentId: 'student-1',
@@ -70,6 +70,8 @@ describe('LeavePage', () => {
     submittedByRole: 'admin',
     submittedByName: '管理員',
     createdAt: '2026-04-02T00:00:00Z',
+    studentGrade: null,
+    coveredSessions: [],
   };
 
   beforeEach(async () => {
@@ -308,14 +310,14 @@ describe('LeavePage', () => {
   });
 
   describe('A6 版（#1314 LV1／LV3）', () => {
-    const rec = (over: Partial<LeaveRequest>): LeaveRequest => ({
+    const rec = (over: Partial<LeaveListItem>): LeaveListItem => ({
       ...activeRecord,
       id: 'r-' + Math.random().toString(36).slice(2, 7),
       startDate: '2026-04-10',
       endDate: '2026-04-10',
       ...over,
     });
-    const respond = (data: LeaveRequest[], total = data.length) =>
+    const respond = (data: LeaveListItem[], total = data.length) =>
       leaveServiceMock.list.mockReturnValue(
         of({ data, meta: { total, page: 1, pageSize: 20, totalPages: Math.ceil(total / 20) } }),
       );
@@ -427,6 +429,46 @@ describe('LeavePage', () => {
       expect(q('days')!.textContent).toContain('3 天');
       expect(q('range')!.textContent).toContain('4/10–4/12');
       expect(q('late')).not.toBeNull();
+    });
+
+    it('LV2：年級寫在名字後；蓋到的堂一堂一行取代日期範圍；展開那句寫幾堂', () => {
+      respond([
+        rec({
+          studentGrade: 'J2',
+          startDate: '2026-04-10',
+          endDate: '2026-04-12',
+          coveredSessions: [
+            {
+              id: 's1',
+              date: '2026-04-10',
+              startTime: '14:00',
+              endTime: '15:00',
+              className: '國二數學',
+            },
+            {
+              id: 's2',
+              date: '2026-04-11',
+              startTime: '09:00',
+              endTime: '10:00',
+              className: '國二英文',
+            },
+          ],
+        }),
+        rec({ id: 'none', startDate: '2026-04-10', endDate: '2026-04-10' }),
+      ]);
+      component['loadRecords']();
+      fixture.detectChanges();
+
+      expect(q('grade')!.textContent!.trim()).toBe('國二');
+      expect(q('sessions')!.textContent).toContain('4/10 14:00 國二數學');
+      expect(q('sessions')!.textContent).toContain('4/11 09:00 國二英文');
+      expect(qa('note').map((n) => n.textContent!.trim())).toEqual([
+        '4/10–4/12 · 2 堂課標成請假',
+        '4/10（五） · 這段時間沒有他的課',
+      ]);
+      // 一堂都沒蓋到：退回日期範圍（A6 沒畫，R5）；沒有年級就不寫
+      expect(qa('range').map((n) => n.textContent!.trim())).toEqual(['4/10']);
+      expect(qa('grade')).toHaveLength(1);
     });
 
     it('展開後才有「編輯」「取消請假」：編輯開表單、取消走確認', () => {

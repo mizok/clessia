@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { restBackedSummaryPool } from '../test-utils/rest-backed-summary-pool';
 import { describe, expect, it } from 'vitest';
 
 import * as studentsRoute from './students';
@@ -254,6 +255,8 @@ describe('GET /api/students —— 退班報名仍算分校歸屬，但不算在
       // 裸 Hono 沒有 AppEnv 的 Variables 型別，照 invoices.spec.ts 的先例轉一次
       const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
       set('supabase', client);
+      // 今日到班的在籍／打卡／請假走 pg（#1595 P2 ①）：替身把 SQL 翻回改寫前的 REST 鏈
+      set('auth', { pool: restBackedSummaryPool(client as never) });
       set('orgId', ORG);
       set('userId', 'user-1');
       // admin —— 讓 resolveStudentScope 回不縮限的範圍，這組測的是 campusNames 不是授權
@@ -380,7 +383,8 @@ describe('GET /api/students?search= —— 家長電話比對（#1138）', () =>
       students: [],
       staff: [{ id: 'st-1' }],
       schedules: [{ class_id: 'c-1' }],
-      enrollments: [{ student_id: 's-1' }],
+      // class_id 要有：老師範圍走 SQL 時（刀 2）是依「現任班」濾報名，替身的資料要像真的
+      enrollments: [{ student_id: 's-1', class_id: 'c-1' }],
       ...extra,
     };
     const client = {
@@ -402,6 +406,8 @@ describe('GET /api/students?search= —— 家長電話比對（#1138）', () =>
     app.use('*', async (c, next) => {
       const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
       set('supabase', client);
+      // 今日到班的在籍／打卡／請假走 pg（#1595 P2 ①）：替身把 SQL 翻回改寫前的 REST 鏈
+      set('auth', { pool: restBackedSummaryPool(client as never) });
       set('orgId', ORG);
       set('userId', 'user-1');
       set('roles', [role]);

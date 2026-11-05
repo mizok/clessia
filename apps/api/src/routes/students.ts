@@ -15,8 +15,8 @@ import { isParentWithinScope } from '../lib/parent-campus-scope';
 import { withTx } from '../lib/pg-tx';
 import { resolveAttendanceMode } from '../lib/attendance-mode';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
-import { schoolMismatchClause, type SchoolLevel } from '../lib/grade-promotion';
-import { loadStudentListViaSql } from '../lib/student-list-sql';
+import { loadStudentListViaSql, type StudentListParams } from '../lib/student-list-sql';
+import { GRADE_CHAPTERS, loadStudentListViaBuilder } from '../lib/student-list-builder';
 import {
   TODAY_SESSION_SELECT,
   classifyToday,
@@ -261,37 +261,8 @@ export function deriveEnrollmentState(
   return 'withdrawal';
 }
 
-export function buildStudentSearchClause(
-  search: string,
-  matchedStudentIds: string[],
-  searchScope: 'default' | 'student_name' = 'default',
-  /** 名稱符合的學校（#1314 SL4）—— 只在 default 範圍併進來 */
-  schoolIds: string[] = [],
-): string {
-  if (searchScope === 'student_name') {
-    return `name.ilike.%${search}%`;
-  }
-
-  return [
-    `name.ilike.%${search}%`,
-    ...(matchedStudentIds.length > 0 ? [`id.in.(${matchedStudentIds.join(',')})`] : []),
-    ...(schoolIds.length > 0 ? [`school_id.in.(${schoolIds.join(',')})`] : []),
-  ].join(',');
-}
-
-/** 列表與年級章節計數共用篩選會用到的 builder 方法（泛型不加約束，同 courses／staff，避 TS2589） */
-interface StudentFilterable {
-  eq(column: string, value: unknown): StudentFilterable;
-  in(column: string, values: string[]): StudentFilterable;
-  or(filters: string): StudentFilterable;
-}
-
-const GRADE_LEVELS = GradeLevelSchema.options;
-/** 章節順序＝列表順序：高年級在前（A6 名冊，計畫席 10-10 裁） */
-const GRADE_CHAPTERS = [...GRADE_LEVELS].reverse();
-
-/** 有效到班卡的 embed（#2053）：搭配 `.is('active_card.revoked_at', null)` 只留沒作廢的 */
-const ACTIVE_CARD_EMBED = 'active_card:checkin_cards(id)';
+// 搬到 lib/student-list-builder.ts（#1595 P2 ②）；spec 從這裡 import，保留轉出口
+export { buildStudentSearchClause } from '../lib/student-list-builder';
 
 function countToday(statuses: Map<string, TodayStatus>) {
   const counts = { any: statuses.size, arrived: 0, not_yet: 0, missing: 0, on_leave: 0 };
@@ -370,11 +341,8 @@ app.openapi(
 
     const roles = c.get('roles') ?? [];
 
-    // 有 pool 就走 SQL（Hyperdrive，一次往返，#1595 P2 ②）；失敗 → 500，不退回 builder（#2230 (c)）。
-    // 搜尋與今日到班也在 SQL 裡（刀 1b）；老師範圍的前置也是（刀 2）。沒有 pool 才走 builder（單元測試）——
-    // 兩份條件由 contract/student-list-sql.contract.ts 逐欄比對
+    // 有 pool：老師範圍的前置（刀 2）與列表（刀 1a／1b）都走 SQL，失敗 500 不退回（#2230 (c)）
     const pool = c.get('auth')?.pool;
-    const viaSql = !!pool;
 
     // 管理員不受限，所以不必查 staff。非管理員有 pool 時，本人 staff＋任課時段＋在籍報名一支 pg 撈齊（刀 2）
     let ownStaffId: string | null = null;
@@ -463,22 +431,6 @@ app.openapi(
       (campusIds ? ', scope_campus:enrollments!inner(classes!inner(campus_id))' : '') +
       (myClassIds ? ', scope_taught:enrollments!inner(class_id, status)' : '');
 
-    let query = supabase
-      .from('students')
-      .select(
-        `*, schools(id, name, short_name), parent_student_relations(is_primary, relation, parents(id, name, user_id)), enrollments(id, status, classes(id, name, campus_id, campuses(name))), ${ACTIVE_CARD_EMBED}${scopeEmbed}`,
-        { count: 'exact' },
-      )
-      .eq('org_id', orgId)
-      // embed 只留有效卡 —— 每列的 `hasActiveCard` 與「沒有有效卡」的反連接都靠它
-      .is('active_card.revoked_at', null)
-      // 依年級分章（#1314 名冊換形前置）：`grade` 是 enum `grade_level`，Postgres 依列舉序排（P1…S3），
-      // 不必 RPC 或 generated column。**高年級在前**（desc，照 A6；同 byGrade 的 GRADE_CHAPTERS）。
-      // 章內依姓名，末鍵 id 讓同名翻頁穩定。`grade` 是 NOT NULL，所以不寫 nulls 位置（寫了也觀察不到）
-      .order('grade', { ascending: false })
-      .order('name')
-      .order('id');
-
     if (taughtStudentIds !== null) {
       // 空陣列代表這位老師沒有任何任課班 —— 結果必須是空的，不是「不篩」
       if (taughtStudentIds.length === 0) {
@@ -496,76 +448,6 @@ app.openapi(
           200,
         );
       }
-    }
-
-    let searchClause: string | null = null;
-    if (search && !viaSql) {
-      let matchedStudentIds: string[] = [];
-      let schoolIds: string[] = [];
-
-      if (searchScope === 'default') {
-        const { data: relationRows, error: relationError } = await supabase
-          .from('parent_student_relations')
-          .select('student_id, parents!inner(name, org_id)')
-          // 只比本 org 的家長（#1595 P2 ② 裁定 (c)：原本沒有這條，別 org 同名家長的孩子會被撈進來）
-          .eq('parents.org_id', orgId)
-          .ilike('parents.name', `%${search}%`);
-
-        if (relationError) {
-          return c.json({ error: '讀取學生列表失敗', message: relationError.message }, 500);
-        }
-
-        let phoneRows: Array<{ student_id: string | null }> = [];
-        // 家長電話（#1138 全站搜尋）：3 碼以上純數字才比。電話住在 `ba_user.phone`
-        // （20260317000003 把 parents.phone 移走了），寫法照 /api/parents 的搜尋。
-        // ponytail: 照輸入的字串連續比對；電話若存成帶 `-` 的格式，跨 `-` 的片段比不到 —— 真有這種資料再正規化
-        if (/^\d{3,}$/.test(search)) {
-          const { data: users, error: userError } = await supabase
-            .from('ba_user')
-            .select('id')
-            .ilike('phone', `%${search}%`);
-          if (userError) {
-            return c.json({ error: '讀取學生列表失敗', message: userError.message }, 500);
-          }
-          const userIds = (users ?? []).map((u: { id: string }) => u.id);
-          if (userIds.length > 0) {
-            // ba_user 不分機構，所以這裡一定要限本機構的家長
-            const { data, error: phoneError } = await supabase
-              .from('parent_student_relations')
-              .select('student_id, parents!inner(user_id, org_id)')
-              .eq('parents.org_id', orgId)
-              .in('parents.user_id', userIds);
-            if (phoneError) {
-              return c.json({ error: '讀取學生列表失敗', message: phoneError.message }, 500);
-            }
-            phoneRows = (data ?? []) as Array<{ student_id: string | null }>;
-          }
-        }
-
-        // 學校名（#1314 SL4）：本 org 的學校，全名或簡稱
-        const { data: schoolRows, error: schoolError } = await supabase
-          .from('schools')
-          .select('id')
-          .eq('org_id', orgId)
-          .or(`name.ilike.%${search}%,short_name.ilike.%${search}%`);
-        if (schoolError) {
-          return c.json({ error: '讀取學生列表失敗', message: schoolError.message }, 500);
-        }
-        schoolIds = ((schoolRows ?? []) as Array<{ id: string }>).map((row) => row.id);
-
-        matchedStudentIds = Array.from(
-          new Set(
-            [...((relationRows ?? []) as Array<{ student_id: string | null }>), ...phoneRows]
-              .map((row) => row.student_id)
-              .filter((studentId): studentId is string => !!studentId),
-          ),
-        );
-      }
-
-      searchClause = buildStudentSearchClause(search, matchedStudentIds, searchScope, schoolIds);
-    }
-    if (grade) {
-      query = query.eq('grade', grade);
     }
 
     // ── 今日到班（#1314 SL1）──────────────────────────────────
@@ -598,8 +480,15 @@ app.openapi(
             response: c.json({ error: '讀取學生列表失敗', message: sessionsError.message }, 500),
           };
         }
+        // 在籍、打卡、請假走 pg（#1595 P2 ①）；沒有池就回 500，不退回 REST
+        const pool = c.get('auth')?.pool;
+        if (!pool) {
+          return {
+            response: c.json({ error: '讀取學生列表失敗', code: 'DB_POOL_UNAVAILABLE' }, 500),
+          };
+        }
         const daily = await loadDailyAttendance(
-          supabase,
+          pool,
           orgId,
           date,
           ((sessionRows ?? []) as unknown as Array<Record<string, unknown>>).map(toTodaySession),
@@ -645,164 +534,37 @@ app.openapi(
             .map(([id]) => id)
         : null;
 
-    // 學制跟年級不合（#1820）：`null` 子句＝這個機構沒有任何組合會不合 → 空結果，不是不篩
-    let mismatchClause: string | null = null;
-    if (schoolMismatch && !viaSql) {
-      const { data: schoolRows, error: schoolError } = await supabase
-        .from('schools')
-        .select('id, level')
-        .eq('org_id', orgId);
-      if (schoolError) {
-        return c.json({ error: '讀取學生列表失敗', message: schoolError.message }, 500);
-      }
-      mismatchClause = schoolMismatchClause(
-        (schoolRows ?? []) as Array<{ id: string; level: SchoolLevel | null }>,
-      );
-    }
-
-    // 列表與年級章節計數共用（#1314 SL3）—— 兩邊各寫一份就會對同一份名單給出兩個數字。
-    // grade 不在裡面：章節要列出其他年級。兩個 `in('id')` 在 PostgREST 是 AND（交集）
-    const withChapterFilters = <Q>(q: Q): Q => {
-      let next = q as unknown as StudentFilterable;
-      if (myClassIds) {
-        next = next
-          .in('scope_taught.class_id', myClassIds)
-          .in('scope_taught.status', ['active', 'pending_payment']);
-      }
-      if (searchClause) next = next.or(searchClause);
-      if (campusIds) next = next.in('scope_campus.classes.campus_id', [...campusIds]);
-      if (isActive !== undefined) next = next.eq('is_active', isActive);
-      if (todayIds) next = next.in('id', todayIds);
-      if (schoolMismatch) {
-        // 兩個 `or` 在 PostgREST 是 AND（同上面兩個 `in('id')`），不會吃掉搜尋子句
-        next = mismatchClause
-          ? next.or(mismatchClause)
-          : next.in('id', ['00000000-0000-0000-0000-000000000000']);
-      }
-      return next as unknown as Q;
-    };
-    /**
-     * 卡片條件（#2053、#2267），列表與年級章節的 HEAD count **共用這一份**。`active_card` embed 已經只留
-     * 沒作廢的卡；「今天發的」再把 embed 限在台北今天發的、並要求 embed 非空（不是 `!inner`：每列的
-     * `hasActiveCard` 也靠這個 embed，其餘篩選下不能把沒卡的人濾掉）
-     */
+    // 列表：有 pool 就走 SQL（Hyperdrive，一次往返，#1595 P2 ②）；失敗 → 500，不退回 builder（#2230 (c)）。
+    // 搜尋與今日到班也在 SQL 裡（刀 1b）。沒有 pool 才走 builder（單元測試）——
+    // 兩條路吃**同一份參數**，條件由 contract/student-list-sql.contract.ts 逐欄比對
     const cardDay = getCurrentTaipeiDateString();
-    const withCardFilter = <Q>(q: Q): Q => {
-      let next = q as unknown as typeof query;
-      if (withoutCard) next = next.is('active_card', null);
-      if (cardIssuedToday) {
-        next = next
-          .gte('active_card.issued_at', `${cardDay}T00:00:00+08:00`)
-          .lt('active_card.issued_at', `${addDaysToDateString(cardDay, 1)}T00:00:00+08:00`)
-          .not('active_card', 'is', null);
-      }
-      return next as unknown as Q;
+    const listParams: StudentListParams = {
+      orgId,
+      campusIds,
+      classIds: myClassIds,
+      grade: grade ?? null,
+      isActive: isActive ?? null,
+      schoolMismatch: !!schoolMismatch,
+      withoutCard: !!withoutCard,
+      cardIssuedToday: !!cardIssuedToday,
+      cardDayStart: `${cardDay}T00:00:00+08:00`,
+      cardDayEnd: `${addDaysToDateString(cardDay, 1)}T00:00:00+08:00`,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+      withPhone: scope.teacherStaffId === null,
+      search: search || null,
+      searchRelated: searchScope === 'default',
+      searchPhone: /^\d{3,}$/.test(search ?? ''),
+      todayIds,
     };
-    query = withCardFilter(withChapterFilters(query));
-
-    const offset = (page - 1) * pageSize;
-    query = query.range(offset, offset + pageSize - 1);
-
-    // 獨立 query 取得全量 activeCount。
-    // **「全量」只指「不受 `isActive` filter 影響」** —— 分校範圍照樣要套（#815）：
-    // 不套的話儀表板的「在籍學生」卡片會對只管一個分校的人報全機構的數字，
-    // 而他自己的學生頁說 0。用主清單算好的 `scopedStudentIds`，不另外再算一次。
-    let activeCountQuery = supabase
-      .from('students')
-      .select(`id${scopeEmbed}`, { count: 'exact', head: true })
-      .eq('org_id', orgId)
-      .eq('is_active', true);
-    if (myClassIds) {
-      activeCountQuery = activeCountQuery
-        .in('scope_taught.class_id', myClassIds)
-        .in('scope_taught.status', ['active', 'pending_payment']);
-    }
-    if (campusIds) {
-      activeCountQuery = activeCountQuery.in('scope_campus.classes.campus_id', [...campusIds]);
-    }
-
-    // #949：計數只用 `scopedStudentIds`（列表之前就算好了），不用列表的結果 —— 同一輪發出去。
-    // 讓 DB 用 GROUP BY 數（PostgREST 聚合，#1595 P3b-B）：一支查詢、每個年級一列（最多 13 列，
-    // 不會撞 max_rows 1000 —— 撈學生列回來自己數才會被靜默截斷，同 courses bySubject）。
-    // 原本是每級一支 head count，12 支加上列表、在籍數共 14 支，超過 Workers 每請求 6 條連線、排成 3 波。
-    // 需要 `pgrst.db_aggregates_enabled`（migration 20261015060000_postgrest_aggregates）。
-    // 「沒有有效卡」是 embed 的反連接，**PostgREST 的聚合不吃 embed 的過濾**（42703）。這個篩選開著時
-    // 改成每級一支 head count —— 條件仍全在 DB；多 12 個 subrequest，最壞情況的總數由
-    // `students-subrequest-budget.spec.ts` 守在 45 以內（計畫席 10-28 裁定 A，不加 migration）
-    // 範圍在 embed 上（#1928）時同樣不能用聚合：PostgREST 會連 embed 的內容一起 group by（本機實測同一年級拆成多列），
-    // 一樣改成每級一支 head count。最壞情況仍是「沒有有效卡」那條，預算不變
-    // `viaSql` 時不建：Promise.all 會立刻把 12 支 head count 發出去（builder 物件本身是惰性的，Promise.all 不是）
-    const gradeCountQuery = viaSql
-      ? null
-      : withoutCard || cardIssuedToday || scopeEmbed
-        ? Promise.all(
-            GRADE_CHAPTERS.map((level) => {
-              let head = supabase
-                .from('students')
-                .select(`id, ${ACTIVE_CARD_EMBED}${scopeEmbed}`, { count: 'exact', head: true })
-                .eq('org_id', orgId)
-                .eq('grade', level)
-                .is('active_card.revoked_at', null);
-              return withCardFilter(withChapterFilters(head));
-            }),
-          ).then((results) => ({
-            error: results.find((r) => r.error)?.error ?? null,
-            data: results.map((r, i) => ({ grade: GRADE_CHAPTERS[i]!, count: r.count ?? 0 })),
-          }))
-        : withChapterFilters(
-            supabase.from('students').select('grade, count()').eq('org_id', orgId),
-          );
-
-    let rows: Array<Record<string, unknown>>;
-    let total: number;
-    let activeCount: number | null;
-    let countByGrade: Map<string | null, number>;
-    if (viaSql) {
-      // builder 物件是惰性的，沒 await 就不會發出去
-      const r = await loadStudentListViaSql(pool, {
-        orgId,
-        campusIds,
-        classIds: myClassIds,
-        grade: grade ?? null,
-        isActive: isActive ?? null,
-        schoolMismatch: !!schoolMismatch,
-        withoutCard: !!withoutCard,
-        cardIssuedToday: !!cardIssuedToday,
-        cardDayStart: `${cardDay}T00:00:00+08:00`,
-        cardDayEnd: `${addDaysToDateString(cardDay, 1)}T00:00:00+08:00`,
-        limit: pageSize,
-        offset,
-        withPhone: scope.teacherStaffId === null,
-        search: search || null,
-        searchRelated: searchScope === 'default',
-        searchPhone: /^\d{3,}$/.test(search ?? ''),
-        todayIds,
-      });
-      ({ rows, total, activeCount } = r);
-      countByGrade = new Map(Object.entries(r.byGrade));
-    } else {
-      const [{ data, error, count }, activeRes, gradeCounts] = await Promise.all([
-        query,
-        activeCountQuery,
-        gradeCountQuery!,
-      ]);
-      if (error) {
-        return c.json({ error: '讀取學生列表失敗', message: error.message }, 500);
-      }
-      // 數不出來就不回 0
-      if (gradeCounts.error) {
-        return c.json({ error: '讀取學生列表失敗', message: gradeCounts.error.message }, 500);
-      }
-      rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
-      total = count ?? 0;
-      activeCount = activeRes.count;
-      countByGrade = new Map(
-        ((gradeCounts.data ?? []) as Array<{ grade: string | null; count: number }>).map((r) => [
-          r.grade,
-          r.count,
-        ]),
-      );
-    }
+    const {
+      rows,
+      total,
+      activeCount,
+      byGrade: countByGrade,
+    } = pool
+      ? await loadStudentListViaSql(pool, listParams)
+      : await loadStudentListViaBuilder(supabase, listParams);
     if (todayFilter === undefined) {
       const today = await todayPromise;
       if ('response' in today) return today.response;
@@ -810,51 +572,24 @@ app.openapi(
     }
     const byGrade = GRADE_CHAPTERS.map((level) => ({
       grade: level,
-      count: countByGrade.get(level) ?? 0,
+      count: countByGrade[level] ?? 0,
     }));
 
     type Relation = {
       is_primary: boolean;
       relation: string | null;
-      parents: { id: string; name: string; user_id: string | null } | null;
+      parents: { id: string; name: string; user_id: string | null; phone?: string | null } | null;
     };
     const relationsOf = (row: Record<string, unknown>) =>
       ((row['parent_student_relations'] as Relation[]) ?? [])
         .filter((r) => r.parents?.name)
         .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0));
 
-    // 主要家長電話：只有管理員查（計畫席裁 #1138 Q-b A）。電話住在 ba_user（唯讀，c2 只禁寫）
-    const phoneByUser = new Map<string, string | null>();
-    if (viaSql) {
-      // SQL 已把電話帶在 parents 裡（只在管理員時帶，`withPhone`）
-      for (const row of rows) {
-        const primary = relationsOf(row)[0]?.parents as
-          { user_id: string | null; phone?: string | null } | undefined;
-        if (primary?.user_id && primary.phone !== undefined)
-          phoneByUser.set(primary.user_id, primary.phone);
-      }
-    } else if (scope.teacherStaffId === null) {
-      const userIds = [
-        ...new Set(
-          rows
-            .map((row) => relationsOf(row)[0]?.parents?.user_id)
-            .filter((id): id is string => !!id),
-        ),
-      ];
-      if (userIds.length > 0) {
-        const { data: users } = await supabase
-          .from('ba_user')
-          .select('id, phone')
-          .in('id', userIds);
-        for (const u of users ?? []) phoneByUser.set(u.id as string, (u.phone as string) ?? null);
-      }
-    }
-
     const students = rows.map((row) => {
       const relations = relationsOf(row);
       const parentNames = relations.map((r) => r.parents!.name);
-      const primaryUserId = relations[0]?.parents?.user_id;
-      const primaryParentPhone = (primaryUserId && phoneByUser.get(primaryUserId)) || null;
+      // 主要家長電話：兩條路都只在管理員時帶進 `parents.phone`（計畫席裁 #1138 Q-b A）
+      const primaryParentPhone = relations[0]?.parents?.phone || null;
       const enrollmentRows =
         (row['enrollments'] as Array<{
           id: string;

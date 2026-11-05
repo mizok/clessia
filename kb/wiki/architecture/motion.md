@@ -3,7 +3,7 @@ title: 全站動態規則（設計稿：換頁方向、頁內切換、列表補�
 summary: 設計稿（#1635，未批准）。2026-10-16 在本機實跑盤點：頁內的狀態變化（換週、換日、日／週、篩選切換、tab）全部是瞬間替換；換頁只有內容區淡入淡出，而且沒有處理「減少動態」。提案：換頁依網址深度給方向（往深從右進、返回從左、同層從右 12px 淡入（#1849 使用者 10-22 改））；低頻的模式切換用同文件 view transition；連點型控制項（換週箭頭）不能用 VT —— 實測 VT 動畫期間的第二下點擊會被吞掉（規格：期間點擊一律打到 document element），改成內容層的 animate.enter；新增／刪除列照 A6 的 row-new，補位只在刪除時用 VT。曲線沿用 #1634 的 --arrive／--leave，不另訂。
 category: architecture
 status: draft
-updated: 2026-10-23
+updated: 2026-11-05
 tags: [architecture, motion, view-transition, a6, accessibility, performance]
 ---
 
@@ -74,6 +74,7 @@ Playwright（獨立瀏覽器 context，不碰共用的 Chrome session），admin
 - **時長**：進場 200ms、出場 140ms（同 #1634）；新增列 240ms、數值變化 170ms（A6 原值）。**換頁例外**：使用者 2026-10-22 說「可以再慢一點」（#1891），換頁放慢約 1.4 倍 —— 往深一層／返回進 280ms、出 200ms，同層進 460ms、出 400ms；頁內切換（分段鈕、列增刪）維持 200／140ms。
 - **位移只用小距離**：最多 24px（同 #1634 的側面板），不做整頁寬度的滑動 —— A6 唯一的整面平移是公開頁手機的兩面切換（`a6.css` 的 `.ps`，320ms），那是兩個並排的面，不是一般換頁。
 - **減少動態**：一律關掉位移與過程，資訊直接出現。Chrome 官方提醒「減少動態」不等於完全不要動，建議改用更輕微的動畫（[Chrome：Same-document view transitions](https://developer.chrome.com/docs/web-platform/view-transitions/same-document)），**但 A6 的做法是全部關掉**（`a6.css:195` 把 transition 壓到 0.01ms）。A6 全採（[[architecture/a6-adoption-rules]] R1），所以照 A6。
+- **彈出物例外**（#2290，使用者 11-05）：對話框、抽屜、側面板、浮層、toast 在減少動態時**保留淡入淡出**、只拿掉位移與縮放 —— 見 [[architecture/dialog-frame]]。換頁與頁內切換仍照上一條全部關掉。
 - **不支援 VT 的瀏覽器直接瞬間切換**，不做替代動畫。
 
 ### 縮放：viewport `maximum-scale=1`（#1867）

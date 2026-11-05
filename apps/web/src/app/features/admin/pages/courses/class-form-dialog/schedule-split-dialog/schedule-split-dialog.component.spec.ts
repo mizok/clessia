@@ -66,6 +66,19 @@ describe('ScheduleSplitDialogComponent', () => {
     close.mockClear();
   });
 
+  // #2290：用共用殼 —— h2 標題（對話框的可及名稱）、說明句當副標，按 ✕ 等同取消（不回傳結果）
+  it('共用殼：h2 標題＋副標，按關閉＝取消', () => {
+    create();
+    lastFixture.detectChanges();
+    const el = lastFixture.nativeElement as HTMLElement;
+    expect(el.querySelector('app-dialog-frame h2')?.textContent?.trim()).toBe('從某日起改時段');
+    expect(el.querySelector('.dialog-header-inline__sub')?.textContent).toContain(
+      '之後改成下面的時間',
+    );
+    el.querySelector<HTMLButtonElement>('.dialog-header-inline__close')!.click();
+    expect(close).toHaveBeenCalledWith();
+  });
+
   it('預覽送 dryRun、沿用舊老師；確定才真的送，關閉時回傳結果', () => {
     const c = create();
     c.update('fromDate', '2099-02-01');

@@ -19,8 +19,20 @@ export interface LeaveRequest {
   createdAt: string;
 }
 
+/** 列表的列（#1314 LV2）：多帶年級與蓋到的堂；只填日期區間的假也由 API 照點名面板同一支判斷算出 */
+export interface LeaveListItem extends LeaveRequest {
+  studentGrade: string | null;
+  coveredSessions: {
+    id: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    className: string;
+  }[];
+}
+
 export interface LeaveListResponse {
-  data: LeaveRequest[];
+  data: LeaveListItem[];
   meta: { total: number; page: number; pageSize: number; totalPages: number };
 }
 

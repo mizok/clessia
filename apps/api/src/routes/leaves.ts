@@ -37,6 +37,11 @@ import {
 } from '../lib/leave-covers-session';
 import { isEnrolledOn } from '../lib/session-roster';
 import {
+  LEAVE_COVERED_SESSIONS_SQL,
+  coveredSessionsOf,
+  type CoveredSessionCandidate,
+} from '../lib/leave-covered-sessions';
+import {
   buildLeaveAttendanceUpserts,
   coversEvent,
   getLeaveValidationError,
@@ -67,9 +72,24 @@ const LeaveRequestSchema = z
   })
   .openapi('LeaveRequest');
 
+/** 列表的列多帶年級與蓋到的堂（#1314 LV2）；POST／PATCH 回應不帶 */
+const LeaveListItemSchema = LeaveRequestSchema.extend({
+  studentGrade: z.string().nullable(),
+  /** 這張假蓋到的堂（依日期時間排）：綁定型＝綁的堂；沒綁定的照 `leaveCoversSession` 從日期區間算 */
+  coveredSessions: z.array(
+    z.object({
+      id: z.string(),
+      date: z.string(),
+      startTime: z.string(),
+      endTime: z.string(),
+      className: z.string(),
+    }),
+  ),
+}).openapi('LeaveListItem');
+
 const LeaveListResponseSchema = z
   .object({
-    data: z.array(LeaveRequestSchema),
+    data: z.array(LeaveListItemSchema),
     meta: z.object({
       total: z.number(),
       page: z.number(),
@@ -787,8 +807,8 @@ app.openapi(
     const campusIds = campusFilterIds(getCampusScope(c), campusId);
     const scoped = !!(campusIds || classId || courseId);
     const studentEmbed = scoped
-      ? 'students!inner(name, enrollments!inner(class_id, classes!inner(campus_id, course_id)))'
-      : 'students!inner(name)';
+      ? 'students!inner(name, grade, enrollments!inner(class_id, classes!inner(campus_id, course_id)))'
+      : 'students!inner(name, grade)';
 
     let query = supabase
       .from('leave_requests')
@@ -835,10 +855,30 @@ app.openapi(
       submitted_by_name: r.ba_user?.name ?? null,
     }));
 
+    // 蓋到的堂（LV2）：一支 pg SQL 撈這一頁的候選，判準在 lib。讀不到就 500，不回「蓋到 0 堂」
+    const candidates = new Map<string, CoveredSessionCandidate[]>();
+    if (rows.length > 0) {
+      const pool = c.get('auth')?.pool;
+      if (!pool) return c.json({ error: '讀取請假紀錄失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
+      const scope = getCampusScope(c);
+      const { rows: found } = await pool.query(LEAVE_COVERED_SESSIONS_SQL, [
+        orgId,
+        rows.map((r: any) => r.id as string),
+        scope ? [...scope] : null,
+      ]);
+      for (const row of found as CoveredSessionCandidate[]) {
+        candidates.set(row.leave_id, [...(candidates.get(row.leave_id) ?? []), row]);
+      }
+    }
+
     const total = count ?? 0;
     return c.json(
       {
-        data: rows.map(toLeaveResponse),
+        data: rows.map((r: any) => ({
+          ...toLeaveResponse(r),
+          studentGrade: (r.students?.grade as string | null) ?? null,
+          coveredSessions: coveredSessionsOf(toLeaveWindow(r), candidates.get(r.id) ?? []),
+        })),
         meta: { total, page, pageSize, totalPages: Math.ceil(total / pageSize) },
       },
       200,

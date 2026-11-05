@@ -715,17 +715,56 @@
   .form-dialog--a6 {
     gap: 0;
   }
-  .form-dialog--a6 .form-dialog__footer {
-    padding: var(--space-3) var(--space-6) var(--space-6);
-    background: inherit;
+  /* 對話框的尺寸與留白（#2290，規則頁 kb/wiki/architecture/dialog-frame.md）：
+     寬只有三種（開窗端寫 `width: 'var(--dlg-w-md)'`）、左右內距一個值、貼底抽屜的底部留白一個值 */
+  :root {
+    --dlg-w-sm: 420px;
+    --dlg-w-md: 520px;
+    --dlg-w-lg: 760px;
+    --dlg-pad-x: var(--space-6);
+    --sheet-foot-gap: var(--space-4);
   }
   @media (max-width: 860px) {
-    /* 手機是深灰底部面板（A6 `--gray-sheet` #ebe7e4 ＝ zinc-200），欄位本身仍是白底 */
+    :root {
+      --dlg-pad-x: var(--space-4);
+    }
+  }
+  .form-dialog--a6 .form-dialog__footer {
+    padding: var(--space-3) var(--dlg-pad-x) var(--space-6);
+    background: inherit;
+  }
+  /* 共用殼 app-dialog-frame 的內容區（A6 `.acset__body`：grid、間距 20、8 24 24，手機 8 16 16）。
+     有底部列時內容區底下不另留（動作列自己有上內距）；底部列沒有任何元素就藏起來
+     （不用 :empty —— @if 的錨點註解、空白文字都可能留在裡面） */
+  .dialog-frame__body {
+    display: grid;
+    gap: var(--space-5);
+    padding: var(--space-2) var(--dlg-pad-x) var(--space-6);
+  }
+  .dialog-frame:has(.form-dialog__footer > *) .dialog-frame__body {
+    padding-bottom: 0;
+  }
+  .dialog-frame .form-dialog__footer:not(:has(*)) {
+    display: none;
+  }
+  @media (max-width: 860px) {
+    /* 手機是深灰底部面板（A6 `--gray-sheet` #ebe7e4 ＝ zinc-200），欄位本身仍是白底。
+       safe-area 只墊一次：用 a6 底部列／殼的對話框，抽屜本體不墊（全站 .p-dialog 手機那條），由底部列或內容區墊 */
     .p-dialog:has(.form-dialog--a6) {
       background: var(--zinc-200);
+      padding-bottom: 0;
     }
+    /* 貼底抽屜的底部列：下內距＝--sheet-foot-gap＋safe-area，鈕不貼 home indicator（使用者 11-05，#2290 Q1 選 b：抽屜照 A6 貼底） */
     .form-dialog--a6 .form-dialog__footer {
-      padding: var(--space-2) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+      padding: var(--space-2) var(--dlg-pad-x)
+        calc(var(--sheet-foot-gap) + env(safe-area-inset-bottom, 0px));
+    }
+    .dialog-frame__body {
+      padding-bottom: calc(var(--sheet-foot-gap) + env(safe-area-inset-bottom, 0px));
+    }
+    /* 標頭左距跟內容對齊（A6 手機標頭仍是 24、內容 16，差 8px；#2290「標頭」） */
+    .dialog-header-inline {
+      padding-left: var(--dlg-pad-x);
     }
   }
   .form-dialog__empty-note {
@@ -965,6 +1004,11 @@
   :root {
     --arrive: cubic-bezier(0.23, 1, 0.32, 1);
     --leave: cubic-bezier(0.4, 0, 1, 1);
+    /* 時長只在這裡定（#2290 動態規則）：置中／浮層／側面板 200／140，貼底抽屜 240／160 */
+    --motion-enter: 0.2s;
+    --motion-exit: 0.14s;
+    --motion-sheet-enter: 0.24s;
+    --motion-sheet-exit: 0.16s;
     /* 文字替換（appTextSwap，#1895／#2023）：使用者 10-23 嫌「淡入淡出很不明顯」，調慢、加重。出場仍比進場短 */
     --text-swap-exit: 350ms;
     --text-swap-enter: 650ms;
@@ -978,10 +1022,10 @@
     opacity: 0;
     transform: var(--pop-from);
     transition:
-      opacity 0.14s var(--leave),
-      transform 0.14s var(--leave),
-      overlay 0.14s var(--leave) allow-discrete,
-      display 0.14s var(--leave) allow-discrete;
+      opacity var(--motion-exit) var(--leave),
+      transform var(--motion-exit) var(--leave),
+      overlay var(--motion-exit) var(--leave) allow-discrete,
+      display var(--motion-exit) var(--leave) allow-discrete;
   }
   :where(dialog) {
     --pop-from: scale(0.97);
@@ -989,7 +1033,7 @@
   :where([popover]:popover-open, dialog[open]) {
     opacity: 1;
     transform: none;
-    transition-duration: 0.2s;
+    transition-duration: var(--motion-enter);
     transition-timing-function: var(--arrive);
   }
   @starting-style {
@@ -1001,13 +1045,13 @@
   :where([popover], dialog)::backdrop {
     opacity: 0;
     transition:
-      opacity 0.14s var(--leave),
-      overlay 0.14s allow-discrete,
-      display 0.14s allow-discrete;
+      opacity var(--motion-exit) var(--leave),
+      overlay var(--motion-exit) allow-discrete,
+      display var(--motion-exit) allow-discrete;
   }
   :where([popover]:popover-open, dialog[open])::backdrop {
     opacity: 1;
-    transition-duration: 0.2s;
+    transition-duration: var(--motion-enter);
     transition-timing-function: var(--arrive);
   }
   @starting-style {
@@ -1022,17 +1066,19 @@
   }
   .overlay-motion--from-bottom {
     --pop-from: translateY(100%);
+    transition-duration: var(--motion-sheet-exit);
   }
   .overlay-motion--from-bottom:where(:popover-open, [open]) {
-    transition-duration: 0.24s;
+    transition-duration: var(--motion-sheet-enter);
   }
   /* 只有窄螢幕是底部面板的（例如全站搜尋）：桌機照浮層的 6px */
   @media (max-width: 860px) {
     .overlay-motion--from-bottom-narrow {
       --pop-from: translateY(100%);
+      transition-duration: var(--motion-sheet-exit);
     }
     .overlay-motion--from-bottom-narrow:where(:popover-open, [open]) {
-      transition-duration: 0.24s;
+      transition-duration: var(--motion-sheet-enter);
     }
   }
 
@@ -1085,6 +1131,12 @@
     .p-dialog-leave-active:not(.role-picker-dialog) {
       --pop-from: translateY(100%);
     }
+    .p-dialog-enter-active:not(.role-picker-dialog) {
+      animation-duration: var(--motion-sheet-enter);
+    }
+    .p-dialog-leave-active:not(.role-picker-dialog) {
+      animation-duration: var(--motion-sheet-exit);
+    }
   }
   .p-anchored-overlay-enter-active,
   .p-anchored-overlay-leave-active {
@@ -1092,11 +1144,11 @@
   }
   .p-dialog-enter-active,
   .p-anchored-overlay-enter-active {
-    animation: overlay-arrive 0.2s var(--arrive);
+    animation: overlay-arrive var(--motion-enter) var(--arrive);
   }
   .p-dialog-leave-active,
   .p-anchored-overlay-leave-active {
-    animation: overlay-leave 0.14s var(--leave);
+    animation: overlay-leave var(--motion-exit) var(--leave);
   }
   /* Drawer：保留 PrimeNG 的整段位移（全站都是 position="bottom" 的底部面板），只換時長與曲線 */
   .p-drawer-enter-left,
@@ -1104,7 +1156,7 @@
   .p-drawer-enter-top,
   .p-drawer-enter-bottom,
   .p-drawer-enter-full {
-    animation-duration: 0.24s;
+    animation-duration: var(--motion-sheet-enter);
     animation-timing-function: var(--arrive);
   }
   .p-drawer-leave-left,
@@ -1112,34 +1164,44 @@
   .p-drawer-leave-top,
   .p-drawer-leave-bottom,
   .p-drawer-leave-full {
-    animation-duration: 0.14s;
+    animation-duration: var(--motion-sheet-exit);
     animation-timing-function: var(--leave);
   }
   .p-overlay-mask-enter-active {
-    animation-duration: 0.2s;
+    animation-duration: var(--motion-enter);
     animation-timing-function: var(--arrive);
   }
   .p-overlay-mask-leave-active {
-    animation-duration: 0.14s;
+    animation-duration: var(--motion-exit);
     animation-timing-function: var(--leave);
   }
 
-  /* 減少動態：不走過程，資訊照樣出現（目的地不省略）。PrimeNG 量到時長 0 會立刻完成 */
+  /* 減少動態：彈出物**只淡入淡出**，不位移、不縮放（使用者 11-05，#2290 Q2；原本照 A6 全部關掉）。
+     收合段落不是彈出物，照舊直接展開 */
   @media (prefers-reduced-motion: reduce) {
     :where([popover], dialog),
-    :where([popover], dialog)::backdrop,
-    :where(details)::details-content {
-      transition: none;
-    }
+    .overlay-motion--from-right,
+    .overlay-motion--from-bottom,
+    .overlay-motion--from-bottom-narrow,
     .p-dialog-enter-active,
     .p-dialog-leave-active,
+    .p-dialog-enter-active:not(.role-picker-dialog),
+    .p-dialog-leave-active:not(.role-picker-dialog),
     .p-anchored-overlay-enter-active,
-    .p-anchored-overlay-leave-active,
-    .p-overlay-mask-enter-active,
-    .p-overlay-mask-leave-active,
-    [class*='p-drawer-enter-'],
+    .p-anchored-overlay-leave-active {
+      --pop-from: none;
+    }
+    /* Drawer 的 PrimeNG keyframes 是整段位移：換成同一組只動透明度的 keyframes */
+    [class*='p-drawer-enter-'] {
+      --pop-from: none;
+      animation-name: overlay-arrive;
+    }
     [class*='p-drawer-leave-'] {
-      animation: none;
+      --pop-from: none;
+      animation-name: overlay-leave;
+    }
+    :where(details)::details-content {
+      transition: none;
     }
   }
 
