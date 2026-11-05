@@ -374,15 +374,12 @@ export class StudentViewComponent implements OnInit {
 
   protected selectStudent(student: Student): void {
     this.dialogService.open(StudentScoreDetailDialogComponent, {
-      width: '720px',
-      breakpoints: { '640px': '95%' },
+      // A6 `.gdlg` 760
+      width: '760px',
       modal: true,
       showHeader: false,
       appendTo: 'body',
-      contentStyle: {
-        'max-height': 'calc(var(--window-height, 800px) * 0.85)',
-        overflow: 'auto',
-      },
+      // 高度上限與手機貼底抽屜走全站 .p-dialog（A6 .acset：上下各留 24px）；不另設 85%，sticky 底部才貼得到底
       data: { student },
     });
   }
