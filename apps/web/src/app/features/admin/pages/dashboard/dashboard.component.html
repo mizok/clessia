@@ -101,6 +101,26 @@
     }
   </dialog>
 
+  <!-- 櫃台代刷到班（#2314，A6 forms.checkin）：外框同登記請假 -->
+  <dialog
+    #checkinDeskDialog
+    class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(var(--dlg-w-md),calc(100%-32px))] rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] outline-none backdrop:bg-[rgb(26_22_20/40%)] max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-(--sheet-bg)"
+    role="dialog"
+    data-testid="checkin-desk-dialog"
+    (close)="closeCheckinDesk()"
+  >
+    @if (checkinDeskOpen()) {
+      <app-checkin-desk
+        [candidates]="checkinCandidates()"
+        [busy]="boardBusy() !== null"
+        [error]="checkinDeskError()"
+        [overlayHost]="checkinDeskDialog"
+        (submitted)="checkInFromDesk($event)"
+        (closed)="closeCheckinDesk()"
+      />
+    }
+  </dialog>
+
   <!--
     待處理＋主段包成一塊、從第一幀就在（#1859 第 4 張）：主段在資料回來前是骨架，回來後換成
     課表或「該到沒到」、往往一下長高上千 px（手機）—— appHeightFollow 讓它滑過去，下面的摺疊列跟著滑。
@@ -180,8 +200,10 @@
               id="dashboard-main-title"
               class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
             >
-              @if (missingRows().length > 0) {
-                該到沒到的 {{ missingRows().length }} 位，先打給家長
+              @if (unsettledCount() > 0) {
+                該到沒到的 {{ unsettledCount() }} 位，先打給家長
+              } @else if (missingRows().length > 0) {
+                該到沒到的都處理好了
               } @else {
                 現在沒有該到沒到的人
               }
@@ -209,12 +231,12 @@
               [style.view-transition-name]="'missing-' + row.student.studentId"
               class="vt-row grid gap-x-8 gap-y-1 border-b border-surface-border py-5 wide:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)_auto] wide:items-center wide:gap-y-2 wide:py-6"
               data-testid="call-row"
-              [class.settled]="row.contactedAt !== null"
+              [class.settled]="row.contactedAt !== null || row.arrivedAt !== null"
             >
               <a
                 class="inline-flex min-h-11 items-center text-2xl leading-[1.1] font-bold tracking-[-0.03em] no-underline hover:underline hover:decoration-2 hover:underline-offset-4 wide:text-3xl"
-                [class.text-zinc-600]="row.contactedAt !== null"
-                [class.text-zinc-900]="row.contactedAt === null"
+                [class.text-zinc-600]="row.contactedAt !== null || row.arrivedAt !== null"
+                [class.text-zinc-900]="row.contactedAt === null && row.arrivedAt === null"
                 data-testid="call-name"
                 [routerLink]="[studentRoute.replace(':id', row.student.studentId)]"
                 >{{ row.student.studentName }}</a
@@ -222,18 +244,28 @@
               <div>
                 <p
                   class="m-0 text-base font-semibold tabular-nums wide:text-lg"
-                  [class.text-zinc-600]="row.contactedAt !== null"
+                  [class.text-zinc-600]="row.contactedAt !== null || row.arrivedAt !== null"
                 >
                   {{ row.student.firstSession?.startTime }}
                   {{ row.student.firstSession?.className }}
                 </p>
                 <!-- A6 .call__why > .tag.tag--error（a6.css:642 拿掉底色與左右 padding）：12px、行高 1.4（#2264） -->
                 <p class="mt-2 mb-0" data-testid="call-why">
-                  <span
-                    class="inline-flex items-center gap-1 rounded-full py-0.5 text-sm leading-[1.4] font-semibold whitespace-nowrap text-error-700"
-                    ><i class="pi pi-exclamation-circle text-sm" aria-hidden="true"></i
-                    >{{ row.text }}</span
-                  >
+                  @if (row.arrivedAt; as at) {
+                    <!-- A6 dashboard.html 代刷後：.tag.tag--ok「HH:mm 到班 · 櫃台代刷」（#2314） -->
+                    <span
+                      class="inline-flex items-center gap-1 rounded-full py-0.5 pr-2 text-sm leading-[1.4] font-semibold whitespace-nowrap text-success-600"
+                      data-testid="call-arrived"
+                      ><i class="pi pi-check text-sm" aria-hidden="true"></i>{{ at }} 到班 ·
+                      櫃台代刷</span
+                    >
+                  } @else {
+                    <span
+                      class="inline-flex items-center gap-1 rounded-full py-0.5 text-sm leading-[1.4] font-semibold whitespace-nowrap text-error-700"
+                      ><i class="pi pi-exclamation-circle text-sm" aria-hidden="true"></i
+                      >{{ row.text }}</span
+                    >
+                  }
                 </p>
               </div>
               <div class="hidden wide:block">
@@ -255,7 +287,12 @@
                   <p class="m-0 text-md text-zinc-600">還沒登記家長</p>
                 }
               </div>
-              <div class="mt-3 flex flex-wrap items-center gap-2 wide:mt-0">
+              <!-- 代刷後動作收掉（A6 .call__act 清空）：這裡空了，連點的第二下不會落到別人的鈕上 -->
+              <div
+                class="mt-3 flex flex-wrap items-center gap-2 wide:mt-0"
+                [class.hidden]="row.arrivedAt !== null"
+                data-testid="call-actions"
+              >
                 @if (row.contactedAt; as at) {
                   <span
                     class="inline-flex min-h-11 items-center text-md font-semibold text-zinc-600"

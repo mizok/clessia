@@ -1514,6 +1514,9 @@ export const PAGES = {
     app: '/admin/dashboard',
     // 稿的今天（shared/data.js：2026-10-01 17:40，週四），同 p-schedule（#1314 10-30）
     clock: '2026-10-01T17:40:00+08:00',
+    // 櫃台代刷到班（#2314）：兩邊都是原生 showModal；桌機工具列鈕、手機托盤／dock 鈕都帶這幾個字
+    a6Open: { checkin: { click: '[data-checkin]', root: 'dialog[open]' } },
+    appOpen: { checkin: { click: 'button:has-text("櫃台代刷")', root: 'dialog[open]' } },
     deviations: [
       {
         // #2057（保留類，已合）：改時段改成「從某天起」，不再是整期一起改（#2246 放回捷徑時照用）
