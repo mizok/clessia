@@ -3241,6 +3241,17 @@ export const PAGES = {
   },
   'p-dashboard': {
     a6: 'p-dashboard.html',
+    // 唯讀詳情三種（課堂／聯絡簿／推薦課程）：兩邊都是原生 dialog（#2290 換殼）
+    a6Open: {
+      ses: { click: '[data-ses]', root: 'dialog[open]' },
+      cb: { click: '[data-cb]', root: 'dialog[open]' },
+      rec: { click: '[data-rec]', root: 'dialog[open]' },
+    },
+    appOpen: {
+      ses: { click: '.dashboard__lesson', root: 'dialog[open]' },
+      cb: { click: '.dashboard__log', root: 'dialog[open]' },
+      rec: { click: '.dashboard__rec', root: 'dialog[open]' },
+    },
     app: '/parent/dashboard',
     // 稿的今天（shared/data.js：2026-10-01 17:40，週四），同 p-schedule（#1314 10-30）
     clock: '2026-10-01T17:40:00+08:00',
