@@ -241,7 +241,7 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     await enroll(s.none, classB);
 
     // 刀 2 老師名冊的邊界：
-    // - 老師 2：現任班 c3 只有一位**退班**生、一校那班是**前任** —— 該是空名冊（提早回空，today 是 null）
+    // - 老師 2：現任班 c3（在二校：只在二校的那位才不會因此進一校範圍）只有一位**退班**生、一校那班是**前任** —— 該是空名冊（提早回空，today 是 null）
     // - 老師 3：現任班 c4 只有一位**待繳費**生 —— 該看得到他
     const edgeCourse = await one(
       "insert into courses (org_id, campus_id, name, subject_id) values ($1, $2, '邊界課', $3)",
@@ -250,7 +250,7 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     const [c3, c4] = [
       await one(
         "insert into classes (org_id, campus_id, course_id, name) values ($1, $2, $3, '班 c3')",
-        [ctx.orgId, campus.c1, edgeCourse],
+        [ctx.orgId, campus.c2, edgeCourse],
       ),
       await one(
         "insert into classes (org_id, campus_id, course_id, name) values ($1, $2, $3, '班 c4')",
