@@ -497,7 +497,7 @@ export class EnrollmentsPage {
   private openBillingDialog(enrollment: Enrollment): void {
     this.dialogService
       .open(EnrollmentBillingDialogComponent, {
-        width: '460px',
+        width: 'var(--dlg-w-md)',
         modal: true,
         showHeader: false,
         appendTo: this.overlayContainer.getContainer() || 'body',

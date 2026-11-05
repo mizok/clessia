@@ -1,3 +1,4 @@
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
@@ -8,7 +9,7 @@ import { ClassesService, Class } from '@core/classes.service';
 @Component({
   selector: 'app-deactivate-class-dialog',
   standalone: true,
-  imports: [CommonModule, ButtonModule],
+  imports: [CommonModule, ButtonModule, DialogFrameComponent],
   templateUrl: './deactivate-class-dialog.component.html',
 })
 export class DeactivateClassDialogComponent {
@@ -23,6 +24,7 @@ export class DeactivateClassDialogComponent {
   protected readonly breadcrumb = computed(() => {
     const c = this.cls();
     if (!c) return '';
+    // 麵包屑當副標（A6 class.html genDialog：`.fdlg__sub`「分校 › 課程 › 班名」）
     return `${c.campusName ?? ''} › ${c.courseName ?? ''} › ${c.name}`;
   });
 
