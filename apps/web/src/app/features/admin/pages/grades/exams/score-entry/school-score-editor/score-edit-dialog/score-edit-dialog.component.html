@@ -1,29 +1,17 @@
-<div class="flex flex-col gap-4">
-  <div class="dialog-header-inline">
-    <div class="dialog-header-inline__content flex flex-row flex-wrap items-center gap-2">
-      <span class="text-lg font-semibold text-zinc-900">{{ data?.studentName ?? '學生' }}</span>
-      <span
-        class="inline-flex items-center rounded-sm bg-zinc-100 px-2 py-px text-xs font-semibold text-zinc-700"
-        >{{ formatGrade(data?.studentGrade ?? null) }}</span
-      >
-      @if (isDirty()) {
-        <span
-          class="inline-flex items-center gap-1 rounded-sm bg-warning-100 px-2 py-px text-xs font-semibold text-warning-800"
-        >
-          <i class="pi pi-circle-fill text-[6px] text-warning-800" aria-hidden="true"></i>
-          {{ dirtyCount() }} 科未儲存
-        </span>
-      }
-    </div>
-    <button
-      type="button"
-      class="dialog-header-inline__close size-11"
-      (click)="close()"
-      aria-label="關閉"
+<!-- 共用殼（#2290）：學生名當 h2（可及名稱）、年級當副標；「N 科未儲存」移到內容最上面 -->
+<app-dialog-frame
+  [title]="data?.studentName ?? '學生'"
+  [sub]="formatGrade(data?.studentGrade ?? null)"
+  (closed)="close()"
+>
+  @if (isDirty()) {
+    <p
+      class="m-0 inline-flex items-center gap-1 justify-self-start rounded-sm bg-warning-100 px-2 py-px text-xs font-semibold text-warning-800"
     >
-      <i class="pi pi-times"></i>
-    </button>
-  </div>
+      <i class="pi pi-circle-fill text-[6px] text-warning-800" aria-hidden="true"></i>
+      {{ dirtyCount() }} 科未儲存
+    </p>
+  }
 
   @if (loading()) {
     <div class="flex items-center justify-center gap-2 p-6 text-sm text-zinc-600">
@@ -179,8 +167,10 @@
         </button>
       }
     </div>
-
-    <div class="flex justify-end gap-3">
+  }
+  <!-- 底部列要在殼的最上層才投影得到 -->
+  @if (!loading()) {
+    <ng-container dialogFoot>
       <p-button
         label="儲存"
         icon="pi pi-check"
@@ -188,9 +178,9 @@
         (onClick)="save()"
         [disabled]="!isDirty() || !!data?.disabled"
       />
-    </div>
+    </ng-container>
   }
-</div>
+</app-dialog-frame>
 
 <p-drawer
   [(visible)]="subjectSheetVisible"
