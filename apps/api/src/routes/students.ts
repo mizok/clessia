@@ -15,6 +15,7 @@ import { withTx } from '../lib/pg-tx';
 import { resolveAttendanceMode } from '../lib/attendance-mode';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { schoolMismatchClause, type SchoolLevel } from '../lib/grade-promotion';
+import { loadStudentListViaSql } from '../lib/student-list-sql';
 import {
   TODAY_SESSION_SELECT,
   classifyToday,
@@ -618,9 +619,15 @@ app.openapi(
             .map(([id]) => id)
         : null;
 
+    // 有 pool 就走 SQL（Hyperdrive，一次往返，#1595 P2 ② 刀 1a）；失敗 → 500，不退回 builder（#2230 (c)）。
+    // 帶 search／today 的請求這刀還走 builder（刀 1b 收）。沒有 pool 才走 builder（單元測試）——
+    // 兩份條件由 contract/student-list-sql.contract.ts 逐欄比對
+    const pool = c.get('auth')?.pool;
+    const viaSql = !!pool && !search && todayFilter === undefined;
+
     // 學制跟年級不合（#1820）：`null` 子句＝這個機構沒有任何組合會不合 → 空結果，不是不篩
     let mismatchClause: string | null = null;
-    if (schoolMismatch) {
+    if (schoolMismatch && !viaSql) {
       const { data: schoolRows, error: schoolError } = await supabase
         .from('schools')
         .select('id, level')
@@ -704,8 +711,10 @@ app.openapi(
     // `students-subrequest-budget.spec.ts` 守在 45 以內（計畫席 10-28 裁定 A，不加 migration）
     // 範圍在 embed 上（#1928）時同樣不能用聚合：PostgREST 會連 embed 的內容一起 group by（本機實測同一年級拆成多列），
     // 一樣改成每級一支 head count。最壞情況仍是「沒有有效卡」那條，預算不變
-    const gradeCountQuery =
-      withoutCard || cardIssuedToday || scopeEmbed
+    // `viaSql` 時不建：Promise.all 會立刻把 12 支 head count 發出去（builder 物件本身是惰性的，Promise.all 不是）
+    const gradeCountQuery = viaSql
+      ? null
+      : withoutCard || cardIssuedToday || scopeEmbed
         ? Promise.all(
             GRADE_CHAPTERS.map((level) => {
               let head = supabase
@@ -724,37 +733,61 @@ app.openapi(
             supabase.from('students').select('grade, count()').eq('org_id', orgId),
           );
 
-    const [{ data, error, count }, { count: activeCount }, gradeCounts] = await Promise.all([
-      query,
-      activeCountQuery,
-      gradeCountQuery,
-    ]);
-
-    if (error) {
-      return c.json({ error: '讀取學生列表失敗', message: error.message }, 500);
+    let rows: Array<Record<string, unknown>>;
+    let total: number;
+    let activeCount: number | null;
+    let countByGrade: Map<string | null, number>;
+    if (viaSql) {
+      // builder 物件是惰性的，沒 await 就不會發出去
+      const r = await loadStudentListViaSql(pool, {
+        orgId,
+        campusIds,
+        classIds: myClassIds,
+        grade: grade ?? null,
+        isActive: isActive ?? null,
+        schoolMismatch: !!schoolMismatch,
+        withoutCard: !!withoutCard,
+        cardIssuedToday: !!cardIssuedToday,
+        cardDayStart: `${cardDay}T00:00:00+08:00`,
+        cardDayEnd: `${addDaysToDateString(cardDay, 1)}T00:00:00+08:00`,
+        limit: pageSize,
+        offset,
+        withPhone: scope.teacherStaffId === null,
+      });
+      ({ rows, total, activeCount } = r);
+      countByGrade = new Map(Object.entries(r.byGrade));
+    } else {
+      const [{ data, error, count }, activeRes, gradeCounts] = await Promise.all([
+        query,
+        activeCountQuery,
+        gradeCountQuery!,
+      ]);
+      if (error) {
+        return c.json({ error: '讀取學生列表失敗', message: error.message }, 500);
+      }
+      // 數不出來就不回 0
+      if (gradeCounts.error) {
+        return c.json({ error: '讀取學生列表失敗', message: gradeCounts.error.message }, 500);
+      }
+      rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+      total = count ?? 0;
+      activeCount = activeRes.count;
+      countByGrade = new Map(
+        ((gradeCounts.data ?? []) as Array<{ grade: string | null; count: number }>).map((r) => [
+          r.grade,
+          r.count,
+        ]),
+      );
     }
     if (todayFilter === undefined) {
       const today = await todayPromise;
       if ('response' in today) return today.response;
       todayStatuses = today.statuses;
     }
-    // 數不出來就不回 0
-    if (gradeCounts.error) {
-      return c.json({ error: '讀取學生列表失敗', message: gradeCounts.error.message }, 500);
-    }
-    const countByGrade = new Map(
-      ((gradeCounts.data ?? []) as Array<{ grade: string | null; count: number }>).map((r) => [
-        r.grade,
-        r.count,
-      ]),
-    );
     const byGrade = GRADE_CHAPTERS.map((level) => ({
       grade: level,
       count: countByGrade.get(level) ?? 0,
     }));
-
-    const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
-    const total = count ?? 0;
 
     type Relation = {
       is_primary: boolean;
@@ -768,7 +801,15 @@ app.openapi(
 
     // 主要家長電話：只有管理員查（計畫席裁 #1138 Q-b A）。電話住在 ba_user（唯讀，c2 只禁寫）
     const phoneByUser = new Map<string, string | null>();
-    if (scope.teacherStaffId === null) {
+    if (viaSql) {
+      // SQL 已把電話帶在 parents 裡（只在管理員時帶，`withPhone`）
+      for (const row of rows) {
+        const primary = relationsOf(row)[0]?.parents as
+          { user_id: string | null; phone?: string | null } | undefined;
+        if (primary?.user_id && primary.phone !== undefined)
+          phoneByUser.set(primary.user_id, primary.phone);
+      }
+    } else if (scope.teacherStaffId === null) {
       const userIds = [
         ...new Set(
           rows
