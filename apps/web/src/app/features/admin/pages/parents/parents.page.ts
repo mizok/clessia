@@ -434,12 +434,13 @@ export class ParentsPage implements OnInit {
   }
 
   protected openImportDialog(): void {
-    // #1007：匯入**成功的當下**就刷新，不等關閉時的回傳值 —— 右上的 X 是 PrimeNG 內建的，
-    // 以 undefined 關閉、不經過對話框的「完成」，原本按 X 的人會一直看到舊列表與舊統計
+    // #1007：匯入**成功的當下**就刷新，不等關閉時的回傳值 —— 關窗的路不只「完成」一條
+    // （右上 ✕、Esc），只靠回傳值的話，沒按「完成」的人會一直看到舊列表與舊統計
     this.dialogService.open(ParentImportDialogComponent, {
       header: '批次匯入家長',
-      width: '720px',
+      width: 'var(--dlg-w-lg)',
       modal: true,
+      showHeader: false,
       appendTo: this.overlayContainer || 'body',
       data: { onImported: () => this.loadParents({ rows: true }) },
     });
@@ -508,9 +509,9 @@ export class ParentsPage implements OnInit {
   protected openDetailDialog(parent: Parent): void {
     this.dialogService.open(ParentDetailDialogComponent, {
       header: parent.name,
-      width: '480px',
+      width: 'var(--dlg-w-md)',
       modal: true,
-      showHeader: true,
+      showHeader: false,
       appendTo: this.overlayContainer || 'body',
       data: { parentId: parent.id },
     });

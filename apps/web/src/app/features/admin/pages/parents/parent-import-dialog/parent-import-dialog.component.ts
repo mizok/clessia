@@ -4,6 +4,8 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { finalize, firstValueFrom } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
+
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
@@ -72,6 +74,7 @@ interface ParsedRow {
   selector: 'app-parent-import-dialog',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     CommonModule,
     ButtonModule,
     TableModule,
@@ -93,6 +96,8 @@ export class ParentImportDialogComponent {
   private readonly parentsService = inject(ParentsService);
   private readonly version = inject(AppVersionService);
 
+  /** 殼的標題：開窗端的 header（開窗端 `showHeader: false`） */
+  protected readonly title = this.config?.header ?? '批次匯入家長';
   protected readonly step = signal<1 | 2 | 3 | 4>(1);
   protected readonly rows = signal<ParsedRow[]>([]);
   protected readonly submitting = signal(false);
