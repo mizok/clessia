@@ -474,15 +474,23 @@ app.openapi(
       }
     }
 
+    // 有 pool 就走 SQL（Hyperdrive，一次往返，#1595 P2 ②）；失敗 → 500，不退回 builder（#2230 (c)）。
+    // 搜尋與今日到班也在 SQL 裡（刀 1b）。沒有 pool 才走 builder（單元測試）——
+    // 兩份條件由 contract/student-list-sql.contract.ts 逐欄比對
+    const pool = c.get('auth')?.pool;
+    const viaSql = !!pool;
+
     let searchClause: string | null = null;
-    if (search) {
+    if (search && !viaSql) {
       let matchedStudentIds: string[] = [];
       let schoolIds: string[] = [];
 
       if (searchScope === 'default') {
         const { data: relationRows, error: relationError } = await supabase
           .from('parent_student_relations')
-          .select('student_id, parents!inner(name)')
+          .select('student_id, parents!inner(name, org_id)')
+          // 只比本 org 的家長（#1595 P2 ② 裁定 (c)：原本沒有這條，別 org 同名家長的孩子會被撈進來）
+          .eq('parents.org_id', orgId)
           .ilike('parents.name', `%${search}%`);
 
         if (relationError) {
@@ -619,12 +627,6 @@ app.openapi(
             .map(([id]) => id)
         : null;
 
-    // 有 pool 就走 SQL（Hyperdrive，一次往返，#1595 P2 ② 刀 1a）；失敗 → 500，不退回 builder（#2230 (c)）。
-    // 帶 search／today 的請求這刀還走 builder（刀 1b 收）。沒有 pool 才走 builder（單元測試）——
-    // 兩份條件由 contract/student-list-sql.contract.ts 逐欄比對
-    const pool = c.get('auth')?.pool;
-    const viaSql = !!pool && !search && todayFilter === undefined;
-
     // 學制跟年級不合（#1820）：`null` 子句＝這個機構沒有任何組合會不合 → 空結果，不是不篩
     let mismatchClause: string | null = null;
     if (schoolMismatch && !viaSql) {
@@ -753,6 +755,10 @@ app.openapi(
         limit: pageSize,
         offset,
         withPhone: scope.teacherStaffId === null,
+        search: search || null,
+        searchRelated: searchScope === 'default',
+        searchPhone: /^\d{3,}$/.test(search ?? ''),
+        todayIds,
       });
       ({ rows, total, activeCount } = r);
       countByGrade = new Map(Object.entries(r.byGrade));

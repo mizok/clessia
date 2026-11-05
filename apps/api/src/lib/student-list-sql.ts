@@ -14,7 +14,9 @@ import type { Queryable } from './identity-sql';
  * 經學生的 FK 收，**刻意不另加 org 條件** —— 跟 builder 的 embed 一致，兩條路才逐欄相同。
  * 學制不合的學校照 builder 限本 org（`schools.org_id = $1`）。
  *
- * **這刀不收** `search`／`today`：帶了的請求仍走 builder（刀 1b 再收）。
+ * **搜尋與今日到班**（刀 1b）：都是條件、不是 id 清單 —— 家長姓名／電話、學校名在 SQL 裡 `exists`，
+ * 今日到班的 id 以 `= any($17)` 傳（不進 URL，不會 414）。**家長姓名、電話一律限本 org 的家長**
+ * （`parents.org_id = $1`）：builder 的家長姓名原本沒有 org 條件（授權面缺口，#1595 P2 ② 裁定 (c)）。
  *
  * **不退回**：任何失敗丟例外 → 500（#2230 (c)）。builder 只留給沒有 pool 的單元測試，
  * 兩份條件由 `contract/student-list-sql.contract.ts` 逐欄比對。
@@ -41,6 +43,14 @@ export interface StudentListParams {
   readonly offset: number;
   /** 主要家長電話：只有管理員（老師一律不帶） */
   readonly withPhone: boolean;
+  /** 搜尋字（沒有就 null）。`*` 跟 PostgREST 的 ilike 一樣當萬用字元 */
+  readonly search: string | null;
+  /** `searchScope=default`：也比家長姓名、家長電話、學校名；`student_name` 只比學生姓名 */
+  readonly searchRelated: boolean;
+  /** 3 碼以上純數字：也比家長電話（判準留在 JS，同 builder） */
+  readonly searchPhone: boolean;
+  /** 今日到班篩選命中的學生（JS 依 `classifyToday` 算好）；沒帶 `today` 時 null */
+  readonly todayIds: readonly string[] | null;
 }
 
 export interface StudentListResult {
@@ -53,7 +63,8 @@ export interface StudentListResult {
 
 /**
  * `$1` org、`$2` 分校、`$3` 任課班、`$4` grade、`$5` isActive、`$6` 學制不合、`$7` 沒有有效卡、
- * `$8` 今天發的卡、`$9`／`$10` 卡片日界、`$11` limit、`$12` offset、`$13` 帶電話。
+ * `$8` 今天發的卡、`$9`／`$10` 卡片日界、`$11` limit、`$12` offset、`$13` 帶電話、`$14` 搜尋字、
+ * `$15` 搜尋也比家長／學校、`$16` 搜尋也比家長電話、`$17` 今日到班 id。
  *
  * - 學制不合照 `schoolMismatchClause`：本 org 的學校、學制非 null 且跟年級推出的學制不同
  * - 卡片照 builder：`active_card` 只留沒作廢的（今天發的再限發卡時間）；沒有有效卡＝反連接
@@ -78,6 +89,25 @@ with base as (
 chapter as (
   select b.* from base b
   where ($5::boolean is null or b.is_active = $5::boolean)
+    and ($17::uuid[] is null or b.id = any($17::uuid[]))
+    and ($14::text is null or b.name ilike '%' || replace($14::text, '*', '%') || '%' or ($15::boolean and (
+      exists (
+        select 1 from public.parent_student_relations r
+        join public.parents pa on pa.id = r.parent_id
+        where r.student_id = b.id and pa.org_id = $1::uuid
+          and (pa.name ilike '%' || replace($14::text, '*', '%') || '%'
+            or ($16::boolean and exists (
+              select 1 from public.ba_user u
+              where u.id = pa.user_id and u.phone ilike '%' || $14::text || '%'
+            )))
+      )
+      or exists (
+        select 1 from public.schools sc
+        where sc.id = b.school_id and sc.org_id = $1::uuid
+          and (sc.name ilike '%' || replace($14::text, '*', '%') || '%'
+            or sc.short_name ilike '%' || replace($14::text, '*', '%') || '%')
+      )
+    )))
     and (not $6::boolean or exists (
       select 1 from public.schools sc
       where sc.id = b.school_id and sc.org_id = $1::uuid and sc.level is not null
@@ -176,6 +206,10 @@ export async function loadStudentListViaSql(
       p.limit,
       p.offset,
       p.withPhone,
+      p.search,
+      p.searchRelated,
+      p.searchPhone,
+      p.todayIds,
     ]);
     const result = (rows[0] as { result?: unknown } | undefined)?.result as
       Record<string, unknown> | undefined;
