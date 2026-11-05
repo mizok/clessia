@@ -688,6 +688,13 @@ const FORM_DIALOGS = {
       '[data-testid^="permission-count-"]',
       'app-permission-dialog',
     ),
+    // 確認對話框（#2290 ConfirmDialog）：稿＝沒有欄位的 A2.form（停用帳號）；app 的 ConfirmDialog 換殼。
+    // 第一列是本人（稿 p1／app 登入的管理員），兩邊都取第二列
+    off: dlgOpen(
+      ['.pp__more[data-x="p2"]', '[data-off]'],
+      [':nth-match(button[aria-label$=" 的更多動作"], 2)', '[role=menuitem]:has-text("停用帳號")'],
+      'app-confirm-dialog',
+    ),
   },
   parents: { 'new-parent': formOpen('[data-new]', 'button:has-text("新增家長")') },
   // #2290 換共用殼的對話框（0950-a 家族）
