@@ -51,6 +51,8 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('studentScope', null);
       set('childDb', createChildDb(supabase as never, null, ctx.orgId));
       set('campusScope', null);
+      // 名冊的今日到班走 pg（#1595 P2 ①）；正式環境一定有池
+      set('auth', { pool: { query: pool!.query.bind(pool), end: async () => undefined } });
       set('selfRows', { staff: null, parent: null, assignedCampusIds: [] });
       await next();
     }),
