@@ -832,7 +832,7 @@ describe('DashboardComponent（管理端）', () => {
       expect(studentGetMock).toHaveBeenCalledWith('stu-1');
     });
 
-    it('代刷到班之後只講到班時間，並從主區移到名冊的「到」', async () => {
+    it('代刷到班之後列留在原處退灰、只講到班時間（A6 #990），名冊也算到了', async () => {
       await board({ workbenchExpected: [expectedStudent()] });
       checkInMock.mockReturnValue(
         of({ id: 'k9', studentId: 'stu-1', checkedInAt: `${TODAY}T10:01:00` }),
@@ -843,9 +843,122 @@ describe('DashboardComponent（管理端）', () => {
       expect(checkInMock).toHaveBeenCalledWith(
         expect.objectContaining({ studentId: 'stu-1', campusId: 'campus-a' }),
       );
-      expect(q('call-row')).toBeNull();
+      const row = q('call-row')!;
+      expect(row.classList.contains('settled')).toBe(true);
+      expect(q('call-arrived')!.textContent!.replace(/\s+/g, ' ')).toContain('10:01 到班 · 櫃台代刷');
+      // 動作收掉（A6 .call__act 清空）；家長電話那欄是資訊，照留
+      expect(row.querySelector('[data-testid="call-actions"]')!.classList).toContain('hidden');
+      expect(el().querySelector('#dashboard-main-title')!.textContent).toContain(
+        '該到沒到的都處理好了',
+      );
       expect(q('arrived-at')!.textContent).toContain('10:01 到');
       expect(el().textContent).not.toContain('已為');
+    });
+
+    it('連點「代刷到班」兩下不會標到下一位：列不抽掉，第二下落在已收掉的動作區（#2314）', async () => {
+      await board({
+        workbenchExpected: [
+          expectedStudent(),
+          expectedStudent({ studentId: 'stu-2', studentName: '王小華' }),
+        ],
+      });
+      checkInMock.mockReturnValue(
+        of({ id: 'k9', studentId: 'stu-1', checkedInAt: `${TODAY}T10:01:00` }),
+      );
+      const first = qa('call-row')[0];
+      expect(first.textContent).toContain('林小明');
+      // 第一下：同一個位置（第一列的動作區）
+      first.querySelector<HTMLButtonElement>('[data-testid="board-action"]')!.click();
+      fixture.detectChanges();
+      // 第二下：同一個位置的動作區收掉了（display: none 點不到）；王小華的鈕還在第二列
+      const actions = (row: HTMLElement) =>
+        row.querySelector('[data-testid="call-actions"]')!.classList;
+      expect(actions(first)).toContain('hidden');
+      expect(qa('call-row')[0]).toBe(first);
+      expect(actions(qa('call-row')[1])).not.toContain('hidden');
+      expect(checkInMock).toHaveBeenCalledTimes(1);
+      expect(el().querySelector('#dashboard-main-title')!.textContent).toContain('該到沒到的 1 位');
+    });
+
+    describe('櫃台代刷到班對話框（#2314）', () => {
+      const desk = () => fixture.debugElement.query(By.css('app-checkin-desk'));
+
+      async function openDesk() {
+        await board({
+          workbenchExpected: [
+            expectedStudent(),
+            expectedStudent({
+              studentId: 'later',
+              studentName: '課前生',
+              firstSession: { startTime: '11:00', className: '英文班 B' },
+            }),
+            expectedStudent({ studentId: 'here', studentName: '已到生' }),
+            expectedStudent({ studentId: 'off', studentName: '請假生' }),
+          ],
+          workbenchArrived: [
+            { studentId: 'here', checkedInAt: `${TODAY}T01:00:00Z`, checkinId: 'k1' },
+          ],
+          workbenchOnLeave: [
+            {
+              studentId: 'off',
+              studentName: '請假生',
+              startDate: TODAY,
+              endDate: TODAY,
+              submittedByRole: 'admin',
+            },
+          ],
+        });
+        const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl');
+        q('desktop-checkin')!.click();
+        fixture.detectChanges();
+        return navigate;
+      }
+
+      it('工具列的鈕不換頁，開原生 <dialog>；候選只有今天還沒到、沒請假的（含課還沒開始的）', async () => {
+        const navigate = await openDesk();
+        expect(navigate).not.toHaveBeenCalled();
+        expect(desk()).not.toBeNull();
+        expect(desk().nativeElement.closest('dialog')!.dataset['testid']).toBe(
+          'checkin-desk-dialog',
+        );
+        expect(
+          desk()
+            .componentInstance.candidates()
+            .map((s: WorkbenchExpectedStudent) => s.studentId),
+        ).toEqual(['stu-1', 'later']);
+        expect(desk().nativeElement.querySelector('h2').textContent).toContain('櫃台代刷到班');
+      });
+
+      it('課前選人送出：寫到班、關窗、toast 講到班時間（不換頁）', async () => {
+        await openDesk();
+        const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+        checkInMock.mockReturnValue(
+          of({ id: 'k9', studentId: 'later', checkedInAt: `${TODAY}T10:02:00` }),
+        );
+        const later = desk().componentInstance.candidates()[1];
+        desk().componentInstance.submitted.emit(later);
+        fixture.detectChanges();
+
+        expect(checkInMock).toHaveBeenCalledWith(
+          expect.objectContaining({ studentId: 'later', checkinDate: TODAY }),
+        );
+        expect(desk()).toBeNull();
+        expect(toast).toHaveBeenCalledWith(
+          expect.objectContaining({ summary: '課前生 10:02 到班（櫃台代刷）' }),
+        );
+      });
+
+      it('送不成功：對話框留著並說出來，可以重送', async () => {
+        await openDesk();
+        checkInMock.mockReturnValue(throwError(() => new Error('boom')));
+        desk().componentInstance.submitted.emit(desk().componentInstance.candidates()[0]);
+        fixture.detectChanges();
+
+        expect(desk()).not.toBeNull();
+        expect(desk().nativeElement.querySelector('[role="alert"]').textContent).toContain(
+          '沒能登記到班',
+        );
+      });
     });
 
     it('取消到班：連同打卡一起撤回，回到該到沒到', async () => {
@@ -1044,7 +1157,7 @@ describe('DashboardComponent（管理端）', () => {
       expect(fixture.debugElement.query(By.css('app-phone-leave'))).not.toBeNull();
     });
 
-    it('桌機「櫃台代刷到班」導到打卡站（不是開請假面板）', async () => {
+    it('逐堂模式：桌機「櫃台代刷到班」導到打卡站（沒有今天的應到名單可選）', async () => {
       await setup({ permissions: ['view_reports', 'basic_operations'] });
       const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
       el().querySelector<HTMLButtonElement>('[data-testid="desktop-checkin"]')!.click();

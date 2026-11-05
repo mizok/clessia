@@ -1,384 +1,378 @@
-<div class="flex flex-col gap-4 p-5">
-  <header class="flex items-start justify-between gap-3">
-    <div class="flex flex-col gap-2">
-      <h2 class="m-0 text-lg font-semibold text-zinc-900">
-        {{ invoice().studentName ?? '未知學生' }} 的帳單
-      </h2>
-      <div class="flex flex-wrap gap-2">
-        <app-status-dot [tone]="statusTone()">{{
-          INVOICE_STATUS_LABELS[invoice().status]
-        }}</app-status-dot>
-        @if (overdue()) {
-          <app-status-dot tone="overdue">逾期</app-status-dot>
-        }
-      </div>
-    </div>
-    <p-button
-      icon="pi pi-times"
-      [text]="true"
-      severity="secondary"
-      ariaLabel="關閉"
-      (onClick)="close()"
-    />
-  </header>
-
-  <dl class="m-0 flex flex-wrap gap-5 rounded-lg bg-zinc-50 p-4">
-    <div class="flex flex-col gap-1">
-      <dt class="text-xs text-zinc-500">應繳</dt>
-      <dd class="m-0 text-lg font-semibold tabular-nums">{{ invoice().total | number }}</dd>
-    </div>
-    <div class="flex flex-col gap-1">
-      <dt class="text-xs text-zinc-500">已收</dt>
-      <dd class="m-0 text-lg font-semibold tabular-nums">{{ invoice().netPaid | number }}</dd>
-    </div>
-    <div class="flex flex-col gap-1" [class.text-zinc-900]="outstandingAmount() > 0">
-      @if (overRefundedAmount() > 0) {
-        <dt class="text-xs text-zinc-500">多退</dt>
-        <dd class="m-0 text-lg font-semibold tabular-nums">{{ overRefundedAmount() | number }}</dd>
-      } @else {
-        <dt class="text-xs text-zinc-500">{{ outstandingAmount() < 0 ? '溢繳' : '尚欠' }}</dt>
-        <dd class="m-0 text-lg font-semibold tabular-nums">
-          {{ (outstandingAmount() < 0 ? -outstandingAmount() : outstandingAmount()) | number }}
-        </dd>
+<!-- 共用殼（#2290）：h2 當可及名稱；狀態點原本在標頭，移到內容區第一行 -->
+<app-dialog-frame [title]="(invoice().studentName ?? '未知學生') + ' 的帳單'" (closed)="close()">
+  <div class="flex flex-col gap-4">
+    <div class="flex flex-wrap gap-2">
+      <app-status-dot [tone]="statusTone()">{{
+        INVOICE_STATUS_LABELS[invoice().status]
+      }}</app-status-dot>
+      @if (overdue()) {
+        <app-status-dot tone="overdue">逾期</app-status-dot>
       }
     </div>
-    <div class="flex flex-col gap-1">
-      <dt class="text-xs text-zinc-500">繳費期限</dt>
-      <dd class="m-0 text-lg font-semibold tabular-nums">{{ invoice().dueDate ?? '未設定' }}</dd>
-    </div>
-  </dl>
 
-  @if (isVoided()) {
-    <!-- 作廢單凍結：所有寫入入口都收起來，只留查閱與列印（#898） -->
-    <app-inline-notice
-      severity="info"
-      summary="這張帳單已作廢，不能再修改"
-      [detail]="voidedSummary()"
-      [dismissible]="false"
-    />
-  }
+    <dl class="m-0 flex flex-wrap gap-5 rounded-lg bg-zinc-50 p-4">
+      <div class="flex flex-col gap-1">
+        <dt class="text-xs text-zinc-500">應繳</dt>
+        <dd class="m-0 text-lg font-semibold tabular-nums">{{ invoice().total | number }}</dd>
+      </div>
+      <div class="flex flex-col gap-1">
+        <dt class="text-xs text-zinc-500">已收</dt>
+        <dd class="m-0 text-lg font-semibold tabular-nums">{{ invoice().netPaid | number }}</dd>
+      </div>
+      <div class="flex flex-col gap-1" [class.text-zinc-900]="outstandingAmount() > 0">
+        @if (overRefundedAmount() > 0) {
+          <dt class="text-xs text-zinc-500">多退</dt>
+          <dd class="m-0 text-lg font-semibold tabular-nums">
+            {{ overRefundedAmount() | number }}
+          </dd>
+        } @else {
+          <dt class="text-xs text-zinc-500">{{ outstandingAmount() < 0 ? '溢繳' : '尚欠' }}</dt>
+          <dd class="m-0 text-lg font-semibold tabular-nums">
+            {{ (outstandingAmount() < 0 ? -outstandingAmount() : outstandingAmount()) | number }}
+          </dd>
+        }
+      </div>
+      <div class="flex flex-col gap-1">
+        <dt class="text-xs text-zinc-500">繳費期限</dt>
+        <dd class="m-0 text-lg font-semibold tabular-nums">{{ invoice().dueDate ?? '未設定' }}</dd>
+      </div>
+    </dl>
 
-  <div class="flex flex-col gap-5">
-    <!-- ── 明細 ─────────────────────────────────────────────────────── -->
-    <section class="flex flex-col gap-3">
-      <h3 class="m-0 text-sm font-semibold text-zinc-700">帳單明細</h3>
-      @if (invoice().items.length === 0) {
-        <p class="m-0 rounded-md bg-zinc-50 p-3 text-sm text-zinc-500">
-          這張帳單還沒有明細，金額是 0。
-        </p>
-      } @else {
-        <app-responsive-table [headTemplate]="itemHead" [bodyTemplate]="itemBody" />
+    @if (isVoided()) {
+      <!-- 作廢單凍結：所有寫入入口都收起來，只留查閱與列印（#898） -->
+      <app-inline-notice
+        severity="info"
+        summary="這張帳單已作廢，不能再修改"
+        [detail]="voidedSummary()"
+        [dismissible]="false"
+      />
+    }
 
-        <ng-template #itemHead>
-          <tr>
-            <!-- 項目是這一列的身分：收掉它就剩一排無名金額 -->
-            <th
-              scope="col"
-              appRtColDef="type"
-              [appRtColDefMinWidth]="96"
-              [appRtColDefPriority]="1"
-              [appRtColDefCollapsible]="false"
-            >
-              項目
-            </th>
-            <!-- 金額比說明先留 —— 看帳單明細就是在看錢，說明是補充 -->
-            <th
-              scope="col"
-              class="text-right tabular-nums"
-              appRtColDef="amount"
-              [appRtColDefMinWidth]="96"
-              [appRtColDefPriority]="2"
-            >
-              金額
-            </th>
-            <th
-              scope="col"
-              appRtColDef="note"
-              [appRtColDefMinWidth]="160"
-              [appRtColDefPriority]="3"
-            >
-              說明
-            </th>
-          </tr>
-        </ng-template>
+    <div class="flex flex-col gap-5">
+      <!-- ── 明細 ─────────────────────────────────────────────────────── -->
+      <section class="flex flex-col gap-3">
+        <h3 class="m-0 text-sm font-semibold text-zinc-700">帳單明細</h3>
+        @if (invoice().items.length === 0) {
+          <p class="m-0 rounded-md bg-zinc-50 p-3 text-sm text-zinc-500">
+            這張帳單還沒有明細，金額是 0。
+          </p>
+        } @else {
+          <app-responsive-table [headTemplate]="itemHead" [bodyTemplate]="itemBody" />
 
-        <ng-template #itemBody>
-          @for (item of invoice().items; track item.id) {
-            <tr appRtRow [appRtRow]="item" [appRtRowId]="item.id">
-              <td appRtColCell="type">{{ INVOICE_ITEM_TYPE_LABELS[item.type] }}</td>
-              <td appRtColCell="amount" class="text-right tabular-nums">
-                {{ item.amount | number }}
-              </td>
-              <td appRtColCell="note">{{ item.note ?? item.periodMonth ?? '—' }}</td>
+          <ng-template #itemHead>
+            <tr>
+              <!-- 項目是這一列的身分：收掉它就剩一排無名金額 -->
+              <th
+                scope="col"
+                appRtColDef="type"
+                [appRtColDefMinWidth]="96"
+                [appRtColDefPriority]="1"
+                [appRtColDefCollapsible]="false"
+              >
+                項目
+              </th>
+              <!-- 金額比說明先留 —— 看帳單明細就是在看錢，說明是補充 -->
+              <th
+                scope="col"
+                class="text-right tabular-nums"
+                appRtColDef="amount"
+                [appRtColDefMinWidth]="96"
+                [appRtColDefPriority]="2"
+              >
+                金額
+              </th>
+              <th
+                scope="col"
+                appRtColDef="note"
+                [appRtColDefMinWidth]="160"
+                [appRtColDefPriority]="3"
+              >
+                說明
+              </th>
             </tr>
-          }
-        </ng-template>
-      }
-    </section>
+          </ng-template>
 
-    <!-- ── 收款記錄 ─────────────────────────────────────────────────── -->
-    <section class="flex flex-col gap-3">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <h3 class="m-0 text-sm font-semibold text-zinc-700">收款記錄</h3>
-        @if (!isVoided()) {
-          <div class="flex flex-wrap gap-2">
-            <p-button
-              label="記錄收款"
-              icon="pi pi-plus"
-              size="small"
-              (onClick)="openPaymentDialog('payment')"
-            />
-            <p-button
-              label="記錄退費"
-              icon="pi pi-reply"
-              size="small"
-              severity="danger"
-              [outlined]="true"
-              [disabled]="invoice().payments.length === 0"
-              (onClick)="openPaymentDialog('refund')"
-            />
-          </div>
+          <ng-template #itemBody>
+            @for (item of invoice().items; track item.id) {
+              <tr appRtRow [appRtRow]="item" [appRtRowId]="item.id">
+                <td appRtColCell="type">{{ INVOICE_ITEM_TYPE_LABELS[item.type] }}</td>
+                <td appRtColCell="amount" class="text-right tabular-nums">
+                  {{ item.amount | number }}
+                </td>
+                <td appRtColCell="note">{{ item.note ?? item.periodMonth ?? '—' }}</td>
+              </tr>
+            }
+          </ng-template>
         }
-      </div>
+      </section>
 
-      @if (invoice().payments.length === 0) {
-        <p class="m-0 rounded-md bg-zinc-50 p-3 text-sm text-zinc-500">還沒有任何收款。</p>
-      } @else {
-        <app-responsive-table [headTemplate]="paymentHead" [bodyTemplate]="paymentBody" />
+      <!-- ── 收款記錄 ─────────────────────────────────────────────────── -->
+      <section class="flex flex-col gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h3 class="m-0 text-sm font-semibold text-zinc-700">收款記錄</h3>
+          @if (!isVoided()) {
+            <div class="flex flex-wrap gap-2">
+              <p-button
+                label="記錄收款"
+                icon="pi pi-plus"
+                size="small"
+                (onClick)="openPaymentDialog('payment')"
+              />
+              <p-button
+                label="記錄退費"
+                icon="pi pi-reply"
+                size="small"
+                severity="danger"
+                [outlined]="true"
+                [disabled]="invoice().payments.length === 0"
+                (onClick)="openPaymentDialog('refund')"
+              />
+            </div>
+          }
+        </div>
 
-        <ng-template #paymentHead>
-          <tr>
-            <!-- 日期是這一列的身分：收款記錄就是按時間在對帳的 -->
-            <th
-              scope="col"
-              appRtColDef="paidAt"
-              [appRtColDefMinWidth]="104"
-              [appRtColDefPriority]="1"
-              [appRtColDefCollapsible]="false"
-            >
-              日期
-            </th>
-            <!--
+        @if (invoice().payments.length === 0) {
+          <p class="m-0 rounded-md bg-zinc-50 p-3 text-sm text-zinc-500">還沒有任何收款。</p>
+        } @else {
+          <app-responsive-table [headTemplate]="paymentHead" [bodyTemplate]="paymentBody" />
+
+          <ng-template #paymentHead>
+            <tr>
+              <!-- 日期是這一列的身分：收款記錄就是按時間在對帳的 -->
+              <th
+                scope="col"
+                appRtColDef="paidAt"
+                [appRtColDefMinWidth]="104"
+                [appRtColDefPriority]="1"
+                [appRtColDefCollapsible]="false"
+              >
+                日期
+              </th>
+              <!--
               金額緊跟著日期：退款是負數，而「這筆是收還是退」只看得到金額才分得出來
               （退款列的灰字在手機上仍在，但顏色不是唯一的區分）。
             -->
-            <th
-              scope="col"
-              class="text-right tabular-nums"
-              appRtColDef="amount"
-              [appRtColDefMinWidth]="96"
-              [appRtColDefPriority]="2"
-            >
-              金額
-            </th>
-            <th
-              scope="col"
-              appRtColDef="method"
-              [appRtColDefMinWidth]="96"
-              [appRtColDefPriority]="3"
-            >
-              方式
-            </th>
-            <th
-              scope="col"
-              appRtColDef="receiptNo"
-              [appRtColDefMinWidth]="110"
-              [appRtColDefPriority]="4"
-            >
-              收據
-            </th>
-            <th
-              scope="col"
-              appRtColDef="note"
-              [appRtColDefMinWidth]="140"
-              [appRtColDefPriority]="5"
-            >
-              備註
-            </th>
-          </tr>
-        </ng-template>
-
-        <ng-template #paymentBody>
-          @for (payment of invoice().payments; track payment.id) {
-            <tr
-              appRtRow
-              [appRtRow]="payment"
-              [appRtRowId]="payment.id"
-              [class.text-zinc-500]="payment.kind === 'refund'"
-            >
-              <td appRtColCell="paidAt">{{ payment.paidAt }}</td>
-              <td appRtColCell="amount" class="text-right tabular-nums">
-                {{ payment.kind === 'refund' ? '−' : '' }}{{ payment.amount | number }}
-              </td>
-              <td appRtColCell="method">{{ PAYMENT_METHOD_LABELS[payment.method] }}</td>
-              <td appRtColCell="receiptNo">{{ payment.receiptNo ?? '—' }}</td>
-              <td appRtColCell="note">{{ payment.note ?? '—' }}</td>
+              <th
+                scope="col"
+                class="text-right tabular-nums"
+                appRtColDef="amount"
+                [appRtColDefMinWidth]="96"
+                [appRtColDefPriority]="2"
+              >
+                金額
+              </th>
+              <th
+                scope="col"
+                appRtColDef="method"
+                [appRtColDefMinWidth]="96"
+                [appRtColDefPriority]="3"
+              >
+                方式
+              </th>
+              <th
+                scope="col"
+                appRtColDef="receiptNo"
+                [appRtColDefMinWidth]="110"
+                [appRtColDefPriority]="4"
+              >
+                收據
+              </th>
+              <th
+                scope="col"
+                appRtColDef="note"
+                [appRtColDefMinWidth]="140"
+                [appRtColDefPriority]="5"
+              >
+                備註
+              </th>
             </tr>
-          }
-        </ng-template>
-      }
-    </section>
+          </ng-template>
 
-    <!-- ── 聯絡家長（#1625）：取代原本的「記一次催繳」──────────────────── -->
-    <section class="flex flex-col gap-3" aria-labelledby="invoice-contact-title">
-      <div class="flex items-center justify-between gap-3">
-        <h3 id="invoice-contact-title" class="m-0 text-sm font-semibold text-zinc-700">聯絡家長</h3>
-        @if (parents().length > 0) {
-          <button
-            type="button"
-            class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 hover:border-zinc-400 wide:h-8"
-            (click)="copyMessage()"
-          >
-            <i class="pi pi-copy text-xs" aria-hidden="true"></i>複製簡訊內文
-          </button>
+          <ng-template #paymentBody>
+            @for (payment of invoice().payments; track payment.id) {
+              <tr
+                appRtRow
+                [appRtRow]="payment"
+                [appRtRowId]="payment.id"
+                [class.text-zinc-500]="payment.kind === 'refund'"
+              >
+                <td appRtColCell="paidAt">{{ payment.paidAt }}</td>
+                <td appRtColCell="amount" class="text-right tabular-nums">
+                  {{ payment.kind === 'refund' ? '−' : '' }}{{ payment.amount | number }}
+                </td>
+                <td appRtColCell="method">{{ PAYMENT_METHOD_LABELS[payment.method] }}</td>
+                <td appRtColCell="receiptNo">{{ payment.receiptNo ?? '—' }}</td>
+                <td appRtColCell="note">{{ payment.note ?? '—' }}</td>
+              </tr>
+            }
+          </ng-template>
         }
-      </div>
-      @if (contactsLoading()) {
-        <p class="m-0 text-sm text-zinc-600">讀取家長聯絡方式…</p>
-      } @else if (contactsFailed()) {
-        <p class="m-0 rounded-md bg-zinc-50 p-3 text-sm text-zinc-600">
-          家長聯絡方式讀不到，請重新打開這張帳單。
-        </p>
-      } @else if (parents().length === 0) {
-        <p class="m-0 rounded-md bg-zinc-50 p-3 text-sm text-zinc-600">這位學生還沒有登記家長。</p>
-      } @else {
-        <ul class="m-0 flex list-none flex-col gap-2 p-0">
-          @for (p of parents(); track p.id) {
-            <li
-              class="flex flex-col gap-2 rounded-md border border-zinc-200 p-3"
-              data-testid="parent-contact"
-            >
-              <div class="flex items-baseline gap-2">
-                <span class="text-base font-semibold text-zinc-900">{{ p.name }}</span>
-                @if (p.relation) {
-                  <span class="text-sm text-zinc-600">{{ p.relation }}</span>
-                }
-                @if (p.isPrimary) {
-                  <span
-                    class="rounded-sm bg-zinc-100 px-1.5 py-px text-xs font-semibold text-zinc-800"
-                    >主要聯絡人</span
-                  >
-                }
-              </div>
-              <div class="flex flex-wrap items-center gap-2">
-                @if (p.phone; as phone) {
-                  <a
-                    class="inline-flex h-11 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 no-underline hover:border-zinc-400 wide:h-8"
-                    [href]="telHref(phone)"
-                    [attr.aria-label]="'撥給' + p.name + ' ' + phone"
-                    ><i class="pi pi-phone text-xs" aria-hidden="true"></i>{{ phone }}</a
-                  >
-                  <a
-                    class="inline-flex h-11 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 no-underline hover:border-zinc-400 wide:h-8"
-                    [href]="smsHrefOf(phone)"
-                    [attr.aria-label]="'傳簡訊給' + p.name"
-                    ><i class="pi pi-comment text-xs" aria-hidden="true"></i>簡訊</a
-                  >
-                  <button
-                    type="button"
-                    class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 wide:h-8"
-                    [attr.aria-label]="'複製' + p.name + '的電話'"
-                    (click)="copy(phone, '電話')"
-                  >
-                    <i class="pi pi-clone text-xs" aria-hidden="true"></i>複製
-                  </button>
-                } @else {
-                  <span class="text-sm text-zinc-600">沒有留電話</span>
-                }
-              </div>
-              <div class="flex flex-wrap items-center gap-2">
-                @if (p.email; as email) {
-                  <a
-                    class="inline-flex h-11 min-w-0 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 no-underline hover:border-zinc-400 wide:h-8"
-                    [href]="mailtoHrefOf(email)"
-                    [attr.aria-label]="'寄 email 給' + p.name"
-                    ><i class="pi pi-envelope text-xs" aria-hidden="true"></i
-                    ><span class="truncate">{{ email }}</span></a
-                  >
-                } @else {
-                  <span class="text-sm text-zinc-600">沒有留 email</span>
-                }
-              </div>
-            </li>
-          }
-        </ul>
-      }
-    </section>
-  </div>
+      </section>
 
-  @if (voidFormOpen()) {
-    <!--
+      <!-- ── 聯絡家長（#1625）：取代原本的「記一次催繳」──────────────────── -->
+      <section class="flex flex-col gap-3" aria-labelledby="invoice-contact-title">
+        <div class="flex items-center justify-between gap-3">
+          <h3 id="invoice-contact-title" class="m-0 text-sm font-semibold text-zinc-700">
+            聯絡家長
+          </h3>
+          @if (parents().length > 0) {
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 hover:border-zinc-400 wide:h-8"
+              (click)="copyMessage()"
+            >
+              <i class="pi pi-copy text-xs" aria-hidden="true"></i>複製簡訊內文
+            </button>
+          }
+        </div>
+        @if (contactsLoading()) {
+          <p class="m-0 text-sm text-zinc-600">讀取家長聯絡方式…</p>
+        } @else if (contactsFailed()) {
+          <p class="m-0 rounded-md bg-zinc-50 p-3 text-sm text-zinc-600">
+            家長聯絡方式讀不到，請重新打開這張帳單。
+          </p>
+        } @else if (parents().length === 0) {
+          <p class="m-0 rounded-md bg-zinc-50 p-3 text-sm text-zinc-600">
+            這位學生還沒有登記家長。
+          </p>
+        } @else {
+          <ul class="m-0 flex list-none flex-col gap-2 p-0">
+            @for (p of parents(); track p.id) {
+              <li
+                class="flex flex-col gap-2 rounded-md border border-zinc-200 p-3"
+                data-testid="parent-contact"
+              >
+                <div class="flex items-baseline gap-2">
+                  <span class="text-base font-semibold text-zinc-900">{{ p.name }}</span>
+                  @if (p.relation) {
+                    <span class="text-sm text-zinc-600">{{ p.relation }}</span>
+                  }
+                  @if (p.isPrimary) {
+                    <span
+                      class="rounded-sm bg-zinc-100 px-1.5 py-px text-xs font-semibold text-zinc-800"
+                      >主要聯絡人</span
+                    >
+                  }
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  @if (p.phone; as phone) {
+                    <a
+                      class="inline-flex h-11 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 no-underline hover:border-zinc-400 wide:h-8"
+                      [href]="telHref(phone)"
+                      [attr.aria-label]="'撥給' + p.name + ' ' + phone"
+                      ><i class="pi pi-phone text-xs" aria-hidden="true"></i>{{ phone }}</a
+                    >
+                    <a
+                      class="inline-flex h-11 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 no-underline hover:border-zinc-400 wide:h-8"
+                      [href]="smsHrefOf(phone)"
+                      [attr.aria-label]="'傳簡訊給' + p.name"
+                      ><i class="pi pi-comment text-xs" aria-hidden="true"></i>簡訊</a
+                    >
+                    <button
+                      type="button"
+                      class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 wide:h-8"
+                      [attr.aria-label]="'複製' + p.name + '的電話'"
+                      (click)="copy(phone, '電話')"
+                    >
+                      <i class="pi pi-clone text-xs" aria-hidden="true"></i>複製
+                    </button>
+                  } @else {
+                    <span class="text-sm text-zinc-600">沒有留電話</span>
+                  }
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  @if (p.email; as email) {
+                    <a
+                      class="inline-flex h-11 min-w-0 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 no-underline hover:border-zinc-400 wide:h-8"
+                      [href]="mailtoHrefOf(email)"
+                      [attr.aria-label]="'寄 email 給' + p.name"
+                      ><i class="pi pi-envelope text-xs" aria-hidden="true"></i
+                      ><span class="truncate">{{ email }}</span></a
+                    >
+                  } @else {
+                    <span class="text-sm text-zinc-600">沒有留 email</span>
+                  }
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    </div>
+
+    @if (voidFormOpen()) {
+      <!--
       作廢確認（#898）。放在 body 與 footer 之間：按鈕在 footer，面板就長在它正上方，
       不會因為 body 捲動而出現在看不到的地方。
     -->
-    <section
-      class="flex flex-col gap-2 rounded-md border border-error-200 p-4"
-      aria-labelledby="invoice-void-title"
-    >
-      <h3 id="invoice-void-title" class="m-0 text-base font-semibold text-error-700">
-        作廢這張帳單
-      </h3>
-      @if (invoice().netPaid !== 0) {
-        <!-- 淨額歸零才能作廢（使用者裁決）—— 擋在前端是為了直接給下一步，後端另有一層 -->
-        <p class="m-0 text-sm text-zinc-700">
-          @if (invoice().netPaid > 0) {
-            已收淨額 {{ invoice().netPaid | number }} 元 —— 先記一筆退款把淨額歸零，才能作廢。
-          } @else {
-            退款比收款多 {{ -invoice().netPaid | number }} 元 —— 淨額要歸零才能作廢。
-          }
-        </p>
-        <div class="flex justify-end gap-2">
-          <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancelVoid()" />
-          @if (invoice().netPaid > 0) {
-            <p-button
-              label="記錄退費"
-              icon="pi pi-reply"
-              severity="danger"
-              [outlined]="true"
-              (onClick)="openPaymentDialog('refund')"
-            />
-          }
-        </div>
-      } @else {
-        <p class="m-0 text-sm text-zinc-700">
-          作廢後<strong>無法復原</strong>，帳單會留著但不再計入任何應收與催繳。要重新收費請另開一張新帳單。
-        </p>
-        @if (mealItemCount() > 0) {
+      <section
+        class="flex flex-col gap-2 rounded-md border border-error-200 p-4"
+        aria-labelledby="invoice-void-title"
+      >
+        <h3 id="invoice-void-title" class="m-0 text-base font-semibold text-error-700">
+          作廢這張帳單
+        </h3>
+        @if (invoice().netPaid !== 0) {
+          <!-- 淨額歸零才能作廢（使用者裁決）—— 擋在前端是為了直接給下一步，後端另有一層 -->
           <p class="m-0 text-sm text-zinc-700">
-            這張帳單的餐費會回到未結算，下次帳務作業會重新計入。
+            @if (invoice().netPaid > 0) {
+              已收淨額 {{ invoice().netPaid | number }} 元 —— 先記一筆退款把淨額歸零，才能作廢。
+            } @else {
+              退款比收款多 {{ -invoice().netPaid | number }} 元 —— 淨額要歸零才能作廢。
+            }
           </p>
+          <div class="flex justify-end gap-2">
+            <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancelVoid()" />
+            @if (invoice().netPaid > 0) {
+              <p-button
+                label="記錄退費"
+                icon="pi pi-reply"
+                severity="danger"
+                [outlined]="true"
+                (onClick)="openPaymentDialog('refund')"
+              />
+            }
+          </div>
+        } @else {
+          <p class="m-0 text-sm text-zinc-700">
+            作廢後<strong>無法復原</strong>，帳單會留著但不再計入任何應收與催繳。要重新收費請另開一張新帳單。
+          </p>
+          @if (mealItemCount() > 0) {
+            <p class="m-0 text-sm text-zinc-700">
+              這張帳單的餐費會回到未結算，下次帳務作業會重新計入。
+            </p>
+          }
+          <label class="text-sm font-medium text-zinc-900" for="invoice-void-reason"
+            >作廢理由（必填）</label
+          >
+          <textarea
+            id="invoice-void-reason"
+            class="w-full"
+            pTextarea
+            rows="2"
+            maxlength="500"
+            placeholder="例如：開錯月份、重複開帳"
+            [ngModel]="voidReason()"
+            (ngModelChange)="voidReason.set($event)"
+          ></textarea>
+          @if (voidError()) {
+            <p class="m-0 text-sm text-error-700" role="alert">{{ voidError() }}</p>
+          }
+          <div class="flex justify-end gap-2">
+            <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancelVoid()" />
+            <p-button
+              label="確認作廢"
+              severity="danger"
+              [loading]="voiding()"
+              [disabled]="!voidReason().trim()"
+              (onClick)="confirmVoid()"
+            />
+          </div>
         }
-        <label class="text-sm font-medium text-zinc-900" for="invoice-void-reason"
-          >作廢理由（必填）</label
-        >
-        <textarea
-          id="invoice-void-reason"
-          class="w-full"
-          pTextarea
-          rows="2"
-          maxlength="500"
-          placeholder="例如：開錯月份、重複開帳"
-          [ngModel]="voidReason()"
-          (ngModelChange)="voidReason.set($event)"
-        ></textarea>
-        @if (voidError()) {
-          <p class="m-0 text-sm text-error-700" role="alert">{{ voidError() }}</p>
-        }
-        <div class="flex justify-end gap-2">
-          <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancelVoid()" />
-          <p-button
-            label="確認作廢"
-            severity="danger"
-            [loading]="voiding()"
-            [disabled]="!voidReason().trim()"
-            (onClick)="confirmVoid()"
-          />
-        </div>
-      }
-    </section>
-  }
-
-  <footer class="flex flex-wrap justify-end gap-2">
+      </section>
+    }
+  </div>
+  <ng-container dialogFoot>
     <p-button label="列印收費單" icon="pi pi-print" [outlined]="true" (onClick)="printInvoice()" />
     <p-button
       label="列印收據"
@@ -398,8 +392,8 @@
       />
     }
     <p-button label="關閉" [text]="true" severity="secondary" (onClick)="close()" />
-  </footer>
-</div>
+  </ng-container>
+</app-dialog-frame>
 
 <!--
   列印用的版面。搬到獨立視窗印（見元件註解），所以這裡藏起來不影響畫面。
