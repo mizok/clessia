@@ -38,6 +38,8 @@ const ctx = {
   orgId: '',
   adminUser: '',
   teacherUser: '',
+  /** 刀 2 的兩位老師（只有退班生／只有待繳費生），見「老師名冊的邊界」那條 */
+  edgeTeachers: [] as string[],
   teacher: false,
   campusScope: null as string[] | null,
   usePool: true,
@@ -101,11 +103,12 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     const [admin] = await q<{ user_id: string }>(
       "select user_id from user_roles where role = 'admin' order by user_id limit 1",
     );
-    const [teacher] = await q<{ user_id: string }>(
+    const [teacher, ...edgeTeachers] = await q<{ user_id: string }>(
       `select r.user_id from user_roles r where r.role = 'teacher'
          and not exists (select 1 from user_roles a where a.user_id = r.user_id and a.role = 'admin')
-       order by r.user_id limit 1`,
+       order by r.user_id limit 3`,
     );
+    ctx.edgeTeachers = edgeTeachers.map((t) => t.user_id);
     ctx.adminUser = admin!.user_id;
     ctx.teacherUser = teacher!.user_id;
     ctx.orgId = await one("insert into organizations (name) values ('#1595 P2② 契約：名冊')", []);
@@ -208,6 +211,46 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     await enroll(s.w, klass['c2']!);
     await enroll(s.p2, klass['c1']!, 'pending_payment');
     await enroll(s.none, classB);
+
+    // 刀 2 老師名冊的邊界：
+    // - 老師 2：現任班 c3 只有一位**退班**生、一校那班是**前任** —— 該是空名冊（提早回空，today 是 null）
+    // - 老師 3：現任班 c4 只有一位**待繳費**生 —— 該看得到他
+    const edgeCourse = await one(
+      "insert into courses (org_id, campus_id, name, subject_id) values ($1, $2, '邊界課', $3)",
+      [ctx.orgId, campus.c1, subject],
+    );
+    const [c3, c4] = [
+      await one(
+        "insert into classes (org_id, campus_id, course_id, name) values ($1, $2, $3, '班 c3')",
+        [ctx.orgId, campus.c1, edgeCourse],
+      ),
+      await one(
+        "insert into classes (org_id, campus_id, course_id, name) values ($1, $2, $3, '班 c4')",
+        [ctx.orgId, campus.c1, edgeCourse],
+      ),
+    ];
+    for (const [i, current, past] of [
+      [0, c3, klass['c1']],
+      [1, c4, null],
+    ] as const) {
+      const st = await one(
+        "insert into staff (org_id, user_id, display_name) values ($1, $2, '邊界老師')",
+        [ctx.orgId, ctx.edgeTeachers[i]],
+      );
+      await q(
+        `insert into schedules (class_id, weekday, start_time, end_time, teacher_id, effective_from)
+         values ($1, 4, '18:00', '19:00', $2, '2026-01-01')`,
+        [current, st],
+      );
+      if (past)
+        await q(
+          `insert into schedules (class_id, weekday, start_time, end_time, teacher_id, effective_from, effective_to)
+           values ($1, 5, '18:00', '19:00', $2, '2025-09-01', '2026-01-31')`,
+          [past, st],
+        );
+    }
+    await enroll(s.onlyC2, c3, 'withdrawal');
+    await enroll(s.b, c4, 'pending_payment');
 
     const card = (studentId: string, issuedAt: string, revoked = false) =>
       q(
@@ -455,6 +498,30 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     } finally {
       spy.mockRestore();
       ctx.campusScope = null;
+    }
+  });
+
+  it('老師名冊的邊界（刀 2）：只有退班生的現任班＝空、只有待繳費生的現任班看得到，兩條路相同', async () => {
+    const main = ctx.teacherUser;
+    ctx.teacher = true;
+    try {
+      const seen: string[][] = [];
+      for (const user of ctx.edgeTeachers) {
+        ctx.teacherUser = user;
+        for (const url of ['/api/students', '/api/students?withToday=false']) {
+          const viaSql = await hit(url, true);
+          expect(viaSql).toEqual(await hit(url, false));
+        }
+        seen.push(
+          ((await hit('/api/students', true)).body['data'] as Array<{ name: string }>).map(
+            (r) => r.name,
+          ),
+        );
+      }
+      expect(seen).toEqual([[], ['乙']]);
+    } finally {
+      ctx.teacherUser = main;
+      ctx.teacher = false;
     }
   });
 
