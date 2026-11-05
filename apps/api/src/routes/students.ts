@@ -571,8 +571,15 @@ app.openapi(
             response: c.json({ error: '讀取學生列表失敗', message: sessionsError.message }, 500),
           };
         }
+        // 在籍、打卡、請假走 pg（#1595 P2 ①）；沒有池就回 500，不退回 REST
+        const pool = c.get('auth')?.pool;
+        if (!pool) {
+          return {
+            response: c.json({ error: '讀取學生列表失敗', code: 'DB_POOL_UNAVAILABLE' }, 500),
+          };
+        }
         const daily = await loadDailyAttendance(
-          supabase,
+          pool,
           orgId,
           date,
           ((sessionRows ?? []) as unknown as Array<Record<string, unknown>>).map(toTodaySession),

@@ -15,7 +15,7 @@ import { RouterLink } from '@angular/router';
 import { format, differenceInCalendarDays } from 'date-fns';
 import { skip } from 'rxjs';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
-import { LeaveService, type LeaveRequest } from '@core/leave.service';
+import { LeaveService, type LeaveListItem, type LeaveRequest } from '@core/leave.service';
 import { CampusContextService } from '@core/campus-context.service';
 import { LeaveBatchDialogComponent } from './leave-batch-dialog/leave-batch-dialog.component';
 import { CampusScopeNoteComponent } from '@shared/components/campus-scope-note/campus-scope-note.component';
@@ -24,7 +24,7 @@ import {
   addDaysToDateString,
   taipeiDateString,
 } from '@core/system-clock.service';
-import { StudentsService, type Student } from '@core/students.service';
+import { GRADE_LEVEL_LABELS, StudentsService, type Student } from '@core/students.service';
 import { CoursesService, type Course } from '@core/courses.service';
 import { ClassesService, type Class } from '@core/classes.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
@@ -96,7 +96,7 @@ export class LeavePage implements OnInit {
   private readonly optimisticRemove = injectOptimisticRemove();
 
   protected readonly loading = signal(false);
-  protected readonly records = signal<LeaveRequest[]>([]);
+  protected readonly records = signal<LeaveListItem[]>([]);
   protected readonly totalRecords = signal(0);
   protected readonly currentPage = signal(1);
   protected readonly PAGE_SIZE = LIST_PAGE_SIZE;
@@ -154,7 +154,7 @@ export class LeavePage implements OnInit {
     const today = this.systemClock.todayTaipei();
     const tomorrow = addDaysToDateString(today, 1);
     const pending = this.tab() === 'pending';
-    const groups: { key: string; name: string; meta: string; rows: LeaveRequest[] }[] = [];
+    const groups: { key: string; name: string; meta: string; rows: LeaveListItem[] }[] = [];
 
     for (const record of this.records()) {
       const key = pending && record.startDate < today ? today : record.startDate;
@@ -218,6 +218,27 @@ export class LeavePage implements OnInit {
     const parts = [who, `${this.createdText(record)} 建立`];
     if (record.submittedByRole === 'parent') parts.push('家長申請');
     return parts.join(' · ');
+  }
+
+  /** 年級（A6 `.lv__g`）：「國二」；沒有就不寫 */
+  protected gradeText(record: LeaveListItem): string {
+    const g = record.studentGrade;
+    return g ? (GRADE_LEVEL_LABELS[g as keyof typeof GRADE_LEVEL_LABELS] ?? g) : '';
+  }
+
+  /** 蓋到的一堂（A6 `.lv__s`）：「10/10 14:00 國二數學」 */
+  protected sessionText(s: LeaveListItem['coveredSessions'][number]): string {
+    return `${monthDay(s.date)} ${s.startTime} ${s.className}`;
+  }
+
+  /** 展開後那句（A6 `.lv__note`）：「10/10（五） · 2 堂課標成請假」；跨日「10/10–10/12」 */
+  protected noteText(record: LeaveListItem): string {
+    const date =
+      record.startDate === record.endDate
+        ? `${monthDay(record.startDate)}（${weekdayOf(record.startDate).slice(1)}）`
+        : `${monthDay(record.startDate)}–${monthDay(record.endDate)}`;
+    const n = record.coveredSessions.length;
+    return `${date} · ${n ? `${n} 堂課標成請假` : '這段時間沒有他的課'}`;
   }
 
   /** 日期範圍的字：單日「10/10」，跨日「10/10–10/12」；有時間就接在後面 */
