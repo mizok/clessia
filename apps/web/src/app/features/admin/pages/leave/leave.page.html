@@ -4,7 +4,8 @@
 <!--
   A6 版（#1314 LV1／LV3）：色面（今天幾位、之後幾筆）→ 灰工具列（待處理／全部、操作紀錄、登記請假）→
   依「今天／明天／之後」分章的可展開列。展開後才有「編輯」「取消請假」（取代列尾兩顆圖示鈕）。
-  現況有、A6 沒畫、保留：操作紀錄。A6 有、這裡沒做（缺 API，LV2 後續）：列內課堂清單、年級。
+  現況有、A6 沒畫、保留：操作紀錄。列內課堂清單與年級（LV2）：只填日期區間的假也由 API 算出蓋到的堂；
+  一堂都沒蓋到時（那段時間沒有他的課）退回寫日期範圍（A6 沒畫，R5）。
 -->
 <app-page-open>
   <ng-container openTitle>
@@ -223,15 +224,33 @@
                         (click)="$event.stopPropagation()"
                         >{{ record.studentName }}</a
                       >
+                      @if (gradeText(record); as grade) {
+                        <span
+                          class="ml-1.5 text-sm font-medium text-zinc-600"
+                          data-testid="grade"
+                          >{{ grade }}</span
+                        >
+                      }
                       @if (record.startDate !== record.endDate) {
                         <span class="ml-1.5 text-sm text-zinc-600" data-testid="days"
                           >{{ calcDays(record.startDate, record.endDate) }} 天</span
                         >
                       }
                     </span>
-                    <span class="text-md text-zinc-900 tabular-nums" data-testid="range">{{
-                      rangeText(record)
-                    }}</span>
+                    @if (record.coveredSessions.length) {
+                      <!-- A6 `.lv__ss`：一堂一行「10/10 14:00 班名」 -->
+                      <span class="flex flex-col gap-0.5" data-testid="sessions">
+                        @for (s of record.coveredSessions; track s.id) {
+                          <span class="text-md text-zinc-900 tabular-nums">{{
+                            sessionText(s)
+                          }}</span>
+                        }
+                      </span>
+                    } @else {
+                      <span class="text-md text-zinc-900 tabular-nums" data-testid="range">{{
+                        rangeText(record)
+                      }}</span>
+                    }
                     <span class="text-md text-zinc-700" data-testid="reason">{{
                       record.reason ? record.reason : '沒寫原因'
                     }}</span>
@@ -250,8 +269,8 @@
                     </span>
                   </summary>
                   <div class="flex flex-wrap items-center gap-2 pb-4">
-                    <p class="m-0 mr-auto text-md text-zinc-700">
-                      {{ record.startDate }} ~ {{ record.endDate }}
+                    <p class="m-0 mr-auto text-md text-zinc-700" data-testid="note">
+                      {{ noteText(record) }}
                     </p>
                     <button
                       type="button"
