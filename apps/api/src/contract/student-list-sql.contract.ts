@@ -3,8 +3,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createAuth } from '../auth';
 import { createChildDb } from '../lib/child-db';
-import { loadStudentListViaBuilder } from '../lib/student-list-builder';
-import { STUDENT_LIST_SQL, studentListParamsFromArgs } from '../lib/student-list-sql';
+import { STUDENT_LIST_SQL } from '../lib/student-list-sql';
+import { TEACHER_ROSTER_SQL } from '../lib/teacher-roster-sql';
+import { restBackedSummaryPool } from '../test-utils/rest-backed-summary-pool';
 import { PERMISSIONS } from '../lib/permissions';
 import { createServiceClientFromEnv } from '../lib/supabase';
 
@@ -73,25 +74,16 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('studentScope', null);
       set('childDb', createChildDb(supabase as never, null, ctx.orgId));
       set('campusScope', ctx.teacher ? null : ctx.campusScope);
-      // 兩側都給 pool（#2303 之後今日到班沒有 pool 就 500）。builder 側只把**列表那一句**換成 builder 版，
-      // 其餘 SQL（今日到班）照常打真 DB —— 兩側唯一的差別就是 STUDENT_LIST_SQL 對 builder
+      // 兩側都給 pool（#2303 之後今日到班沒有 pool 就 500）。builder 側只把本單改寫的兩句換回 REST 鏈
       const real = (sql: string, v: unknown[]) => pool!.query(sql, v);
       set('auth', {
         pool: {
           query: ctx.usePool
             ? real
             : async (sql: string, v: unknown[]) =>
-                sql === STUDENT_LIST_SQL
-                  ? {
-                      rows: [
-                        {
-                          result: await loadStudentListViaBuilder(
-                            supabase as never,
-                            studentListParamsFromArgs(v),
-                          ),
-                        },
-                      ],
-                    }
+                // 老師範圍（刀 2）與列表（刀 1a／1b）兩句翻回改寫前的 REST 鏈（同單元測試的替身），其餘打真 DB
+                sql === STUDENT_LIST_SQL || sql === TEACHER_ROSTER_SQL
+                  ? restBackedSummaryPool(supabase as never).query(sql, v)
                   : real(sql, v),
           // authPoolCleanup 每個請求都會呼叫 end，而這裡所有請求共用同一個 pool
           end: async () => undefined,
@@ -278,6 +270,12 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
         );
     }
     await enroll(s.onlyC2, c3, 'withdrawal');
+    // 別 org 的在籍報名掛在老師 2 的現任班（FK 不擋）：老師範圍的報名要限本 org，否則他的名冊不再是空的
+    await q(
+      `insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from)
+       values ($1, $2, $3, 'active', 'monthly', 1000, '2026-01-01')`,
+      [otherOrg, c3, s.w],
+    );
     await enroll(s.b, c4, 'pending_payment');
 
     const card = (studentId: string, issuedAt: string, revoked = false) =>
@@ -363,7 +361,8 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
         'delete from checkin_cards where org_id = $1',
         'delete from daily_checkins where org_id = $1',
         'delete from sessions where org_id = $1',
-        'delete from enrollments where org_id = $1',
+        // 別 org 的報名會掛在本 org 的學生上（老師 2 的 fixture），連同一起刪
+        'delete from enrollments where org_id = $1 or student_id in (select id from students where org_id = $1)',
         'delete from students where org_id = $1',
         'delete from schools where org_id = $1',
         'delete from schedules where class_id in (select id from classes where org_id = $1)',
