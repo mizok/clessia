@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, teacher]
 created: 2026-09-12
-updated: 2026-10-01
+updated: 2026-11-05
 ---
 
 # 課表
@@ -80,7 +80,7 @@ updated: 2026-10-01
 | 週條的每一天        | 按鈕      | 七天都有                                                                                     | `snapToDay()` 捲到那一屏（**未驗**）                 |
 | 開始點名 / 修改點名 | 按鈕      | `isTeacherLed()` **且** 可點名 **且** 不是還沒開始 **且** 沒有超過補登期限；文字看 `takenAt` | 開 [[specs/sitemap/_shared/attendance-roster-panel]] |
 | 寫日誌              | 按鈕      | `isTeacherLed()` 且 `canWriteClassLog(session)`（**該班不是聯絡簿模式**）                    | 開子頁面「教務日誌」                                 |
-| 寫聯絡簿            | 按鈕      | `isTeacherLed()` 且 `canWriteContactBook(session)`（**該班是聯絡簿模式**）                   | 開子頁面「聯絡簿名單」                               |
+| 寫聯絡簿            | 按鈕      | `canWriteContactBook(session)`（**該班是聯絡簿模式**；不看 `isTeacherLed()`，#2315）        | 開子頁面「聯絡簿名單」                               |
 
 > **「寫日誌」與「寫聯絡簿」互斥** —— 同一個位置，看該班 `usesContactBook`。實測兩種都見到。
 
