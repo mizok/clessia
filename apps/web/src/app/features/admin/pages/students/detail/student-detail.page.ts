@@ -342,7 +342,7 @@ export class StudentDetailPage implements OnInit {
     const s = this.student();
     if (!s) return;
     const ref = this.dialogService.open(StudentFormDialogComponent, {
-      width: '560px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',

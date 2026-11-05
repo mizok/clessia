@@ -30,6 +30,7 @@ import {
   SelectFieldComponent,
   type SelectFieldOption,
 } from '@shared/components/select-field/select-field.component';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
@@ -41,182 +42,169 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
  * 「未開單名單」只挑 active，帳單由它們照常接手。稿最後一欄「繳費單：建立／不建立」＝SD9（#2296），不畫。
  * 稿只有計費模式；費用方案一起選，月結才算得出金額（議定金額之後在列尾 ⋯ 的計費設定改）。
  *
- * 原生 `<dialog>`，寫法同 campus-form-dialog（等 #2290 的共用殼合了再換）。
+ * 原生 `<dialog>` 裡放共用殼 app-dialog-frame（#2290）。
  */
 @Component({
   selector: 'app-direct-enroll-dialog',
   standalone: true,
-  imports: [FormsModule, SelectFieldComponent, StudentAutocompleteComponent],
+  imports: [FormsModule, SelectFieldComponent, StudentAutocompleteComponent, DialogFrameComponent],
   template: `
     <dialog
       #dialog
       class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(520px,calc(100%-32px))] overflow-y-auto overscroll-contain rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-(--sheet-bg)"
-      aria-labelledby="direct-enroll-title"
+      role="dialog"
       data-testid="direct-enroll-dialog"
       (click)="onBackdrop($event)"
       (close)="onClosed()"
     >
       @if (isOpen()) {
-        <div class="flex items-center justify-between pt-4 pr-4 pb-2 pl-6">
-          <div>
-            <h2 id="direct-enroll-title" class="m-0 text-xl font-bold">直接報名</h2>
-            <p class="m-0 mt-0.5 text-md text-zinc-600">
-              現場報名、老生加報、特殊例外 —— 跳過申請流程
-            </p>
-          </div>
-          <button
-            type="button"
-            class="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 wide:size-10"
-            aria-label="關閉"
-            (click)="close()"
-          >
-            <i class="pi pi-times" aria-hidden="true"></i>
-          </button>
-        </div>
-
-        <form
-          ngNoForm
-          class="grid grid-cols-2 gap-x-3 gap-y-4 px-6 pt-2 pb-6 max-wide:grid-cols-1 max-wide:px-4"
-          (submit)="$event.preventDefault(); save()"
+        <!-- 共用殼（#2290）；原生 dialog 帶 role="dialog"，殼的 appDialogTitle 才找得到它掛名稱 -->
+        <app-dialog-frame
+          title="直接報名"
+          sub="現場報名、老生加報、特殊例外 —— 跳過申請流程"
+          (closed)="close()"
         >
-          <div class="col-span-full min-w-0">
-            <label class="mb-1 block text-md font-semibold text-zinc-700"
-              >學生 <span class="text-error-700" aria-hidden="true">*</span></label
-            >
-            <app-student-autocomplete
-              placeholder="輸入姓名搜尋"
-              [inline]="true"
-              [forceSelection]="true"
-              [value]="student()"
-              [suggestions]="studentSuggestions()"
-              (queryChange)="searchStudents($event)"
-              (valueChange)="onStudent($event)"
-            />
-          </div>
-          <div class="col-span-full min-w-0">
-            <app-select-field
-              label="開課班"
-              labelSize="md"
-              placeholder="選一個班"
-              [required]="true"
-              [options]="classes()"
-              [value]="classId()"
-              (valueChange)="classId.set($event); clearOutcome()"
-              [appendTo]="dialog"
-            />
-          </div>
-          <div class="col-span-full min-w-0">
-            <!-- 稿是 label；radiogroup 沒有單一控制項可以 for，靠 aria-labelledby 指回來（同 campus-form-dialog） -->
-            <label class="mb-1 block text-md font-semibold text-zinc-700" id="direct-enroll-mode"
-              >計費模式</label
-            >
-            <div
-              class="flex flex-wrap gap-2"
-              role="radiogroup"
-              aria-labelledby="direct-enroll-mode"
-            >
-              @for (opt of modeOptions; track opt.value) {
-                <label
-                  class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 font-semibold has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset max-wide:h-11"
-                >
-                  <input
-                    type="radio"
-                    name="direct-enroll-mode"
-                    class="m-0 accent-zinc-900"
-                    [checked]="mode() === opt.value"
-                    (change)="onMode(opt.value)"
-                  />{{ opt.label }}
-                </label>
-              }
+          <form
+            ngNoForm
+            class="grid grid-cols-2 gap-x-3 gap-y-4 max-wide:grid-cols-1"
+            (submit)="$event.preventDefault(); save()"
+          >
+            <div class="col-span-full min-w-0">
+              <label class="mb-1 block text-md font-semibold text-zinc-700"
+                >學生 <span class="text-error-700" aria-hidden="true">*</span></label
+              >
+              <app-student-autocomplete
+                placeholder="輸入姓名搜尋"
+                [inline]="true"
+                [forceSelection]="true"
+                [value]="student()"
+                [suggestions]="studentSuggestions()"
+                (queryChange)="searchStudents($event)"
+                (valueChange)="onStudent($event)"
+              />
             </div>
-          </div>
-          @if (mode()) {
             <div class="col-span-full min-w-0">
               <app-select-field
-                label="費用方案"
+                label="開課班"
                 labelSize="md"
-                [options]="templateOptions()"
-                [value]="feeTemplateId()"
-                (valueChange)="feeTemplateId.set($event)"
+                placeholder="選一個班"
+                [required]="true"
+                [options]="classes()"
+                [value]="classId()"
+                (valueChange)="classId.set($event); clearOutcome()"
                 [appendTo]="dialog"
               />
             </div>
-          }
-          <div class="min-w-0">
-            <label class="mb-1 block text-md font-semibold text-zinc-700" for="direct-enroll-from"
-              >生效起 <span class="text-error-700" aria-hidden="true">*</span></label
-            >
-            <input
-              id="direct-enroll-from"
-              type="date"
-              class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
-              [ngModel]="from()"
-              (ngModelChange)="from.set($event); clearOutcome()"
-            />
-          </div>
-          <div class="min-w-0">
-            <label class="mb-1 block text-md font-semibold text-zinc-700" for="direct-enroll-to"
-              >生效迄</label
-            >
-            <input
-              id="direct-enroll-to"
-              type="date"
-              class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
-              [ngModel]="to()"
-              (ngModelChange)="to.set($event); clearOutcome()"
-            />
-            <p class="m-0 mt-1 text-sm text-zinc-600">留白＝讀到退班為止</p>
-          </div>
-          @if (conflicts().length) {
-            <div
-              class="col-span-full rounded-md bg-warning-50 p-3 text-md text-zinc-900"
-              data-testid="direct-enroll-conflict"
-              role="alert"
-            >
-              <p class="m-0 font-semibold">跟這位學生已經在上的課撞時間：</p>
-              <ul class="m-0 mt-1 pl-5">
-                @for (w of conflicts(); track w.conflictingClassId + w.weekday + w.startTime) {
-                  <li>
-                    {{ w.conflictingClassName }} · 週{{ weekday(w.weekday) }}
-                    {{ w.startTime.slice(0, 5) }}–{{ w.endTime.slice(0, 5) }}
-                  </li>
+            <div class="col-span-full min-w-0">
+              <!-- 稿是 label；radiogroup 沒有單一控制項可以 for，靠 aria-labelledby 指回來（同 campus-form-dialog） -->
+              <label class="mb-1 block text-md font-semibold text-zinc-700" id="direct-enroll-mode"
+                >計費模式</label
+              >
+              <div
+                class="flex flex-wrap gap-2"
+                role="radiogroup"
+                aria-labelledby="direct-enroll-mode"
+              >
+                @for (opt of modeOptions; track opt.value) {
+                  <label
+                    class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 font-semibold has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset max-wide:h-11"
+                  >
+                    <input
+                      type="radio"
+                      name="direct-enroll-mode"
+                      class="m-0 accent-zinc-900"
+                      [checked]="mode() === opt.value"
+                      (change)="onMode(opt.value)"
+                    />{{ opt.label }}
+                  </label>
                 }
-              </ul>
+              </div>
             </div>
-          }
-        </form>
+            @if (mode()) {
+              <div class="col-span-full min-w-0">
+                <app-select-field
+                  label="費用方案"
+                  labelSize="md"
+                  [options]="templateOptions()"
+                  [value]="feeTemplateId()"
+                  (valueChange)="feeTemplateId.set($event)"
+                  [appendTo]="dialog"
+                />
+              </div>
+            }
+            <div class="min-w-0">
+              <label class="mb-1 block text-md font-semibold text-zinc-700" for="direct-enroll-from"
+                >生效起 <span class="text-error-700" aria-hidden="true">*</span></label
+              >
+              <input
+                id="direct-enroll-from"
+                type="date"
+                class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+                [ngModel]="from()"
+                (ngModelChange)="from.set($event); clearOutcome()"
+              />
+            </div>
+            <div class="min-w-0">
+              <label class="mb-1 block text-md font-semibold text-zinc-700" for="direct-enroll-to"
+                >生效迄</label
+              >
+              <input
+                id="direct-enroll-to"
+                type="date"
+                class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+                [ngModel]="to()"
+                (ngModelChange)="to.set($event); clearOutcome()"
+              />
+              <p class="m-0 mt-1 text-sm text-zinc-600">留白＝讀到退班為止</p>
+            </div>
+            @if (conflicts().length) {
+              <div
+                class="col-span-full rounded-md bg-warning-50 p-3 text-md text-zinc-900"
+                data-testid="direct-enroll-conflict"
+                role="alert"
+              >
+                <p class="m-0 font-semibold">跟這位學生已經在上的課撞時間：</p>
+                <ul class="m-0 mt-1 pl-5">
+                  @for (w of conflicts(); track w.conflictingClassId + w.weekday + w.startTime) {
+                    <li>
+                      {{ w.conflictingClassName }} · 週{{ weekday(w.weekday) }}
+                      {{ w.startTime.slice(0, 5) }}–{{ w.endTime.slice(0, 5) }}
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
+          </form>
 
-        <!-- A6 .fdlg__foot：必填沒填不鎖死送出鈕，旁邊寫還差什麼（#723）；失敗訊息也寫這裡，填的內容不清 -->
-        <div
-          class="sticky bottom-0 z-[1] flex flex-wrap items-center justify-end gap-2 bg-inherit px-6 pt-3 pb-6 max-wide:px-4 max-wide:pt-2 max-wide:pb-[calc(16px+env(safe-area-inset-bottom,0px))]"
-        >
-          <p
-            class="m-0 mr-auto text-md max-wide:basis-full"
-            [class.text-error-700]="!!error()"
-            [class.text-zinc-600]="!error()"
-            aria-live="polite"
-            data-testid="direct-enroll-hint"
-          >
-            {{ error() ?? missingHint() }}
-          </p>
-          <button
-            type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
-            [disabled]="loading()"
-            (click)="close()"
-          >
-            取消
-          </button>
-          <button
-            type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
-            data-testid="direct-enroll-submit"
-            [attr.aria-disabled]="!!missingHint() || loading()"
-            (click)="save()"
-          >
-            {{ loading() ? '報名中…' : conflicts().length ? '仍要報名' : '報名' }}
-          </button>
-        </div>
+          <ng-container dialogFoot>
+            <p
+              class="form-dialog__why"
+              [class.text-error-700]="!!error()"
+              [class.text-zinc-600]="!error()"
+              aria-live="polite"
+              data-testid="direct-enroll-hint"
+            >
+              {{ error() ?? missingHint() }}
+            </p>
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
+              [disabled]="loading()"
+              (click)="close()"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+              data-testid="direct-enroll-submit"
+              [attr.aria-disabled]="!!missingHint() || loading()"
+              (click)="save()"
+            >
+              {{ loading() ? '報名中…' : conflicts().length ? '仍要報名' : '報名' }}
+            </button>
+          </ng-container>
+        </app-dialog-frame>
       }
     </dialog>
   `,

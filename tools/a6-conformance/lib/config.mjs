@@ -1679,6 +1679,32 @@ export const PAGES = {
         reason: '可點元素基底 ≥44px；稿的 padding 是 UA 預設（同分校表單的關閉鈕）',
         source: `${rule('R3')}`,
       })),
+      // #2290 換殼：殼的內距在內容區外層（.dialog-frame__body），稿在 form 上 —— 全站那兩條只涵蓋桌機 24px；
+      // 這裡補 form 本身的位移與手機 16px（同一份裁定）
+      ...[
+        {
+          status: '位置',
+          a6: '>landmark:dialog\\[直接報名\\]>landmark:form\\[\\]$',
+          detail: '^相對「直接報名」 Δx \\+(16|24)、Δy \\+(8|9|1[01])（',
+        },
+        {
+          status: '樣式',
+          a6: '>landmark:dialog\\[直接報名\\]>landmark:form\\[\\]$',
+          item: '^padding 8px (16|24)px 24px → 0px$',
+        },
+        {
+          status: '位置',
+          widths: [360],
+          a6: '>landmark:form\\[\\]>',
+          detail: '^相對「form」 Δx -16、Δy -(8|9)（',
+        },
+      ].map((d) => ({
+        ...d,
+        pop: 'direct',
+        reason: '殼的內距在內容區外層（.dialog-frame__body），稿在 form 上，幾何相同',
+        source:
+          'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
+      })),
       // 手機：選第一欄後少一行（稿 .dd 的占位字）、多一欄方案 —— 計費模式那排與底部按鈕跟著位移
       ...[
         {
