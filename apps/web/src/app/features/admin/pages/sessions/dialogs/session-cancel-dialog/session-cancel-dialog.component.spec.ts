@@ -42,8 +42,21 @@ describe('SessionCancelDialogComponent', () => {
     );
     expect(submit?.textContent).toContain('確認停課');
     submit!.click();
+    // 底部鈕是 type=submit＋form 指回表單，只走 (ngSubmit) 一條路：點一次只送一次
+    expect(cancel).toHaveBeenCalledTimes(1);
     expect(cancel).toHaveBeenCalledWith('s1', undefined);
     expect(close).toHaveBeenCalledWith({ result: 'refresh', session });
+  });
+
+  it('鈕在 form 外（殼的底部列），仍是這張表單的送出鈕；在欄位按 Enter（隱式送出）只送一次', () => {
+    const { el, cancel } = setup();
+    const form = el.querySelector('form')!;
+    const submit = el.querySelector<HTMLButtonElement>('[data-testid="op-submit"]')!;
+
+    expect(form.contains(submit)).toBe(false);
+    expect(submit.form).toBe(form);
+    form.requestSubmit(); // 瀏覽器在欄位按 Enter 走的就是這條路
+    expect(cancel).toHaveBeenCalledTimes(1);
   });
 
   it('✕ 關窗、不送出', () => {

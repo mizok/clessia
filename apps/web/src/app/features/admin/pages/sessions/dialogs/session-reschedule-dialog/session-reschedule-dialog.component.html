@@ -1,6 +1,11 @@
 <!-- 共用殼（#2290）。A6 課表走批次步驟頁，沒畫單堂的這支；標題沿用產品原本的 header -->
 <app-dialog-frame title="調課" (closed)="closeDialog()">
-  <form [formGroup]="form" (ngSubmit)="submit()" class="session-op-form">
+  <form
+    id="session-reschedule-form"
+    [formGroup]="form"
+    (ngSubmit)="submit()"
+    class="session-op-form"
+  >
     @if (submitError()) {
       <app-inline-notice
         severity="error"
@@ -108,11 +113,11 @@
       取消
     </button>
     <button
-      type="button"
+      type="submit"
+      form="session-reschedule-form"
       class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 border-accent-vivid bg-accent-vivid text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2"
       data-testid="op-submit"
       [disabled]="form.invalid || isSubmitting()"
-      (click)="submit()"
     >
       {{ isSubmitting() ? '處理中…' : '確認調課' }}
     </button>

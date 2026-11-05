@@ -1,6 +1,11 @@
 <!-- 共用殼（#2290）。A6 課表走批次步驟頁，沒畫單堂的這支；標題沿用產品原本的 header -->
 <app-dialog-frame title="安排代課" (closed)="closeDialog()">
-  <form [formGroup]="form" (ngSubmit)="submit()" class="session-op-form">
+  <form
+    id="session-substitute-form"
+    [formGroup]="form"
+    (ngSubmit)="submit()"
+    class="session-op-form"
+  >
     <div class="session-op-form__field">
       <label for="substituteTeacher" class="session-op-form__label">
         代課老師<span class="session-op-form__required">*</span>
@@ -53,11 +58,11 @@
       取消
     </button>
     <button
-      type="button"
+      type="submit"
+      form="session-substitute-form"
       class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 border-accent-vivid bg-accent-vivid text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2"
       data-testid="op-submit"
       [disabled]="form.invalid || isSubmitting()"
-      (click)="submit()"
     >
       {{ isSubmitting() ? '處理中…' : '確認代課' }}
     </button>

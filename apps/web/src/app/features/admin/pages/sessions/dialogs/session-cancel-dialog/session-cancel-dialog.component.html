@@ -1,6 +1,6 @@
 <!-- 共用殼（#2290）。A6 課表走批次步驟頁，沒畫單堂的這支；標題沿用產品原本的 header -->
 <app-dialog-frame title="停課" (closed)="closeDialog()">
-  <form [formGroup]="form" (ngSubmit)="submit()" class="session-op-form">
+  <form id="session-cancel-form" [formGroup]="form" (ngSubmit)="submit()" class="session-op-form">
     <div
       class="session-op-form__warning rounded-l-none rounded-r-md border-l-[3px] border-l-warning-600 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--warning-100)_70%,var(--color-white)),var(--color-white))]"
     >
@@ -35,11 +35,11 @@
       取消
     </button>
     <button
-      type="button"
+      type="submit"
+      form="session-cancel-form"
       class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 border-error-700 bg-error-700 text-white"
       data-testid="op-submit"
       [disabled]="isSubmitting()"
-      (click)="submit()"
     >
       {{ isSubmitting() ? '處理中…' : '確認停課' }}
     </button>
