@@ -5,13 +5,12 @@
       <h2 appDialogTitle class="dialog-header-inline__title">
         {{ isEditing() ? '編輯 ' + staff()!.displayName : '新增人員' }}
       </h2>
-      <p class="dialog-header-inline__sub">
-        {{
-          isEditing()
-            ? 'Email：' + staff()!.email + '（Email 是產生登入連結的查人鍵，不能改）'
-            : '建立後會出一次性登入連結，交給本人綁定 LINE（不設密碼）'
-        }}
-      </p>
+      <!-- 編輯時的 Email 改成表單裡的唯讀欄位（偏離 A6 的副標寫法，R5：使用者 11-05） -->
+      @if (!isEditing()) {
+        <p class="dialog-header-inline__sub">
+          建立後會出一次性登入連結，交給本人綁定 LINE（不設密碼）
+        </p>
+      }
     </div>
     <button
       type="button"
@@ -49,8 +48,25 @@
         <p class="m-0 mt-1 text-sm text-error-700">{{ msg }}</p>
       }
     </div>
-    <!-- Email 只在新增時（編輯時寫在副標，不能改） -->
-    @if (!isEditing()) {
+    <!-- Email：新增時可填；編輯時同一格唯讀（R5：使用者 11-05，A6 是寫在副標） -->
+    @if (isEditing()) {
+      <div class="min-w-0">
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="staff-email"
+          >Email</label
+        >
+        <input
+          id="staff-email"
+          type="email"
+          readonly
+          aria-describedby="staff-email-hint"
+          class="h-10 w-full rounded-md border border-solid border-zinc-200 bg-zinc-100 px-3 text-base text-zinc-700 [font-family:inherit] focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+          [value]="staff()!.email"
+        />
+        <p id="staff-email-hint" class="m-0 mt-1 text-sm text-zinc-600">
+          產生登入連結的查人鍵，不能改
+        </p>
+      </div>
+    } @else {
       <div class="min-w-0">
         <label class="mb-1 block text-md font-semibold text-zinc-700" for="staff-email"
           >Email <span class="text-error-700" aria-hidden="true">*</span></label
