@@ -1801,6 +1801,20 @@ export const PAGES = {
     a6Open: opensOf('leave', 'a6Open'),
     appOpen: opensOf('leave', 'appOpen'),
     deviations: [
+      // 登記請假（#2318）：app 的日期、要請假的課、原因三格同層同子元素數，被工具合成一列（README「列是資料」的 div 格線規則）；
+      // 稿同樣的三格沒觸發，於是「要請假的課」與空狀態那句報缺、app 報多一列 —— 內容與樣式照稿（.pick、.pick__none）
+      ...[
+        {
+          status: '缺',
+          a6: '>landmark:dialog\\[登記請假\\]>text:p\\[(要請假的課|先選學生，這裡會列出他那天的課。)\\]$',
+        },
+        { status: '多', app: '>landmark:dialog\\[登記請假\\]>row$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-leave',
+        reason: '工具限制：同層三格被當成資料列，配對錯開',
+        source: 'tools/a6-conformance/README.md（part key：列是資料）',
+      })),
       // 登記請假（#2318）：手機內容左右 16（殼的規格，稿 24），欄位寬 +16
       {
         status: '尺寸',
