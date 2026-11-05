@@ -16,6 +16,9 @@ export class DialogTitleDirective {
 
   constructor() {
     const el = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
-    afterNextRender(() => el.closest('[role="dialog"]')?.setAttribute('aria-labelledby', this.id));
+    // 原生 <dialog> 的 role 是隱含的（沒有 role 屬性），一起找（#2290：殼放進原生 dialog 裡）
+    afterNextRender(() =>
+      el.closest('[role="dialog"], dialog')?.setAttribute('aria-labelledby', this.id),
+    );
   }
 }
