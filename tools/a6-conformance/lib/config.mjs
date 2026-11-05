@@ -689,7 +689,12 @@ const FORM_DIALOGS = {
       'app-permission-dialog',
     ),
   },
-  parents: { 'new-parent': formOpen('[data-new]', 'button:has-text("新增家長")') },
+  parents: {
+    'new-parent': formOpen('[data-new]', 'button:has-text("新增家長")'),
+    // 家長詳情、批次匯入（#2290 換殼）
+    detail: dlgOpen('[data-detail]', 'button[aria-label$=" 的詳情"]', 'app-parent-detail-dialog'),
+    import: dlgOpen('[data-import]', 'button:has-text("匯入")', 'app-parent-import-dialog'),
+  },
   exams: {
     'new-exam': formOpen('[data-new]', [
       'button:has-text("新增考試")',
