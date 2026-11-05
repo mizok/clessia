@@ -9,6 +9,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { FormsModule } from '@angular/forms';
 import { SelectModule } from 'primeng/select';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
@@ -49,9 +50,9 @@ function toTimeDate(time: string | null): Date | null {
 }
 
 /**
- * 管理端用 DialogService 開這支時的 contentStyle。動作列 sticky 會扣掉捲動容器的底部 padding
- * （`.p-dialog-content` 20px）：浮在離底 20px、底下露出捲動的內容。所以 content 底部歸 0，
- * 同樣的 20px 改由動作列自己撐（`--leave-foot-pb`，家長端外框也是這樣交進來）。
+ * **#2290 起已無作用**：換成共用殼之後，內容區內距由全站 `.p-dialog-content:has(.form-dialog--a6)` 歸 0、
+ * 底部留白由殼的底部列撐，`--leave-foot-pb` 沒有人讀了。保留 export 只是為了不在這張動到請假頁、
+ * 學生詳情的開窗點與 spec（兩頁各由別席負責）；那兩頁換殼時一起拿掉。
  */
 export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
   'padding-bottom': '0',
@@ -61,9 +62,10 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
 @Component({
   selector: 'app-leave-form-dialog',
   standalone: true,
-  imports: [FormsModule, SelectModule, StudentAutocompleteComponent],
+  imports: [DialogFrameComponent, FormsModule, SelectModule, StudentAutocompleteComponent],
   template: `
-    <div class="flex flex-col gap-5 py-2">
+    <!-- 共用殼（#2290）：管理端標題讀開窗端的 header；家長端嵌在原生 <dialog> 裡，副標寫孩子 -->
+    <app-dialog-frame [title]="title" [sub]="sub()" (closed)="cancel()">
       <!-- 嵌入（家長端）時學生寫在外框的副標，這裡不出學生欄（A6 forms.leave） -->
       @if (student()) {
       } @else if (fixedStudentName(); as fixedName) {
@@ -159,14 +161,9 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
 
       <!--
         A6 form() 的底部：必填沒填時送出鈕不鎖死，旁邊一行寫還差什麼（#723：disabled 會把「為什麼不行」藏起來）；
-        處理中寫「送出中…」。送出失敗的訊息也寫在這一行，填的內容不清。
-        黏在捲動區底（A6 .fdlg__foot）：表單一長，送出鈕不跟著內容捲走；內容從它後面捲過，底色不透明。
-        sticky 會扣掉捲動容器的 padding（容器 pb 16px，動作列就浮在離底 16px，下面露出捲動的內容），
-        所以底部留白由外框用 --leave-foot-pb 交給動作列自己撐（家長端含 safe-area）；沒設就是 0。
+        處理中寫「送出中…」。送出失敗的訊息也寫在這一行，填的內容不清。sticky 與底部留白（含 safe-area）由殼處理
       -->
-      <div
-        class="sticky bottom-0 z-[1] flex flex-wrap items-center justify-end gap-2 bg-white pt-2 pb-(--leave-foot-pb)"
-      >
+      <ng-container dialogFoot>
         <p
           class="m-0 mr-auto text-md max-wide:basis-full"
           [class.text-error-700]="!!errorMessage()"
@@ -191,8 +188,8 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
         >
           {{ saving() ? (editing ? '儲存中…' : '送出中…') : editing ? '儲存變更' : '送出請假' }}
         </button>
-      </div>
-    </div>
+      </ng-container>
+    </app-dialog-frame>
   `,
 })
 export class LeaveFormDialogComponent implements OnInit {
@@ -214,6 +211,14 @@ export class LeaveFormDialogComponent implements OnInit {
   readonly create = input<((body: CreateLeaveInput) => Observable<unknown>) | null>(null);
   /** 嵌入用：送出成功帶回建立的假、取消帶 null（DialogService 開的走 `dialogRef.close`） */
   readonly closed = output<unknown>();
+
+  /** 殼的標題：管理端讀開窗端的 header（登記／編輯請假），家長端嵌入時是「登記請假」 */
+  protected readonly title: string = (this.config?.header as string | undefined) ?? '登記請假';
+  /** 嵌入（家長端）時學生不出欄位，寫在副標（A6 forms.leave） */
+  protected readonly sub = computed(() => {
+    const s = this.student();
+    return s ? `${s.name} · 這段時間的課都會標成請假` : '';
+  });
 
   // 預帶學生（學生檔案的「登記請假」）：`data.student` 有值就跟編輯一樣學生唯讀，不給選
   protected presetStudent(): { id: string; name: string } | null {

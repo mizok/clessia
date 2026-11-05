@@ -692,6 +692,7 @@ export class StudentDetailPage implements OnInit {
       header: '登記請假',
       width: '480px',
       modal: true,
+      showHeader: false, // 標題由請假表單裡的共用殼畫（#2290）
       appendTo: this.overlayContainer || 'body',
       data: { student: { id: s.id, name: s.name } },
       contentStyle: LEAVE_DIALOG_CONTENT_STYLE,
