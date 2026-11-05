@@ -1,4 +1,5 @@
 import { DatePipe, Location } from '@angular/common';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -62,6 +63,7 @@ const OTHER_KIND = { label: '系統通知', icon: 'pi-bell', go: '前往' };
 @Component({
   selector: 'app-notifications',
   imports: [
+    DialogFrameComponent,
     SkeletonComponent,
     ReloadVeilComponent,
     DatePipe,
