@@ -38,7 +38,7 @@ const session = (
   ...extra,
 });
 
-function seed(teacherClassId: string | null = null) {
+function seed(teacherClassId: string | null = null, extraCheckins: string[] = []) {
   return createMultiOrgDb({
     staff: [{ id: 'staff-t', user_id: 'u-teacher', org_id: ORG }],
     schedules: teacherClassId
@@ -102,6 +102,7 @@ function seed(teacherClassId: string | null = null) {
       { org_id: ORG, student_id: SID, checkin_date: '2026-03-02' },
       // 逐堂分校那天有打卡也不算到 —— 那個模式看出勤紀錄
       { org_id: ORG, student_id: SID, checkin_date: '2026-03-06' },
+      ...extraCheckins.map((checkin_date) => ({ org_id: ORG, student_id: SID, checkin_date })),
     ],
     attendance_records: [
       { org_id: ORG, student_id: SID, event_id: 'ev-s05', status: 'present' },
@@ -126,11 +127,12 @@ function request(
   path: string,
   campusScope: string[] | null = null,
   teacherClassId: string | null = null,
+  extraCheckins: string[] = [],
 ) {
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
-    set('supabase', seed(teacherClassId).client);
+    set('supabase', seed(teacherClassId, extraCheckins).client);
     set('orgId', ORG);
     set('userId', teacherClassId ? 'u-teacher' : 'u1');
     set('roles', teacherClassId ? ['teacher'] : ['admin']);
@@ -177,6 +179,14 @@ describe('GET /students/{id}/attendance-days（#1314 SD2）', () => {
     const res = await request(`/${SID}/attendance-days?from=2026-03-10&to=2026-03-10`);
     const body = (await res.json()) as { days: Array<{ state: string }> };
     expect(body.days.map((d) => d.state)).toEqual(['absent']);
+  });
+
+  it('今天的課還沒開始、但課前已打卡 → came（有結果就列，#2317）', async () => {
+    const res = await request(`/${SID}/attendance-days?from=2026-03-10&to=2026-03-10`, null, null, [
+      '2026-03-10',
+    ]);
+    const body = (await res.json()) as { days: Array<{ state: string }> };
+    expect(body.days.map((d) => d.state)).toEqual(['came']);
   });
 
   it('區間不合法 → 400；超過 366 天 → 400', async () => {
