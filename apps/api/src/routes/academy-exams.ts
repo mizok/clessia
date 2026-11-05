@@ -1815,7 +1815,7 @@ app.openapi(upsertScoresRoute, async (c) => {
           .in('student_id', part),
     );
     if (allowedError) {
-      return c.json({ error: allowedError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: allowedError.message, code: 'DB_ERROR' }, 500);
     }
     const allowed = new Set(
       (allowedRows ?? []).map((row: { student_id: string }) => row.student_id),
