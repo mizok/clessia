@@ -7,6 +7,7 @@ import { DatePickerModule } from 'primeng/datepicker';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { MessageService } from 'primeng/api';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { Router } from '@angular/router';
@@ -44,7 +45,14 @@ export interface BillingRunDialogData {
 @Component({
   selector: 'app-billing-run-dialog',
   standalone: true,
-  imports: [FormsModule, ButtonModule, DatePickerModule, SelectModule, SelectButtonModule],
+  imports: [
+    DialogFrameComponent,
+    FormsModule,
+    ButtonModule,
+    DatePickerModule,
+    SelectModule,
+    SelectButtonModule,
+  ],
   templateUrl: './billing-run-dialog.component.html',
 })
 export class BillingRunDialogComponent {
@@ -62,6 +70,11 @@ export class BillingRunDialogComponent {
   ];
   protected readonly mode = signal<'month' | 'period'>(this.data.mode ?? 'month');
   protected readonly modeLabel = computed(() => (this.mode() === 'period' ? '期繳開單' : '月結'));
+  protected readonly sub = computed(() =>
+    this.mode() === 'period'
+      ? '把這一期「期繳」報名的學費開成帳單（餐費照舊跟著月結走）。'
+      : '把這個月「要收費且尚未結算」的餐費與學費加總成帳單。',
+  );
   protected readonly periods = signal<BillingPeriod[]>([]);
   protected periodId: string | null = this.data.periodId ?? null;
 

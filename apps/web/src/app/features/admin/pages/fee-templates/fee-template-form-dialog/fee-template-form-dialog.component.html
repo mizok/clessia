@@ -1,11 +1,9 @@
-<div class="flex flex-col gap-5 p-5">
-  <header class="flex flex-col gap-1">
-    <h2 class="m-0 text-lg font-semibold text-zinc-900">
-      {{ isEditing() ? '編輯價目表' : '新增價目表' }}
-    </h2>
-    <p class="m-0 text-xs text-zinc-500">這裡填的是定價。實際收多少在報名時可以另外議定。</p>
-  </header>
-
+<!-- 共用殼（#2290） -->
+<app-dialog-frame
+  [title]="isEditing() ? '編輯價目表' : '新增價目表'"
+  sub="這裡填的是定價。實際收多少在報名時可以另外議定。"
+  (closed)="cancel()"
+>
   <div class="flex flex-col gap-4">
     <div class="flex flex-col gap-2">
       <label class="text-sm font-medium text-zinc-600" for="ft-name">方案名稱 *</label>
@@ -61,8 +59,8 @@
     </div>
   </div>
 
-  <footer class="flex justify-end gap-2">
+  <ng-container dialogFoot>
     <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
     <p-button label="儲存" [loading]="saving()" (onClick)="save()" />
-  </footer>
-</div>
+  </ng-container>
+</app-dialog-frame>

@@ -467,7 +467,7 @@ export class MealsComponent implements OnInit {
   protected openBillingRun(data: BillingRunDialogData = {}): void {
     const ref = this.dialogService.open(BillingRunDialogComponent, {
       data,
-      width: '520px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
