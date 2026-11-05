@@ -2213,7 +2213,7 @@ export const PAGES = {
       ...[
         {
           status: '多',
-          app: 'landmark:form\\[\\]>(control:textbox\\[對外暱稱\\]|text:label\\[對外暱稱\\]|text:p\\[對外的頁面只會顯示暱稱)',
+          app: 'landmark:form\\[\\]>(control:textbox\\[對外暱稱\\]|text:label\\[對外暱稱\\]|text:p\\[公開課程目錄顯示暱稱)',
         },
       ].map((d) => ({
         ...d,
