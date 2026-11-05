@@ -198,8 +198,10 @@
             }
             <span class="text-sm text-zinc-600">{{ formatGrade(row.studentGrade) }}</span>
           </span>
+          <!-- 圖示與分數同一行（#2289：原本是行內文字，窄螢幕時「⚠」跟分數折成兩行、列變高） -->
           <span
-            class="text-md font-semibold tabular-nums"
+            data-part="mobile-score"
+            class="inline-flex shrink-0 items-center gap-1 text-md font-semibold whitespace-nowrap tabular-nums"
             [class.text-warning-800]="isAbsent(row)"
             [class.text-error-700]="!isAbsent(row) && isFailing(row.score)"
             [class.text-zinc-900]="!isAbsent(row) && !isFailing(row.score) && row.score !== null"
@@ -211,7 +213,7 @@
               @if (isFailing(row.score)) {
                 <i
                   data-part="fail-icon"
-                  class="pi pi-exclamation-triangle mr-1 text-xs text-error-600"
+                  class="pi pi-exclamation-triangle text-xs text-error-600"
                   aria-label="不及格"
                 ></i>
               }
