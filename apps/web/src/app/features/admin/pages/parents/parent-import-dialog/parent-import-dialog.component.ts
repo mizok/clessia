@@ -97,7 +97,7 @@ export class ParentImportDialogComponent {
   private readonly version = inject(AppVersionService);
 
   /** 殼的標題：開窗端的 header（開窗端 `showHeader: false`） */
-  protected readonly title = this.config?.header ?? '批次匯入家長';
+  protected readonly title = this.config?.header ?? '匯入家長';
   protected readonly step = signal<1 | 2 | 3 | 4>(1);
   protected readonly rows = signal<ParsedRow[]>([]);
   protected readonly submitting = signal(false);
