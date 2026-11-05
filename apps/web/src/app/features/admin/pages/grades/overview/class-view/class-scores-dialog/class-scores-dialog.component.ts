@@ -7,6 +7,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
@@ -68,7 +69,7 @@ const EXAM_TYPE_LABELS: Record<AcademyExam['examType'], string> = {
 @Component({
   selector: 'app-class-scores-dialog',
   standalone: true,
-  imports: [FormsModule, EmptyStateComponent, SelectModule],
+  imports: [DialogFrameComponent, FormsModule, EmptyStateComponent, SelectModule],
   templateUrl: './class-scores-dialog.component.html',
   host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -176,6 +177,12 @@ export class ClassScoresDialogComponent implements OnInit {
     const max = Math.max(1, ...rows.map((r) => r.n));
     return rows.map((r) => ({ ...r, pct: (r.n / max) * 100 }));
   });
+
+  /** 殼的副標：「國一、國二 · 上限 18 人」 */
+  protected subtitle(cls: Class): string {
+    const grades = this.classGradeLabels();
+    return `${grades ? grades + ' · ' : ''}上限 ${cls.maxStudents} 人`;
+  }
 
   protected readonly classGradeLabels = computed(() => {
     const gradeLevels: string[] = this.classData?.gradeLevels ?? [];
