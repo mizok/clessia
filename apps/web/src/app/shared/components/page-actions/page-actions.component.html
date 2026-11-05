@@ -43,7 +43,7 @@
        留白由 `.shell-content` 用 `:has()` 自己處理，見 shell-layout 的模板。 -->
   <div
     data-toast-dock
-    class="page-actions__dock fixed right-3 bottom-[calc(12px+env(safe-area-inset-bottom,0px))] z-100 flex justify-end gap-2 rounded-lg border border-solid border-zinc-200 bg-zinc-100 p-2 shadow-[0_10px_28px_-8px_rgb(26_22_20/45%)] min-[640.02px]:hidden"
+    class="page-actions__dock fixed right-3 bottom-[calc(var(--tray-bottom-gap)+env(safe-area-inset-bottom,0px))] z-100 flex justify-end gap-2 rounded-lg border border-solid border-zinc-200 bg-zinc-100 p-2 shadow-[0_10px_28px_-8px_rgb(26_22_20/45%)] min-[640.02px]:hidden"
     [class.left-3]="!!secondary()"
   >
     @if (secondary(); as second) {

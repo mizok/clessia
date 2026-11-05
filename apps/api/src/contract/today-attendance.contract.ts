@@ -1,7 +1,6 @@
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { createServiceClientFromEnv } from '../lib/supabase';
 import { loadDailyAttendance } from '../lib/today-attendance';
 
 /**
@@ -117,11 +116,9 @@ run('日到班：應到很多人時的請假、在籍、打卡（#1928）', () =
   }
 
   const load = (s: Seeded) =>
+    // 原料走 pg（#1595 P2 ①）：一支 SQL 沒有 URL 長度與 max_rows 的問題，這兩題照樣要對
     loadDailyAttendance(
-      createServiceClientFromEnv({
-        SUPABASE_URL: URL!,
-        SUPABASE_SECRET_KEY: KEY!,
-      } as never) as never,
+      pool!,
       s.orgId,
       DATE,
       [

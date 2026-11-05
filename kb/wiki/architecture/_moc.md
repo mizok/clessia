@@ -232,6 +232,14 @@ Tags: `architecture`, `login`, `select-role`, `ux`
 
 Links to: [[specs/public/login]]
 
+## [[architecture/dialog-frame|對話框與貼底面板的共用規則（app-dialog-frame）]]
+
+全站對話框收斂成共用殼 app-dialog-frame；寬三種、內距 token、sticky 底部、貼底底部留白＋safe-area 只墊一次；進退場時長 token，減少動態時只淡入淡出。#2290 分批遷移中。
+
+Tags: `architecture`, `dialog`, `a6`, `motion`, `accessibility`
+
+Links to: [[architecture/motion]], [[architecture/a6-adoption-rules]]
+
 ## [[architecture/motion|全站動態規則（設計稿：換頁方向、頁內切換、列表補位、數字變化）]]
 
 設計稿（#1635，未批准）。2026-10-16 在本機實跑盤點：頁內的狀態變化（換週、換日、日／週、篩選切換、tab）全部是瞬間替換；換頁只有內容區淡入淡出，而且沒有處理「減少動態」。提案：換頁依網址深度給方向（往深從右進、返回從左、同層只淡入淡出）；低頻的模式切換用同文件 view transition；連點型控制項（換週箭頭）不能用 VT —— 實測 VT 動畫期間的第二下點擊會被吞掉（規格：期間點擊一律打到 document element），改成內容層的 animate.enter；新增／刪除列照 A6 的 row-new，補位只在刪除時用 VT。曲線沿用 #1634 的 --arrive／--leave，不另訂。

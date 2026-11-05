@@ -20,7 +20,7 @@ import { LoginLinkDialogComponent } from '@shared/components/login-link-dialog/l
 import { StaffPage } from './staff.page';
 import { KioskFormDialogComponent } from './kiosk-form-dialog/kiosk-form-dialog.component';
 import { StaffFormDialogComponent } from './staff-form-dialog.component';
-import { PermissionListDialogComponent } from './permission-list-dialog/permission-list-dialog.component';
+import { PermissionDialogComponent } from './permission-dialog/permission-dialog.component';
 
 describe('StaffPage', () => {
   let component: StaffPage;
@@ -419,6 +419,13 @@ describe('StaffPage', () => {
         { data: Record<string, unknown> },
       ];
 
+    it('列尾「⋯」：管理員有「權限設定」、開權限對話框；機台沒有（#1314 ST2，A6 staff.html:189）', () => {
+      const admin = { ...kiosk, id: 'a1', roles: ['admin'], permissions: [] } as unknown as Staff;
+      menuFor(admin).find((i) => i.label === '權限設定')!.command!();
+      expect(lastDialog()[0]).toBe(PermissionDialogComponent);
+      expect(menuFor(kiosk).some((i) => i.label === '權限設定')).toBe(false);
+    });
+
     it('「新增掃碼機台」開機台 dialog；建好後用機台措辭開 QR', () => {
       dialogServiceMock.open.mockReturnValueOnce({
         onClose: of({ data: kiosk, loginUrl: 'https://x/link' }),
@@ -746,7 +753,7 @@ describe('StaffPage', () => {
       expect(lastList()['status']).toBe('archived');
     });
 
-    it('管理員列有「權限 N 項」，老師沒有；點下去開唯讀清單，只列他有的權限', () => {
+    it('管理員列有「權限 N 項」，老師沒有；點下去開權限設定（#1314 ST2）', () => {
       respond([
         person('boss', { roles: ['admin'], permissions: ['manage_courses', 'view_reports'] }),
         person('t', {}),
@@ -761,8 +768,8 @@ describe('StaffPage', () => {
         unknown,
         { data: Record<string, unknown> },
       ];
-      expect(dialog).toBe(PermissionListDialogComponent);
-      expect(config.data['permissions']).toEqual(['manage_courses', 'view_reports']);
+      expect(dialog).toBe(PermissionDialogComponent);
+      expect((config.data['staff'] as { id: string }).id).toBe('boss');
     });
 
     it('點姓名開編輯；機台開機台 dialog', () => {
