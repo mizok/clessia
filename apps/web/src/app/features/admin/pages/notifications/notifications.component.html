@@ -176,7 +176,8 @@
   </div>
 } @else {
   <div class="page-wrap flex flex-col pb-12">
-    <section aria-label="已發布">
+    <!-- 不另包「已發布」landmark：稿是月份章直接排在頁面下（A6 `#sent > .chap`），多一層 region 章名就被收進它底下 -->
+    <div>
       <app-reload-veil [loading]="loading()">
         <app-skeleton reloadSkeleton label="已發布公告載入中" chapter [count]="3" />
         @if (loadError()) {
@@ -223,7 +224,7 @@
           }
         }
       </app-reload-veil>
-    </section>
+    </div>
   </div>
 }
 

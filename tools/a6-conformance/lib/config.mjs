@@ -2147,6 +2147,14 @@ export const PAGES = {
         reason: '發布表單改成彈窗：工具列「發送通知」是它的入口',
         source: `${rule('R5')}「通知中心發布表單」2026-10-16；#1689`,
       },
+      // 稿有 3 個月份章、本機公告只有 2 個月（多出的那章工具已歸資料差）；那章的章名被後綴配對配到 app 第一章的清單上
+      ...['角色', '文案', '黏住', '樣式'].map((status) => ({
+        status,
+        a6: '>landmark:region\\[#月\\]~3>text:div\\[#月\\]$',
+        app: '>landmark:region\\[#月\\]>list$',
+        reason: '工具限制：稿多一個月份章（資料差），它的章名被配到 app 第一章的清單',
+        source: '本頁 diff 的資料差列「A6 多一個同型區塊：landmark:region「#月」」',
+      })),
     ],
   },
   meals: {
