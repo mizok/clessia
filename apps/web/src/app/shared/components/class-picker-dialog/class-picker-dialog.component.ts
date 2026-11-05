@@ -10,6 +10,7 @@ import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { SelectModule } from 'primeng/select';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { ClassesService, Class } from '@core/classes.service';
 import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/students.service';
 
@@ -17,6 +18,7 @@ import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/student
   selector: 'app-class-picker-dialog',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     TextSwapDirective,
     FormsModule,
     ButtonModule,
@@ -32,6 +34,8 @@ export class ClassPickerDialogComponent implements OnInit {
   private readonly classesService = inject(ClassesService);
   private readonly ref = inject(DynamicDialogRef);
   private readonly config = inject(DynamicDialogConfig);
+  /** 殼的標題：開窗端的 header（「{學生} — 選擇班級」）；開窗端要 `showHeader: false` */
+  protected readonly title = this.config.header ?? '選擇班級';
   private readonly destroyRef = inject(DestroyRef);
   private readonly searchSubject = new Subject<string>();
 
