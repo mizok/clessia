@@ -1514,6 +1514,16 @@ export const PAGES = {
       },
     },
     deviations: [
+      // 停用開課班（#2361）：標題帶班名，稿是示範班「國三數學A班」、seed 是另一個班 —— 文案是資料
+      ...[
+        { status: '文案', a6: '(^pop\\[off\\]>|>)landmark:dialog\\[停用「國三數學A班」\\]$' },
+        { status: '文案', a6: '>heading:h2\\[停用「國三數學A班」\\]$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'off',
+        reason: '資料：標題帶量測那個班的班名（稿是示範班）',
+        source: 'class.html:251（A2.form title「停用「班名」」）；#2361',
+      })),
       noCampusSwitch('一個班只屬於一間分校，頂欄切到別的分校會跟頁面矛盾'),
       // 量的是 seed.sql 的「數學班 A」，稿是「國三數學A班」：班名不同，狀態標跟著位移
       {

@@ -267,12 +267,16 @@ export class ClassDetailPage implements OnInit {
     const cls = this.cls();
     if (!cls) return;
     if (cls.isActive) {
+      // 副標「目前 N 位學生在籍」（A6）：班級資料沒帶人數，用頁上的名單算（同挑學生時的口徑）
+      const enrolledCount = this.enrollments().filter((e) =>
+        ['active', 'pending_payment'].includes(e.status),
+      ).length;
       const ref = this.dialogService.open(DeactivateClassDialogComponent, {
         width: 'var(--dlg-w-md)',
         modal: true,
         showHeader: false,
         appendTo: this.overlayContainer || 'body',
-        data: { cls },
+        data: { cls: { ...cls, enrolledCount } },
       });
       ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
         if (result) this.loadClass();
