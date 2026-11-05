@@ -1282,7 +1282,7 @@ export class CoursesPage implements OnInit {
     }
 
     const ref = this.dialogService.open(GenerateSessionsDialogComponent, {
-      width: '600px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
@@ -1384,7 +1384,7 @@ export class CoursesPage implements OnInit {
   protected confirmToggleActive(cls: Class): void {
     if (cls.isActive) {
       const ref = this.dialogService.open(DeactivateClassDialogComponent, {
-        width: '500px',
+        width: 'var(--dlg-w-md)',
         modal: true,
         showHeader: false,
         appendTo: this.overlayContainer || 'body',

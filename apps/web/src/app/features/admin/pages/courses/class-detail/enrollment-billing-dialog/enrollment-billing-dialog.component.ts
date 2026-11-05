@@ -1,3 +1,4 @@
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
@@ -54,6 +55,7 @@ import { SessionPackFormDialogComponent } from '../session-pack-form-dialog/sess
     SelectModule,
     TextareaModule,
     InlineNoticeComponent,
+    DialogFrameComponent,
   ],
   providers: [ConfirmationService],
   templateUrl: './enrollment-billing-dialog.component.html',
@@ -139,7 +141,7 @@ export class EnrollmentBillingDialogComponent {
 
   protected openBuyPackDialog(): void {
     const dialogRef = this.dialogService.open(SessionPackFormDialogComponent, {
-      width: '440px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
