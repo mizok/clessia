@@ -874,6 +874,14 @@ export const PAGES = {
   billing: {
     a6: 'billing.html',
     app: '/admin/payments',
+    // 收款彈窗（#2316 寫期別、#2290 換殼）：稿列上的「收款」↔ app 列上的「收款」（DynamicDialog）
+    a6Open: { pay: { click: '[data-pay]', root: 'dialog[open]' } },
+    appOpen: {
+      pay: {
+        click: 'button[aria-label^="記錄 "]',
+        root: '.p-dialog:has(app-payment-form-dialog)',
+      },
+    },
     deviations: [
       {
         status: '多',
