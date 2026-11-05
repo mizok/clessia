@@ -125,7 +125,8 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
 
       @if (mode() === 'sessions') {
         <!-- A6 leave.html newLeave（#2318）：請假日期 → 那天的課（勾選，預設全勾）→ 原因 -->
-        <form ngNoForm class="flex flex-col gap-4" (submit)="$event.preventDefault()">
+        <!-- 稿的這幾欄直接在 acset__body 裡，不包 form -->
+        <div class="flex flex-col gap-4">
           <div class="min-w-0">
             <label class="mb-1 block text-md font-semibold text-zinc-700" for="leave-day"
               >請假日期 <span class="text-error-700" aria-hidden="true">*</span></label
@@ -143,34 +144,37 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
               要請假的課
             </p>
             @if (!studentId()) {
-              <p class="m-0 text-md text-zinc-600">先選學生，這裡會列出他那天的課。</p>
+              <!-- A6 .pick__none -->
+              <p class="m-0 rounded-md bg-zinc-100 p-3 text-md text-zinc-700">
+                先選學生，這裡會列出他那天的課。
+              </p>
             } @else if (dayState() === 'loading') {
               <p class="m-0 text-md text-zinc-600" role="status">載入這天的課…</p>
             } @else if (dayState() === 'error') {
               <p class="m-0 text-md text-error-700">讀不到這天的課，請換個日期或稍後再試。</p>
             } @else if (daySessions().length === 0) {
-              <p class="m-0 text-md text-zinc-600">
+              <p class="m-0 rounded-md bg-zinc-100 p-3 text-md text-zinc-700">
                 該日無排課。{{ studentLabel() }}在 {{ dayLabel() }} 沒有課，換一天試試。
               </p>
             } @else {
               <div class="flex flex-col gap-2" role="group" aria-labelledby="leave-pick-label">
                 @for (s of daySessions(); track s.sessionId) {
                   <label
-                    class="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-3 has-checked:border-zinc-900 has-disabled:cursor-not-allowed has-disabled:text-zinc-500"
+                    class="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-3 has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset has-disabled:cursor-not-allowed has-disabled:text-zinc-500"
                   >
                     <input
                       type="checkbox"
-                      class="m-0 accent-zinc-900"
+                      class="m-0 size-[18px] accent-zinc-900"
                       [checked]="picked().has(s.sessionId)"
                       [disabled]="!!blockedReason(s)"
                       (change)="toggle(s.sessionId)"
                     />
                     <span class="font-semibold">{{ s.className }}</span>
-                    <small class="text-sm text-zinc-600 tabular-nums"
+                    <small class="ml-auto text-sm text-zinc-600 tabular-nums"
                       >{{ s.startTime?.slice(0, 5) }}–{{ s.endTime?.slice(0, 5) }}</small
                     >
                     @if (blockedReason(s); as why) {
-                      <span class="ml-auto text-sm text-zinc-600">{{ why }}</span>
+                      <span class="text-sm text-zinc-600">{{ why }}</span>
                     }
                   </label>
                 }
@@ -190,7 +194,7 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
               class="h-10 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
             />
           </div>
-        </form>
+        </div>
       } @else {
         <!-- A6 forms.leave：四個欄各自有標籤，桌機兩兩並排、手機一欄一列 -->
         <!-- ngNoForm：A6 的欄位包在 <form> 裡，但這裡的 ngModel 是 standalone，不要 NgForm -->

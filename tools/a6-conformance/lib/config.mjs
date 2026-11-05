@@ -1766,6 +1766,23 @@ export const PAGES = {
     a6Open: opensOf('leave', 'a6Open'),
     appOpen: opensOf('leave', 'appOpen'),
     deviations: [
+      // 登記請假（#2318）：分校、年級兩個篩選（縮小學生搜尋）現況有、稿沒有，不刪；下面的欄位跟著往下
+      ...[
+        {
+          status: '多',
+          app: '>landmark:dialog\\[登記請假\\]>(text:label\\[(分校|年級)\\]|control:combobox\\[[^\\]]*\\])$',
+        },
+        {
+          status: '位置',
+          a6: '>landmark:dialog\\[登記請假\\]>',
+          detail: '連帶自待修「control:combobox\\[',
+        },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-leave',
+        reason: '現況有、稿沒畫：學生欄上的分校、年級篩選（縮小同名學生的搜尋），不刪',
+        source: `${rule('R2')}`,
+      })),
       {
         // 稿的請假用今天起算的相對日期（leave.html D(n)），所以永遠有今天、明天的章；
         // 本機 seed 的請假是 reset 當天起算，「待處理」分頁今天以後沒有，app 顯示空狀態
