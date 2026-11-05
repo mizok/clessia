@@ -119,6 +119,15 @@ describe('PageActionsComponent', () => {
     expect(dock.classList.contains('border-t')).toBe(false);
   });
 
+  // #2293：離底讀 --tray-bottom-gap（16px＋safe-area；原本寫死 12px），跟 shell 的內容留白同一組 token
+  it('托盤離底讀 --tray-bottom-gap（含 safe-area）', async () => {
+    await setup({ label: '新增人員' });
+    const dock = host.querySelector('.page-actions__dock') as HTMLElement;
+    expect(dock.className).toContain(
+      'bottom-[calc(var(--tray-bottom-gap)+env(safe-area-inset-bottom,0px))]',
+    );
+  });
+
   // #2005：「只有一顆，整條白底太長」（使用者 10-23）→ 一顆時只包住按鈕、靠右；兩顆才滿版
   it('只有一顆：托盤靠右、不拉到左邊（只包住按鈕）', async () => {
     await setup({ label: '新增學生' });

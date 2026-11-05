@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import workbenchApp from './workbench';
 import { restBackedSummaryPool } from '../test-utils/rest-backed-summary-pool';
@@ -389,5 +389,44 @@ describe('GET /api/workbench/today —— 分校範圍要下到查詢上', () =>
     });
 
     expect(inCalls.some((call) => call.column === 'classes.campus_id')).toBe(false);
+  });
+});
+
+describe('GET /api/workbench/today 走 pg（#1595 P2 ①）', () => {
+  const appWith = (pool: unknown) => {
+    const app = new Hono();
+    app.use('/api/*', async (c, next) => {
+      const context = c as unknown as { set: (key: string, value: unknown) => void };
+      context.set('orgId', 'org-1');
+      context.set('userId', 'user-1');
+      context.set('roles', ['admin']);
+      context.set('campusScope', ['campus-1']);
+      if (pool) context.set('auth', { pool });
+      await next();
+    });
+    app.route('/api/workbench', workbenchApp);
+    return app;
+  };
+
+  it('沒有 pool → 500，不退回 REST', async () => {
+    const res = await appWith(null).request('/api/workbench/today?date=2026-06-01');
+    expect(res.status).toBe(500);
+  });
+
+  it('SQL 拋錯 → 500', async () => {
+    const pool = { query: vi.fn().mockRejectedValue(new Error('boom')) };
+    const res = await appWith(pool).request('/api/workbench/today?date=2026-06-01');
+    expect(res.status).toBe(500);
+  });
+
+  it('第一波一支 SQL：org、日期、分校範圍（受限＝他的分校）、單一分校時帶分校 id', async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({
+        rows: [{ result: { orgMode: 'per_session', campusMode: null, sessions: [] } }],
+      }),
+    };
+    const res = await appWith(pool).request('/api/workbench/today?date=2026-06-01');
+    expect(res.status).toBe(200);
+    expect(pool.query.mock.calls[0]![1]).toEqual(['org-1', '2026-06-01', ['campus-1'], 'campus-1']);
   });
 });

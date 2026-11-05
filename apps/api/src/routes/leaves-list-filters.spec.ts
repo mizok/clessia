@@ -43,7 +43,7 @@ const of = (calls: Array<{ table: string; op: string; args: unknown[] }>, table:
   calls.filter((c) => c.table === table).map((c) => [c.op, ...c.args]);
 
 const SCOPED_EMBED =
-  'students!inner(name, enrollments!inner(class_id, classes!inner(campus_id, course_id)))';
+  'students!inner(name, grade, enrollments!inner(class_id, classes!inner(campus_id, course_id)))';
 const selectOf = (calls: Array<{ table: string; op: string; args: unknown[] }>) =>
   String(of(calls, 'leave_requests').find((c) => c[0] === 'select')?.[1] ?? '');
 
@@ -96,6 +96,6 @@ describe('GET /api/leaves —— 課程／開課班／分校篩選（#1100 #31�
     const { app, calls } = setup();
     await app.request('/');
     expect(selectOf(calls)).not.toContain('enrollments');
-    expect(selectOf(calls)).toContain('students!inner(name)');
+    expect(selectOf(calls)).toContain('students!inner(name, grade)');
   });
 });
