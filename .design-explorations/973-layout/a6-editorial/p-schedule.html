@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 課表查看（家長端）</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .wkbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); width: 100%; }
+  .wkbar__nav { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--zinc-300); border-radius: var(--radius-md); background: #fff; color: var(--zinc-900); cursor: pointer; }
+  .wkbar__nav:disabled { opacity: 0.4; cursor: not-allowed; }
+  .wkbar__t { min-width: 9.5em; text-align: center; font-weight: var(--font-semibold); color: var(--on-ink); font-variant-numeric: tabular-nums; }
+  .wkbar__today { height: 40px; }
+  .wkbar__jump { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; color: var(--on-ink-2); font-size: var(--text-md); }
+  .wkbar__jump input { height: 40px; }
+  /* 桌機：週曆（七欄）；手機：同一份 DOM 變成一天一段的直排清單 */
+  .wk { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-2); margin-top: var(--space-8); }
+  .wk__d { min-width: 0; }
+  .wk__h { display: flex; align-items: baseline; gap: var(--space-2); padding: var(--space-2) 0; border-bottom: 2px solid var(--zinc-200); font-variant-numeric: tabular-nums; }
+  .wk__h b { font-size: var(--text-lg); }
+  .wk__h small { color: var(--zinc-600); font-size: var(--text-sm); }
+  .wk__d--today .wk__h { border-bottom-color: var(--accent-vivid); }
+  .wk__none { padding: var(--space-3) 0; color: var(--zinc-600); font-size: var(--text-md); }
+  .sc { display: grid; gap: 4px; width: 100%; margin-top: var(--space-2); padding: var(--space-3); border: 1px solid var(--zinc-200); border-radius: var(--radius-md); background: #fff; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .sc:hover { border-color: var(--zinc-500); }
+  .sc:focus-visible { outline: 2px solid var(--zinc-900); outline-offset: 2px; }
+  .sc__t { font-size: var(--text-md); font-weight: var(--font-bold); font-variant-numeric: tabular-nums; }
+  .sc__c { font-size: var(--text-base); font-weight: var(--font-bold); line-height: 1.35; }
+  .sc__m { font-size: var(--text-sm); color: var(--zinc-700); }
+  .sc__tags { display: flex; flex-wrap: wrap; gap: 4px; }
+  .sc--off .sc__t, .sc--off .sc__c { color: var(--zinc-600); text-decoration: line-through; }
+  .sc--live { border-color: var(--zinc-900); box-shadow: inset 0 0 0 1px var(--zinc-900); }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; border: 1px solid var(--zinc-300); border-radius: var(--radius-sm); font-size: var(--text-xs); font-weight: var(--font-semibold); color: var(--zinc-800); line-height: 18px; }
+  .chip--chg { border-color: var(--zinc-900); }
+  .wk__out { margin-top: var(--space-8); padding: var(--space-6); border-radius: var(--radius-lg); background: var(--gray); }
+  .wk__out p:first-child { font-size: var(--text-lg); font-weight: var(--font-bold); }
+  .wk__out p + p { margin-top: var(--space-1); color: var(--zinc-700); }
+  /* 課堂詳情 */
+  .sd { display: grid; gap: var(--space-5); }
+  .sd__h { margin-bottom: var(--space-2); font-size: 13px; font-weight: 700; color: var(--zinc-800); }
+  .sd__kv { display: grid; grid-template-columns: 5.5em minmax(0, 1fr); gap: var(--space-2) var(--space-3); font-size: var(--text-base); }
+  .sd__kv dt { color: var(--zinc-600); }
+  .sd__box { padding: var(--space-4); border-radius: var(--radius-md); background: var(--gray); font-size: var(--text-base); }
+  .sd__box p + p { margin-top: var(--space-2); }
+  .sd__box small { color: var(--zinc-600); font-size: var(--text-sm); }
+  .sd__file { display: inline-flex; align-items: center; gap: 6px; color: var(--zinc-900); text-underline-offset: 3px; }
+  .sd__sign { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-3); }
+  .sd__hist li { padding: var(--space-2) 0; border-bottom: 1px solid var(--zinc-200); font-size: var(--text-md); }
+  .sd__hist b { font-variant-numeric: tabular-nums; margin-right: var(--space-2); }
+  @media (max-width: 860px) {
+    .wk { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); margin-top: var(--space-6); }
+    .wk__d--empty { display: flex; align-items: baseline; gap: var(--space-3); }
+    .wk__d--empty .wk__h { border: 0; padding: 0; }
+    .wk__d--empty .wk__none { padding: 0; }
+    /* 使用者 10/03 08:4x：卡片內部一欄 —— 時間在上、課名在下（原本時間在左欄並排） */
+    .sc { padding: var(--space-4); min-height: 64px; }
+    .sc__t { font-size: var(--text-base); }
+    .wkbar__t { min-width: 0; flex: 1; }
+    .wkbar__jump { margin-left: 0; width: 100%; }
+    .wkbar__jump input { flex: 1; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>課表查看 · 家長端（#990 批 5）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（specs/parent/schedule.md、rules/contact-book-rules.md、rules/teaching-log-rules.md）</th><th>產品現況（sitemap/parent/schedule.md）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>整頁</td><td>週曆（桌機）／單日或本週直排（手機）</td><td><b>佔位頁</b>：只有 EmptyState「這個功能還在準備中」</td><td>照規格畫完整頁（計畫席裁 A）。同一份 DOM：桌機七欄週曆，手機變一天一段的直排清單（規格的第二種手機做法 —— 家長一週只有 3–4 堂，直排比左右滑更一眼看完）</td></tr>
+      <tr><td>導覽</td><td>週切換（‹ 本週 ›）、月曆快速跳轉</td><td>—</td><td>工具列：‹ 週 ›、「回本週」、原生日期欄位「跳到」（不自刻 datepicker）</td></tr>
+      <tr><td>卡片</td><td>時間、課程名、老師、分校；異動標記；小考標籤</td><td>—</td><td>照做；停課整張刪除線＋「停課」；調課／代課標記用近黑框 chip（不用色相，A6 色相只編碼嚴重度）</td></tr>
+      <tr><td>詳情</td><td>基本資訊、出勤與到班時間、聯絡簿（課程範圍、作業、備註、附件）、最近 10 堂聯絡簿、小考、異動詳情</td><td>—</td><td>對話框。<b>rules 比 spec 新</b>：聯絡簿分兩種 —— 國小班（use_contact_book 開）是「每生每日一則」＋家長「已閱簽收」鈕；國中班是教務日誌，家長只看得到<b>作業安排</b>（教學紀錄預設內部）。所以國小孩子看「今天的聯絡簿＋簽收」，國中孩子看「這堂的作業」</td></tr>
+      <tr><td>出勤</td><td>出勤狀態、到班時間</td><td>—</td><td>日到班：「16:52 到班（掃碼）」—— 掃一次＝當天所有課都到，所以同一天兩堂寫同一個時間。沒有遲到</td></tr>
+      <tr><td>時間範圍</td><td>過去回溯到報名生效日；未來只到已產生的課堂</td><td>—</td><td>週切換到報名前或學期外，整週換成一句「這週還沒報名」或「這週的課還沒排出來」，‹ › 在邊界停住</td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>手機首屏只回答「下一堂是什麼時候」：開場色面的標題。</li>
+    <li>示範：林子晴（國三，三個班，本週有調課、小考、下週有停課），王柏翰（小五，國小班用聯絡簿，可簽收）。</li>
+    <li>小考連到成績查閱；到班連到到班紀錄。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, wd, toMin, esc, kids, toast, act } = A2;
+  const k = kids.active;
+  const TODAY = C.TODAY, NOW = C.NOW;
+  const addD = (iso, n) => C.addDays(iso, n);
+  const monday = (iso) => { const d = new Date(iso + 'T00:00:00'); return addD(iso, -((d.getDay() + 6) % 7)); };
+  const FIRST = '2026-07-23', LAST = C.TERM_END; // 報名生效日、已產生課堂的最後一天
+  const ELEM = k && k.grade[0] === 'P'; // 國小班用個人聯絡簿（rules/contact-book-rules）
+
+  const cls = k ? k.enrollments.map((e) => C.classById[e.classId]) : [];
+  // 一週的課：每班每週一堂；本週放進異動與小考（最壞情況），下週一堂停課
+  function week(mon) {
+    const thisW = mon === monday(TODAY), nextW = mon === addD(monday(TODAY), 7);
+    return cls.map((c, i) => {
+      let date = addD(mon, c.weekday - 1), start = c.start, end = c.end, chg = null;
+      if (thisW && i === 1) { chg = { type: '調課', text: `從 ${md(date)}（${wd(date)}）${c.start} 改到 ${md(addD(date, 1))}（${wd(addD(date, 1))}）${c.start}`, why: '學校段考週，跟家長群組公告過' }; date = addD(date, 1); }
+      if (thisW && i === 0 && cls.length === 1) chg = { type: '代課', text: `本堂由 ${C.teachers[2].name} 老師代課`, why: `${c.teacher} 老師請假` };
+      if (nextW && i === 0) chg = { type: '停課', text: '本堂停課，補課另行通知', why: '颱風停課' };
+      const s = { id: `${date}-${c.id}`, date, start, end, c, chg, exam: thisW && i === cls.length - 1 ? '第三次小考' : null };
+      s.when = chg && chg.type === '停課' ? 'off' : date < TODAY || (date === TODAY && end <= NOW) ? 'past' : date === TODAY && start <= NOW ? 'live' : 'future';
+      return s;
+    }).filter((s) => s.date >= FIRST && s.date <= LAST).sort((a, b) => (a.date + a.start < b.date + b.start ? -1 : 1));
+  }
+  const st = { mon: monday(TODAY) };
+  const ARRIVE = (date) => `${16 + (date.charCodeAt(9) % 2)}:${String(40 + (date.charCodeAt(8) * 7 + date.charCodeAt(9)) % 19).padStart(2, '0')}`;
+
+  const tags = (s) => [s.chg ? `<span class="chip chip--chg">${s.chg.type}</span>` : '', s.exam ? '<span class="chip">小考</span>' : '', s.when === 'live' ? '<span class="chip chip--chg">上課中</span>' : ''].join('');
+  const card = (s) => `<button class="sc${s.when === 'off' ? ' sc--off' : ''}${s.when === 'live' ? ' sc--live' : ''}" type="button" data-s="${s.id}">
+      <span class="sc__t">${s.start}–${s.end}</span><span class="sc__c">${esc(s.c.name)}</span>
+      <span class="sc__m">${esc(s.c.teacher)} · ${esc(C.campus.name)}</span>${tags(s) ? `<span class="sc__tags">${tags(s)}</span>` : ''}</button>`;
+
+  function render() {
+    const mon = st.mon, W = week(mon), sun = addD(mon, 6);
+    document.getElementById('wk-t').textContent = `${md(mon)}～${md(sun)}${mon === monday(TODAY) ? '（本週）' : ''}`;
+    document.getElementById('wk-prev').disabled = mon <= monday(FIRST);
+    document.getElementById('wk-next').disabled = mon >= monday(LAST);
+    const el = document.getElementById('wk');
+    if (sun < FIRST || mon > LAST) {
+      el.innerHTML = `<div class="wk__out"><p>${sun < FIRST ? '這週還沒報名' : '這週的課還沒排出來'}</p><p>${sun < FIRST ? `${esc(k.name)} 的課從 ${md(FIRST)} 開始。` : `目前排到 ${md(LAST)}。`}</p></div>`;
+      el.className = '';
+      return;
+    }
+    el.className = 'wk';
+    el.innerHTML = [0, 1, 2, 3, 4, 5, 6].map((i) => {
+      const d = addD(mon, i), list = W.filter((s) => s.date === d);
+      return `<section class="wk__d${d === TODAY ? ' wk__d--today' : ''}${list.length ? '' : ' wk__d--empty'}" aria-label="${md(d)}">
+        <h2 class="wk__h"><b>週${'日一二三四五六'[new Date(d + 'T00:00:00').getDay()]}</b><small>${md(d)}${d === TODAY ? ' · 今天' : ''}</small></h2>
+        ${list.length ? list.map(card).join('') : '<p class="wk__none">沒課</p>'}</section>`;
+    }).join('');
+  }
+
+  // 開場：下一堂
+  const all = [week(st.mon), week(addD(st.mon, 7))].flat();
+  const live = all.find((s) => s.when === 'live'), nx = all.find((s) => s.when === 'future');
+  const thisN = week(st.mon).filter((s) => s.when !== 'off').length;
+  shell({
+    role: 'parent', page: 'p-schedule', child: true,
+    title: !k ? '課表查看' : live ? `${esc(k.name)} 正在上<br>${esc(live.c.name)}。` : nx ? `${esc(k.name)} 下一堂<br>${nx.date === TODAY ? '今天' : `${md(nx.date)}（${wd(nx.date)}）`} ${nx.start}。` : `${esc(k.name)} 這學期的課<br>都上完了。`,
+    sub: k ? `${live ? `${live.end} 下課 · ` : nx ? `${esc(nx.c.name)} · ` : ''}本週 ${thisN} 堂` : ' ',
+    phase: 7300,
+    bar: k ? `<div class="wkbar"><button class="wkbar__nav" type="button" id="wk-prev" aria-label="上一週">${icon.left}</button><span class="wkbar__t" id="wk-t" aria-live="polite"></span><button class="wkbar__nav" type="button" id="wk-next" aria-label="下一週">${icon.right}</button>
+      <button class="btn wkbar__today" type="button" id="wk-home">回本週</button>
+      <label class="wkbar__jump">跳到<input class="acset__in" type="date" id="wk-jump" min="${FIRST}" max="${LAST}" value="${TODAY}"></label></div>` : '',
+  }, kids.gate(`<div id="wk"></div>`));
+  if (!k) return;
+  render();
+
+  // ── 課堂詳情 ──
+  function detail(s) {
+    const d = document.createElement('dialog');
+    d.className = 'acset fdlg';
+    d.setAttribute('aria-labelledby', 'sd-t');
+    const att = s.when === 'off' ? '停課，不用到班' : s.when === 'future' ? '還沒上課' : `到了 · ${ARRIVE(s.date)} 掃碼到班`;
+    const elemBook = `<div><p class="sd__h">${md(s.date)} 的聯絡簿</p><div class="sd__box">
+        <p>今天英文單字小考 18／20，錯的兩題是拼字。上課很專心，回家請再複習 Unit 5 的單字表。</p>
+        <p><small>簡志明老師 · ${md(s.date)} 18:12 寫</small></p>
+        <p><button class="sd__file btn btn--sm" type="button" data-file="Unit5-單字表.pdf">${icon.leave}Unit5-單字表.pdf</button></p>
+        <div class="sd__sign"><button class="btn btn--cta" type="button" id="sd-sign">已閱簽收</button><span class="new">新</span></div></div></div>`;
+    const jrBook = `<div><p class="sd__h">這堂的作業</p><div class="sd__box">
+        <p><b>課程範圍</b>　第 3 章 3-2 一元二次方程式</p>
+        <p><b>作業</b>　講義 p.42–45，下週一前完成</p>
+        <p><b>備註</b>　下堂考 3-1～3-2</p>
+        <p><button class="sd__file btn btn--sm" type="button" data-file="3-2 補充講義.pdf">${icon.leave}3-2 補充講義.pdf</button></p></div></div>`;
+    const hist = Array.from({ length: 10 }, (_, i) => addD(s.date, -7 * (i + 1))).filter((x) => x >= FIRST)
+      .map((x, i) => `<li><b>${md(x)}</b>${ELEM ? ['上課專心，單字全對。', '作文初稿完成，回家修第二段。', '忘了帶講義，已補印。'][i % 3] : ['講義 p.' + (30 - i * 3) + '–' + (33 - i * 3), '習作第 ' + (8 - i) + ' 回', '複習卷一張'][i % 3]}</li>`).join('');
+    d.innerHTML = `<div class="acset__head"><div><h2 class="acset__t" id="sd-t">${esc(s.c.name)}</h2><p class="fdlg__sub">${md(s.date)}（${wd(s.date)}）${s.start}–${s.end}</p></div><button class="acset__x" type="button" aria-label="關閉" data-x>${icon.x}</button></div>
+      <div class="acset__body sd">
+        <dl class="sd__kv"><dt>老師</dt><dd>${esc(s.c.teacher)}</dd><dt>分校</dt><dd>${esc(C.campus.name)} · ${esc(s.c.room)}</dd>
+          <dt>出勤</dt><dd>${att}${s.when === 'past' || s.when === 'live' ? ` · <a href="p-attendance.html">到班紀錄</a>` : ''}</dd>
+          ${s.exam ? `<dt>小考</dt><dd>${s.exam}${s.when === 'past' ? ` · <a href="p-grades.html">看成績</a>` : '（這堂考）'}</dd>` : ''}</dl>
+        ${s.chg ? `<div><p class="sd__h">課務異動 · ${s.chg.type}</p><div class="sd__box"><p>${esc(s.chg.text)}</p><p><small>原因：${esc(s.chg.why)}</small></p></div></div>` : ''}
+        ${s.when === 'past' || s.when === 'live' ? (ELEM ? elemBook : jrBook) : ''}
+        ${hist ? `<details class="coll"><summary class="coll__sum"><span class="coll__t">${ELEM ? '之前的聯絡簿' : '之前的作業'}</span><span class="coll__m">最近 ${hist.split('<li>').length - 1} 堂</span></summary><div class="coll__body"><ul class="sd__hist">${hist}</ul></div></details>` : ''}
+      </div>
+      <div class="fdlg__foot"><button class="btn" type="button" data-x>關閉</button></div>`;
+    document.body.append(d);
+    d.addEventListener('click', (e) => {
+      if (e.target === d || e.target.closest('[data-x]')) d.close();
+      const f = e.target.closest('[data-file]');
+      if (f) toast(`已下載 ${f.dataset.file}`);
+      const g = e.target.closest('#sd-sign');
+      if (g && !g.disabled) act(g, { busy: '簽收中…', ok: `已簽收 ${md(s.date)} 的聯絡簿`, run: () => { g.textContent = `已簽收 · ${NOW}`; g.disabled = true; g.classList.remove('btn--cta'); } });
+    });
+    d.addEventListener('close', () => setTimeout(() => d.remove(), 200));
+    d.showModal();
+  }
+
+  const go = (mon) => { st.mon = mon; render(); };
+  document.getElementById('wk-prev').addEventListener('click', () => go(addD(st.mon, -7)));
+  document.getElementById('wk-next').addEventListener('click', () => go(addD(st.mon, 7)));
+  document.getElementById('wk-home').addEventListener('click', () => { go(monday(TODAY)); toast('回到本週'); });
+  document.getElementById('wk-jump').addEventListener('change', (e) => { if (e.target.value) go(monday(e.target.value)); });
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-s]');
+    if (!b) return;
+    const id = b.dataset.s;
+    detail([week(st.mon), week(addD(st.mon, -7)), week(addD(st.mon, 7))].flat().find((s) => s.id === id));
+  });
+})();
+</script>
+</body>
+</html>

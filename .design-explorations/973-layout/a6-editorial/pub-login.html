@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 登入（公開頁）</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* 照產品 login.component.scss 搬。桌機在白面裡垂直置中（產品 :host min-height 100%） */
+  @media (min-width: 1025px) {
+    html, body, #app, .ps { height: 100%; }
+    .ps__main { min-height: 100%; }
+    .ps__route { justify-content: center; }
+  }
+  .login { --line-brand: #06c755; --line-brand-hover: #05b34c; --line-brand-tint: rgb(6 199 85 / 8%); width: 100%; max-width: 380px; }
+  .login__title { margin: 0; font-size: var(--text-2xl); font-weight: var(--font-bold); letter-spacing: -0.02em; color: var(--zinc-900); }
+  .login__sub { margin: var(--space-2) 0 0; font-size: var(--text-md); line-height: 1.75; color: var(--zinc-600); }
+  .login__line-btn { display: flex; align-items: center; justify-content: center; gap: var(--space-2); width: 100%; height: 48px; margin-top: var(--space-6); padding: 0 var(--space-4);
+    font: inherit; font-size: var(--text-base); font-weight: var(--font-semibold); color: var(--line-brand); background: #fff; border: 1px solid var(--line-brand); border-radius: var(--radius-lg); cursor: pointer;
+    transition: color 0.15s, background 0.15s, border-color 0.15s, transform 0.15s; }
+  .login__line-btn:hover:not([aria-busy='true']) { color: var(--line-brand-hover); background: var(--line-brand-tint); border-color: var(--line-brand-hover); transform: translateY(-1px); }
+  .login__line-btn:active { transform: none; }
+  /* 送出中：產品用 disabled + opacity 0.6，把本來就只有 2.26:1 的綠字再壓淡（charter 坑 27）。
+     設計稿改成不降透明度、游標等待、內容換成旋轉圖示＋「前往 LINE...」—— 「按不了」由文字與 aria-busy 表達 */
+  .login__line-btn[aria-busy='true'] { cursor: progress; }
+  .login__line-chip { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 26px; height: 26px; background: var(--line-brand); border-radius: var(--radius-md); }
+  .login__line-logo { display: block; width: 18px; height: 18px; }
+  .spin { width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .login__retry-btn { display: block; width: 100%; min-height: 44px; margin-top: var(--space-3); padding: var(--space-2) var(--space-4); border: 1px solid var(--zinc-300); border-radius: var(--radius-md); background: transparent;
+    font: inherit; color: var(--zinc-700); font-size: var(--text-sm); font-weight: var(--font-semibold); cursor: pointer; }
+  .login__retry-btn:hover { background: var(--zinc-50); }
+  .login__register-hint { margin-top: var(--space-3); font-size: var(--text-sm); color: var(--zinc-600); text-align: center; }
+  .login__foot { margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--zinc-200); }
+  .login__hint { font-size: var(--text-sm); line-height: var(--leading-relaxed); color: var(--zinc-600); }
+  .login__contact { margin-top: var(--space-2); font-size: var(--text-xs); color: var(--zinc-600); } /* 產品 zinc-500 對白 4.6 剛好過；設計稿的 zinc-500 較淺，改 600 */
+  /* 錯誤提示：照產品 inline-notice--error */
+  .notice { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-5); padding: var(--space-3); border: 1px solid #fecaca; border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); color: #991b1b; font-size: var(--text-sm); line-height: var(--leading-normal); }
+  .notice__close { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 28px; border: 0; border-radius: var(--radius-sm); background: none; color: currentColor; cursor: pointer; }
+  .notice__close:hover { background: rgb(255 255 255 / 35%); }
+  @media (pointer: coarse) { .notice__close { width: 44px; height: 44px; } }
+  @media (max-width: 860px) { .login { padding: var(--space-8) var(--space-6); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2s; } }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>登入 · 公開頁（#990 批 6）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（specs/public/login.md）</th><th>產品現況（sitemap/public/login.md）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>整體</td><td>只有 LINE 登入，沒有密碼</td><td>同</td><td>照現狀搬（計畫席裁定：公開頁照現狀，只補三條標準）</td></tr>
+      <tr><td>LINE 鍵</td><td>白底綠框、綠色 chip 裡放官方白 icon；文字對白 2.26:1 是使用者知情選的</td><td>同</td><td>照搬，<b>不修對比</b>（spec 有記折衷與否決理由）</td></tr>
+      <tr><td>送出中</td><td>—</td><td>disabled＋opacity 0.6，內容換成旋轉圖示＋「前往 LINE...」</td><td>不降透明度（2.26:1 的綠字再淡就讀不到），改 aria-busy＋游標等待；800ms 後導到選擇身分（示範使用者有三個身分）</td></tr>
+      <tr><td>錯誤提示</td><td>—</td><td>四種參數各一句（oauth-error.ts），可關閉</td><td>照搬，用 hash 看：<code>#signup-disabled</code>、<code>#access-denied</code>、<code>#error</code>（未知）、<code>#connection-error</code></td></tr>
+      <tr><td>重試</td><td>—</td><td>只在連線錯誤時出現；整頁重載，看起來像沒反應；而且巢狀在錯誤提示裡，按 ✕ 會一起收走</td><td>按了寫「重新連線中…」，成功後錯誤與重試一起消失、網址拿掉參數（就是重載後會看到的樣子）。✕ 一起收走重試照搬</td></tr>
+      <tr><td>請聯絡補習班登記</td><td>—</td><td>只在 signup_disabled 時，純文字（#694 拿掉了連到報名頁的假門）</td><td>照搬，純文字</td></tr>
+      <tr><td>✕ 觸控</td><td>—</td><td>28×28</td><td>coarse 指標下放大到 44×44</td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>外框是共用的公開頁外框（a6.js <code>A2.pub</code>），品牌面的四條連結都到得了。</li>
+    <li>已登入的人進不來這頁（產品的 guestGuard 會轉走），設計稿不模擬。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { pub, icon } = A2;
+  // 產品 oauth-error.ts ＋ auth.guard 的 reason：文字照抄
+  const ERR = {
+    'signup-disabled': '這個 LINE 帳號還沒有被登記。如果你已經報名，請向補習班索取專屬連結。',
+    'access-denied': '已取消 LINE 登入。',
+    error: 'LINE 登入沒有完成，請稍後再試。',
+    'connection-error': '連線異常，請重試。若持續發生請聯繫補習班。',
+  };
+  let state = location.hash.slice(1);
+  if (!ERR[state]) state = '';
+
+  const errHtml = () => !state ? '' : `
+    <div class="notice" role="alert"><p>${ERR[state]}</p><button type="button" class="notice__close" aria-label="關閉訊息" data-close>${icon.x}</button></div>
+    ${state === 'connection-error' ? '<button type="button" class="login__retry-btn" data-retry>重試</button>' : ''}`;
+
+  pub({ page: 'pub-login' }, `
+    <div class="login">
+      <h1 class="login__title">登入</h1>
+      <p class="login__sub">用 LINE 登入，不需要記密碼。</p>
+      <div id="err">${errHtml()}</div>
+      <button type="button" class="login__line-btn" id="line">
+        <span class="login__line-chip" aria-hidden="true"><img class="login__line-logo" src="../shared/line-logo.png" alt=""></span>使用 LINE 登入
+      </button>
+      ${state === 'signup-disabled' ? '<p class="login__register-hint">請聯絡補習班登記</p>' : ''}
+      <div class="login__foot">
+        <p class="login__hint">第一次使用？請向補習班索取專屬連結，點開後即可綁定 LINE。</p>
+        <p class="login__contact">還沒有帳號？請聯絡櫃檯開通。</p>
+      </div>
+    </div>`);
+
+  const clear = () => { state = ''; history.replaceState(null, '', location.pathname); document.getElementById('err').innerHTML = ''; document.querySelector('.login__register-hint')?.remove(); };
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-close]')) {
+      // 產品：✕ 把錯誤提示與巢狀在裡面的「重試」一起收走
+      document.getElementById('err').innerHTML = '';
+    } else if (e.target.closest('[data-retry]')) {
+      const b = e.target.closest('[data-retry]');
+      b.textContent = '重新連線中…'; b.setAttribute('aria-busy', 'true');
+      setTimeout(clear, 700);
+    } else if (e.target.closest('#line')) {
+      const b = document.getElementById('line');
+      if (b.getAttribute('aria-busy') === 'true') return;
+      b.setAttribute('aria-busy', 'true');
+      b.innerHTML = '<span class="spin" aria-hidden="true"></span>前往 LINE...';
+      // 示範：LINE 授權完成回來 → 有三個身分的帳號落在選擇身分
+      setTimeout(() => { location.href = 'pub-select-role.html'; }, 800);
+    }
+  });
+})();
+</script>
+</body>
+</html>

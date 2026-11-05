@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 報名申請（家長端）</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* ── 家長端「行政服務」四頁共用（報名申請／試聽申請／加選課程／續課資訊；同一族，四頁逐字相同 —— 主席收進 a6.css 時整段搬） ── */
+  .tabs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-5); }
+  .tabs .tlink { font-size: var(--text-base); text-decoration: none; min-height: 40px; }
+  /* 申請表：一欄、步驟編號在標題前；手機與桌機同一個順序 */
+  .apf { display: grid; gap: var(--space-8); max-width: 760px; margin-top: var(--space-8); }
+  .apf__step { display: grid; gap: var(--space-3); min-width: 0; margin: 0; padding: 0; border: 0; }
+  .apf__h { display: flex; align-items: center; gap: var(--space-2); padding: 0; font-size: var(--text-lg); font-weight: var(--font-bold); }
+  /* 使用者 10/03 08:4x：步驟標題跟內容之間要有間距。.apf__step 用 grid gap 撐開，但 fieldset 的 legend 不是 grid 項目、吃不到 gap（原本 0px）—— 只補 legend，跟 div 步驟一樣 12 */
+  legend.apf__h { margin-bottom: var(--space-3); }
+  .apf__n { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: var(--radius-full); background: var(--zinc-900); color: #fff; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+  .apf__opt { font-size: var(--text-md); font-weight: var(--font-medium); color: var(--zinc-600); }
+  .apf__hint { font-size: var(--text-md); color: var(--zinc-600); }
+  .apf .acset__in { width: 100%; max-width: 360px; height: 40px; }
+  .apf textarea.acset__in { max-width: none; }
+  .apf__foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding-top: var(--space-5); border-top: 1px solid var(--surface-border); }
+  .apf__why { font-size: var(--text-md); color: var(--zinc-700); }
+  /* 可選的開課班／課程：一列一個，選中＝近黑框（跟 .fdlg__opt 同一套） */
+  .find { display: flex; align-items: center; gap: var(--space-2); max-width: 420px; height: 40px; padding: 0 var(--space-3); border: 1px solid var(--zinc-300); border-radius: var(--radius-md); color: var(--zinc-600); }
+  .find:focus-within { border-color: var(--zinc-900); }
+  .find input { flex: 1; min-width: 0; border: 0; outline: none; background: none; font: inherit; font-size: var(--text-base); color: var(--zinc-900); }
+  .grp__h { margin: var(--space-4) 0 var(--space-2); font-size: 13px; font-weight: 700; color: var(--zinc-800); letter-spacing: 0.04em; }
+  .pick { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-1) var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--zinc-300); border-radius: var(--radius-md); background: #fff; cursor: pointer; }
+  .pick + .pick { margin-top: var(--space-2); }
+  .pick:hover { border-color: var(--zinc-500); }
+  .pick:has(input:checked) { border-color: var(--zinc-900); box-shadow: inset 0 0 0 1px var(--zinc-900); }
+  .pick:has(input:disabled) { cursor: default; background: var(--zinc-50); color: var(--zinc-600); }
+  .pick input { width: 18px; height: 18px; margin: 0; accent-color: var(--zinc-900); }
+  .pick__t { font-size: var(--text-base); font-weight: var(--font-semibold); }
+  .pick__m { grid-column: 2; font-size: var(--text-md); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .pick__r { grid-row: 1 / span 2; grid-column: 3; text-align: right; font-size: var(--text-md); font-variant-numeric: tabular-nums; }
+  .pick__r b { display: block; font-size: var(--text-base); color: var(--zinc-900); }
+  .seat--low { color: var(--error-700); font-weight: var(--font-semibold); }
+  /* 申請紀錄：一列一筆，整列是按鈕（點開詳情） */
+  .rq { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px var(--space-4); width: 100%; min-height: 64px; padding: var(--space-3) 0; border: 0; border-bottom: 1px solid var(--surface-border); background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .rq:hover .rq__t { text-decoration: underline; text-underline-offset: 4px; }
+  .rq:focus-visible { outline: 2px solid var(--zinc-900); outline-offset: 2px; }
+  .rq__t { font-size: var(--text-lg); font-weight: var(--font-semibold); }
+  .rq__m { grid-column: 1; font-size: var(--text-md); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .rq__s { grid-row: 1 / span 2; grid-column: 2; display: flex; align-items: center; gap: var(--space-2); }
+  .rq.is-new { animation: rq-in 1.2s var(--arrive); }
+  @keyframes rq-in { from { background: var(--zinc-100); } }
+  /* 狀態：色相只編碼嚴重度 —— 要家長動作的（待付款）琥珀、被拒紅字、完成綠字；其餘都是灰 */
+  .tag--line { box-shadow: inset 0 0 0 1px var(--zinc-400); color: var(--zinc-800); }
+  .tag--off { padding-left: 0; color: var(--zinc-600); font-weight: var(--font-medium); }
+  /* 詳情對話框（唯讀）：沿用 .acset 的殼 */
+  .dt { display: grid; grid-template-columns: 7em minmax(0, 1fr); gap: var(--space-2) var(--space-4); font-size: var(--text-base); }
+  .dt dt { color: var(--zinc-600); }
+  .dt dd { margin: 0; font-weight: var(--font-medium); }
+  .tl { display: grid; gap: var(--space-3); padding-left: var(--space-4); border-left: 2px solid var(--zinc-200); }
+  .tl li { position: relative; list-style: none; font-size: var(--text-md); }
+  .tl li::before { content: ''; position: absolute; left: calc(-1 * var(--space-4) - 6px); top: 6px; width: 10px; height: 10px; border-radius: var(--radius-full); background: var(--zinc-900); }
+  .tl li.is-todo::before { background: #fff; box-shadow: inset 0 0 0 2px var(--zinc-400); }
+  .tl li.is-todo { color: var(--zinc-600); }
+  .tl small { display: block; color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .box { padding: var(--space-4); border-radius: var(--radius-md); background: var(--gray); font-size: var(--text-base); }
+  .box h3 { margin-bottom: var(--space-2); font-size: 13px; font-weight: 700; color: var(--zinc-800); }
+  .box p + p { margin-top: var(--space-1); }
+  .box b { font-variant-numeric: tabular-nums; }
+  .dfoot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); padding: 0 var(--space-6) var(--space-6); }
+  @media (max-width: 860px) {
+    .apf { gap: var(--space-6); margin-top: var(--space-6); }
+    .apf .acset__in { max-width: none; height: 44px; }
+    .apf__foot .btn { flex: 1; height: 44px; }
+    .pick { grid-template-columns: auto minmax(0, 1fr); }
+    .pick__r { grid-row: auto; grid-column: 2; text-align: left; }
+    .pick__r b { display: inline; margin-right: var(--space-2); }
+    .find { max-width: none; height: 44px; }
+    .dt { grid-template-columns: 5.5em minmax(0, 1fr); }
+    .dfoot { padding: 0 var(--space-4) var(--space-6); }
+    .dfoot .btn { flex: 1; height: 44px; }
+    .tabs .tlink { min-height: 44px; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>報名申請 · 家長端（#990 批 5）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（specs/parent/enrollment.md、rules/enrollment-rules.md）</th><th>產品現況（sitemap/parent/enrollment.md）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>整頁</td><td>新增申請／申請紀錄兩個分頁</td><td><b>佔位頁</b>：只有一個 EmptyState「這個功能還在準備中」，不打任何 API</td><td>照規格畫完整頁（計畫席已裁 A）；整頁都是「新」</td></tr>
+      <tr><td>選孩子</td><td>新增流程第 1 步「選擇孩子（若有多個）」；紀錄列出孩子姓名</td><td>—</td><td><b>不用頁首的孩子切換器</b>：申請表裡選、紀錄混列所有孩子（規格明寫）。只有 1 個孩子時第 1 步只顯示名字；0 個／讀不到時整頁換成共用的一句話（<code>#kids-0</code>、<code>#kids-failed</code>）</td></tr>
+      <tr><td>選開課班</td><td>依課程分組；班名、上課時間、剩餘名額、學費；可搜尋</td><td>—</td><td>照做。孩子已在班上的、已在申請中的列出但不能選（寫原因，不是消失）；剩 3 位以下紅字。<b>額滿的不能送正式申請，改成「登記候補」</b>（使用者 10/03 08:2x 裁）：選了額滿的班，送出鈕變「登記候補」，送出後紀錄多一筆「已登記候補」、畫面寫「已額滿，已為您登記候補，補習班會主動聯絡」。跟加選頁、訪客報名頁同一套（<span class="new">新</span>，需要 enrollment-requests 加 waitlist 狀態，#1100）</td></tr>
+      <tr><td>狀態標籤</td><td>待審核灰、待付款暖銅橘、已完成綠、已拒絕紅、已取消／已過期淺灰</td><td>—</td><td>大致照做，但<b>色相只編碼嚴重度</b>（charter 四之一）：待付款＝琥珀（要家長動作）、已拒絕＝紅字無底（A6 紅不貼橘）、已完成＝綠字、其餘灰</td></tr>
+      <tr><td>詳情</td><td>基本資訊、狀態時間軸；待付款顯示繳費單、付款方式、帳戶；已拒絕顯示原因；只有待審核可取消</td><td>—</td><td>照做；取消申請有 toast＋復原</td></tr>
+      <tr><td>狀態機</td><td>pending → awaiting_payment（審核通過、開繳費單）→ completed；拒絕、取消、過期</td><td>—</td><td>時間軸照這條走，還沒到的步驟是空心點</td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>示範家長有 3 個孩子、9 筆申請，六種狀態都有。手機首屏只回答「我的申請現在怎樣」：標題就是那句話。</li>
+    <li>送出後自動切到「申請紀錄」，新的那筆在最上面閃一下。</li>
+    <li>想先看課程介紹的家長走「加選課程」（以課程探索為中心）—— 兩頁送出的是同一種申請。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, money, esc, kids, act, toast } = A2;
+  // ── 四頁共用（逐字相同）：唯讀詳情對話框、hash 分頁、頁內申請表的必填檢查 ──
+  const sheet = (title, body, foot = '') => {
+    const d = document.createElement('dialog');
+    d.className = 'acset'; d.setAttribute('aria-labelledby', 'sh-t');
+    d.innerHTML = `<div class="acset__head"><h2 class="acset__t" id="sh-t">${title}</h2><button class="acset__x" type="button" aria-label="關閉" data-x>${icon.x}</button></div><div class="acset__body">${body}</div>${foot ? `<div class="dfoot">${foot}</div>` : ''}`;
+    document.body.append(d);
+    d.addEventListener('click', (e) => { if (e.target === d || e.target.closest('[data-x]')) d.close(); });
+    d.addEventListener('close', () => setTimeout(() => d.remove(), 200));
+    d.showModal();
+    return d;
+  };
+  const tabsHtml = (list, cur) => list.map(([k, l, n]) => `<a class="tlink" href="#${k}"${k === cur ? ' aria-current="true"' : ''}>${l}${n != null ? ` <span class="tlink__n">${n}</span>` : ''}</a>`).join('');
+  // 必填沒填：送出鈕不能按，旁邊一行字寫還差什麼；硬按就抖一下（跟 A2.form 同一套）
+  const need = (root, miss) => {
+    root.querySelector('.apf__why').textContent = miss.length ? `還沒填：${miss.join('、')}` : '';
+    root.querySelector('[data-send]').setAttribute('aria-disabled', miss.length ? 'true' : 'false');
+    return !miss.length;
+  };
+  const shake = (root) => { const w = root.querySelector('.apf__why'); w.classList.remove('is-shake'); void w.offsetWidth; w.classList.add('is-shake'); };
+  const kidOpts = (name, cur) => kids.list.length === 1
+    ? `<p class="pick__t">${kids.list[0].name}（${kids.list[0].gradeLabel}）</p><input type="hidden" name="${name}" value="${kids.list[0].id}">`
+    : `<div class="fdlg__seg" role="radiogroup" aria-label="孩子">${kids.list.map((k) => `<label class="fdlg__opt"><input type="radio" name="${name}" value="${k.id}"${k.id === cur ? ' checked' : ''}>${k.name}<span class="apf__opt">${k.gradeLabel}</span></label>`).join('')}</div>`;
+  const wdl = (c) => `每${C.weekdayLabel[c.weekday]} ${c.start}–${c.end}`;
+  const seats = (c) => c.capacity - c.n;
+  // 開課班：示範資料 14 班，再補 7 班成最壞情況（兩班額滿、一班只剩 1 位、一班跟林子晴現有的課撞時間）；rec ＝管理端標「推薦加選」的課
+  const CLS = C.classes.map((c) => ({ ...c, n: c.studentIds.length })).concat([
+    { id: 'x1', name: '國三理化 A 班', subject: '理化', grades: 'J3', weekday: 2, start: '19:00', end: '20:30', teacher: '蕭立恆', room: 'C 教室', fee: 4800, billingMode: 'monthly', capacity: 24, n: 24 },
+    { id: 'x2', name: '國一國文 A 班', subject: '國文', grades: 'J1', weekday: 3, start: '15:30', end: '17:00', teacher: '何靜宜', room: 'C 教室', fee: 4200, billingMode: 'monthly', capacity: 24, n: 23 },
+    { id: 'x3', name: '國三英文 B 班', subject: '英文', grades: 'J3', weekday: 4, start: '17:30', end: '19:00', teacher: '江承睿', room: 'C 教室', fee: 4800, billingMode: 'monthly', capacity: 28, n: 15 },
+    { id: 'x4', name: '國三作文班', subject: '作文', grades: 'J3', weekday: 6, start: '13:30', end: '15:30', teacher: '何靜宜', room: '小教室', fee: 3200, billingMode: 'monthly', capacity: 16, n: 9 },
+    { id: 'x5', name: '國一自然 A 班', subject: '自然', grades: 'J1', weekday: 5, start: '19:00', end: '20:30', teacher: '蕭立恆', room: 'A 教室', fee: 4200, billingMode: 'monthly', capacity: 28, n: 12 },
+    { id: 'x6', name: '國一數學 B 班', subject: '數學', grades: 'J1', weekday: 2, start: '19:00', end: '20:30', teacher: '游佩珊', room: 'B 教室', fee: 4200, billingMode: 'monthly', capacity: 26, n: 26 },
+    { id: 'x7', name: '國小五年級數學班', subject: '數學', grades: 'P5', weekday: 3, start: '15:00', end: '16:30', teacher: '游佩珊', room: 'B 教室', fee: 3600, billingMode: 'monthly', capacity: 18, n: 14 },
+  ]);
+  CLS.forEach((c) => (c.rec = ['c14', 'x1', 'c10', 'c13', 'x5'].includes(c.id)));
+  const clsById = Object.fromEntries(CLS.map((c) => [c.id, c]));
+  const mine = (k) => (k.enrollments || []).filter((e) => e.status === 'active').map((e) => e.classId);
+
+  const S = { pending: ['待審核', 'tag tag--quiet'], awaiting_payment: ['待付款', 'tag tag--warn'], completed: ['已完成', 'tag tag--ok'], rejected: ['已拒絕', 'tag tag--error'], cancelled: ['已取消', 'tag tag--off'], expired: ['已過期', 'tag tag--off'], waitlist: ['已登記候補', 'tag tag--line'] };
+  const d = (n) => C.addDays(C.TODAY, -n);
+  // 9 筆、六種狀態、三個孩子混列（最新在上）
+  let seq = 0;
+  const R = [
+    ['s5', 'c14', 'pending', 1, '想加強會考衝刺，週六上午可以'],
+    ['s3', 'x2', 'awaiting_payment', 4, ''],
+    ['s1', 'c5', 'rejected', 11, '想跟哥哥姊姊一起提早上', '王柏翰目前小五，六年級數學班的進度他還沒學過。建議先上小五英文班，明年再報。'],
+    ['s5', 'c9', 'completed', 70, ''],
+    ['s3', 'c10', 'completed', 71, ''],
+    ['s5', 'c3', 'cancelled', 34, ''],
+    ['s3', 'c2', 'expired', 58, '程度可能比較好，想試試二年級班'],
+    ['s5', 'c12', 'completed', 72, ''],
+    ['s1', 'c6', 'completed', 75, ''],
+  ].map(([sid, cid, st, ago, note, why]) => ({ id: 'r' + ++seq, sid, cid, st, at: d(ago), start: C.addDays(d(ago), 10), note, why })).filter((r) => kids.list.some((k) => k.id === r.sid)) // 只列這個帳號綁定的孩子（#kids-1 只剩一個）
+    .sort((a, b) => b.at.localeCompare(a.at));
+
+  const tab = () => (location.hash.match(/(new|records)/) || [])[1] || 'new';
+  // 預設選「目前在看的孩子」（共用切換器記住的那一個），少一步；要換就點別的
+  const form = { sid: kids.active ? kids.active.id : '', cid: '', q: '' };
+
+  shell({
+    role: 'parent',
+    page: 'p-enrollment',
+    title: '',
+    bar: `<nav class="tabs" aria-label="報名申請" id="tabs"></nav>`,
+    phase: 5200,
+  }, kids.gate(`<div id="view"></div>`));
+
+  const head = () => {
+    const p = R.filter((r) => r.st === 'pending').length, w = R.filter((r) => r.st === 'awaiting_payment').length;
+    document.querySelector('.open__title').innerHTML = kids.list.length ? (p || w ? `${w ? `${w} 筆等你繳費` : ''}${w && p ? '，<br>' : ''}${p ? `${p} 筆在等補習班審核` : ''}。` : '申請都處理完了。') : '報名申請';
+    document.getElementById('tabs').innerHTML = tabsHtml([['new', '新增申請'], ['records', '申請紀錄', R.length]], tab());
+  };
+
+  const pickList = () => {
+    const k = kids.list.find((x) => x.id === form.sid);
+    const busy = (c) => k && mine(k).includes(c.id) ? '已在班上' : k && R.some((r) => r.sid === k.id && r.cid === c.id && (r.st === 'pending' || r.st === 'awaiting_payment')) ? '申請中' : k && R.some((r) => r.sid === k.id && r.cid === c.id && r.st === 'waitlist') ? '已登記候補' : '';
+    // 使用者 10/03 08:2x：額滿不能送正式申請，改成登記候補（補習班收到一筆 waitlist 紀錄）
+    const full = (c) => seats(c) <= 0;
+    const q = form.q.trim();
+    const list = CLS.filter((c) => !q || (c.name + c.subject).includes(q));
+    if (!list.length) return `<p class="empty">沒有符合「${esc(q)}」的開課班。</p>`;
+    const subs = [...new Set(list.map((c) => c.subject))];
+    return subs.map((s) => `<h3 class="grp__h">${s}</h3>${list.filter((c) => c.subject === s).map((c) => {
+      const why = busy(c), left = seats(c);
+      return `<label class="pick"><input type="radio" name="cid" value="${c.id}"${form.cid === c.id ? ' checked' : ''}${why ? ' disabled' : ''}>
+        <span class="pick__t">${c.name}</span><span class="pick__r"><b>${money(c.fee)} 元／月</b>${why ? `<span>${why}</span>` : full(c) ? `<span class="seat--low">已額滿 · 可登記候補</span>` : `<span class="${left <= 3 ? 'seat--low' : ''}">剩 ${left} 位</span>`}</span>
+        <span class="pick__m">${wdl(c)} · ${c.teacher}</span></label>`;
+    }).join('')}`).join('');
+  };
+
+  const newView = () => `<form class="apf" id="apf" novalidate>
+      <fieldset class="apf__step"><legend class="apf__h"><span class="apf__n">1</span>幫哪個孩子報名</legend>${kidOpts('sid', form.sid)}</fieldset>
+      <fieldset class="apf__step"><legend class="apf__h"><span class="apf__n">2</span>選開課班</legend>
+        <label class="find">${icon.search}<input type="search" id="q" placeholder="搜尋課程或班名" aria-label="搜尋課程或班名" value="${esc(form.q)}"></label>
+        <div id="picks">${pickList()}</div>
+        <p class="apf__hint">想先看課程介紹、老師、上課地點？到 <a href="p-add-course.html">加選課程</a> 瀏覽。</p></fieldset>
+      <div class="apf__step"><label class="apf__h" for="start"><span class="apf__n">3</span>希望哪天開始上</label><input class="acset__in" type="date" id="start" min="${C.TODAY}" value=""></div>
+      <div class="apf__step"><label class="apf__h" for="note"><span class="apf__n">4</span>備註 <span class="apf__opt">選填</span></label><textarea class="acset__in" id="note" rows="3" placeholder="例如：孩子程度、方便的上課時段"></textarea></div>
+      <div class="apf__foot"><button class="btn btn--cta" type="button" data-send>送出申請</button><p class="apf__why fdlg__why" aria-live="polite"></p></div>
+    </form>`;
+
+  const recView = () => `<div style="margin-top: var(--space-6)">${R.map((r) => `<button class="rq${r.fresh ? ' is-new' : ''}" type="button" data-r="${r.id}">
+      <span class="rq__t">${clsById[r.cid].name}</span><span class="rq__s"><span class="${S[r.st][1]}">${S[r.st][0]}</span></span>
+      <span class="rq__m">${C.studentById[r.sid].name} · ${md(r.at)} 送出${r.st === 'awaiting_payment' ? ` · 繳費期限 ${md(C.addDays(r.at, 14))}` : ''}</span></button>`).join('')}</div>`;
+
+  const check = () => {
+    const root = document.getElementById('apf');
+    const miss = [!form.sid && '孩子', !form.cid && '開課班', !root.querySelector('#start').value && '開始日期'].filter(Boolean);
+    const c = form.cid && clsById[form.cid];
+    root.querySelector('[data-send]').textContent = c && seats(c) <= 0 ? '登記候補' : '送出申請';
+    return need(root, miss);
+  };
+
+  function render() {
+    if (!kids.list.length) { document.querySelector('.open__title').textContent = '報名申請'; return; }
+    head();
+    R.forEach((r) => r.fresh && setTimeout(() => (r.fresh = false), 1300));
+    document.getElementById('view').innerHTML = tab() === 'new' ? newView() : recView();
+    if (tab() === 'new') check();
+  }
+  addEventListener('hashchange', render);
+  render();
+
+  document.addEventListener('input', (e) => {
+    if (e.target.id === 'q') { form.q = e.target.value; document.getElementById('picks').innerHTML = pickList(); }
+    if (e.target.closest && e.target.closest('#apf')) check();
+  });
+  document.addEventListener('change', (e) => {
+    if (e.target.name === 'sid') { form.sid = e.target.value; form.cid = ''; document.getElementById('picks').innerHTML = pickList(); }
+    if (e.target.name === 'cid') form.cid = e.target.value;
+    if (e.target.closest && e.target.closest('#apf')) check();
+  });
+
+  // 時間軸：照 rules/enrollment-rules.md §1 的狀態機
+  const steps = (r) => {
+    const ok = (t, at) => `<li>${t}${at ? `<small>${md(at)}</small>` : ''}</li>`, todo = (t) => `<li class="is-todo">${t}</li>`;
+    const sent = ok('送出申請', r.at), rev = C.addDays(r.at, 2);
+    return `<ol class="tl">${{
+      pending: sent + todo('補習班審核') + todo('繳費') + todo('完成報名'),
+      awaiting_payment: sent + ok('審核通過，開立繳費單', rev) + todo('繳費（櫃台確認收款）') + todo('完成報名'),
+      completed: sent + ok('審核通過，開立繳費單', rev) + ok('補習班確認收款', C.addDays(r.at, 6)) + ok('完成報名', C.addDays(r.at, 6)),
+      rejected: sent + ok('未通過審核', rev),
+      cancelled: sent + ok('你取消了這筆申請', C.addDays(r.at, 1)),
+      expired: sent + ok('審核通過，開立繳費單', rev) + ok('繳費期限已過，申請過期', C.addDays(r.at, 16)),
+      waitlist: ok('登記候補（這班已額滿）', r.at) + todo('有名額時補習班會主動聯絡'),
+    }[r.st]}</ol>`;
+  };
+  const detail = (r) => {
+    const c = clsById[r.cid], k = C.studentById[r.sid];
+    const body = `<p><span class="${S[r.st][1]}">${S[r.st][0]}</span></p>
+      <dl class="dt"><dt>孩子</dt><dd>${k.name}（${k.gradeLabel}）</dd><dt>開課班</dt><dd>${c.name}<br><small>${wdl(c)} · ${c.teacher}</small></dd><dt>希望開始</dt><dd>${md(r.start)}</dd><dt>備註</dt><dd>${r.note ? esc(r.note) : '—'}</dd></dl>
+      ${r.st === 'awaiting_payment' ? `<div class="box"><h3>繳費單</h3><p>金額 <b>${money(c.fee)} 元</b>（第一個月）· 繳費期限 <b>${md(C.addDays(r.at, 14))}</b></p>
+        <p>現金：到 ${C.campus.name} 櫃台繳。轉帳：匯到下面的帳戶，再打電話或 LINE 告訴櫃台帳號末五碼。</p>
+        <p>臺灣銀行 景美分行（004）<br>帳號 <b>0123-456-789012</b> · 戶名 ${C.org.name}</p></div>` : ''}
+      ${r.st === 'rejected' ? `<div class="box"><h3>補習班的說明</h3><p>${esc(r.why)}</p></div>` : ''}
+      ${steps(r)}`;
+    const foot = r.st === 'pending' ? `<button class="btn" type="button" data-x>關閉</button><button class="btn" type="button" data-cancel="${r.id}">取消這筆申請</button>` : '';
+    sheet('申請詳情', body, foot);
+  };
+
+  document.addEventListener('click', (e) => {
+    const row = e.target.closest('[data-r]');
+    if (row) { detail(R.find((r) => r.id === row.dataset.r)); return; }
+    const cx = e.target.closest('[data-cancel]');
+    if (cx) {
+      const r = R.find((x) => x.id === cx.dataset.cancel);
+      act(cx, { busy: '取消中…', ok: `已取消 ${clsById[r.cid].name} 的申請`, run: () => { cx.closest('dialog').close(); r.st = 'cancelled'; render(); }, undo: () => { r.st = 'pending'; render(); } });
+      return;
+    }
+    const go = e.target.closest('[data-send]');
+    if (!go) return;
+    const root = document.getElementById('apf');
+    if (!check()) { shake(root); return; }
+    const k = C.studentById[form.sid], c = clsById[form.cid], wl = seats(c) <= 0;
+    act(go, {
+      busy: '送出中…', ok: wl ? '已額滿，已為您登記候補，補習班會主動聯絡' : `已送出 ${k.name}「${c.name}」的申請，補習班審核後會通知你`,
+      run: () => {
+        R.unshift({ id: 'r' + ++seq, sid: form.sid, cid: form.cid, st: wl ? 'waitlist' : 'pending', at: C.TODAY, start: root.querySelector('#start').value, note: root.querySelector('#note').value.trim(), fresh: true });
+        form.cid = ''; form.q = '';
+        location.hash = 'records';
+      },
+    });
+  });
+})();
+</script>
+</body>
+</html>

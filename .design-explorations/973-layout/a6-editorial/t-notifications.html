@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 通知（老師端）</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* 收件匣：跟管理端通知中心「收到的」同一種（未讀＝橘點＋粗體），但老師收件匣只有公告、沒有類型 */
+  .nt { border-bottom: 1px solid var(--surface-border); }
+  .nt > summary { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: var(--space-3); align-items: baseline; padding: var(--space-4) 0; list-style: none; cursor: pointer; }
+  .nt > summary::-webkit-details-marker { display: none; }
+  /* 10/02 計畫席裁定：未讀用橘點，不用紅（紅留給錯誤與逾期）。accent-500 對白約 5:1，過圖形元素 3:1 */
+  .nt__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-500); align-self: center; }
+  .nt.is-read .nt__dot { visibility: hidden; }
+  .nt__t { font-size: var(--text-base); font-weight: var(--font-bold); color: var(--zinc-900); }
+  .nt.is-read .nt__t { font-weight: var(--font-medium); color: var(--zinc-700); }
+  .nt > summary:hover .nt__t { text-decoration: underline; text-underline-offset: 3px; }
+  .nt__at { font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .nt__body { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: 0 0 var(--space-4) calc(12px + var(--space-3)); }
+  .nt__body p { margin-right: auto; max-width: 64ch; font-size: var(--text-md); color: var(--zinc-800); line-height: var(--leading-relaxed); }
+  .nt__by { display: block; margin-top: var(--space-1); font-size: var(--text-sm); color: var(--zinc-600); }
+  .keep { padding: var(--space-6) 0; font-size: var(--text-sm); color: var(--zinc-600); }
+  @media (max-width: 860px) {
+    .nt > summary { grid-template-columns: 12px minmax(0, 1fr); gap: 2px var(--space-3); }
+    .nt__at { grid-column: 2; }
+    .nt__body .btn { min-height: 44px; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>通知 · 老師端（#990 批 4）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（specs/teacher/notifications.md）</th><th>產品現況（sitemap/_shared/announcement-inbox.md）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>內容</td><td>收件匣只承載公告；類型圖示 2026-09-03 移除（公告沒有型別欄位，課務異動推播歸 P4）</td><td>公告清單：標題、MM/dd HH:mm、校區</td><td>照做，只有公告、沒有類型圖示。依今天／昨天／這週／更早分章（時間軸，新的在上）</td></tr>
+      <tr><td>已讀／未讀</td><td>未讀有圓點標記</td><td>紅點；展開一則就標成已讀（看一眼即已讀）</td><td>橘點（accent-500）＋粗體（計畫席 10/02 裁定：不用紅，紅留給錯誤與逾期；跟管理端「收到的」同一種）。展開即已讀，開場的未讀數跟著減</td></tr>
+      <tr><td>展開</td><td>點擊展開完整內容</td><td>一次只能展開一則；內文＋「—— 發布者」</td><td>照做（原生 details 同名群組，開第二則會收掉第一則）</td></tr>
+      <tr><td>全部標為已讀</td><td>有（原子：要嘛全標要嘛都沒標）</td><td>只在有未讀時出現</td><td>照做；沒有未讀就不放這顆按鈕。按了 toast 可復原</td></tr>
+      <tr><td>連到相關的頁</td><td>規格沒寫</td><td>沒有</td><td>跟課務有關的公告附「看課表」、跟學生有關的附「看學生」（標「新」，只連老師端的頁）</td></tr>
+      <tr><td>保留</td><td>90 天</td><td>—</td><td>底部寫「通知保留 90 天」</td></tr>
+    </tbody>
+  </table>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, esc } = A2;
+  const T = C.TODAY;
+  // 發給老師的公告（最壞情況：近 90 天 26 則）。go：跟課務有關的連課表、跟學生有關的連學生（新）
+  const SRC = [
+    ['颱風停課：10/2（五）全日停課', '颱風警報已發布，明天全日停課。補課時間另行通知，請留意課表。', 'sched'],
+    ['期中考成績請在 10/9 前登錄完', '各班期中考成績請在 10/9（五）前登錄完成，家長端 10/10 開放查詢。', 'stu'],
+    ['10/7 教師會議改到 B 教室', '原定 A 教室的教師會議改到 B 教室，時間不變（12:30）。', ''],
+    ['日到班看板上線', '學生掃碼一次就算當天所有的課都到了，點名畫面會直接顯示已到的學生。', 'sched'],
+    ['國三數學 B 班名單異動', '新加入 2 位學生、1 位轉到 A 班，名單已更新。', 'stu'],
+    ['聯絡簿請在當天 21:00 前寫完', '家長反映太晚收到聯絡簿，請盡量在當天 21:00 前寫完。', ''],
+    ['國慶連假 10/10–10/11 停課', '國慶連假兩天停課，課表已調整，補課排在 10/17（六）。', 'sched'],
+    ['新生試聽 10/5 下午', '10/5（一）下午有 6 位新生試聽，名單已加進各班。', 'stu'],
+    ['冷氣維修 C 教室暫停使用', 'C 教室冷氣維修到 10/8，原本在 C 教室的課改到自習室。', 'sched'],
+  ];
+  const BY = ['林主任', '陳櫃台', '張教務'];
+  let seq = 0;
+  const N = Array.from({ length: 26 }, (_, i) => {
+    const s = SRC[i % SRC.length];
+    const day = C.addDays(T, -Math.floor(i * i / 8));
+    const at = `${String(day === T ? 9 + (i % 8) : 19 - (i % 9)).padStart(2, '0')}:${['05', '20', '35', '50'][i % 4]}`;
+    return { id: 'a' + ++seq, title: s[0], body: s[1], go: s[2], day, at, by: BY[i % 3], campus: i % 3 ? C.campuses[0] : '', read: i > 3 };
+  });
+  const GO = { sched: ['看課表', 't-schedule.html'], stu: ['看學生', 't-students.html'] };
+  const label = (d) => (d === T ? '今天' : d === C.addDays(T, -1) ? '昨天' : d > C.addDays(T, -7) ? '這週' : '更早');
+  const unread = () => N.filter((n) => !n.read).length;
+
+  shell({
+    role: 'teacher',
+    page: 't-notifications',
+    title: '',
+    bar: `<p class="tbar__txt"><strong id="ucount"></strong></p><div class="tbar__act"><button class="btn" type="button" data-allread>${icon.check}全部標為已讀</button></div>`,
+    phase: 4400,
+  }, `<div id="body"></div>`);
+
+  const head = () => {
+    const u = unread();
+    document.querySelector('.open__title').innerHTML = u ? `${u} 則未讀，<br>今天 ${N.filter((n) => n.day === T).length} 則新公告。` : '公告都看過了。';
+    document.getElementById('ucount').textContent = u ? `${u} 則未讀` : '沒有未讀';
+    // 產品規則：沒有未讀就不放這顆按鈕（按了不會發生任何事的按鈕不要放）
+    document.querySelector('[data-allread]').hidden = !u;
+  };
+  const render = () => {
+    const groups = ['今天', '昨天', '這週', '更早'].map((g) => [g, N.filter((n) => label(n.day) === g)]).filter(([, a]) => a.length);
+    document.getElementById('body').innerHTML = groups.map(([g, a]) => `<section class="chap" aria-label="${g}">
+      <div class="chap__side"><div class="chap__big">${g}</div><p class="chap__tally">${a.length} 則${a.some((n) => !n.read) ? ` <span>· 未讀 ${a.filter((n) => !n.read).length}</span>` : ''}</p></div>
+      <div>${a.map((n) => `<details class="nt${n.read ? ' is-read' : ''}" name="inbox" data-n="${n.id}">
+        <summary><span class="nt__dot" aria-hidden="true"></span><span class="nt__t">${esc(n.title)}${n.read ? '' : '<span class="sr">（未讀）</span>'}</span><span class="nt__at">${md(n.day)} ${n.at}${n.campus ? ` · ${n.campus}` : ''}</span></summary>
+        <div class="nt__body"><p>${esc(n.body)}<span class="nt__by">—— ${n.by}</span></p>${n.go ? `<a class="btn btn--sm" href="${GO[n.go][1]}">${GO[n.go][0]}<span class="new">新</span>${icon.right}</a>` : ''}</div>
+      </details>`).join('')}</div>
+    </section>`).join('') + `<p class="keep">通知保留 90 天。</p>`;
+    head();
+  };
+  render();
+
+  // 展開一則＝已讀（產品行為：看一眼就消耗掉未讀）
+  document.addEventListener('toggle', (e) => {
+    const d = e.target;
+    if (!d.matches || !d.matches('details.nt') || !d.open) return;
+    const n = N.find((x) => x.id === d.dataset.n);
+    if (n.read) return;
+    n.read = true;
+    d.classList.add('is-read');
+    const sr = d.querySelector('.sr'); if (sr) sr.remove();
+    head();
+  }, true);
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-allread]')) return;
+    const was = N.filter((n) => !n.read);
+    was.forEach((n) => (n.read = true));
+    render();
+    A2.toast(`已把 ${was.length} 則標為已讀`, { undo: () => { was.forEach((n) => (n.read = false)); render(); } });
+  });
+})();
+</script>
+</body>
+</html>

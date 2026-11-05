@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · QR 到班打卡（公開頁）</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .qr { width: 100%; max-width: 480px; padding-bottom: var(--space-12); }
+  .qr:focus { outline: none; }
+  .qr__badge { font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--zinc-600); letter-spacing: 0.04em; }
+  .qr__title { margin-top: var(--space-2); font-size: 32px; font-weight: var(--font-bold); line-height: 1.2; letter-spacing: -0.03em; }
+  .qr__sub { margin-top: var(--space-2); font-size: var(--text-lg); color: var(--zinc-700); }
+  /* 這台裝置在哪個分校（灰：次要分區） */
+  .qr__dev { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-5); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--zinc-100); font-size: var(--text-md); color: var(--zinc-700); }
+  .qr__dev .acset__in { flex: 0 1 180px; height: 40px; }
+  .qr__mode { margin-left: auto; font-weight: var(--font-semibold); color: var(--zinc-900); }
+  /* 鏡頭：真實畫面是相機影像，所以是暗的 —— 這不是「黑色塊面」的版面，是內容本身 */
+  .cam { position: relative; display: grid; place-items: center; aspect-ratio: 1; margin-top: var(--space-5); overflow: hidden; border-radius: var(--radius-lg); background: radial-gradient(circle at 50% 40%, #3a332f, #1a1614 70%); color: #fff; }
+  .cam__frame { position: relative; width: 62%; aspect-ratio: 1; }
+  .cam__frame i { position: absolute; width: 28px; height: 28px; border: 3px solid #fff; }
+  .cam__frame i:nth-child(1) { top: 0; left: 0; border-right: 0; border-bottom: 0; border-radius: 8px 0 0 0; }
+  .cam__frame i:nth-child(2) { top: 0; right: 0; border-left: 0; border-bottom: 0; border-radius: 0 8px 0 0; }
+  .cam__frame i:nth-child(3) { bottom: 0; left: 0; border-right: 0; border-top: 0; border-radius: 0 0 0 8px; }
+  .cam__frame i:nth-child(4) { bottom: 0; right: 0; border-left: 0; border-top: 0; border-radius: 0 0 8px 0; }
+  .cam__line { position: absolute; left: 8%; right: 8%; top: 10%; height: 2px; background: var(--accent-vivid); box-shadow: 0 0 12px var(--accent-vivid); animation: scan 2.4s ease-in-out infinite alternate; }
+  @keyframes scan { to { top: 88%; } }
+  @media (prefers-reduced-motion: reduce) { .cam__line { animation: none; top: 50%; } }
+  .cam__say { position: absolute; left: 0; right: 0; bottom: var(--space-5); text-align: center; font-size: var(--text-base); font-weight: var(--font-medium); color: rgb(255 255 255 / 88%); }
+  .qr__nocard { margin-top: var(--space-4); font-size: var(--text-md); color: var(--zinc-600); text-align: center; }
+  /* 示範用：模擬掃到哪一種卡（設計稿的審稿控制，不是產品的一部分） */
+  .demo { margin-top: var(--space-6); padding: var(--space-3); border: 1px dashed var(--zinc-400); border-radius: var(--radius-md); }
+  .demo__h { font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--zinc-600); }
+  .demo__row { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+  .demo__row .btn { height: 36px; font-weight: var(--font-medium); }
+  /* 結果 */
+  .res { margin-top: var(--space-5); padding: var(--space-6) var(--space-5); border: 1px solid var(--zinc-200); border-radius: var(--radius-lg); }
+  .res__ico { display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--radius-full); background: var(--zinc-100); }
+  .res__ico svg { width: 24px; height: 24px; }
+  .res--ok .res__ico { color: var(--success-600); }
+  .res--bad .res__ico { color: var(--error-700); }
+  .res__who { margin-top: var(--space-4); font-size: 32px; font-weight: var(--font-bold); line-height: 1.2; letter-spacing: -0.03em; }
+  .res__what { margin-top: var(--space-2); font-size: var(--text-lg); color: var(--zinc-800); }
+  .res--bad .res__what { color: var(--error-700); font-weight: var(--font-semibold); }
+  .res__list { padding: 0; list-style: none; margin-top: var(--space-5); border-top: 1px solid var(--zinc-200); }
+  .res__li { display: grid; grid-template-columns: 96px 1fr auto; gap: var(--space-3); align-items: baseline; padding: var(--space-3) 0; border-bottom: 1px solid var(--zinc-200); font-size: var(--text-base); }
+  .res__li time { font-variant-numeric: tabular-nums; color: var(--zinc-700); }
+  .res__li b { font-weight: var(--font-semibold); }
+  .res__st { font-size: var(--text-md); font-weight: var(--font-semibold); white-space: nowrap; }
+  .res__st--leave { color: var(--zinc-600); }
+  .res__note { margin-top: var(--space-4); font-size: var(--text-base); color: var(--zinc-700); line-height: 1.6; }
+  .res__acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-6); }
+  .res__acts .btn { height: 44px; padding: 0 var(--space-6); font-size: var(--text-base); }
+  .res__left { font-size: var(--text-md); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .qr__steps { margin: var(--space-3) 0 0; padding-left: 1.3em; font-size: var(--text-base); line-height: 1.8; }
+  @media (max-width: 1024px) { .qr__title { font-size: 28px; } .res__who { font-size: 28px; } }
+  @media (max-width: 560px) { .res__li { grid-template-columns: 1fr auto; } .res__li time { grid-column: 1 / -1; } .res__acts .btn { flex: 1 1 100%; } }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>QR 到班打卡 · 公開頁（#990 批 6）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（specs/public/qr-checkin.md、rules/attendance-rules.md、flows/attendance.md）</th><th>產品現況（sitemap/public/qr-checkin.md）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>整頁</td><td>QR 掃描器、成功／失敗訊息、學生姓名確認、打卡成功後顯示今日課堂</td><td>佔位頁：眉標「打卡服務」、標題、副標「掃描 QR Code 完成到班打卡」，一則不可關的「QR 打卡頁面開發中」；沒有相機、沒有掃碼器，<code>&lt;main&gt;</code> 內 0 個互動元素</td><td>照規格畫完整（計畫席裁定 A），整頁都是「新」。設定成櫃台旁的一台平板／手機：鏡頭一直開著，學生把卡對準就好</td></tr>
+      <tr><td>這台裝置在哪個分校（新）</td><td>規格沒寫；但「同一分校一天最多打卡一次」、出勤模式是分校層級，裝置一定要知道自己在哪</td><td>—</td><td>頂上灰條「這台裝置在：文山旗艦校 · 日到班」，可改（客製下拉）。示範資料把景美分校設成課堂模式，切過去結果文案跟著換</td></tr>
+      <tr><td>打卡成功（日到班）</td><td>掃一次＝當天所有有報名的課記出席；沒有遲到；已有紀錄的（例如請假）不覆蓋</td><td>—</td><td>大字「名字，17:40 到班」，底下列今天的每一堂與它記成什麼；請假的那堂寫「請假（不變）」並說要上課請找櫃台銷假。<a href="pub-qr-checkin.html#ok">#ok</a></td></tr>
+      <tr><td>課堂模式的分校</td><td>只記到班時間，出席由老師逐堂點名</td><td>—</td><td>同樣大字確認名字，課堂列寫「等老師點名」。<a href="pub-qr-checkin.html#per-session">#per-session</a></td></tr>
+      <tr><td>今天已經打過</td><td>同一分校一天最多一次</td><td>—</td><td>不是錯誤：「林子晴 今天 16:41 已經打過卡了」，不重寫時間。<a href="pub-qr-checkin.html#again">#again</a></td></tr>
+      <tr><td>今天沒有課</td><td>掃碼只替有報名的課寫出席（rules §5）</td><td>—</td><td>記下到班時間，說明不會記出席、來補課或自習請找櫃台。<a href="pub-qr-checkin.html#noclass">#noclass</a></td></tr>
+      <tr><td>今天請假</td><td>請假紀錄不被掃碼覆蓋（rules §5）；銷假要人工（§7）</td><td>—</td><td>每一堂都寫「請假（不變）」，告訴學生找櫃台銷假。<a href="pub-qr-checkin.html#leave">#leave</a></td></tr>
+      <tr><td>讀不到學生</td><td>失敗訊息</td><td>—</td><td>紅字＋圖示（不只靠顏色）「這張卡讀不到學生」，請找櫃台。<a href="pub-qr-checkin.html#invalid">#invalid</a></td></tr>
+      <tr><td>相機權限</td><td>需處理相機權限請求</td><td>—</td><td>被拒時鏡頭區換成步驟說明＋「重新要求權限」。<a href="pub-qr-checkin.html#denied">#denied</a></td></tr>
+      <tr><td>離線</td><td>顯示錯誤訊息</td><td>—</td><td>明說「這次沒有記到」＋「再掃一次」—— 不能讓學生以為打過了。<a href="pub-qr-checkin.html#offline">#offline</a></td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>結果畫面 8 秒後自動回到掃描（倒數寫在按鈕旁），也可以直接按「下一位」—— 櫃台前常常排隊。</li>
+    <li>虛線框裡的「示範」按鈕是設計稿用來模擬掃到哪一種卡，不是產品的一部分。</li>
+    <li>沒帶卡的學生：頁面只寫「請找櫃台登記」，由管理端儀表板的「櫃台代刷到班」處理 —— 公開的打卡頁不開放輸入學號（任何人都能替別人打卡）。</li>
+    <li>頁面不需要登入（產品就沒有 guard），所以畫面上只出現名字與當天的課，不出現電話、成績等個資。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, esc, toast } = A2;
+  const MODE = { '文山旗艦校': 'daily', '景美分校': 'per_session' }; // 出勤模式是分校層級（示範：景美分校是課堂模式）
+  const MODE_L = { daily: '日到班', per_session: '課堂模式' };
+  const st = { campus: C.campuses[0], timer: null };
+  const byId = C.studentById;
+  const exp = (sid) => C.todayExpected.find((e) => e.studentId === sid);
+  // 示範的幾張卡：照今天（10/1 週四）真的有課的學生挑
+  // 最壞情況要一天兩堂；示範資料裡一天兩堂的都已經到了，所以借一位來示範「剛掃到」（只影響這一頁）
+  const okE = C.todayExpected.find((e) => e.classIds.length > 1 && e.state === 'arrived' && e.studentId !== 's5');
+  const CARDS = {
+    ok: okE.studentId,
+    again: 's5',
+    noclass: 's1',
+    leave: (C.todayExpected.find((e) => e.state === 'on_leave') || okE).studentId,
+  };
+  const cls = (id) => C.classById[id];
+  const rows = (sid, mk) => exp(sid).classIds.map(cls).sort((a, b) => (a.start < b.start ? -1 : 1)).map((c, i) => `<li class="res__li"><time>${c.start}–${c.end}</time><b>${esc(c.name)}</b><span class="res__st${mk(c, i) === '請假（不變）' ? ' res__st--leave' : ''}">${mk(c, i)}</span></li>`).join('');
+
+  function shellHtml() {
+    return `
+      <div class="qr" id="qr" tabindex="-1">
+        <p class="qr__badge">打卡服務</p>
+        <h1 class="qr__title">QR 到班打卡</h1>
+        <p class="qr__sub">把學生證上的 QR Code 對準鏡頭，聽到「嗶」就完成了。</p>
+        <div class="qr__dev"><label for="campus">這台裝置在</label><select class="acset__in" id="campus">${C.campuses.map((c) => `<option${c === st.campus ? ' selected' : ''}>${c}</option>`).join('')}</select><span class="qr__mode" id="mode"></span><span class="new">新</span></div>
+        <div id="stage"></div>
+        <div class="demo" role="group" aria-labelledby="demo-h">
+          <p class="demo__h" id="demo-h">示範：模擬掃到…（設計稿用，產品沒有這一列）</p>
+          <div class="demo__row">
+            <button class="btn" type="button" data-sim="ok">有課的學生</button>
+            <button class="btn" type="button" data-sim="again">今天打過的</button>
+            <button class="btn" type="button" data-sim="noclass">今天沒課的</button>
+            <button class="btn" type="button" data-sim="leave">今天請假的</button>
+            <button class="btn" type="button" data-sim="invalid">讀不到的卡</button>
+            <button class="btn" type="button" data-sim="offline">沒有網路時</button>
+            <button class="btn" type="button" data-sim="denied">鏡頭被拒時</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  const scanHtml = () => `
+    <div class="cam" role="img" aria-label="鏡頭畫面，等待掃描">
+      <div class="cam__frame" aria-hidden="true"><i></i><i></i><i></i><i></i><span class="cam__line"></span></div>
+      <p class="cam__say">把 QR Code 放進框內</p>
+    </div>
+    <p class="qr__nocard">沒帶卡？請找櫃台登記到班。</p>`;
+
+  function result(kind) {
+    const mode = MODE[st.campus];
+    const now = C.NOW;
+    const next = `<div class="res__acts"><button class="btn btn--cta" type="button" data-next>下一位</button><span class="res__left" id="left"></span></div>`;
+    if (kind === 'offline') return `<div class="res res--bad" role="alert"><span class="res__ico" aria-hidden="true">${icon.alert}</span><p class="res__who">這次沒有記到</p><p class="res__what">${icon.alert} 這台裝置沒有網路</p><p class="res__note">請確認 Wi-Fi 後再掃一次；一直不行就請找櫃台登記到班。</p><div class="res__acts"><button class="btn btn--cta" type="button" data-next>再掃一次</button></div></div>`;
+    if (kind === 'invalid') return `<div class="res res--bad" role="alert"><span class="res__ico" aria-hidden="true">${icon.alert}</span><p class="res__who">這張卡讀不到學生</p><p class="res__what">${icon.alert} 不是${esc(C.org.name)}的學生證，或卡已經停用</p><p class="res__note">請找櫃台確認，櫃台可以先幫你登記到班。</p>${next}</div>`;
+    const s = byId[CARDS[kind]];
+    if (kind === 'again') {
+      const e = exp(s.id);
+      return `<div class="res" role="status"><span class="res__ico" aria-hidden="true">${icon.check}</span><p class="res__who">${esc(s.name)}</p><p class="res__what">今天 ${e.arrivedAt} 已經打過卡了，不用再打。</p><ul class="res__list">${rows(s.id, () => (mode === 'daily' ? '已記出席' : '等老師點名'))}</ul>${next}</div>`;
+    }
+    if (kind === 'noclass') return `<div class="res" role="status"><span class="res__ico" aria-hidden="true">${icon.check}</span><p class="res__who">${esc(s.name)}，${now} 到班</p><p class="res__what">今天沒有你的課。</p><p class="res__note">到班時間記下來了，但不會記任何一堂出席。來補課或自習的話，請找櫃台。</p>${next}</div>`;
+    if (kind === 'leave') return `<div class="res" role="status"><span class="res__ico" aria-hidden="true">${icon.leave}</span><p class="res__who">${esc(s.name)}，${now} 到班</p><p class="res__what">你今天請假了，請假的課不會改成出席。</p><ul class="res__list">${rows(s.id, () => '請假（不變）')}</ul><p class="res__note">要來上課的話，請找櫃台銷假。</p>${next}</div>`;
+    // ok
+    return `<div class="res res--ok" role="status"><span class="res__ico" aria-hidden="true">${icon.check}</span><p class="res__who">${esc(s.name)}，${now} 到班</p><p class="res__what">${mode === 'daily' ? '今天的課都記出席了。' : '到班時間記下來了，出席由老師上課時點名。'}</p><ul class="res__list">${rows(s.id, () => (mode === 'daily' ? '已記出席' : '等老師點名'))}</ul>${next}</div>`;
+  }
+
+  function deniedHtml() {
+    return `<div class="res" role="alert"><span class="res__ico" aria-hidden="true">${icon.alert}</span><p class="res__who">鏡頭沒有開</p><p class="res__what">這台裝置還沒允許使用相機。</p>
+      <ol class="qr__steps"><li>點網址列左邊的鎖頭圖示</li><li>把「相機」改成「允許」</li><li>回來按下面的按鈕</li></ol>
+      <div class="res__acts"><button class="btn btn--cta" type="button" data-perm>重新要求權限</button></div></div>`;
+  }
+
+  function stage(html) {
+    clearInterval(st.timer);
+    document.getElementById('stage').innerHTML = html;
+  }
+  function scan() { stage(scanHtml()); }
+  function show(kind) {
+    if (kind === 'denied') { stage(deniedHtml()); return; }
+    stage(result(kind));
+    const left = document.getElementById('left');
+    if (left) {
+      let n = 8;
+      const tick = () => { left.textContent = `${n} 秒後回到掃描`; if (n-- <= 0) scan(); };
+      tick(); st.timer = setInterval(tick, 1000);
+    }
+    document.getElementById('stage').scrollIntoView({ block: 'nearest' });
+  }
+  function setMode() { document.getElementById('mode').textContent = MODE_L[MODE[st.campus]]; }
+
+  A2.pub({ page: 'pub-qr-checkin' }, shellHtml());
+  setMode();
+  const h = location.hash.slice(1);
+  const K = { ok: 'ok', again: 'again', noclass: 'noclass', leave: 'leave', invalid: 'invalid', offline: 'offline', denied: 'denied' };
+  if (h === 'per-session') { st.campus = '景美分校'; const sel = document.getElementById('campus'); sel.value = st.campus; sel.dispatchEvent(new Event('change')); setMode(); show('ok'); }
+  else if (K[h]) show(K[h]); else scan();
+
+  document.getElementById('campus').addEventListener('change', (e) => {
+    if (e.target.value === st.campus) return;
+    st.campus = e.target.value; setMode(); scan();
+    toast(`這台裝置改成 ${st.campus}（${MODE_L[MODE[st.campus]]}）`);
+  });
+  document.addEventListener('click', (e) => {
+    const sim = e.target.closest('[data-sim]');
+    if (sim) { show(sim.dataset.sim); return; }
+    if (e.target.closest('[data-next]')) { scan(); return; }
+    if (e.target.closest('[data-perm]')) { scan(); toast('鏡頭開了，可以開始掃描'); }
+  });
+})();
+</script>
+</body>
+</html>

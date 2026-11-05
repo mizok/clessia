@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 報名進出</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .ff { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 4fr); gap: var(--space-3); margin-top: var(--space-6); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--zinc-100); }
+  .ff__more { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+  .ff label { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--zinc-700); }
+  .ff .acset__in { width: 100%; height: 40px; }
+  .count { margin-top: var(--space-6); font-size: var(--text-md); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .count strong { color: var(--zinc-900); }
+  .count button { border: 0; padding: 0; background: none; font: inherit; font-weight: var(--font-semibold); color: var(--zinc-900); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  /* 一筆報名進出：整列點進班級（產品現況），學生名另連學生檔案，⋯ 是應然的編輯／終止 */
+  .ev { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) 92px minmax(0, 1fr) minmax(0, 1fr) 40px; gap: var(--space-1) var(--space-5); align-items: center; padding: var(--space-3) 0; border-bottom: 1px solid var(--surface-border); }
+  .ev:hover { background: linear-gradient(90deg, transparent, var(--zinc-50) 8%, var(--zinc-50) 92%, transparent); }
+  .ev__name { font-size: var(--text-lg); font-weight: var(--font-bold); text-decoration: none; }
+  .ev__name:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .ev__g { margin-left: 6px; font-size: var(--text-sm); font-weight: var(--font-medium); color: var(--zinc-600); }
+  .ev__cls { font-size: var(--text-md); font-weight: var(--font-semibold); text-decoration: none; }
+  .ev__cls:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .ev__per { display: block; font-size: var(--text-sm); font-weight: var(--font-medium); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .ev__st { font-size: var(--text-md); color: var(--zinc-800); }
+  .ev__why { display: block; font-size: var(--text-sm); color: var(--zinc-600); }
+  .ev__meta { font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; text-align: right; }
+  .ev__more { justify-self: end; width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: var(--radius-md); background: none; cursor: pointer; color: var(--zinc-700); }
+  .ev__more:hover { background: var(--zinc-100); color: var(--zinc-900); }
+  .ev.is-new { animation: row-new 0.24s var(--arrive); }
+  /* 事件：只用字＋細框，不用底色塊（紅不貼橘） */
+  .kind { display: inline-flex; align-items: center; justify-self: start; height: 22px; padding: 0 8px; border-radius: var(--radius-full); font-size: var(--text-sm); font-weight: var(--font-semibold); white-space: nowrap; box-shadow: inset 0 0 0 1px var(--zinc-300); color: var(--zinc-800); }
+  .kind--in { box-shadow: inset 0 0 0 1.5px var(--zinc-900); color: var(--zinc-900); }
+  .kind--out { color: var(--error-700); box-shadow: inset 0 0 0 1px var(--error-200); }
+  .empty { padding: var(--space-8) 0; font-size: var(--text-base); color: var(--zinc-700); }
+  .empty button { margin-top: var(--space-3); }
+  .pager { display: flex; align-items: center; justify-content: center; gap: var(--space-3); padding: var(--space-6) 0; font-size: var(--text-md); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  @media (max-width: 860px) {
+    /* 手機：姓名留著，其他篩選收進一列（同請假頁） */
+    .ff { grid-template-columns: minmax(0, 1fr); margin-left: calc(var(--space-4) * -1); margin-right: calc(var(--space-4) * -1); border-radius: 0; }
+    .ff .fold__sum { min-height: 44px; border-bottom: 0; padding: 0; }
+    .ff__more { grid-template-columns: 1fr 1fr; padding-bottom: var(--space-2); }
+    .ev { grid-template-columns: minmax(0, 1fr) auto 40px; gap: 2px var(--space-3); padding: var(--space-4) 0; }
+    .ev > :nth-child(2) { grid-column: 1 / 2; grid-row: 2; }
+    .ev > .kind { grid-column: 2; grid-row: 1; }
+    .ev > .ev__more { grid-column: 3; grid-row: 1 / span 2; }
+    .ev > :nth-child(4), .ev > :nth-child(5) { grid-column: 1 / 3; text-align: left; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>報名進出 · A6（#990 批 2）</h2>
+  <h3>規格 vs 現況</h3>
+  <p>這一頁在應然規格裡沒有專屬檔：<code>specs/admin/enrollment/enrollment.md</code> 自己寫「/admin/enrollments 不是這一頁，那是唯讀的報名進出總覽」。所以底是產品現況的總覽，再把 enrollment.md 的「報名列表管理」補上（標「新」）。申請、續課、試聽三份規格是另外的頁，不在 sitemap 的 47 頁裡。</p>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格</th><th>產品現況（sitemap 實測）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>這頁是什麼</td><td>報名列表管理（enrollment.md）</td><td>唯讀總覽，副標「此頁唯讀，要調整報名狀態請點進班級」</td><td>總覽為主；每列多一顆 ⋯ 可編輯、終止報名（標「新」）。點列照產品進班級</td></tr>
+      <tr><td>篩選</td><td>學生、開課班、狀態、日期範圍</td><td>期間（月）、狀態、分校</td><td>期間、狀態、分校照產品；學生搜尋與開課班補上（標「新」）</td></tr>
+      <tr><td>每列</td><td>學生、開課班、生效期間、繳費週期、狀態</td><td>學生（年級）、班級、事件、日期、狀態、分校、最後異動</td><td>產品的欄都在；生效期間與計費模式接在班級下面（標「新」）</td></tr>
+      <tr><td>事件</td><td>狀態轉換：待付款、正式、停權、退選、失效（非活躍要填原因）</td><td>新報名、退班兩種 chip</td><td>新報名、退班、暫停、作廢四種，原因寫在狀態下面。用產品的狀態詞（暫停、作廢），不用規格的停權、失效 —— 同一頁兩套詞會被讀成兩件事</td></tr>
+      <tr><td>計費模式</td><td>enrollment.md：月繳／期繳（semester）</td><td>—</td><td>照較新的 rules/enrollment-rules（08-29）：月繳／期繳／堂數制</td></tr>
+      <tr><td>統計</td><td>—</td><td>「本頁 新報名 N 筆、退班 M 筆」—— 只算目前這一頁</td><td>算整個篩選結果，不是本頁（產品的「本頁」容易被讀成全部）</td></tr>
+      <tr><td>直接報名</td><td>選學生 → 開課班 → 繳費週期 → 生效起迄 → 是否建立繳費單</td><td>沒有（入口在班級詳情、學生檔案）</td><td>工具列「直接報名」（標「新」）</td></tr>
+      <tr><td>預設期間</td><td>—</td><td>當月（月初那幾天整頁幾乎是空的）</td><td>預設「近 30 天」，月份照樣可選</td></tr>
+      <tr><td>分校範圍</td><td>—</td><td>只被指派一個分校的管理員看得到全機構（#815）</td><td>設計稿不畫權限；跟著頁首的分校切換</td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>打開就是這個月：橘色開場寫「新報名 N 筆、退班 M 筆」。點一列進班級詳情（產品的行為），點學生名字進學生檔案。</li>
+    <li>⋯ 裡的「編輯」改生效期間與計費模式；「終止報名」要填原因，送出後那一列的狀態改成「退班」。</li>
+    <li>寫入只做到「處理中 → 訊息 → 列上的字換掉」，不再加碼（10/02 方針：導覽完整優先）。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, esc } = A2;
+  const T = C.TODAY;
+  const EST = C.statusLabel.enrollment; // active 在學／pending_payment 待繳費／suspended 暫停／withdrawal 退班／void 作廢
+  // 事件用字照產品的狀態名（data.js statusLabel：暫停、作廢），不用規格的「停權／失效」—— 同一頁兩套詞會被讀成兩件事
+  const KIND = { in: '新報名', out: '退班', hold: '暫停', void: '作廢' };
+  // 計費模式照 rules/enrollment-rules（2026-08-29 修訂）：月繳／期繳（period）／堂數制；semester 已被 period 取代
+  const MODE = { monthly: '月繳', period: '期繳', session_pack: '堂數制' };
+  const MODE_K = Object.fromEntries(Object.entries(MODE).map(([k, v]) => [v, k]));
+  const campusOf = (c) => (c.room === '小教室' ? C.campuses[1] : C.campuses[0]);
+
+  // ── 資料：每筆在籍報名一則「新報名」；再照最壞情況補退班、停權、失效，散在 8–10 月（一學期上百筆）──
+  let r = 11;
+  const rnd = () => ((r = (r * 16807) % 2147483647) - 1) / 2147483646;
+  const OPS = ['林主任', '張教務', '陳櫃台'];
+  const OUTWHY = ['搬家', '課業太重', '時間衝突', '轉到其他補習班', '家長要求'];
+  const HOLDWHY = ['逾期未繳，先暫停', '長期請病假', '家長要求暫停一個月'];
+  const E = [];
+  let seq = 0;
+  const push = (o) => E.push(Object.assign({ id: 'e' + ++seq, by: OPS[seq % 3] }, o));
+  C.students.forEach((s) => s.enrollments.forEach((en) => {
+    const c = C.classById[en.classId];
+    const from = en.from < '2026-08-01' ? C.addDays('2026-08-01', Math.floor(rnd() * 60)) : en.from;
+    push({ sid: s.id, cid: c.id, kind: 'in', date: from, status: en.status === 'withdrawal' ? 'withdrawal' : en.status, mode: en.billingMode || 'monthly', from, to: C.TERM_END });
+    if (en.status === 'withdrawal' || rnd() < 0.08) push({ sid: s.id, cid: c.id, kind: 'out', date: C.addDays(from, 14 + Math.floor(rnd() * 30)), status: 'withdrawal', why: OUTWHY[seq % 5], mode: en.billingMode || 'monthly', from, to: C.TERM_END });
+    else if (en.status === 'suspended' || rnd() < 0.05) push({ sid: s.id, cid: c.id, kind: 'hold', date: C.addDays(from, 20 + Math.floor(rnd() * 20)), status: 'suspended', why: HOLDWHY[seq % 3], mode: en.billingMode || 'monthly', from, to: C.TERM_END });
+    else if (en.status === 'pending_payment' && rnd() < 0.3) push({ sid: s.id, cid: c.id, kind: 'void', date: C.addDays(from, 21), status: 'void', why: '繳費期限加寬限期已過，未繳', mode: en.billingMode || 'monthly', from, to: C.TERM_END });
+  }));
+  E.forEach((e) => { if (e.date > T) e.date = C.addDays(T, -Math.floor(rnd() * 28)); e.at = `${md(e.date)} ${String(9 + (+e.id.slice(1) % 10)).padStart(2, '0')}:${['05', '20', '42', '18'][+e.id.slice(1) % 4]}`; });
+  E.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id, undefined, { numeric: true }));
+
+  const MONTHS = [...new Set(E.map((e) => e.date.slice(0, 7)))].sort().reverse();
+  const st = { month: 'last30', kind: '', status: '', campus: '', q: '', cls: '', page: 1 };
+  const PER = 25;
+  const hit = () => E.filter((e) => {
+    const s = C.studentById[e.sid], c = C.classById[e.cid];
+    return (!st.month || (st.month === 'last30' ? e.date >= C.addDays(T, -29) : e.date.startsWith(st.month))) && (!st.kind || e.kind === st.kind) && (!st.status || e.status === st.status)
+      && (!st.campus || campusOf(c) === st.campus) && (!st.cls || e.cid === st.cls) && (!st.q || s.name.includes(st.q.trim()));
+  });
+
+  const row = (e) => {
+    const s = C.studentById[e.sid], c = C.classById[e.cid];
+    return `<div class="ev" data-ev="${e.id}">
+      <div><a class="ev__name" href="student.html">${esc(s.name)}</a><span class="ev__g">${s.gradeLabel}</span></div>
+      <div><a class="ev__cls" href="class.html">${esc(c.name)}</a><span class="ev__per">${md(e.from)}–${md(e.to)} · ${MODE[e.mode]}</span></div>
+      <span class="kind kind--${e.kind === 'in' ? 'in' : e.kind === 'out' ? 'out' : 'x'}">${KIND[e.kind]}</span>
+      <div><span class="ev__st">${EST[e.status]}</span>${e.why ? `<span class="ev__why">${esc(e.why)}</span>` : ''}</div>
+      <div class="ev__meta">${md(e.date)} · ${campusOf(c)}<br>${e.by} ${e.at}</div>
+      <button class="ev__more" type="button" popovertarget="evm" aria-label="${esc(s.name)} ${esc(c.name)} 的更多動作" data-pick="${e.id}">${icon.dots}</button>
+    </div>`;
+  };
+
+  function render() {
+    const h = hit();
+    const pages = Math.max(1, Math.ceil(h.length / PER));
+    st.page = Math.min(st.page, pages);
+    const n = (k) => h.filter((e) => e.kind === k).length;
+    const per = st.month === 'last30' ? '近 30 天' : st.month ? `${+st.month.slice(5)} 月` : '這段期間';
+    document.querySelector('.open__title').innerHTML = h.length ? `${per}新報名 ${n('in')} 筆，<br>退班 ${n('out')} 筆。` : `${per}沒有報名進出。`;
+    const on = [st.cls && C.classById[st.cls].name, st.kind && KIND[st.kind], st.status && EST[st.status], st.campus].filter(Boolean);
+    document.getElementById('fm').textContent = on.length ? on.join(' · ') : '全部';
+    const cnt = document.getElementById('count');
+    cnt.innerHTML = `共 <strong>${h.length}</strong> 筆 ${Object.keys(KIND).map((k) => ` · ${KIND[k]} ${n(k)}`).join('')}${st.kind || st.status || st.campus || st.q || st.cls ? ' · <button type="button" data-clear>清除篩選</button>' : ''}`;
+    const list = h.slice((st.page - 1) * PER, st.page * PER);
+    document.getElementById('list').innerHTML = list.length ? list.map(row).join('')
+      + (pages > 1 ? `<nav class="pager" aria-label="分頁"><button class="btn btn--sm" type="button" data-page="-1"${st.page === 1 ? ' aria-disabled="true"' : ''}>上一頁</button><span>第 ${st.page}／${pages} 頁</span><button class="btn btn--sm" type="button" data-page="1"${st.page === pages ? ' aria-disabled="true"' : ''}>下一頁</button></nav>` : '')
+      : `<div class="empty"><p>${st.month === 'last30' ? '近 30 天沒有報名進出。' : st.month ? '這個月沒有報名進出。' : '沒有符合條件的報名。'}</p>${st.kind || st.status || st.campus || st.q || st.cls ? '<button class="btn" type="button" data-clear>清除篩選</button>' : ''}</div>`;
+  }
+
+  const sel = (k, all, opts) => `<select class="acset__in" data-f="${k}"><option value="">${all}</option>${opts.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')}</select>`;
+  const ff = `<div class="ff" role="search">
+    <label class="ff__q"><span>學生<span class="new">新</span></span><input class="acset__in" type="search" data-f="q" placeholder="輸入姓名" autocomplete="off"></label>
+    <details class="fold" data-fold><summary class="fold__sum"><span class="fold__t">篩選</span><span class="fold__m" id="fm">全部</span></summary><div class="ff__more">
+    <label><span>開課班<span class="new">新</span></span>${sel('cls', '全部班級', C.classes.map((c) => [c.id, c.name]))}</label>
+    <label><span>事件</span>${sel('kind', '全部事件', Object.entries(KIND))}</label>
+    <label><span>狀態</span>${sel('status', '全部狀態', Object.entries(EST))}</label>
+    <label><span>分校</span>${sel('campus', '全部分校', C.campuses.map((c) => [c, c]))}</label>
+    </div></details>
+  </div>`;
+
+  shell({
+    page: 'enrollments',
+    title: '',
+    bar: `<label class="tbar__txt" style="display:flex;align-items:center;gap:var(--space-2)"><strong>期間</strong><select class="acset__in" data-f="month" style="width:auto;min-width:150px;height:36px"><option value="last30" selected>近 30 天</option><option value="">不限期間</option>${MONTHS.map((m) => `<option value="${m}">${m.slice(0, 4)} 年 ${+m.slice(5)} 月</option>`).join('')}</select></label>
+      <div class="tbar__act"><button class="btn btn--cta only-d" type="button" data-direct>${icon.plus}直接報名<span class="new">新</span></button></div>`,
+    dock: `<button class="btn btn--cta" type="button" data-direct>${icon.plus}直接報名</button>`,
+    phase: 3100,
+  }, `${ff}<p class="count" id="count"></p><div id="list"></div>
+    <div class="pop pop--menu" id="evm" popover><button type="button" data-act="edit">編輯生效期間與計費模式<span class="new">新</span></button><button type="button" data-act="end">終止報名<span class="new">新</span></button><a href="class.html">到班級詳情</a></div>`);
+  A2.fold();
+  render();
+
+  // 篩選：即時重查（產品是下拉一換就重查）
+  document.addEventListener('input', (e) => { const f = e.target.dataset && e.target.dataset.f; if (f === 'q') { st.q = e.target.value; st.page = 1; render(); } });
+  document.addEventListener('change', (e) => { const f = e.target.dataset && e.target.dataset.f; if (f && f !== 'q') { st[f] = e.target.value; st.page = 1; render(); } });
+
+  // 整列點進班級（產品：tr 整列可點、Enter 也可）—— 點到連結、⋯ 時不搶
+  document.addEventListener('click', (e) => {
+    const ev = e.target.closest('.ev');
+    if (ev && !e.target.closest('a, button')) location.href = 'class.html';
+  });
+
+  let picked = null;
+  document.addEventListener('click', (e) => {
+    const p = e.target.closest('[data-pick]'); if (p) picked = E.find((x) => x.id === p.dataset.pick);
+    if (e.target.closest('[data-clear]')) {
+      Object.assign(st, { kind: '', status: '', campus: '', q: '', cls: '', page: 1 });
+      document.querySelectorAll('.ff [data-f]').forEach((x) => (x.value = ''));
+      render();
+    }
+    const pg = e.target.closest('[data-page]');
+    if (pg && pg.getAttribute('aria-disabled') !== 'true') { st.page += +pg.dataset.page; render(); document.getElementById('count').scrollIntoView({ block: 'start' }); }
+    const a = e.target.closest('#evm [data-act]');
+    if (a && picked) {
+      document.getElementById('evm').hidePopover();
+      const s = C.studentById[picked.sid], c = C.classById[picked.cid], ev = picked;
+      if (a.dataset.act === 'edit') A2.form({
+        title: '編輯報名', sub: `${s.name} · ${c.name}`,
+        fields: [
+          { k: 'from', label: '生效起', type: 'date', value: ev.from, half: true, req: true }, { k: 'to', label: '生效迄', type: 'date', value: ev.to, half: true, req: true },
+          { k: 'mode', label: '計費模式', type: 'radio', options: Object.values(MODE), value: MODE[ev.mode] },
+        ],
+        submit: '儲存', busy: '儲存中…', ok: `已更新 ${s.name} 的報名`,
+        apply: (v) => { ev.from = v.from; ev.to = v.to; ev.mode = MODE_K[v.mode]; render(); },
+      });
+      else A2.form({
+        title: '終止報名', sub: `${s.name} · ${c.name} · 終止後狀態變成「退班」`,
+        fields: [{ k: 'why', label: '原因', type: 'textarea', req: true, ph: '例如：搬家、時間衝突' }],
+        submit: '終止報名', busy: '處理中…', ok: `已終止 ${s.name} 在 ${c.name} 的報名`,
+        apply: (v) => { E.unshift({ id: 'e' + ++seq, sid: ev.sid, cid: ev.cid, kind: 'out', date: T, status: 'withdrawal', why: v.why, mode: ev.mode, from: ev.from, to: T, by: '林主任', at: `${md(T)} ${C.NOW}` }); ev.status = 'withdrawal'; st.page = 1; render(); },
+      });
+    }
+    // 直接報名（應然 enrollment.md 的六步，收成一張表）
+    if (e.target.closest('[data-direct]')) A2.form({
+      title: '直接報名', sub: '現場報名、老生加報、特殊例外 —— 跳過申請流程',
+      fields: [
+        { k: 'sid', label: '學生', type: 'select', ph: '輸入姓名搜尋', req: true, options: C.students.map((s) => [s.id, `${s.name}（${s.gradeLabel}）`]) },
+        { k: 'cid', label: '開課班', type: 'select', ph: '選一個班', req: true, options: C.classes.map((c) => [c.id, c.name]) },
+        { k: 'mode', label: '計費模式', type: 'radio', options: Object.values(MODE) },
+        { k: 'from', label: '生效起', type: 'date', value: T, half: true, req: true }, { k: 'to', label: '生效迄', type: 'date', value: C.TERM_END, half: true, req: true },
+        { k: 'inv', label: '繳費單', type: 'radio', options: ['建立繳費單（待繳費）', '不建立（已收款或免費）'] },
+      ],
+      submit: '報名', busy: '報名中…',
+      ok: (v) => `已幫 ${C.studentById[v.sid].name} 報名 ${C.classById[v.cid].name}`,
+      apply: (v) => {
+        E.unshift({ id: 'e' + ++seq, sid: v.sid, cid: v.cid, kind: 'in', date: T, status: v.inv.startsWith('建立') ? 'pending_payment' : 'active', mode: MODE_K[v.mode], from: v.from, to: v.to, by: '林主任', at: `${md(T)} ${C.NOW}` });
+        st.page = 1; render();
+        const first = document.querySelector('.ev'); if (first) first.classList.add('is-new');
+      },
+    });
+  });
+})();
+</script>
+</body>
+</html>

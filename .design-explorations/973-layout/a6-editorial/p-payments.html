@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 繳費紀錄（家長端）</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* 一張帳單一列（整列是按鈕，開明細） */
+  .inv { display: grid; }
+  .inv__r { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-5); align-items: center; width: 100%; padding: var(--space-4) 0; border: 0; border-bottom: 1px solid var(--zinc-200); background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .inv__r:hover .inv__what { text-decoration: underline; text-underline-offset: 3px; }
+  .inv__r:focus-visible { outline: 2px solid var(--zinc-900); outline-offset: 2px; border-radius: var(--radius-sm); }
+  .inv__what { font-size: var(--text-lg); font-weight: var(--font-bold); }
+  .inv__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; font-size: var(--text-md); color: var(--zinc-700); font-variant-numeric: tabular-nums; }
+  .inv__amt { text-align: right; font-size: var(--text-xl); font-weight: var(--font-bold); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
+  .inv__amt small { display: block; font-size: var(--text-sm); font-weight: var(--font-medium); color: var(--zinc-600); }
+  .inv--void .inv__what, .inv--void .inv__amt { color: var(--zinc-600); text-decoration: line-through; }
+  .none { padding: var(--space-6) 0; color: var(--zinc-600); }
+  /* 明細對話框 */
+  .bd { display: grid; gap: var(--space-5); }
+  .bd__h { margin-bottom: var(--space-2); font-size: 13px; font-weight: 700; color: var(--zinc-800); }
+  .bd__li { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--zinc-200); font-size: var(--text-base); font-variant-numeric: tabular-nums; }
+  .bd ul { margin: 0; padding: 0; list-style: none; }
+  .bd__li > span:last-child { white-space: nowrap; }
+  .bd__li small { display: block; color: var(--zinc-600); font-size: var(--text-sm); }
+  .bd__li a { color: var(--zinc-900); text-underline-offset: 3px; }
+  .bd__sum { display: flex; justify-content: space-between; padding-top: var(--space-2); font-size: var(--text-lg); font-weight: var(--font-bold); font-variant-numeric: tabular-nums; }
+  .bd__kv { display: grid; grid-template-columns: 7em minmax(0, 1fr); gap: var(--space-2) var(--space-3); font-size: var(--text-base); }
+  .bd__kv dt { color: var(--zinc-600); }
+  .bd__kv dd { font-variant-numeric: tabular-nums; }
+  .bd__pay { padding: var(--space-4); border-radius: var(--radius-md); background: var(--gray); font-size: var(--text-base); }
+  .bd__acct { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: var(--space-2) 0; }
+  .bd__acct b { font-size: var(--text-xl); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; user-select: all; }
+  .bd__note { margin-top: var(--space-2); font-weight: var(--font-semibold); }
+  @media (max-width: 860px) {
+    .inv__r { min-height: 64px; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>繳費紀錄 · 家長端（#990 批 5）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（specs/parent/payments.md、rules/billing-rules.md）</th><th>產品現況（sitemap/parent/payments.md）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>統計</td><td>待繳總額、本學期已繳總額</td><td>頁首只有「N 元待繳／N 張待付款」，沒有已繳總額</td><td>開場色面兩個數字：待繳、本學期已繳（後者標「新」在註記）</td></tr>
+      <tr><td>分組</td><td>待付款（優先）、已付款、已取消；rules §9：作廢單家長看得到、預設收合、只看到作廢時間</td><td>待付款／已付款，加一個收合的「已作廢（N）」（<code>billing.ts:141-148</code> 不過濾狀態、<code>payments.page.html:75-93</code> 用 details；計畫席 10/03 用原始碼驗過，跟 rules §9 一致）</td><td>三段：待繳 → 已繳清 → 已作廢（收合，產品已有）。作廢列只寫作廢日期，不寫理由（理由只給行政）</td></tr>
+      <tr><td>每列內容</td><td>編號、孩子姓名、班名、金額、狀態、期限／付款日</td><td>編號（id 前 8 碼）、金額、期限、狀態；沒有孩子姓名與班名</td><td>班名當主行（家長認得的是「哪個班的錢」，不是編號）；編號、期限／付款日在副行。孩子姓名不逐列重複 —— 這頁一次只看一個孩子，名字在左上切換器</td></tr>
+      <tr><td>部分繳</td><td>rules §4：狀態由累計實收推導（未繳／部分繳／繳清）</td><td>待付款金額＝total − netPaid（有算），但沒有「已收多少」的字</td><td>列上寫「還要繳 N 元」＋小字「已收 N／應繳 N」</td></tr>
+      <tr><td>明細</td><td>費用明細、折扣、應繳、期限、狀態；待付款：付款方式、帳戶資訊、「完成付款後請通知補習班確認」；已付款：日期、方式、確認人</td><td>底部抽屜；付款說明只有「帳戶資訊請洽補習班行政人員」；沒有確認人</td><td>對話框（手機底部升起）。帳戶資訊直接列出＋「複製帳號」（新）；已付款列每筆收款與收據號、經手人（確認人，新）。餐費項目連到餐費紀錄</td></tr>
+      <tr><td>載入更多</td><td>—</td><td>每頁 20 張，底部「載入更多」</td><td>保留在註記，示範資料不足一頁所以沒畫</td></tr>
+      <tr><td>0 個孩子／讀不到</td><td>—</td><td>#749 的共用 gate</td><td>共用 <code>A2.kids.gate</code>（#kids-0、#kids-failed）</td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>手機首屏只回答「現在要繳多少、繳到哪天」：開場色面的大數字就是答案，第一列就是最急的那張。</li>
+    <li>三個示範孩子分別是三種情境：林子晴一張快到期的待繳（預設打開就看得到待繳）、張宇軒一張部分繳、王柏翰一張逾期＋一張快到期＋一張作廢。</li>
+    <li>家長端沒有任何寫入：付款在補習班外完成，這頁只看。唯一的動作是複製帳號。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, money, esc, kids, toast } = A2;
+  const k = kids.active;
+  const ACCOUNT = { bank: '玉山銀行 808 景美分行', no: '0123-940-018-766'};
+  const ACC_NAME = typeof C.org === 'string' ? C.org : (C.org && C.org.name) || '補習班';
+
+  // 帳單：這個孩子在 data.js 的那一張（十月）＋頁內合成的歷史帳單（最壞情況：逾期、部分繳、作廢都要有）
+  function bills(kid) {
+    if (!kid) return [];
+    const cur = C.invoices.filter((i) => i.studentId === kid.id).map((i) => ({ ...i }));
+    const cls = kid.enrollments.map((e) => C.classById[e.classId]);
+    const tuition = (m) => cls.map((c) => ({ type: 'tuition', label: c.name, amount: c.fee, note: `${m}月費` }));
+    const mk = (id, issued, due, items, paid, payments, extra) => {
+      const total = items.reduce((a, x) => a + x.amount, 0);
+      const status = extra && extra.void ? 'void' : paid >= total ? 'paid' : due < C.TODAY ? 'overdue' : 'open';
+      return { id, studentId: kid.id, issuedAt: issued, due, items, total, paid, balance: total - paid, status, payments, ...extra };
+    };
+    const n = kid.id.slice(1).padStart(3, '0');
+    const meal = (m, cnt) => ({ type: 'meal', label: '餐費', amount: cnt * 80, note: `${m}月 ${cnt} 餐` });
+    const out = [...cur];
+    if (kid.id === 's1') {
+      out.push(mk(`INV-2609-${n}`, '2026-08-21', '2026-09-10', [...tuition('九月'), meal('八', 14)], 2000, [{ amount: 2000, method: 'cash', at: '2026-09-05', receipt: 'R2609-0031', by: '櫃台 陳淑芬' }]));
+      out.push(mk(`INV-2609-${n}A`, '2026-08-22', '2026-09-10', [meal('八', 14)], 0, [], { void: true, voidAt: '2026-08-23' }));
+      out.push(mk(`INV-2608-${n}`, '2026-07-21', '2026-08-10', [...tuition('八月'), { type: 'discount', label: '新生優惠', amount: -300, note: '' }], 3300, [{ amount: 3300, method: 'transfer', at: '2026-08-08', receipt: 'R2608-0019', by: '行政 林主任' }]));
+    } else if (kid.id === 's3') {
+      out.push(mk(`INV-2609-${n}`, '2026-08-21', '2026-10-08', [...tuition('九月'), { type: 'material', label: '講義費', amount: 450, note: '上學期講義' }], 5000, [{ amount: 3000, method: 'cash', at: '2026-09-02', receipt: 'R2609-0008', by: '櫃台 陳淑芬' }, { amount: 2000, method: 'transfer', at: '2026-09-20', receipt: 'R2609-0077', by: '行政 林主任' }]));
+      out.push(mk(`INV-2608-${n}`, '2026-07-21', '2026-08-10', tuition('八月'), 8400, [{ amount: 8400, method: 'transfer', at: '2026-08-06', receipt: 'R2608-0012', by: '行政 林主任' }]));
+    } else {
+      // 預設孩子：首屏要看得到「待繳」（最壞情況原則；逾期／部分繳／作廢在另外兩個孩子）
+      out.push(mk(`INV-2610-${n}B`, '2026-09-28', '2026-10-08', [{ type: 'material', label: '會考衝刺講義', amount: 1200, note: '十月' }, meal('九', 15)], 0, []));
+      out.push(mk(`INV-2609-${n}`, '2026-08-21', '2026-09-10', [...tuition('九月'), meal('八', 12)], 15360, [{ amount: 15360, method: 'transfer', at: '2026-09-04', receipt: 'R2609-0022', by: '行政 林主任' }]));
+      out.push(mk(`INV-2608-${n}`, '2026-07-21', '2026-08-10', tuition('八月'), 14400, [{ amount: 14400, method: 'cash', at: '2026-08-03', receipt: 'R2608-0004', by: '櫃台 陳淑芬' }]));
+    }
+    // data.js 的狀態（due_soon／open／overdue）在這裡收斂成家長看得懂的三種：待繳（含快到期／逾期／部分繳）、已繳清、已作廢
+    return out.map((b) => ({ ...b, payments: (b.payments || []).map((p) => ({ by: '行政 林主任', ...p })), balance: b.total - b.paid }));
+  }
+  const ALL = bills(k);
+  const pending = ALL.filter((b) => b.status !== 'paid' && b.status !== 'void').sort((a, b) => (a.due < b.due ? -1 : 1));
+  const paid = ALL.filter((b) => b.status === 'paid').sort((a, b) => (a.issuedAt < b.issuedAt ? 1 : -1));
+  const voided = ALL.filter((b) => b.status === 'void');
+  const owe = pending.reduce((a, b) => a + b.balance, 0);
+  const termPaid = ALL.filter((b) => b.status !== 'void').reduce((a, b) => a + b.paid, 0);
+
+  const METHOD = { cash: '現金', transfer: '轉帳' };
+  const what = (b) => [...new Set(b.items.filter((x) => x.type !== 'discount').map((x) => x.label))].join('、');
+  const daysTo = (d) => A2.days(C.TODAY, d);
+  function statusTag(b) {
+    if (b.status === 'void') return '<span class="tag tag--quiet">已作廢</span>';
+    if (b.status === 'paid') return `<span class="tag tag--ok">${icon.check}已繳清</span>`;
+    const part = b.paid > 0 ? '部分繳 · ' : '';
+    if (b.due < C.TODAY) return `<span class="tag tag--error">${icon.alert}${part}逾期 ${-daysTo(b.due)} 天</span>`;
+    if (daysTo(b.due) <= 7) return `<span class="tag tag--warn">${icon.clock}${part}${daysTo(b.due) === 0 ? '今天到期' : `${daysTo(b.due)} 天後到期`}</span>`;
+    return `<span class="tag tag--quiet">${part}未到期</span>`;
+  }
+  function row(b) {
+    const sub = b.status === 'void' ? `作廢於 ${md(b.voidAt)}`
+      : b.status === 'paid' ? `${md(b.payments[b.payments.length - 1].at)} 繳清`
+      : `繳費期限 ${md(b.due)}`;
+    const amt = b.status === 'void' ? `${money(b.total)} 元`
+      : b.status === 'paid' ? `${money(b.total)} 元`
+      : `${money(b.balance)} 元${b.paid ? `<small>已收 ${money(b.paid)}／應繳 ${money(b.total)}</small>` : ''}`;
+    return `<button class="inv__r${b.status === 'void' ? ' inv--void' : ''}" type="button" data-bill="${b.id}">
+      <span><span class="inv__what">${esc(what(b))}</span>
+        <span class="inv__meta">${statusTag(b)}<span>${sub}</span><span>#${b.id}</span></span></span>
+      <span class="inv__amt">${amt}</span></button>`;
+  }
+
+  const body = `
+    <section class="sec">
+      <div class="sec__head"><h2 class="sec__title">待繳</h2><span class="sec__count">${pending.length} 張</span></div>
+      <div class="inv">${pending.length ? pending.map(row).join('') : `<p class="none">${k ? k.name : ''} 目前沒有待繳的帳單。</p>`}</div>
+    </section>
+    <section class="sec">
+      <div class="sec__head"><h2 class="sec__title">已繳清</h2><span class="sec__count">${paid.length} 張</span></div>
+      <div class="inv">${paid.length ? paid.map(row).join('') : '<p class="none">還沒有繳清的帳單。</p>'}</div>
+    </section>
+    ${voided.length ? `<div class="colls" style="margin-top:var(--space-10)"><details class="coll"><summary class="coll__sum"><span class="coll__t">已作廢</span><span class="coll__m">${voided.length} 張 · 不用繳</span></summary>
+      <div class="coll__body"><p class="muted" style="margin-bottom:var(--space-2)">補習班開錯後作廢的帳單，留著當紀錄，不用繳。</p><div class="inv">${voided.map(row).join('')}</div></div></details></div>` : ''}
+    <p style="margin-top:var(--space-10)"><a class="sec__link" style="margin-left:0" href="p-meals.html">看餐費紀錄${icon.right}</a></p>`;
+
+  shell({
+    role: 'parent', page: 'p-payments', child: true,
+    title: !k ? '繳費紀錄' : owe ? `${esc(k.name)} 還要繳<br>${money(owe)} 元。` : `${esc(k.name)} 的帳單<br>都繳清了。`,
+    sub: k && pending.length ? `最近的期限是 ${md(pending[0].due)}${pending[0].due < C.TODAY ? '，已經過了' : ''}` : ' ',
+    stats: k ? [{ n: money(owe), unit: '元', label: `待繳 · ${pending.length} 張` }, { n: money(termPaid), unit: '元', label: '本學期已繳' }] : [],
+    phase: 5300,
+  }, kids.gate(body));
+
+  // ── 明細（唯讀對話框；手機從底部升起靠 .acset 的既有樣式）──
+  function sheet(b) {
+    const d = document.createElement('dialog');
+    d.className = 'acset fdlg';
+    d.setAttribute('aria-labelledby', 'bd-t');
+    const items = b.items.map((x) => `<li class="bd__li"><span>${x.type === 'meal' ? `<a href="p-meals.html">${esc(x.label)}</a>` : esc(x.label)}${x.note ? `<small>${esc(x.note)}</small>` : ''}</span><span>${x.amount < 0 ? '−' : ''}${money(Math.abs(x.amount))} 元</span></li>`).join('');
+    const pays = b.payments.map((p) => `<li class="bd__li"><span>${md(p.at)} · ${METHOD[p.method]}<small>收據 ${p.receipt} · 經手 ${esc(p.by)}<span class="new">新</span></small></span><span>${money(p.amount)} 元</span></li>`).join('');
+    const howToPay = b.status !== 'paid' && b.status !== 'void' ? `<div class="bd__pay"><p class="bd__h">怎麼繳</p>
+        <p>現金：到櫃台繳；轉帳：</p>
+        <p class="bd__acct"><b>${ACCOUNT.no}</b><button class="btn btn--sm" type="button" data-copy="${ACCOUNT.no}">複製帳號</button><span class="new">新</span></p>
+        <p>${ACCOUNT.bank} · 戶名 ${esc(ACC_NAME)}</p>
+        <p class="bd__note">完成付款後請通知補習班確認。</p></div>` : '';
+    d.innerHTML = `<div class="acset__head"><div><h2 class="acset__t" id="bd-t">帳單 #${b.id}</h2><p class="fdlg__sub">${esc(k.name)} · ${statusTag(b)}</p></div><button class="acset__x" type="button" aria-label="關閉" data-x>${icon.x}</button></div>
+      <div class="acset__body bd">
+        <div><p class="bd__h">費用明細</p><ul>${items}</ul><p class="bd__sum"><span>應繳</span><span>${money(b.total)} 元</span></p></div>
+        <dl class="bd__kv">
+          ${b.status === 'void' ? `<dt>作廢日期</dt><dd>${b.voidAt}（不用繳）</dd>` : `<dt>繳費期限</dt><dd>${b.due}</dd><dt>已收</dt><dd>${money(b.paid)} 元</dd>${b.balance > 0 ? `<dt>還要繳</dt><dd><b>${money(b.balance)} 元</b></dd>` : ''}`}
+          <dt>開立日期</dt><dd>${b.issuedAt}</dd>
+        </dl>
+        ${pays ? `<div><p class="bd__h">付款紀錄</p><ul>${pays}</ul></div>` : ''}
+        ${howToPay}
+      </div>
+      <div class="fdlg__foot"><button class="btn" type="button" data-x>關閉</button></div>`;
+    document.body.append(d);
+    d.addEventListener('click', (e) => {
+      if (e.target === d || e.target.closest('[data-x]')) d.close();
+      const c = e.target.closest('[data-copy]');
+      if (c) { navigator.clipboard?.writeText(c.dataset.copy).catch(() => {}); /* 權限被拒時不跳錯（file:// 與部分瀏覽器） */ c.textContent = '已複製'; toast(`已複製帳號 ${c.dataset.copy}`); }
+    });
+    d.addEventListener('close', () => setTimeout(() => d.remove(), 200));
+    d.showModal();
+  }
+  document.addEventListener('click', (e) => {
+    const r = e.target.closest('[data-bill]');
+    if (r) sheet(ALL.find((b) => b.id === r.dataset.bill));
+  });
+})();
+</script>
+</body>
+</html>

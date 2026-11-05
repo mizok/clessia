@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 人員管理</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .ff { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); margin-top: var(--space-6); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--zinc-100); }
+  .ff label { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--zinc-700); }
+  .ff .acset__in { width: 100%; height: 40px; }
+  .count { margin-top: var(--space-4); font-size: var(--text-md); color: var(--zinc-600); }
+  .count button { border: 0; padding: 0; background: none; font: inherit; font-weight: var(--font-semibold); color: var(--zinc-900); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .pp { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.9fr) 44px; gap: var(--space-1) var(--space-6); align-items: center; min-height: 72px; padding: var(--space-3) 0; border-bottom: 1px solid var(--zinc-200); }
+  .pp__name { border: 0; padding: 0; background: none; font: inherit; font-size: var(--text-lg); font-weight: var(--font-bold); color: var(--zinc-900); text-align: left; cursor: pointer; }
+  .pp__name:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .pp__mail { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--zinc-600); overflow-wrap: anywhere; }
+  .pp__roles { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+  .chip { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: var(--radius-full); background: var(--zinc-100); font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--zinc-800); }
+  .chip--admin { background: var(--zinc-900); color: #fff; }
+  .pp__perm { border: 0; padding: 0; background: none; font: inherit; font-size: var(--text-sm); color: var(--zinc-700); text-decoration: underline; text-decoration-color: var(--zinc-300); text-underline-offset: 3px; cursor: pointer; }
+  .pp__meta { font-size: var(--text-md); color: var(--zinc-800); }
+  .pp__meta small { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .pp__meta a { color: inherit; text-decoration: underline; text-decoration-color: var(--zinc-300); text-underline-offset: 3px; }
+  .pp__state { font-size: var(--text-md); font-weight: var(--font-semibold); }
+  .pp__state small { display: block; margin-top: 2px; font-size: var(--text-sm); font-weight: var(--font-normal); color: var(--zinc-600); }
+  .pp--off .pp__name, .pp--off .pp__meta { color: var(--zinc-600); }
+  .pp__more { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: var(--radius-md); background: none; color: var(--zinc-800); cursor: pointer; }
+  .pp__more:hover { background: var(--zinc-100); }
+  .pop--menu .is-danger { color: var(--error-700); }
+  .pop--menu hr { margin: 4px 0; border: 0; border-top: 1px solid var(--zinc-200); }
+  .empty { padding: var(--space-8) 0; font-size: var(--text-base); color: var(--zinc-700); }
+  .perm { display: grid; gap: var(--space-2); }
+  .perm label { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 2px var(--space-3); align-items: start; padding: var(--space-3); border-radius: var(--radius-md); background: #fff; cursor: pointer; }
+  .perm input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--zinc-900); }
+  .perm b { font-size: var(--text-base); }
+  .perm small { grid-column: 2; font-size: var(--text-sm); color: var(--zinc-600); }
+  .perm label:has(input:disabled) { cursor: default; opacity: 0.6; }
+  .perm__why { padding: var(--space-3); border-radius: var(--radius-md); background: var(--zinc-100); font-size: var(--text-md); color: var(--zinc-800); }
+  .tl__nums { display: flex; gap: var(--space-8); }
+  .tl__nums b { display: block; font-size: 32px; font-weight: var(--font-bold); font-variant-numeric: tabular-nums; }
+  .tl__nums span { font-size: var(--text-md); color: var(--zinc-600); }
+  .tl__list { display: grid; }
+  .tl__list a { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--zinc-200); font-size: var(--text-md); text-decoration: none; }
+  .tl__list a:hover { text-decoration: underline; }
+  .tl__list small { color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .link { display: flex; gap: var(--space-2); align-items: center; padding: var(--space-3); border-radius: var(--radius-md); background: #fff; border: 1px solid var(--zinc-300); font-size: var(--text-md); overflow-wrap: anywhere; user-select: all; }
+  .loglist { display: grid; }
+  .loglist li { display: flex; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--zinc-200); font-size: var(--text-md); list-style: none; }
+  .loglist time { flex: none; width: 92px; color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .sheet__body { display: grid; gap: var(--space-4); padding: var(--space-2) var(--space-6) var(--space-4); }
+  .is-gone { opacity: 0; transform: translateX(8px); transition: opacity 0.14s var(--leave), transform 0.14s var(--leave); }
+  @media (max-width: 860px) {
+    .fold .ff { margin-top: 0; }
+    .ff { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin-left: calc(var(--space-4) * -1); margin-right: calc(var(--space-4) * -1); border-radius: 0; }
+    .pp { grid-template-columns: minmax(0, 1fr) 44px; gap: var(--space-2) var(--space-3); }
+    .pp > :not(.pp__more) { grid-column: 1; }
+    .pp__more { grid-column: 2; grid-row: 1; }
+    .chap { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding: var(--space-6) 0 var(--space-2); }
+    .chap__side { position: static; display: flex; align-items: baseline; gap: var(--space-3); }
+    .chap__big { font-size: 28px; }
+    .chap__tally { margin-top: 0; font-size: var(--text-base); }
+    .sheet__body { padding: var(--space-2) var(--space-4) var(--space-4); }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>人員管理（#990 批 3）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然（specs/admin/system/staff.md、specs/admin/roles-and-auth.md）</th><th>產品現況（sitemap/admin/staff）</th><th>設計稿</th></tr></thead>
+    <tbody>
+      <tr><td>進頁門檻</td><td>需 manage_staff</td><td>路由沒有 permission，任何管理員都進得來，寫入由 API 擋</td><td>照應然畫有權限的人看到的樣子；沒有 manage_roles 的人「只能查看」的樣子沒畫（註記）</td></tr>
+      <tr><td>篩選</td><td>姓名、角色、服務分校</td><td>搜尋（姓名或 Email）＋角色、分校、科目、狀態</td><td>產品的五個都保留（規格的三個都在裡面）</td></tr>
+      <tr><td>每筆</td><td>姓名、角色標籤、服務分校、電話、帳號狀態；點擊進入編輯</td><td>表格七欄，⋮ 才能編輯，電話是 tel: 連結</td><td>依角色分章（管理員／老師／停用與封存），點名字就編輯（照規格）；電話是純文字可複製；管理員多一行「權限 N 項」可點開</td></tr>
+      <tr><td>身兼兩者</td><td>—</td><td>統計格「N 管理員・N 老師（N 位身兼兩者）」</td><td>開場副行照寫；身兼兩者的人列在管理員那章，角色標兩個</td></tr>
+      <tr><td>表單</td><td>姓名、角色（下拉）、服務分校（多選）、教學科目（老師必填）、電話（必填）、Email（必填）、生日、備註、帳號狀態</td><td>角色是兩個勾選框；權限在同一張表單裡</td><td>基本資料一張表單；權限拆成獨立的「權限設定」（勾選框，每項寫一行說明）。服務分校與科目先做單選（多選屬於產品元件，不在設計稿自刻）</td></tr>
+      <tr><td>權限項目</td><td>6 項＋manage_roles</td><td>8 項（多一個跨分校 all_campuses）</td><td>照產品 8 項（應然的 7 項都在裡面，跨分校在 notes 註記）</td></tr>
+      <tr><td>改自己的權限</td><td>任何人都不能改自己的角色與權限（提權一定經過另一個人）；舊版「不可指派給已有 manage_staff 的人」已撤（<code>specs/admin/system/staff.md</code> 實作註記，10/02 核對）</td><td>API 擋（<code>role-assignment.ts</code>），UI 沒有預先提示</td><td>打開自己的權限時勾選框停用並寫出原因（產品只在送出後才報錯；預先提示是 UI 改動，不需後端）</td></tr>
+      <tr><td>建立帳號</td><td>不帶密碼，回傳一次性登入連結交給員工</td><td>建立後不出連結，要再按「產生登入連結」</td><td>建立後直接出連結＋複製（新）；⋯ 裡的「產生登入連結」照樣保留</td></tr>
+      <tr><td>還沒登入過</td><td>—</td><td>—</td><td>姓名旁標「還沒登入過」（新），提醒行政把連結交出去</td></tr>
+      <tr><td>授課紀錄</td><td>—</td><td>⋮ 開對話框（#727 前關不掉，已修）</td><td>保留；底部有「關閉」，每堂課連到課表</td></tr>
+      <tr><td>停用／封存</td><td>帳號狀態開關</td><td>⋮ 停用、重新啟用、封存（確認文案見產品）</td><td>照產品文案；封存是紅色確認鈕、寫清楚無法取消</td></tr>
+    </tbody>
+  </table>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/stress.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, esc } = A2;
+  const PERMS = [
+    ['basic_operations', '日常行政', '查詢與處理報名、出勤、請假'], ['manage_courses', '課程管理', '課程與排課管理'], ['manage_students', '學生管理', '學生與家長資料管理'],
+    ['manage_finance', '財務管理', '財務與收費管理'], ['manage_staff', '帳號管理', '系統帳號與權限管理'], ['manage_roles', '角色管理', '指派或變更帳號角色與權限'],
+    ['view_reports', '報表查看', '查看營收與統計報表'], ['all_campuses', '跨分校', '不受指派分校限制，看得到全機構的資料'],
+  ];
+  const PL = Object.fromEntries(PERMS.map(([k, l]) => [k, l]));
+  const SUBJ = ['國文', '英文', '數學', '自然', '社會', '其他'];
+  const [A, B] = C.campuses;
+  // ── 資料：管理員 7 位、老師 16＋7 位；有身兼兩者、停用、封存、還沒登入過 ──
+  let n = 0;
+  const P = (name, roles, o = {}) => ({ id: 'p' + ++n, name, roles, perms: [], campuses: [A], subjects: [], status: 'active', invited: false,
+    email: `staff${String(n).padStart(2, '0')}@wenshan-demo.tw`, phone: '09' + String((n * 7919 + 13) % 100000000).padStart(8, '0'), ...o });
+  const S = [
+    P('林主任', ['admin'], { perms: PERMS.map(([k]) => k), campuses: [A, B], email: 'lin.director@wenshan-demo.tw' }),
+    P('張教務', ['admin'], { perms: ['basic_operations', 'manage_courses', 'manage_students'] }),
+    P('陳櫃台', ['admin'], { perms: ['basic_operations'] }),
+    P('王會計', ['admin'], { perms: ['manage_finance', 'view_reports'], campuses: [A, B] }),
+    P('李分校主任', ['admin'], { perms: ['basic_operations', 'manage_courses', 'manage_students', 'view_reports', 'manage_staff'], campuses: [B] }),
+    P('吳行政', ['admin'], { perms: ['basic_operations'], status: 'inactive' }),
+    P('黃助理', ['admin'], { perms: ['basic_operations'], invited: true }),
+  ];
+  const known = Object.fromEntries(C.teachers.map((t) => [t.name, t.subject]));
+  CLESSIA_STRESS.teachers.forEach((t, i) => S.push(P(t.name, i < 2 ? ['admin', 'teacher'] : ['teacher'], {
+    subjects: [known[t.name] || SUBJ[i % 5]], campuses: i % 4 === 3 ? [B] : i % 7 === 0 ? [A, B] : [A],
+    perms: i < 2 ? ['basic_operations', 'manage_courses'] : [], status: i === 13 ? 'inactive' : 'active', invited: i === 15, note: t.partTime ? '兼任' : '' })));
+  ['羅子晴', '彭建宏', '施佳蓉', '方俊傑', '馮雅婷', '杜承恩', '溫若涵'].forEach((name, i) => S.push(P(name, ['teacher'], { subjects: [SUBJ[(i + 2) % 5]], campuses: [i % 2 ? B : A], status: i === 6 ? 'archived' : 'active', invited: i === 2 })));
+  const LOGS = [['10/01 17:12', '林主任', '編輯', '張教務'], ['09/30 10:05', '林主任', '新增', '黃助理'], ['09/28 14:40', '李分校主任', '停用', '吳行政'], ['09/20 09:12', '林主任', '封存', '溫若涵'], ['09/12 16:30', '林主任', '權限', '王會計']];
+
+  const st = { q: '', role: '', campus: '', subj: '', status: 'live' };
+  const isT = (p) => p.roles.includes('teacher'), isA = (p) => p.roles.includes('admin');
+  const STATE = { active: '啟用中', inactive: '已停用', archived: '已封存' };
+  const phone = (s) => `${s.slice(0, 4)}-${s.slice(4, 7)}-${s.slice(7)}`;
+  const row = (p) => `<div class="pp${p.status === 'active' ? '' : ' pp--off'}" data-id="${p.id}">
+      <div><button class="pp__name" type="button" data-edit="${p.id}">${esc(p.name)}</button>${p.invited ? ` <span class="chip">還沒登入過<span class="new">新</span></span>` : ''}<span class="pp__mail">${esc(p.email)}</span></div>
+      <div class="pp__roles">${isA(p) ? '<span class="chip chip--admin">管理員</span>' : ''}${isT(p) ? '<span class="chip">老師</span>' : ''}${isA(p) ? `<button class="pp__perm" type="button" data-perm="${p.id}">權限 ${p.perms.length} 項</button>` : ''}</div>
+      <div class="pp__meta">${p.subjects.length ? p.subjects.join('、') : '—'}<small>${p.campuses.map((c) => `<a href="settings.html#campuses">${c}</a>`).join('、')}</small></div>
+      <div class="pp__state">${STATE[p.status]}<small>${phone(p.phone)}${p.note ? ` · ${p.note}` : ''}</small></div>
+      <button class="pp__more" type="button" popovertarget="sm" data-x="${p.id}" aria-label="${esc(p.name)} 的更多動作">${icon.dots}</button>
+    </div>`;
+
+  function render() {
+    const live = S.filter((p) => p.status !== 'archived');
+    const act = live.filter((p) => p.status === 'active');
+    const both = live.filter((p) => isA(p) && isT(p)).length, inv = live.filter((p) => p.invited).length;
+    document.querySelector('.open__title').innerHTML = `${live.length} 位人員，<br>${act.length} 位啟用中。`;
+    document.querySelector('.open__sub').textContent = `${live.filter(isA).length} 位管理員 · ${live.filter(isT).length} 位老師${both ? `（${both} 位身兼兩者）` : ''}${inv ? ` · ${inv} 位還沒登入過` : ''}`;
+    const q = st.q.trim();
+    const list = S.filter((p) => (!q || p.name.includes(q) || p.email.includes(q)) && (!st.role || p.roles.includes(st.role)) && (!st.campus || p.campuses.includes(st.campus)) && (!st.subj || p.subjects.includes(st.subj))
+      && (st.status === 'all' || (st.status === 'live' ? p.status !== 'archived' : p.status === st.status)));
+    const filtered = q || st.role || st.campus || st.subj || st.status !== 'live';
+    const cnt = document.getElementById('count');
+    cnt.hidden = !filtered;
+    cnt.innerHTML = `${list.length} 位符合 · <button type="button" data-clear>清除篩選</button>`;
+    document.getElementById('fmeta').textContent = filtered ? `${list.length} 位符合` : '全部';
+    const on = list.filter((p) => p.status === 'active');
+    const groups = [['管理員', on.filter(isA)], ['老師', on.filter((p) => isT(p) && !isA(p))], [list.some((p) => p.status === 'archived') ? '停用與封存' : '已停用', list.filter((p) => p.status !== 'active')]];
+    const html = groups.filter(([, a]) => a.length).map(([t, a]) => `<section class="chap" aria-label="${t}"><div class="chap__side"><div class="chap__big">${t}</div><p class="chap__tally">${a.length} 位</p></div><div>${a.map(row).join('')}</div></section>`).join('');
+    document.getElementById('list').innerHTML = html || (filtered
+      ? `<p class="empty">找不到符合的人員。<button class="btn btn--sm" type="button" data-clear>清除篩選</button></p>`
+      : `<p class="empty">還沒有建立人員。<button class="btn btn--sm btn--cta" type="button" data-new>${icon.plus}新增人員</button></p>`);
+  }
+
+  shell({
+    page: 'staff',
+    title: '',
+    sub: ' ',
+    bar: `<label class="tsearch">${icon.search}<input type="search" id="f-q" placeholder="找姓名或 Email" aria-label="搜尋人員" autocomplete="off"></label>
+      <div class="tbar__act"><button class="btn only-d" type="button" data-log>操作紀錄</button><button class="btn btn--cta only-d" type="button" data-new>${icon.plus}新增人員</button></div>`,
+    dock: `<button class="btn" type="button" data-log>操作紀錄</button><button class="btn btn--cta" type="button" data-new>${icon.plus}新增人員</button>`,
+    phase: 2600,
+  }, `<details class="fold" data-fold><summary class="fold__sum"><span class="fold__t">篩選</span><span class="fold__m" id="fmeta">全部</span></summary><div class="ff">
+      <label>角色<select class="acset__in" id="f-role"><option value="">全部角色</option><option value="admin">管理員</option><option value="teacher">老師</option></select></label>
+      <label>服務分校<select class="acset__in" id="f-campus"><option value="">全部分校</option>${C.campuses.map((c) => `<option>${c}</option>`).join('')}</select></label>
+      <label>教學科目<select class="acset__in" id="f-subj"><option value="">全部科目</option>${SUBJ.map((s) => `<option>${s}</option>`).join('')}</select></label>
+      <label>狀態<select class="acset__in" id="f-status"><option value="live">啟用中＋已停用</option><option value="active">啟用中</option><option value="inactive">已停用</option><option value="archived">已封存</option><option value="all">全部（含已封存）</option></select></label>
+    </div></details>
+    <p class="count" id="count" hidden></p><div id="list"></div>
+    <div class="pop pop--menu" id="sm" popover></div>`);
+  A2.fold();
+  render();
+
+  const byId = (id) => S.find((p) => p.id === id);
+  const pop = () => { const p = document.getElementById('sm'); if (p.matches(':popover-open')) p.hidePopover(); };
+  // ⋮ 選單：依那個人的角色與狀態重畫（同一份 popover，a6.js 會貼著實際被按的那顆）
+  document.addEventListener('click', (e) => {
+    const m = e.target.closest('.pp__more[data-x]'); // A2.form 的取消／關閉也叫 data-x，要限縮
+    if (!m) return;
+    const p = byId(m.dataset.x);
+    document.getElementById('sm').innerHTML = `<button type="button" data-edit="${p.id}">${icon.edit}編輯</button>
+      ${isA(p) ? `<button type="button" data-perm="${p.id}">權限設定</button>` : ''}
+      ${isT(p) ? `<button type="button" data-log-t="${p.id}">授課紀錄</button>` : ''}
+      ${p.status !== 'archived' ? `<button type="button" data-link="${p.id}">產生登入連結</button>` : ''}
+      <hr>${p.status === 'active' ? `<button type="button" data-off="${p.id}">停用帳號</button>` : p.status === 'inactive' ? `<button type="button" data-on="${p.id}">重新啟用</button>` : ''}
+      ${p.status !== 'archived' ? `<button type="button" class="is-danger" data-arc="${p.id}">封存帳號</button>` : '<button type="button" disabled>已封存，無法取消</button>'}`;
+  }, true);
+
+  // 唯讀的對話框（權限、授課紀錄、登入連結、操作紀錄）：沿用 .acset／.fdlg 的樣子，底部一定有關閉
+  function sheet(title, sub, body, foot = '') {
+    const d = document.createElement('dialog');
+    d.className = 'acset fdlg';
+    d.setAttribute('aria-labelledby', 'sh-t');
+    d.innerHTML = `<div class="acset__head"><div><h2 class="acset__t" id="sh-t">${esc(title)}</h2>${sub ? `<p class="fdlg__sub">${esc(sub)}</p>` : ''}</div><button class="acset__x" type="button" aria-label="關閉" data-x-close>${icon.x}</button></div>
+      <div class="sheet__body">${body}</div><div class="fdlg__foot">${foot}<button class="btn" type="button" data-x-close>關閉</button></div>`;
+    document.body.append(d);
+    d.addEventListener('click', (e) => { if (e.target === d || e.target.closest('[data-x-close]')) d.close(); });
+    d.addEventListener('close', () => setTimeout(() => d.remove(), 200));
+    d.showModal();
+    return d;
+  }
+  const linkOf = (p) => `https://app.wenshan-demo.tw/l/${(p.id + p.name.length * 7919).toString(36)}x${(p.phone.slice(-4) * 37).toString(36)}`;
+  const showLink = (p, fresh) => sheet(fresh ? `已建立 ${p.name} 的帳號` : `${p.name} 的登入連結`, '連結只能用一次，24 小時內有效。交給本人，用手機打開後綁定 LINE 就能登入。',
+    `<p class="link">${linkOf(p)}</p>`, `<button class="btn btn--cta" type="button" data-ok="已複製 ${p.name} 的登入連結">複製連結</button>`);
+
+  const baseFields = (p = {}) => [
+    { k: 'name', label: '姓名', value: p.name || '', req: true, ph: '真實姓名', half: true },
+    ...(p.id ? [] : [{ k: 'email', label: 'Email', value: '', req: true, ph: '用來產生登入連結的 Email', half: true }]),
+    { k: 'phone', label: '電話', type: 'tel', value: p.phone ? phone(p.phone) : '', req: true, ph: '手機或市話', half: true },
+    { k: 'bday', label: '生日', type: 'date', value: p.bday || '', half: true },
+    { k: 'role', label: '角色', type: 'select', req: true, value: p.roles ? (isA(p) && isT(p) ? 'both' : p.roles[0]) : '', ph: '選一個角色', options: [['admin', '管理員'], ['teacher', '老師'], ['both', '管理員＋老師']], half: true },
+    { k: 'campus', label: '服務分校', type: 'select', value: p.campuses ? (p.campuses.length > 1 ? 'both' : p.campuses[0]) : A, options: [[A, A], [B, B], ['both', '兩個分校']], half: true },
+    { k: 'subj', label: '教學科目（老師必填）', type: 'select', value: p.subjects ? p.subjects[0] || '' : '', ph: '不教課', options: SUBJ },
+    { k: 'note', label: '備註', type: 'textarea', value: p.note || '', ph: '其他備註資訊' },
+  ];
+  const applyBase = (p, v) => Object.assign(p, { name: v.name, phone: v.phone.replace(/\D/g, '') || p.phone, bday: v.bday,
+    roles: v.role === 'both' ? ['admin', 'teacher'] : [v.role], campuses: v.campus === 'both' ? [A, B] : [v.campus], subjects: v.subj ? [v.subj] : [], note: v.note });
+
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (t.closest('[data-clear]')) { Object.assign(st, { q: '', role: '', campus: '', subj: '', status: 'live' }); document.getElementById('f-q').value = ''; ['f-role', 'f-campus', 'f-subj'].forEach((id) => (document.getElementById(id).value = '')); document.getElementById('f-status').value = 'live'; render(); }
+    if (t.closest('[data-new]')) A2.form({
+      title: '新增人員', sub: '建立後會出一次性登入連結，交給本人綁定 LINE（不設密碼）', fields: baseFields(), submit: '建立', busy: '建立中…',
+      ok: (v) => `已建立 ${v.name} 的帳號`,
+      apply: (v) => { const p = applyBase(P(v.name, []), v); p.email = v.email; p.invited = true; if (isA(p)) p.perms = ['basic_operations']; S.splice(isA(p) ? 1 : S.length, 0, p); render(); setTimeout(() => showLink(p, true), 260); },
+    });
+    const ed = t.closest('[data-edit]');
+    if (ed) { pop(); const p = byId(ed.dataset.edit); A2.form({ title: `編輯 ${p.name}`, sub: `Email：${p.email}（Email 是產生登入連結的查人鍵，不能改）`, fields: baseFields(p), submit: '儲存', busy: '儲存中…', ok: (v) => `已更新 ${v.name} 的資料`, apply: (v) => { applyBase(p, v); render(); } }); }
+    const pm = t.closest('[data-perm]');
+    if (pm) {
+      pop();
+      const p = byId(pm.dataset.perm), locked = p.name === '林主任'; // 示範使用者本人：不能改自己的權限
+      const d = sheet(`${p.name} 的權限`, '勾了才看得到、做得到；選單會跟著隱藏沒權限的頁', `${locked ? `<p class="perm__why">${icon.info} 這是你自己的帳號。任何人都不能改自己的權限，要調整請另一位有「角色管理」權限的人處理。</p>` : ''}
+        <div class="perm">${PERMS.map(([k, l, s]) => `<label><input type="checkbox" value="${k}"${p.perms.includes(k) ? ' checked' : ''}${locked ? ' disabled' : ''}><b>${l}</b><small>${s}</small></label>`).join('')}</div>`,
+        locked ? '' : `<button class="btn btn--cta" type="button" data-perm-save>儲存權限</button>`);
+      const save = d.querySelector('[data-perm-save]');
+      if (save) save.addEventListener('click', () => A2.act(save, { busy: '儲存中…', ok: `已更新 ${p.name} 的權限`, run: () => { p.perms = [...d.querySelectorAll('.perm input:checked')].map((x) => x.value); d.close(); render(); } }));
+    }
+    const lt = t.closest('[data-log-t]');
+    if (lt) {
+      pop();
+      const p = byId(lt.dataset.logT), cls = C.classes.filter((c) => p.subjects.includes(c.subject)).slice(0, 3);
+      const items = cls.flatMap((c, i) => [1, 2, 3].map((w) => [`9/${String(w * 7 + i).padStart(2, '0')}`, c.name, `${c.start}–${c.end}`]));
+      const d = sheet(`授課紀錄 · ${p.name}`, '', `<label class="acset__f"><span class="acset__l">月份</span><select class="acset__in" id="tl-m"><option value="9">2026 年 9 月</option><option value="10">2026 年 10 月</option></select></label>
+        <div class="tl__nums" id="tl-n"></div><div class="tl__list" id="tl-l"></div>`);
+      const paint = (m) => {
+        const it = m === '9' ? items : [];
+        d.querySelector('#tl-n').innerHTML = `<p><b>${(it.length * 1.5).toFixed(1).replace('.0', '')}</b><span>小時</span></p><p><b>${it.length}</b><span>堂</span></p>`;
+        d.querySelector('#tl-l').innerHTML = it.length ? it.map(([dd, c, tm]) => `<a href="schedule.html">${c}<small>${dd} ${tm}</small></a>`).join('') : '<p class="perm__why">這個月還沒有課堂紀錄。</p>';
+      };
+      paint('9');
+      d.querySelector('#tl-m').addEventListener('change', (ev) => paint(ev.target.value));
+    }
+    const lk = t.closest('[data-link]');
+    if (lk) { pop(); const p = byId(lk.dataset.link); A2.toast(`已產生 ${p.name} 的登入連結`); showLink(p, false); }
+    const off = t.closest('[data-off]');
+    if (off) { pop(); const p = byId(off.dataset.off); A2.form({ title: '確認停用', sub: `確定要停用「${p.name}」嗎？停用後帳號將暫時無法使用，但角色與課堂指派會保留。`, fields: [], submit: '停用', busy: '停用中…', ok: `已停用 ${p.name}`, apply: () => { p.status = 'inactive'; render(); return { undo: () => { p.status = 'active'; render(); } }; } }); }
+    const onb = t.closest('[data-on]');
+    if (onb) { pop(); const p = byId(onb.dataset.on); A2.form({ title: '確認重新啟用', sub: `「${p.name}」重新啟用後就能用原本的 LINE 登入。`, fields: [], submit: '重新啟用', busy: '處理中…', ok: `已重新啟用 ${p.name}`, apply: () => { p.status = 'active'; render(); } }); }
+    const arc = t.closest('[data-arc]');
+    if (arc) {
+      pop();
+      const p = byId(arc.dataset.arc);
+      const d = A2.form({ title: '確認封存', sub: `確定要封存「${p.name}」嗎？封存後無法取消，帳號將永久停用且無法登入，未來課堂指派將自動解除，但歷史紀錄會保留。`, fields: [], submit: '封存', busy: '封存中…', ok: `已封存 ${p.name}`, apply: () => { p.status = 'archived'; render(); } });
+      const go = d.querySelector('[data-go]'); go.style.background = 'var(--error-700)'; go.style.borderColor = 'var(--error-700)'; go.style.color = '#fff';
+    }
+    if (t.closest('[data-log]')) sheet('操作紀錄', '人員的新增、編輯、停用、封存與權限變更', `<ul class="loglist">${LOGS.map(([at, who, what, obj]) => `<li><time>${at}</time><span><b>${who}</b> ${what} · ${obj}</span></li>`).join('')}</ul>`);
+  });
+  document.getElementById('f-q').addEventListener('input', (e) => { st.q = e.target.value; render(); });
+  [['f-role', 'role'], ['f-campus', 'campus'], ['f-subj', 'subj'], ['f-status', 'status']].forEach(([id, k]) => document.getElementById(id).addEventListener('change', (e) => { st[k] = e.target.value; render(); }));
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 家長管理</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* 「新」標記：schedule.css 有同一條，這頁沒載入 schedule.css（應收進 a6.css） */
+
+  .count { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3); margin-top: var(--space-6); font-size: var(--text-md); color: var(--zinc-600); }
+  .count strong { color: var(--zinc-900); }
+  .count button, .arch button { border: 0; padding: 0; background: none; font: inherit; font-weight: var(--font-semibold); color: var(--zinc-900); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .count[hidden] { display: none; }
+
+  /* 家長列：名字＋識別帳號｜孩子｜⋯。名字整塊可按（查看詳情），孩子是連到學生檔案的小連結 */
+  .plist { list-style: none; margin: 0; padding: 0; }
+  .prow { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) auto; align-items: center; gap: var(--space-2) var(--space-6); padding: var(--space-3) 0; border-bottom: 1px solid var(--surface-border); }
+  .prow:last-child { border-bottom: 0; }
+  .prow__main { display: block; min-width: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .prow__main:hover .prow__name { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1.5px; }
+  .prow__name { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-lg); font-weight: var(--font-semibold); }
+  .prow__id { display: block; margin-top: 1px; font-size: var(--text-sm); color: var(--zinc-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .prow__kids { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); font-size: var(--text-md); min-width: 0; }
+  .prow__kids a { color: var(--zinc-900); text-decoration: underline; text-decoration-color: var(--zinc-300); text-underline-offset: 3px; }
+  .prow__kids a:hover { text-decoration-color: var(--zinc-900); }
+  .prow__none { color: var(--zinc-600); }
+  /* ⋯ 不加框：一百多列疊起來，有框的方塊會變成一排按鈕牆 */
+  .prow__more { width: 40px; height: 40px; padding: 0; justify-content: center; border-color: transparent; background: none; color: var(--zinc-700); }
+  .prow__more:hover, .prow__more[aria-expanded='true'] { background: var(--zinc-100); color: var(--zinc-900); }
+  .prow--quiet .prow__name { color: var(--zinc-600); font-weight: var(--font-medium); }
+  .flag { font-size: var(--text-xs); font-weight: var(--font-semibold); padding: 0 6px; border-radius: var(--radius-full); line-height: 18px; white-space: nowrap; }
+  .flag--inactive { background: var(--zinc-100); color: var(--zinc-700); }
+  .flag--archived { color: var(--zinc-700); box-shadow: inset 0 0 0 1px var(--zinc-300); }
+  .flag--nolink { color: var(--zinc-700); box-shadow: inset 0 0 0 1px var(--zinc-300); font-weight: var(--font-medium); }
+  .arch { margin-top: var(--space-5); font-size: var(--text-md); color: var(--zinc-600); }
+
+  /* 列動作選單：桌機貼著 ⋯；手機是深灰底部面板（第五種面），項目放在白色群組裡 */
+  .pmenu__why { padding: var(--space-2) var(--space-3) var(--space-1); font-size: var(--text-sm); color: var(--zinc-600); }
+  .pmenu hr { margin: var(--space-1) 0; border: 0; border-top: 1px solid var(--zinc-200); }
+  .pop--menu button[aria-disabled='true'] { color: var(--zinc-500); cursor: default; }
+  .pop--menu button[aria-disabled='true']:hover { background: none; }
+  .pmenu__danger { color: var(--error-700) !important; }
+  .pmenu__head { display: none; }
+
+  /* 表單裡多出來的部分：已選學生的小標籤、QR、匯入區 */
+  .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+  .chip { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 4px 0 10px; border: 1px solid var(--zinc-300); border-radius: var(--radius-full); background: #fff; font-size: var(--text-md); }
+  .chip button { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--zinc-700); cursor: pointer; }
+  .chip button:hover { background: var(--zinc-100); }
+  .chip svg { width: 12px; height: 12px; }
+  .qr { display: grid; justify-items: center; gap: var(--space-3); padding: var(--space-2) 0; }
+  .qr__img { width: 184px; height: 184px; padding: 12px; background: #fff; border: 1px solid var(--zinc-200); border-radius: var(--radius-md); }
+  .qr__img img, .qr__img canvas { width: 100% !important; height: 100% !important; }
+  .qr__url { width: 100%; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--zinc-100); font-size: var(--text-sm); color: var(--zinc-700); word-break: break-all; font-variant-numeric: tabular-nums; user-select: all; }
+  .qr__meta { font-size: var(--text-md); color: var(--zinc-700); text-align: center; }
+  .drop { display: grid; justify-items: center; gap: var(--space-1); padding: var(--space-6) var(--space-4); border: 1.5px dashed var(--zinc-400); border-radius: var(--radius-lg); background: #fff; text-align: center; cursor: pointer; }
+  .drop:hover, .drop:focus-within { border-color: var(--zinc-900); }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .drop b { font-size: var(--text-base); }
+  .drop span { font-size: var(--text-sm); color: var(--zinc-600); }
+  .imp__row { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: center; }
+  .imp__t { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+  .imp__t th, .imp__t td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--zinc-200); text-align: left; white-space: nowrap; }
+  .imp__t th { color: var(--zinc-600); font-weight: var(--font-semibold); }
+  .imp__bad { color: var(--error-700); }
+  .imp__wrap { overflow-x: auto; }
+  .imp__sum { font-size: var(--text-base); font-weight: var(--font-semibold); }
+  .kids { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+  .kids li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--zinc-100); }
+  .kids small { display: block; color: var(--zinc-600); font-size: var(--text-sm); }
+  .info { display: grid; grid-template-columns: 72px 1fr; gap: var(--space-1) var(--space-3); font-size: var(--text-base); }
+  .info dt { color: var(--zinc-600); }
+  .info dd { margin: 0; font-variant-numeric: tabular-nums; word-break: break-all; }
+  .btn--danger { background: #fff; border-color: var(--error-700); color: var(--error-700); }
+  .btn--danger:hover { background: var(--error-100); }
+
+  @media (max-width: 860px) {
+    .prow { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); padding: var(--space-3) 0; }
+    .prow__kids { grid-column: 1; grid-row: 2; }
+    .prow__more { grid-column: 2; grid-row: 1 / span 2; width: 44px; height: 44px; }
+    .pmenu { position: fixed; inset: auto 0 0 0; width: 100%; max-width: none; max-height: 80%; padding: var(--space-2) var(--space-3) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+      border: 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0; background: var(--gray-sheet); --pop-from: translateY(100%); }
+    .pmenu::backdrop { background: rgb(26 22 20 / 40%); }
+    .pmenu::before { content: ''; display: block; width: 36px; height: 4px; margin: 0 auto var(--space-2); border-radius: 2px; background: var(--zinc-400); }
+    .pmenu__head { display: block; padding: var(--space-1) var(--space-2) var(--space-2); font-size: var(--text-lg); font-weight: var(--font-bold); }
+    .pmenu__grp { background: #fff; border-radius: var(--radius-lg); padding: var(--space-1) 6px; }
+    .pmenu.pop--menu button { min-height: 48px; font-size: var(--text-base); }
+    .pmenu hr { margin: var(--space-2) 0; border-top-color: transparent; }
+    .pmenu__why { color: var(--zinc-700); }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>家長管理（#990 批 1）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格</th><th>產品現況</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>預設顯示哪些</td><td>只顯示啟用＋停用，封存要手動切換</td><td>狀態下拉預設「全部狀態」（含封存）</td><td>照規格：預設不含封存；清單底下一行「另有 N 位已封存 · 顯示」，篩選裡也能切</td></tr>
+      <tr><td>每列顯示</td><td>姓名、識別帳號（Email 或手機）、關聯學生數、狀態</td><td>手機、Email 分兩欄＋關聯學生姓名</td><td>識別帳號一欄（有 Email 用 Email，沒有用手機）；孩子直接寫名字，可點進學生檔案（比「數量」多一步就到）</td></tr>
+      <tr><td>Email／手機</td><td>二擇一，至少填一個</td><td>三欄都必填</td><td>照規格：兩欄都不標星號，兩個都空時送出鈕停用並寫「Email 和手機至少填一個」</td></tr>
+      <tr><td>關聯學生</td><td>新增／編輯時可多選</td><td>表單沒有這欄（只能在詳情裡綁）</td><td>表單裡「關聯學生」可搜尋、選多位，選了變小標籤可移除<span class="new">新</span></td></tr>
+      <tr><td>建立後</td><td>回傳一次性登入連結並顯示 QR</td><td>建立不出 QR；「產生登入連結」對 UI 建的家長 422（#877）</td><td>建立後直接跳 QR（24 小時、只能用一次）＋可複製的連結<span class="new">新</span></td></tr>
+      <tr><td>編輯成功</td><td>—</td><td>沒有 toast</td><td>有 toast，清單就地更新</td></tr>
+      <tr><td>匯入</td><td>（規格沒寫）</td><td>有：選檔 → 檢查 → 確認匯入；完成後背後的統計要按「完成」才更新</td><td>保留；匯入完成的當下清單與人數就更新</td></tr>
+      <tr><td>家長詳情、報名班級、綁定既有學生</td><td>（規格只寫「查看詳情」）</td><td>有</td><td>保留</td></tr>
+      <tr><td>「還沒登入過」</td><td>—</td><td>—</td><td>識別帳號旁標「還沒登入過」，看得出誰需要發登入連結<span class="new">新</span></td></tr>
+    </tbody>
+  </table>
+  <h3>這頁怎麼排</h3>
+  <ul>
+    <li>跟學生名冊同一種排法：依帳號狀態分章（啟用中、停用），章名旁寫人數；不是一張表。</li>
+    <li>名字整塊可按 → 查看詳情；孩子的名字 → 學生檔案；⋯ → 其他動作（手機是從底部升起的深灰面板）。</li>
+    <li>封存是單向的：確認框寫清楚「封存後無法透過系統復原」，按鈕用紅框，不用橘色主按鈕。</li>
+    <li>停用可以復原：toast 上給「復原」。</li>
+  </ul>
+</template>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, phone, esc, toast, form } = A2;
+
+  // ── 家長資料：從學生的家長彙整；每 9 位的第 4 位跟前一位是兄弟姊妹（同一個家長）
+  const P = [];
+  C.students.forEach((s, i) => {
+    if (i % 9 === 3 && P.length) { P[P.length - 1].kids.push(s.id); return; }
+    const p = s.parent, n = P.length;
+    P.push({
+      id: 'p' + (n + 1), name: p.name, phone: p.phone,
+      email: n % 4 === 1 ? '' : `parent${p.phone.slice(-4)}@gmail.com`,
+      status: n % 23 === 7 ? 'inactive' : n % 29 === 11 ? 'archived' : 'active',
+      linked: p.line, note: n % 11 === 2 ? '只接受晚上 8 點後的電話' : '', kids: [s.id],
+    });
+  });
+  const ST = { active: '啟用中', inactive: '停用', archived: '已封存' };
+  const byId = (id) => P.find((p) => p.id === id);
+  const ident = (p) => p.email || phone(p.phone);
+  const stu = (id) => C.studentById[id];
+  const state = { q: '', f: 'default' };
+  const F = [['default', '啟用＋停用'], ['active', '啟用中'], ['inactive', '停用'], ['archived', '已封存']];
+  const cnt = (k) => P.filter((p) => p.status === k).length;
+
+  const filters = `<button class="btn" type="button" popovertarget="filt">${icon.filter}<span id="fmeta">篩選</span></button>
+    <div class="pop" id="filt" popover><div class="filters__row"><span class="filters__label">帳號狀態</span>${F.map(([k, l]) => `<button class="tlink" type="button" data-f="${k}">${l} <span class="tlink__n" data-fn="${k}"></span></button>`).join('')}</div></div>`;
+
+  shell({
+    page: 'parents',
+    title: '', sub: '',
+    bar: `<label class="tsearch">${icon.search}<input type="search" placeholder="找姓名、Email 或手機" aria-label="搜尋家長"></label>
+      <div class="tbar__act">${filters}<button class="btn only-d" type="button" data-import>匯入</button><button class="btn btn--cta only-d" type="button" data-new>${icon.plus}新增家長</button></div>`,
+    dock: `<button class="btn btn--cta" type="button" data-new>${icon.plus}新增家長</button>`,
+    phase: 1200,
+  }, `<p class="count" id="count" hidden></p><div id="list"></div><p class="arch" id="arch"></p>
+    <div class="pop pop--menu pmenu" id="pacts" popover aria-label="家長的其他動作"></div>`);
+
+  // ── 畫清單 ────────────────────────────────────────────────────────────────
+  const row = (p) => `<li class="prow${p.status !== 'active' ? ' prow--quiet' : ''}" data-pid="${p.id}">
+      <button class="prow__main" type="button" data-detail="${p.id}" aria-label="查看 ${esc(p.name)} 的詳情">
+        <span class="prow__name">${esc(p.name)}${p.status !== 'active' ? `<span class="flag flag--${p.status}">${ST[p.status]}</span>` : ''}</span>
+        <span class="prow__id">${esc(ident(p))}${!p.linked && p.status === 'active' ? ' · <span class="flag flag--nolink">還沒登入過</span>' : ''}</span>
+      </button>
+      <div class="prow__kids">${p.kids.length ? p.kids.map((k) => `<a href="student.html">${esc(stu(k).name)}<span class="muted"> · ${stu(k).gradeLabel}</span></a>`).join('') : '<span class="prow__none">還沒有關聯學生</span>'}</div>
+      <button class="btn prow__more" type="button" popovertarget="pacts" data-menu="${p.id}" aria-label="${esc(p.name)} 的其他動作">${icon.dots}</button>
+    </li>`;
+
+  function render() {
+    const q = state.q.trim().toLowerCase();
+    const want = state.f === 'default' ? ['active', 'inactive'] : [state.f];
+    const hit = P.filter((p) => want.includes(p.status) && (!q || p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q) || p.phone.includes(q.replace(/\D/g, '') || '\u0000')));
+    const groups = ['active', 'inactive', 'archived'].map((k) => [k, hit.filter((p) => p.status === k)]).filter(([, a]) => a.length);
+    document.getElementById('list').innerHTML = groups.length ? groups.map(([k, a]) => `<section class="chap" aria-label="${ST[k]}">
+        <div class="chap__side"><div class="chap__big">${ST[k]}</div><p class="chap__tally">${a.length} 位</p></div>
+        <ul class="plist">${a.map(row).join('')}</ul></section>`).join('')
+      : `<p class="empty">找不到符合「${esc(state.q || F.find((f) => f[0] === state.f)[1])}」的家長。試試只打姓氏、Email 的開頭，或手機後四碼。</p>`;
+    const narrowed = q || state.f !== 'default';
+    const c = document.getElementById('count');
+    c.hidden = !narrowed;
+    c.innerHTML = `<span>顯示 <strong>${hit.length}</strong> 位</span><button type="button" data-clear>清除篩選</button>`;
+    const arch = document.getElementById('arch');
+    arch.innerHTML = state.f === 'default' && cnt('archived') ? `另有 ${cnt('archived')} 位已封存的家長不在清單上 · <button type="button" data-f="archived">顯示</button>` : '';
+    document.getElementById('fmeta').textContent = state.f === 'default' ? '篩選' : `篩選：${F.find((f) => f[0] === state.f)[1]}`;
+    document.querySelectorAll('[data-f]').forEach((b) => b.closest('#filt') && b.setAttribute('aria-current', b.dataset.f === state.f));
+    F.forEach(([k]) => { const n = document.querySelector(`[data-fn="${k}"]`); if (n) n.textContent = k === 'default' ? cnt('active') + cnt('inactive') : cnt(k); });
+    // 色面：總數與啟用中（人數錨點）——每次資料變都重算，不等使用者重新整理
+    const live = P.filter((p) => p.status !== 'archived').length;
+    document.querySelector('.open__title').innerHTML = `${live} 位家長，<br>${cnt('active')} 位啟用中。`;
+  }
+
+  // ── 列動作選單：一份選單，打開時依那一列重畫，並貼著那顆 ⋯ ─────────────────────
+  const menu = document.getElementById('pacts');
+  let opener = null;
+  document.addEventListener('click', (e) => { const b = e.target.closest('[data-menu]'); if (b) opener = b; }, true);
+  menu.addEventListener('toggle', (e) => {
+    if (e.newState !== 'open' || !opener) return;
+    const p = byId(opener.dataset.menu), arc = p.status === 'archived';
+    const dis = arc ? ' aria-disabled="true"' : '';
+    menu.innerHTML = `<p class="pmenu__head">${esc(p.name)}</p>
+      ${arc ? '<p class="pmenu__why">已封存的帳號只能查看</p>' : ''}
+      <div class="pmenu__grp">
+        <button type="button" data-detail="${p.id}">查看詳情</button>
+        <button type="button" data-addkid="${p.id}"${dis}>${icon.plus}新增學生</button>
+        <button type="button" data-edit="${p.id}"${dis}>編輯</button>
+        <button type="button" data-link="${p.id}"${dis}>產生登入連結</button>
+      </div>
+      ${arc ? '' : `<hr><div class="pmenu__grp">
+        ${p.status === 'active' ? `<button type="button" data-deact="${p.id}">停用帳號</button>` : `<button type="button" data-act="${p.id}">啟用帳號</button>`}
+        <button type="button" class="pmenu__danger" data-archive="${p.id}">封存帳號</button></div>`}`;
+    if (matchMedia('(max-width: 860px)').matches) { menu.removeAttribute('style'); return; }
+    const r = opener.getBoundingClientRect();
+    const top = Math.min(r.bottom + 6, innerHeight - menu.offsetHeight - 16);
+    Object.assign(menu.style, { position: 'fixed', left: Math.max(16, r.right - menu.offsetWidth) + 'px', top: top + 'px' });
+  });
+
+  // ── 表單 ──────────────────────────────────────────────────────────────────
+  const stuOpts = C.students.map((s) => [s.id, `${s.name}（${s.gradeLabel}）`]);
+  // Email／手機二擇一：表單本身只認單欄必填，這裡再接一層；兩個都空時送出鈕停用並寫原因
+  const eitherOne = (d) => {
+    const go = d.querySelector('[data-go]'), why = d.querySelector('.fdlg__why');
+    const chk = () => {
+      const ok = d.querySelector('[data-k="name"]').value.trim();
+      const one = d.querySelector('[data-k="email"]').value.trim() || d.querySelector('[data-k="phone"]').value.trim();
+      const bad = !ok ? '還沒填：姓名' : !one ? 'Email 和手機至少填一個' : '';
+      go.setAttribute('aria-disabled', bad ? 'true' : 'false'); why.textContent = bad;
+    };
+    d.addEventListener('input', chk); d.addEventListener('change', chk); chk();
+  };
+  // 關聯學生：可搜尋的下拉，選一位變一個小標籤（可移除），可以選很多位
+  const kidPicker = (d, kids) => {
+    const f = d.querySelector('[data-k="kid"]').closest('.acset__f');
+    f.insertAdjacentHTML('beforeend', '<div class="chips" aria-live="polite"></div>');
+    const box = f.querySelector('.chips'), sel = d.querySelector('[data-k="kid"]');
+    const draw = () => (box.innerHTML = kids.map((k) => `<span class="chip">${esc(stu(k).name)}<button type="button" data-unkid="${k}" aria-label="移除 ${esc(stu(k).name)}">${icon.x}</button></span>`).join(''));
+    sel.addEventListener('change', () => { if (sel.value && !kids.includes(sel.value)) kids.push(sel.value); sel.value = ''; draw(); });
+    box.addEventListener('click', (e) => { const b = e.target.closest('[data-unkid]'); if (b) { kids.splice(kids.indexOf(b.dataset.unkid), 1); draw(); } });
+    draw();
+  };
+  const parentForm = (p) => {
+    const kids = p ? [...p.kids] : [];
+    const d = form({
+      title: p ? '編輯家長' : '新增家長', sub: p ? '帳號狀態在清單的 ⋯ 裡改' : '建立後會產生一次性登入連結，請家長當場用手機掃',
+      fields: [
+        { k: 'name', label: '姓名', value: p ? p.name : '', req: true },
+        { k: 'email', label: 'Email', type: 'email', value: p ? p.email : '', half: true, ph: 'parent@example.com' },
+        { k: 'phone', label: '手機', type: 'tel', value: p ? phone(p.phone) : '', half: true, ph: '0912-345-678' },
+        { k: 'kid', label: '關聯學生', type: 'select', ph: '輸入姓名搜尋，可以選多位', options: stuOpts },
+        { k: 'note', label: '備註', value: p ? p.note : '', ph: '例如：只接受晚上的電話' },
+      ],
+      submit: p ? '儲存' : '建立家長', busy: p ? '儲存中…' : '建立中…',
+      ok: (v) => (p ? `已更新 ${v.name} 的資料` : `已建立 ${v.name} 的帳號`),
+      apply: (v) => {
+        const t = p || { id: 'p' + (P.length + 1), status: 'active', linked: false, kids: [] };
+        Object.assign(t, { name: v.name, email: v.email, phone: v.phone.replace(/\D/g, ''), note: v.note, kids });
+        if (!p) { P.unshift(t); setTimeout(() => showLink(t, true), 260); }
+        render();
+      },
+    });
+    eitherOne(d); kidPicker(d, kids);
+    d.querySelector('.acset__f:has([data-k="email"])').insertAdjacentHTML('afterend', '<p class="acset__hint" style="grid-column:1/-1;margin-top:-8px">Email 和手機至少填一個；兩個都不能跟別的帳號重複</p>');
+  };
+  // 一次性登入連結＋QR（建立後自動出現；之後從 ⋯ 重發）
+  function showLink(p, fresh) {
+    const url = `https://clessia.app/l/${Math.random().toString(36).slice(2, 10)}${Math.random().toString(36).slice(2, 8)}`;
+    const d = form({ title: `${p.name} 的登入連結`, sub: fresh ? '帳號已建立。請家長用自己的手機掃描，登入後綁定 LINE。' : '舊的連結會失效。請家長用自己的手機掃描。', fields: [], submit: '複製連結', busy: '複製中…', ok: '已複製登入連結，可以貼到 LINE 傳給家長' });
+    d.querySelector('.acset__body').insertAdjacentHTML('beforeend', `<div class="qr" style="grid-column:1/-1"><div class="qr__img" id="qrbox"></div><p class="qr__meta">一次性連結 · 24 小時內有效 · 只能用一次</p><p class="qr__url">${url}</p></div>`);
+    d.querySelector('.fdlg__foot [data-x]').textContent = '關閉';
+    d.querySelector('[data-go]').addEventListener('click', () => { try { navigator.clipboard.writeText(url).catch(() => {}); } catch (e) { /* 寫不進剪貼簿時，網址本身可以直接選取 */ } });
+    try { new QRCode(d.querySelector('#qrbox'), { text: url, width: 160, height: 160 }); } catch (e) { d.querySelector('#qrbox').textContent = 'QR'; }
+    p.linkAt = C.NOW;
+  }
+  // 確認框（停用、啟用、封存）：用同一支表單，沒有欄位
+  const confirmBox = (title, sub, submit, busy, ok, apply, { danger, undo } = {}) => {
+    const d = form({ title, sub, fields: [], submit, busy, ok, apply, undo });
+    if (danger) d.querySelector('[data-go]').classList.replace('btn--cta', 'btn--danger');
+  };
+
+  const schools = [...new Set(C.students.map((s) => s.school))];
+  document.addEventListener('click', (e) => {
+    const t = (k) => { const b = e.target.closest(`[data-${k}]`); return b && b.getAttribute('aria-disabled') !== 'true' ? b.dataset[k] : null; };
+    if (e.target.closest('#pacts button')) menu.hidePopover();
+    if (e.target.closest('[data-new]')) parentForm(null);
+    if (t('edit')) parentForm(byId(t('edit')));
+    if (t('link')) showLink(byId(t('link')), false);
+    if (e.target.closest('[data-clear]')) { state.q = ''; state.f = 'default'; document.querySelector('.tsearch input').value = ''; render(); }
+    const f = e.target.closest('[data-f]'); if (f) { state.f = f.dataset.f; const pop = document.getElementById('filt'); if (pop.matches(':popover-open')) pop.hidePopover(); render(); }
+    if (t('deact')) { const p = byId(t('deact')); confirmBox('停用帳號', `確定要停用「${p.name}」嗎？停用後這位家長馬上無法登入，資料都會保留，之後可以再啟用。`, '停用', '停用中…', `已停用 ${p.name} 的帳號`, () => { p.status = 'inactive'; render(); }, { undo: () => { p.status = 'active'; render(); } }); }
+    if (t('act')) { const p = byId(t('act')); confirmBox('啟用帳號', `確定要啟用「${p.name}」嗎？啟用後就可以再用 LINE 登入。`, '啟用', '啟用中…', `已啟用 ${p.name} 的帳號`, () => { p.status = 'active'; render(); }); }
+    if (t('archive')) { const p = byId(t('archive')); confirmBox('封存帳號', `封存後無法透過系統復原：「${p.name}」會從清單隱藏、不能再登入，歷史紀錄都會保留。通常用在孩子已經離校。確定要封存嗎？`, '封存', '封存中…', `已封存 ${p.name} 的帳號`, () => { p.status = 'archived'; render(); }, { danger: true }); }
+    if (t('addkid')) {
+      const p = byId(t('addkid'));
+      form({
+        title: '新增學生', sub: `建立後會直接綁到 ${p.name}`,
+        fields: [
+          { k: 'name', label: '姓名', req: true, ph: '請輸入學生姓名' },
+          { k: 'grade', label: '年級', type: 'select', ph: '選擇年級', req: true, half: true, options: [['P5', '小五'], ['P6', '小六'], ['J1', '國一'], ['J2', '國二'], ['J3', '國三']] },
+          { k: 'school', label: '就讀學校', type: 'select', ph: '選擇或搜尋學校', req: true, half: true, options: schools },
+          { k: 'birth', label: '生日', type: 'date', half: true },
+          { k: 'sex', label: '性別', type: 'select', ph: '選擇性別', half: true, options: ['男', '女'] },
+          { k: 'tel', label: '學生電話', type: 'tel', ph: '0912-345-678' },
+        ],
+        submit: '建立學生', busy: '建立中…', ok: (v) => `已建立 ${v.name}，綁到 ${p.name}`,
+        apply: (v) => {
+          const id = 'sx' + Date.now();
+          C.studentById[id] = { id, name: v.name, gradeLabel: { P5: '小五', P6: '小六', J1: '國一', J2: '國二', J3: '國三' }[v.grade] };
+          p.kids.push(id); render();
+        },
+      });
+    }
+    if (t('detail')) {
+      const p = byId(t('detail'));
+      const d = form({ title: p.name, sub: `${ST[p.status]}${p.linkAt ? ` · 今天 ${p.linkAt} 產生過登入連結` : ''}`, fields: p.status === 'archived' ? [] : [{ k: 'bind', label: '綁定既有學生', type: 'select', ph: '輸入姓名搜尋', req: true, options: stuOpts.filter(([id]) => !p.kids.includes(id)) }],
+        submit: '綁定', busy: '綁定中…', ok: (v) => `已把 ${stu(v.bind).name} 綁到 ${p.name}`, apply: (v) => { p.kids.push(v.bind); render(); } });
+      d.querySelector('.acset__body').insertAdjacentHTML('afterbegin', `<dl class="info" style="grid-column:1/-1"><dt>Email</dt><dd>${esc(p.email || '—')}</dd><dt>手機</dt><dd>${phone(p.phone)}</dd>${p.note ? `<dt>備註</dt><dd>${esc(p.note)}</dd>` : ''}</dl>
+        <div style="grid-column:1/-1"><p class="acset__l">關聯學生</p>${p.kids.length ? `<ul class="kids">${p.kids.map((k) => `<li><span>${esc(stu(k).name)}<small>${stu(k).gradeLabel}</small></span><button class="btn btn--sm" type="button" data-enroll="${k}">報名班級</button></li>`).join('')}</ul>` : '<p class="acset__hint">還沒有關聯學生</p>'}</div>`);
+      if (p.status === 'archived') { d.querySelector('[data-go]').remove(); d.querySelector('.fdlg__foot [data-x]').textContent = '關閉'; }
+    }
+    if (t('enroll')) {
+      const s = stu(t('enroll'));
+      form({ title: `幫 ${s.name} 報名班級`, sub: '報名後狀態是「待繳費」，第一期帳單會一起開立', fields: [{ k: 'cid', label: '班級', type: 'select', ph: '選一個班', req: true, options: C.classes.map((c) => [c.id, `${c.name}（${C.weekdayLabel[c.weekday]} ${c.start}）`]) }],
+        submit: '報名', busy: '報名中…', ok: (v) => `已幫 ${s.name} 報名 ${C.classById[v.cid].name}，狀態是待繳費` });
+    }
+    if (e.target.closest('[data-import]')) importFlow();
+  });
+  document.querySelector('.tsearch input').addEventListener('input', (e) => { state.q = e.target.value; render(); });
+
+  // ── 匯入：選檔（或用示範檔）→ 檢查結果 → 確認匯入 N 筆 → 清單與人數當場更新 ──────
+  function importFlow() {
+    const d = form({ title: '匯入家長', sub: 'Excel 的欄位依序：家長姓名、電話、Email、家長備註、學生姓名、年級、學校、生日、性別（前兩列是表頭）', fields: [], submit: '確認匯入', busy: '匯入中…', ok: '', apply: null });
+    const body = d.querySelector('.acset__body'), go = d.querySelector('[data-go]'), why = d.querySelector('.fdlg__why');
+    body.insertAdjacentHTML('beforeend', `<div style="grid-column:1/-1;display:grid;gap:var(--space-3)" id="imp">
+      <label class="drop"><input type="file" accept=".xlsx,.xls,.csv" id="impf"><b>點一下選檔案，或把 Excel 拖到這裡</b><span>支援 .xlsx / .xls / .csv</span></label>
+      <div class="imp__row"><button class="btn btn--sm" type="button" data-sample>用示範檔案試試</button><button class="btn btn--sm" type="button" data-ok="已下載範本：家長匯入範本.xlsx">下載範本</button></div></div>`);
+    go.setAttribute('aria-disabled', 'true'); why.textContent = '還沒選檔案';
+    const rows = Array.from({ length: 12 }, (_, i) => ({ name: ['陳', '林', '黃', '張', '李', '王'][i % 6] + ['太太', '先生', '媽媽', '爸爸'][i % 4], phone: '0935' + String(120400 + i * 731).slice(-6), kid: ['宥辰', '品妍', '柏宇', '語晴', '承恩', '芷安'][i % 6], bad: i === 7 ? '電話跟現有家長重複' : '' }));
+    const ok = rows.filter((r) => !r.bad);
+    const check = (fname) => {
+      document.getElementById('imp').innerHTML = `<p class="imp__sum">${esc(fname)} · 共 ${rows.length} 筆，可以匯入 ${ok.length} 筆，<span class="imp__bad">1 筆有問題</span></p>
+        <div class="imp__wrap"><table class="imp__t"><thead><tr><th>家長</th><th>電話</th><th>學生</th><th>檢查</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${r.name}</td><td>${phone(r.phone)}</td><td>${r.kid}</td><td class="${r.bad ? 'imp__bad' : ''}">${r.bad || '可以匯入'}</td></tr>`).join('')}</tbody></table></div>`;
+      go.textContent = `確認匯入 ${ok.length} 筆`; go.setAttribute('aria-disabled', 'false'); why.textContent = '有問題的那 1 筆不會匯入';
+    };
+    d.querySelector('#impf').addEventListener('change', (e) => e.target.files[0] && check(e.target.files[0].name));
+    d.addEventListener('click', (e) => { if (e.target.closest('[data-sample]')) check('示範：十月新生家長.xlsx'); });
+    // 送出：form 的 ok/apply 在建立時就決定了，這裡在送出前補上
+    go.addEventListener('click', () => {
+      if (go.getAttribute('aria-disabled') === 'true') return;
+      setTimeout(() => {
+        ok.forEach((r) => P.unshift({ id: 'p' + (P.length + 1), name: r.name, phone: r.phone, email: '', status: 'active', linked: false, note: '', kids: [] }));
+        render();
+        toast(`已匯入 ${ok.length} 位家長；他們都還沒登入過，可以從 ⋯ 產生登入連結`);
+      }, 720);
+    }, { capture: true });
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

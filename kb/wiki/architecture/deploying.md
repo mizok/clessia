@@ -4,7 +4,7 @@ summary: 三個元件（Supabase / Workers / Pages）、哪些步驟只有人能
 category: architecture
 tags: [architecture, deployment, cloudflare, supabase]
 status: active
-updated: 2026-11-02
+updated: 2026-11-05
 ---
 
 # 部署
@@ -167,6 +167,7 @@ Worker route 的優先權高於 Pages，所以 `/api/*` 會被 Worker 接走，�
   否則對方自己帶標頭就能換「來源」繞過 IP 那條（聯絡方式那條仍在）。
 - **守門順序** honeypot → 速率限制 → 機器人驗證（`guardSubmission`）。ALTCHA 沒有重放防護表：同一份解答 10 分鐘內可重送，
   速率限制壓住它能拿到的額度；要加的話記在 Postgres，不用 KV（c12）。
+- **demo.clessia.cc 已開**（#2311，使用者 11-05 裁定）：`[env.production.vars]` 的 `PUBLIC_ORG_SLUG` 必須等於正式 DB 的 `organizations.slug`，對不到也是 404 —— 部署後 `curl https://demo.clessia.cc/api/public/org` 要 200。
 - **開公開頁之前**：預設 ALTCHA 不用另外設；要用 Turnstile 就先設好 `CAPTCHA_PROVIDER=turnstile` 與兩把金鑰，再設 `PUBLIC_ORG_SLUG`。
 
 ## 推播（Web Push，#1626／#1661）

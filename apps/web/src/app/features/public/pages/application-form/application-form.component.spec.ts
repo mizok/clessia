@@ -113,6 +113,18 @@ describe('ApplicationFormComponent', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
+  it('個資使用聲明：共用殼的 h2 是對話框的可及名稱，按 ✕ 關掉（#2290）', async () => {
+    const { fixture } = await setup('trial');
+    const dialog = (fixture.nativeElement as HTMLElement).querySelector('dialog')!;
+    const h2 = dialog.querySelector('h2')!;
+    expect(h2.textContent?.trim()).toBe('個資使用聲明');
+    expect(dialog.getAttribute('aria-labelledby')).toBe(h2.id);
+
+    dialog.close = vi.fn();
+    dialog.querySelector<HTMLButtonElement>('button[aria-label="關閉"]')!.click();
+    expect(dialog.close).toHaveBeenCalled();
+  });
+
   it('試聽：課程依 courseId 合併成一列、依科目分組；也有「與學生的關係」（Q1）', async () => {
     const { text, fixture } = await setup('trial');
 

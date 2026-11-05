@@ -176,7 +176,9 @@ export async function openPop(page, id, opens = {}) {
     for (const [i, sel] of [].concat(click).entries()) {
       const btn = page.locator(`${sel} >> visible=true`).first();
       if (!(await btn.count())) return i === 0 ? undefined : null;
-      await btn.click();
+      // 稿的句中連結鈕（公開表單同意列的「個資使用聲明」）在撐開的視窗裡會被判成「在視窗外」、點不到：
+      // 逾時就直接送 click 事件（JS 開窗的 handler 照樣收到；#2290）
+      await btn.click({ timeout: 5000 }).catch(() => btn.dispatchEvent('click'));
       await page.waitForTimeout(400);
     }
     await page.mouse.move(0, 0);

@@ -8,7 +8,7 @@
 - **第二層 `diff`**：app 與 A6 同寬抽同一份 part 樹，配對後比幾何與 computed style，出差異表。
 - **第三層 `behave`**：`lib/scenarios.mjs` 裡的情境，兩邊各開一頁照步驟操作，比操作前後的變化量。
 
-A6 稿不進版控；輸出也不進版控（預設 `~/.cache/clessia-a6-conformance/out/<頁>/`）。
+A6 稿在版控（`.design-explorations/973-layout/a6-editorial/`＋`shared/`；`_shots/` 與其他方向稿不進，使用者 2026-11-05 裁）；輸出不進版控（預設 `~/.cache/clessia-a6-conformance/out/<頁>/`）。
 
 ## 安裝與執行
 
