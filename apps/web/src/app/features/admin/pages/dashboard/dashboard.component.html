@@ -78,15 +78,15 @@
 <div class="page-wrap flex flex-col gap-10 pt-6 pb-28 wide:gap-12 wide:pt-8 wide:pb-32">
   <!--
     登記請假是彈窗（#2037，使用者 10-24：不要 inline 展開；a6-adoption-rules R5）。原生 <dialog> showModal：
-    手機與桌機都置中、有遮罩、Esc 關（手機寬同 #2031 的登入彈窗），進出場是全站對話框的 scale(0.97)。
-    不用 p-dialog：全站樣式在手機把它變成底部抽屜，跟「手機置中」相反。
+    桌機置中、≤860 貼底抽屜（#2290 統一版型：白底、由下滑入），有遮罩、Esc 關。
     outline-none：showModal 把焦點放在 <dialog> 本身時 WebKit 會在整個外框畫焦點圈（#2004 同類）；
     dialog 不是可操作的控制項，裡面的按鈕、輸入各自有焦點圈。
   -->
   <dialog
     #phoneLeaveDialog
-    class="m-auto max-h-[calc(100%-48px)] outline-none w-[calc(100%-32px)] max-w-[560px] overflow-y-auto rounded-xl border-0 bg-transparent p-0 backdrop:bg-[rgb(26_22_20/40%)]"
-    aria-labelledby="phone-leave-title"
+    class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(var(--dlg-w-md),calc(100%-32px))] rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] outline-none backdrop:bg-[rgb(26_22_20/40%)] max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-(--sheet-bg)"
+    role="dialog"
+    data-testid="phone-leave-dialog"
     (close)="closePhoneLeave()"
   >
     @if (phoneLeaveOpen()) {

@@ -476,7 +476,7 @@ export class StudentDetailPage implements OnInit {
       header: '選擇班級',
       width: '520px',
       modal: true,
-      showHeader: true,
+      showHeader: false, // 標題由共用殼讀 header 畫（#2290）
       appendTo: this.overlayContainer || 'body',
       data: { existingClassIds, studentGrade: s.grade },
     });

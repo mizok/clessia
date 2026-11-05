@@ -514,7 +514,7 @@ export class SchedulePage implements OnInit {
     };
 
     const ref = this.dialogService.open(ArrivalRosterSheetComponent, {
-      width: '480px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       closable: false,
@@ -602,7 +602,7 @@ export class SchedulePage implements OnInit {
    */
   protected openClassLog(session: EventSessionSummary): void {
     const ref = this.dialogService.open(ClassLogSheetComponent, {
-      width: '480px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       closable: false,
@@ -629,7 +629,7 @@ export class SchedulePage implements OnInit {
    */
   protected openContactBook(session: EventSessionSummary): void {
     const ref = this.dialogService.open(ContactBookRosterComponent, {
-      width: '480px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       closable: false,

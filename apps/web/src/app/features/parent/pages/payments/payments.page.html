@@ -214,12 +214,14 @@
       [modal]="true"
       [appendTo]="'body'"
       styleClass="payments__detail-sheet drawer-auto"
+      ariaCloseLabel="關閉"
     >
       @if (selectedInvoice(); as invoice) {
         <div class="payments__detail flex flex-col gap-3 p-4">
-          <h3 class="payments__detail-title m-0 text-lg font-semibold">
+          <!-- 抽屜是例外形狀（永遠貼底），只把標題升成 h2（#2290 分批表） -->
+          <h2 class="payments__detail-title m-0 text-lg font-semibold">
             帳單 #{{ invoice.invoiceNo ?? invoice.id.slice(0, 8) }}
-          </h3>
+          </h2>
           <p class="payments__detail-status m-0 text-sm text-zinc-500">
             {{ statusLabels[invoice.status] }}
           </p>

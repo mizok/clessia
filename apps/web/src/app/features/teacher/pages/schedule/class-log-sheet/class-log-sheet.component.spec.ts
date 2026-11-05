@@ -123,6 +123,18 @@ describe('ClassLogSheetComponent', () => {
     });
   });
 
+  it('共用殼：h2 是班名、副標是日期；存檔在 sticky 底部；✕ 關閉不回報有存（#2290）', async () => {
+    await render();
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('h2')!.textContent?.trim()).toBe(INPUT.className);
+    expect(host.querySelector('.dialog-header-inline__sub')!.textContent?.trim()).toBe(
+      INPUT.logDate,
+    );
+    expect(host.querySelector('.form-dialog__footer')!.textContent).toContain('存檔');
+    host.querySelector<HTMLButtonElement>('button[aria-label="關閉"]')!.click();
+    expect(closeMock).toHaveBeenCalledWith(false);
+  });
+
   it('本來就有日誌 → 明說是在編輯', async () => {
     await render([log()]);
     expect(fixture.nativeElement.textContent).toContain('本日已有日誌');

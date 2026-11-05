@@ -33,6 +33,7 @@ import {
   type RequestTagTone,
 } from '../../shared/request-row/request-row.component';
 import { effectiveFromSuffix } from '@shared/utils/schedule-effective.util';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 
 /**
  * 家長端試聽申請（#1727 ④，A6 p-trial，設計稿 kb/wiki/specs/parent/applications.md）。
@@ -70,7 +71,7 @@ interface CourseOption {
 @Component({
   selector: 'app-trial',
   standalone: true,
-  imports: [PageOpenComponent, ChildScopeGateComponent, RequestRowComponent],
+  imports: [DialogFrameComponent, PageOpenComponent, ChildScopeGateComponent, RequestRowComponent],
   templateUrl: './trial.component.html',
 })
 export class TrialComponent {

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 成績總覽</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* 一列：名字（連結）→ 說明 → 數字 → 動作；手機收成兩行 */
+  .gr { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.4fr) auto auto; align-items: center; gap: var(--space-2) var(--space-6); padding: var(--space-4) 0; border-bottom: 1px solid var(--surface-border); }
+  .gr__name { font-size: var(--text-lg); font-weight: var(--font-semibold); text-decoration: none; }
+  .gr__name:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .gr__sub { font-size: var(--text-md); color: var(--zinc-600); }
+  .gr__n { font-size: var(--text-xl); font-weight: var(--font-bold); font-variant-numeric: tabular-nums; text-align: right; }
+  .gr__n small { font-size: var(--text-md); font-weight: var(--font-medium); color: var(--zinc-600); margin-left: 2px; }
+  .ov { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12); margin-top: var(--space-12); }
+  .ov .sec { margin-top: 0; min-width: 0; }
+  .ov__more { display: inline-flex; align-items: center; gap: 4px; margin-top: var(--space-4); font-weight: var(--font-semibold); text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--zinc-300); }
+  .ov__more:hover { text-decoration-color: var(--zinc-900); }
+  .low { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--surface-border); text-decoration: none; }
+  .low:hover .low__name { text-decoration: underline; text-underline-offset: 4px; }
+  .low__name { font-weight: var(--font-semibold); }
+  .low__meta { font-size: var(--text-sm); color: var(--zinc-600); }
+  .low__n { font-variant-numeric: tabular-nums; font-weight: var(--font-bold); white-space: nowrap; }
+  .ok-note { padding: var(--space-4) 0; color: var(--zinc-700); }
+  @media (max-width: 860px) {
+    .gr { grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--space-3); }
+    .gr__sub { grid-column: 1; grid-row: 2; }
+    .gr__n { grid-column: 2; grid-row: 1; }
+    .gr .btn { grid-column: 2; grid-row: 2; justify-self: end; }
+    .ov { grid-template-columns: 1fr; gap: var(--space-10); }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>成績總覽 · A6（#990 批 2）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（specs/admin/student-affairs/grades.md）</th><th>產品現況（sitemap grades-overview）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>這一頁</td><td>一頁「成績查閱」：篩選＋成績列表，可依考試或學生分組</td><td>兩張大卡片的岔路口，不取數、整頁只有兩個互動</td><td>保留三條路由（入口／學生視角／班級視角）。入口不再是空的岔路口：先回答「哪幾場還沒登錄完」，再給兩個視角各自的摘要，摘要裡的名字直接連到人與班</td></tr>
+      <tr><td>依考試／依學生分組</td><td>同一張列表上切換</td><td>兩個獨立頁</td><td>沿用兩個頁（學生視角＝依學生、班級視角＝依班級→考試）；入口兩欄就是那個切換</td></tr>
+      <tr><td>待登錄</td><td>沒寫</td><td>班級視角上有「待登錄 N」籌碼</td><td>保留並提到入口最上面：還差幾人、哪一天考的、「去登錄」直接到成績登錄頁</td></tr>
+      <tr><td>匯出 CSV</td><td>有</td><td>沒有</td><td>放在學生視角（依篩選匯出），標「新」</td></tr>
+    </tbody>
+  </table>
+  <h3>資料</h3>
+  <ul><li>示範資料每班 3 次補習班考試；頁內補了：缺考約 4%、補考約 3%、國中會考衝刺班及格線 70（其他 60）、3 個班昨天前天考的第四次小考還有三分之一沒登錄、國中生的學校第一次段考（數學、英文、國文）。</li></ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+// 成績資料（grades.html／grades-student.html／grades-class.html 三頁同一份產生器，改一份要三份一起改）
+// ponytail: 三頁各貼一份，避免為了 demo 多一支共用檔；要改就 grep「gradesData」
+function gradesData(C) {
+  let seed = 990;
+  const r = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  const exams = C.exams.map((e) => ({ id: e.id, classId: e.classId, name: e.name, date: e.date, type: 'academy', pass: e.classId === 'c14' ? 70 : 60, rows: {} }));
+  exams.forEach((e, k) => Object.entries(C.exams[k].scores).forEach(([sid, v]) => {
+    const x = r();
+    e.rows[sid] = x < 0.04 ? { st: 'absent' } : x < 0.07 ? { st: 'makeup', v } : { st: 'ok', v };
+  }));
+  // 待登錄：三個班昨天、前天考了第四次小考，還有三分之一沒登錄
+  ['c4', 'c9', 'c12'].forEach((cid, k) => {
+    const e = { id: `${cid}-e4`, classId: cid, name: '第四次小考', date: C.addDays(C.TODAY, -1 - (k % 2)), type: 'academy', pass: 60, rows: {} };
+    C.classById[cid].studentIds.forEach((sid, i) => (e.rows[sid] = i % 3 === 0 ? { st: 'pending' } : { st: 'ok', v: Math.round(58 + r() * 40) }));
+    exams.push(e);
+  });
+  // 學校段考（國中生，數學／英文／國文）
+  const school = C.students.filter((s) => s.grade.startsWith('J')).flatMap((s) => ['數學', '英文', '國文'].map((sub) => ({ sid: s.id, sub, name: `第一次段考 · ${sub}`, date: C.addDays(C.TODAY, -14), v: Math.round(42 + r() * 58), pass: 60 })));
+  const stat = (e) => {
+    const rows = Object.values(e.rows), vs = rows.filter((x) => 'v' in x).map((x) => x.v);
+    return { n: rows.length, done: vs.length, absent: rows.filter((x) => x.st === 'absent').length, pending: rows.filter((x) => x.st === 'pending').length,
+      avg: vs.length ? Math.round(vs.reduce((a, b) => a + b, 0) / vs.length) : 0, max: Math.max(...vs), min: Math.min(...vs), fail: vs.filter((v) => v < e.pass).length };
+  };
+  return { exams, school, stat };
+}
+
+(function () {
+  const { C, icon, shell, md, wd } = A2;
+  const { exams, stat } = gradesData(C);
+  const cls = (id) => C.classById[id];
+  const recent = exams.filter((e) => e.date >= C.addDays(C.TODAY, -30)).sort((a, b) => b.date.localeCompare(a.date));
+  const pending = exams.filter((e) => stat(e).pending).sort((a, b) => a.date.localeCompare(b.date));
+  const allVs = recent.flatMap((e) => Object.values(e.rows).filter((x) => 'v' in x).map((x) => x.v));
+  const avg = Math.round(allVs.reduce((a, b) => a + b, 0) / allVs.length);
+
+  // 學生：最近一次補習班考試不及格的人
+  const lastOf = {};
+  exams.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach((e) => Object.entries(e.rows).forEach(([sid, x]) => { if ('v' in x) lastOf[sid] = { e, v: x.v }; }));
+  const low = Object.entries(lastOf).filter(([, l]) => l.v < l.e.pass).sort((a, b) => a[1].v - b[1].v);
+  // 班級：最近一次考試的班平均，最低的三個
+  const latest = C.classes.map((c) => { const e = exams.filter((x) => x.classId === c.id && stat(x).done).sort((a, b) => b.date.localeCompare(a.date))[0]; return { c, e, s: stat(e) }; }).sort((a, b) => a.s.avg - b.s.avg);
+
+  const pendRow = (e) => { const s = stat(e), c = cls(e.classId); return `<div class="gr">
+      <a class="gr__name" href="class.html">${c.name}</a>
+      <span class="gr__sub">${e.name} · ${md(e.date)}（${wd(e.date)}）考 · 已登錄 ${s.done}／${s.n}</span>
+      <span class="gr__n">${s.pending}<small>人還沒登錄</small></span>
+      <a class="btn" href="scores.html">去登錄</a></div>`; };
+
+  shell({
+    page: 'grades',
+    title: `近一個月 ${recent.length} 場考試，<br>${pending.length} 場還沒登錄完。`,
+    sub: `這 ${recent.length} 場的平均是 ${avg} 分。`,
+    bar: `<p class="tbar__txt"><strong>成績總覽</strong> · 用學生或班級來看</p>
+      <div class="tbar__act"><a class="btn" href="grades-student.html">學生視角</a><a class="btn" href="grades-class.html">班級視角</a><a class="btn only-d" href="exams.html">考試管理</a></div>`,
+    phase: 3100,
+  }, `
+    <section class="sec" aria-labelledby="h-pend">
+      <div class="sec__head"><h2 class="sec__title" id="h-pend">${pending.length ? `還沒登錄完的 ${pending.length} 場` : '成績都登錄完了'}</h2></div>
+      ${pending.length ? pending.map(pendRow).join('') : '<p class="ok-note">考完的考試都已經登錄成績。</p>'}
+    </section>
+
+    <div class="ov">
+      <section class="sec" aria-labelledby="h-stu">
+        <div class="sec__head"><h2 class="sec__title" id="h-stu">學生</h2><span class="sec__count">最近一次考試不及格 ${low.length} 位</span></div>
+        ${low.slice(0, 6).map(([sid, l]) => { const s = C.studentById[sid]; return `<a class="low" href="student.html"><span><span class="low__name">${s.name}</span> <span class="low__meta">${s.gradeLabel} · ${cls(l.e.classId).name} ${l.e.name}</span></span><span class="low__n"><span class="tag tag--error">${icon.alert}${l.v} 分</span></span></a>`; }).join('')}
+        <a class="ov__more" href="grades-student.html">看全部 ${C.students.length} 位學生的成績${icon.right}</a>
+      </section>
+      <section class="sec" aria-labelledby="h-cls">
+        <div class="sec__head"><h2 class="sec__title" id="h-cls">班級</h2><span class="sec__count">最近一次考試，班平均最低的三個班</span></div>
+        ${latest.slice(0, 3).map(({ c, e, s }) => `<a class="low" href="class.html"><span><span class="low__name">${c.name}</span> <span class="low__meta">${e.name} · 不及格 ${s.fail} 人${s.absent ? ` · 缺考 ${s.absent}` : ''}</span></span><span class="low__n">平均 ${s.avg} 分</span></a>`).join('')}
+        <a class="ov__more" href="grades-class.html">看全部 ${C.classes.length} 個班的考試統計${icon.right}</a>
+      </section>
+    </div>
+
+    <div class="colls">
+      <details class="coll" data-fold>
+        <summary class="coll__sum"><span class="coll__t">最近的考試</span><span class="coll__m">${recent.length} 場 · 近 30 天</span></summary>
+        <div class="coll__body">${recent.map((e) => { const s = stat(e); return `<div class="gr">
+          <a class="gr__name" href="scores.html">${cls(e.classId).name} ${e.name}</a>
+          <span class="gr__sub">${md(e.date)}（${wd(e.date)}） · 不及格 ${s.fail} 人${s.absent ? ` · 缺考 ${s.absent}` : ''}${s.pending ? ` · 還差 ${s.pending} 人` : ''}</span>
+          <span class="gr__n">${s.done ? s.avg : '—'}<small>${s.done ? '分 平均' : ''}</small></span>
+          <a class="btn btn--sm" href="scores.html">看成績</a></div>`; }).join('')}</div>
+      </details>
+    </div>`);
+  A2.fold();
+})();
+</script>
+</body>
+</html>

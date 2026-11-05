@@ -3,14 +3,14 @@ title: 視覺語言（方向 D：暖橘流場）
 summary: 白底為基、大面積暖橘作為入口色面、會動的線條場只住在 hero；橘面上一律近黑字，因為亮橘配白字撐不到 4.5:1。token 用值替換而不是改名，既有頁面自動跟上。
 category: architecture
 status: active
-updated: 2026-10-16
+updated: 2026-11-05
 tags: [architecture, design-system, tokens, animation]
 ---
 
 # 視覺語言（方向 D：暖橘流場）
 
 > 這一頁是**從建好的世界回頭寫的**，不是先寫規則再去符合它。
-> 探索過程與被否決的三個方向留在 `.design-explorations/`（不進版控）。
+> 探索過程與被否決的三個方向留在 `.design-explorations/`（不進版控）；採用的 A6 稿（`973-layout/a6-editorial`＋`shared`）2026-11-05 起進版控，是 `tools/a6-conformance` 的基準。
 
 ## 為什麼換
 

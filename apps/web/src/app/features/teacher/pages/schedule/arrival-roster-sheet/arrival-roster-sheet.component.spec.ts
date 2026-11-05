@@ -96,6 +96,18 @@ describe('ArrivalRosterSheetComponent（#1314 TS3 到班名單）', () => {
     expect(markButtons()).toHaveLength(0);
   });
 
+  it('共用殼：h2「到班名單」、副標寫日期與班名；✕ 跟底部「關閉」都關（#2290）', async () => {
+    await render();
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('h2')!.textContent?.trim()).toBe('到班名單');
+    expect(host.querySelector('.dialog-header-inline__sub')!.textContent).toContain(
+      '日到班：掃碼就算今天的課都到了',
+    );
+    host.querySelector<HTMLButtonElement>('button[aria-label="關閉"]')!.click();
+    expect(closeMock).toHaveBeenCalledWith(false);
+    expect(host.querySelector('.form-dialog__footer')!.textContent).toContain('關閉');
+  });
+
   it('按「他到了」→ 列變「到班（老師標記）」，關閉時告訴課表要重抓', async () => {
     await render();
     checkInMock.mockReturnValue(

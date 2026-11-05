@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 王柏翰</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .contact { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-5); margin-top: var(--space-6); font-size: var(--text-base); }
+  .contact__who { font-weight: var(--font-semibold); }
+  .contact__tel { font-variant-numeric: tabular-nums; color: var(--band-ink-muted); }
+
+  .course { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-4); padding: var(--space-5) 0; border-bottom: 1px solid var(--surface-border); }
+  .course__name { font-size: var(--text-xl); font-weight: var(--font-semibold); letter-spacing: -0.01em; }
+  .course__fee { text-align: right; font-size: var(--text-md); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .course__fee strong { display: block; font-size: var(--text-lg); color: var(--zinc-900); }
+
+  /* 到班格：一格一天（他有課的那天）。格子裡直接寫字（到／沒到／請假／停課；還沒到的那天寫日期），不靠圖例 */
+  .att { margin-top: var(--space-6); }
+  .strip { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 4px; }
+  .cell { display: grid; place-items: center; height: 44px; border-radius: var(--radius-sm); font-size: var(--text-xs); font-weight: var(--font-semibold); color: var(--zinc-700); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+  .cell--came { background: var(--zinc-900); color: #fff; }
+  .cell--absent { box-shadow: inset 0 0 0 1.5px var(--error-600); background: #fff; color: var(--error-700); }
+  .cell--on_leave { box-shadow: inset 0 0 0 1px var(--zinc-400); background: #fff; }
+  .cell--cancelled { border: 1.5px dashed var(--zinc-300); color: var(--zinc-500); }
+  .cell--future { background: var(--zinc-100); color: var(--zinc-700); font-weight: var(--font-medium); }
+
+  .exam { display: grid; grid-template-columns: minmax(0, 220px) 88px minmax(0, 1fr); gap: var(--space-6); align-items: center; padding: var(--space-5) 0; border-bottom: 1px solid var(--surface-border); }
+  .exam__name { font-weight: var(--font-semibold); }
+  .exam__score { font-size: 36px; font-weight: var(--font-bold); letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .exam__vs { font-size: var(--text-md); color: var(--zinc-700); font-variant-numeric: tabular-nums; }
+  .exam__vs strong { color: var(--zinc-900); }
+
+  .inv { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-4); padding: var(--space-5) 0; }
+  .inv__lines { margin-top: var(--space-3); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px var(--space-6); font-size: var(--text-md); color: var(--zinc-700); max-width: 420px; }
+  .inv__lines span:nth-child(even) { text-align: right; font-variant-numeric: tabular-nums; }
+  .inv__total { font-size: 28px; font-weight: var(--font-bold); letter-spacing: -0.03em; text-align: right; font-variant-numeric: tabular-nums; }
+  .inv__side { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-3); }
+
+  .log { list-style: none; margin: 0; padding: 0; }
+  .log li { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--surface-border); }
+  .log time { color: var(--text-muted); font-variant-numeric: tabular-nums; font-size: var(--text-md); }
+
+  @media (max-width: 860px) {
+    .strip { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+    .cell { height: 36px; }
+    .exam { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2) var(--space-4); }
+    .exam__vs { grid-column: 1 / -1; }
+    .inv { grid-template-columns: 1fr; }
+    .inv__side { align-items: stretch; }
+    .inv__total { text-align: left; }
+    .log li { grid-template-columns: 56px minmax(0, 1fr); }
+    /* 手機：家長那一行 = 稱呼＋號碼一行、兩個 44px 高的文字連結一行（還是 E5 連結，不是白底按鈕） */
+    .contact { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: var(--space-1) var(--space-4); margin-top: var(--space-4); }
+    .contact__tel, .contact .olink + .olink { justify-self: end; }
+    .contact .olink:first-of-type { justify-self: start; }
+    .contact .olink { min-height: 44px; border-bottom: 0; text-decoration: underline; text-decoration-color: var(--band-rule); text-decoration-thickness: 1.5px; text-underline-offset: 5px; }
+    .open__stats { margin-top: var(--space-4); }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>學生檔案 · 排版（A6 第六輪）</h2>
+<h3>10/02 修正：主要按鈕改橘、縮小</h3>
+<p>你說「太大的黑色區塊就是在說按鈕」「可以改橘色，但按鈕不要這麼大」。這頁的主要按鈕改成品牌橘實心（跟課表「停課」同一個橘、近黑字），手機上高度 48 → 40px、寬度依內容，不再撐滿；底部動作列的兩顆靠右、依內容寬。桌機同步改色（同一顆按鈕不該兩種寬度兩種顏色），尺寸沿用桌機原本的 36px。</p>
+
+<h3>這一輪（A6）</h3>
+<ul>
+  <li><strong>帳戶＋切換身分合成一個入口</strong>（五頁共用的頁首）：桌機右上「頭像＋林主任 · 管理員 ▾」；手機右上「頭像＋管理員 ▾」。點開最上面是人（大頭像、名字、email），接著灰底的「切換身分」（列出其他角色），再來「帳號設定」「登出」（紅字）。桌機是貼著入口的浮層，手機是底部抽屜（同一份內容）。網址加 <code>#account</code> 直接打開。</li>
+  <li><strong>示範使用者改成管理員＋任課老師＋家長</strong>（DIRECTION 原寫管理員＋家長），好讓「切換身分」列出兩個選項；只有一個角色的人，產品是只顯示徽章、不能切換，這一區就不會出現。</li>
+  <li><strong>點切換身分</strong> → 整面白的過場「正在切換到 家長…」，1.4 秒後變「已切換到 家長」。家長頁不在這一輪，所以留一顆「回到管理員」讓你回來。</li>
+  <li><strong>帳號設定</strong>：照產品的對話框欄位（顯示名稱、生日、Email、電話，每欄各自「儲存」；家長身份）。因為示範使用者已經是家長，家長身份那塊顯示「已啟用」（產品在已是家長時整塊不顯示 —— 這裡畫出來是為了讓你看到它的位置）。手機是從底部升起的全寬面板。</li>
+  <li><strong>頭像</strong>：產品是 jdenticon（依使用者 id 產生的幾何圖），設計稿用名字首字「林」代替。</li>
+  <li><strong>第四種面：灰</strong>（zinc-100 為主）＝次要分區與收起來的東西。這頁用在：色面下的工具列、成績／帳單／紀錄三列摘要（灰底，點開內容是白）、手機底部動作列。灰上的字都是 zinc-600 以上；可點的灰列 hover 時底再深一階，停用仍是原本的半透明樣式 —— 灰不是停用。</li>
+  <li>家長聯絡仍在橘色開場色面裡（A5 的位置），沒有搬到灰區 —— 搬出來會讓首屏少掉「打電話」這個最常用的動作。</li>
+</ul>
+
+<h3>A5：黑色減量（這一輪改的）</h3>
+<p>你說手機版黑色塊面太多、桌機也略多。這一輪把「黑」的意思縮小：<strong>黑只用在全站導覽（頁首），以及暫時出現的操作</strong>（勾了課之後的批次動作列、步驟頁的底部按鈕列）。頁面自己的工具列和手機底部動作列改回白底，用一條近黑細線分區 —— 分區靠線，不靠整片黑。手機頁首只有字標那一列是黑，導覽那一列改成白底分頁。下面各段裡講到「黑工具列」「黑動作列」的地方，現在都是白底。</p>
+<h3>這一輪：拿掉說明按鈕、改用字</h3>
+<p>「這頁怎麼看」按鈕與浮層整個拿掉。原本收在裡面的每一項：</p>
+<ul>
+  <li><strong>到班格的五種格子圖例</strong>→ <strong>格子自己寫字</strong>：黑格寫「到」、紅框寫「沒到」、細框寫「請假」、虛線寫「停課」；還沒到的那幾天是灰格，<strong>格子裡寫日期</strong>（10/10…），一看就知道是之後的課。每格仍有 title／aria-label 給「日期（星期）狀態」。章名旁照舊寫「沒到 1 天：8/22」。</li>
+  <li><strong>「由左到右是這學期第 1 到第 N 次」</strong>→ <strong>刪掉</strong>。後面幾格寫著日期，順序自己看得出來。</li>
+  <li><strong>「日到班：他掃碼那天，當天的課都算出席」</strong>→ <strong>刪掉</strong>。行政本來就知道；畫面上沒有哪一處會因此被誤讀（格子本來就是「一天一格」）。</li>
+  <li><strong>成績那條軌道（黑點＝他、短線＝班平均）</strong>→ <strong>圖刪掉，留字</strong>：「<strong>比班平均低 7 分</strong> · 班平均 86 · 第 3／20 名」。需要圖例的圖不留。</li>
+</ul>
+
+  <p class="lede">色面就是這個人＋怎麼聯絡家長；黑工具列是對他能做的事；白面只剩「這學期的課」與「到班」攤開，其他三章收成摘要列。</p>
+  <h3>收了什麼、收到哪、怎麼叫出來</h3>
+  <ul>
+    <li><strong>色面副標的長句</strong>（加入年月＋「該到 10 天到了 9 天，最近考 79 分比平均低 7 分」）→ <strong>刪掉</strong>，桌機手機都只留「小五 · 興隆國小 · 國小五年級英文班」。後半句就是下面兩個數字。</li>
+    <li><strong>色面的「十月待繳 NT$ 4,050」</strong>→ <strong>刪掉</strong>：黑工具列的「收款 NT$ 4,050」就是它，帳單摘要列也寫了。</li>
+    <li><strong>白面「到班」右邊的大數字 9／10 天＋說明句</strong>→ <strong>刪掉</strong>（色面已經寫了）。章名旁改成一句有新資訊的話：「沒到 1 天：8/22」。</li>
+    <li><strong>到班格下面那排 16 個 11px 日期</strong>→ 刪掉；滑過格子看日期（title）。</li>
+    <li><strong>「這學期的課」旁的「7/23 – 11/12 · 16 週」</strong>→ 刪掉。<strong>每堂課右邊的「月費 3,600 / 在學」</strong>→ 金額收進帳單章；「在學」是常態不寫，只有暫停／退班／待繳費才寫。</li>
+    <li><strong>白面開頭那一列</strong>（今天沒課 · 10/3 停課原因 · 下一堂 ＋ 三顆按鈕）→ 搬進黑工具列；停課原因刪掉（到班格上是虛線格，滑過有寫）。</li>
+    <li><strong>「編輯資料」「報名新班」</strong>→ 收進黑工具列的「⋯」選單（桌機手機同一處）。</li>
+    <li><strong>成績、帳單、紀錄三章</strong>→ 桌機也收成摘要列（「3 次 · 最近 79 分（班平均 86）」「NT$ 4,050 · 10/4 到期」「7 筆」），點開才看。成績列的「黑點是他 · 短線是班平均」說明刪掉（這一輪連那條線一起刪，見上）。帳單的「寄給 X」刪掉。</li>
+  </ul>
+  <h3>黑色塊面用在哪、為什麼</h3>
+  <ul>
+    <li><strong>頁首</strong>（已有）：導覽。</li>
+    <li><strong>色面正下方的全寬黑工具列</strong>：左邊「今天沒有他的課 · 下一堂 10/10（六）15:00」，右邊登記請假、收款 NT$ 4,050（黑面上唯一的白底按鈕＝主要動作）、⋯。家長打來最常做的兩件事就在名字正下方。</li>
+    <li><strong>手機底部固定動作列</strong>：登記請假、收款 —— 捲到成績或紀錄時也按得到；工具列在手機只留情境句、⋯。</li>
+    <li>家長電話那一行<strong>留在橘面</strong>：它是「這個人」的一部分（誰、怎麼找到他家長），不是動作列。</li>
+  </ul>
+  <h3>第一次看的人會怎麼讀</h3>
+  <ul>
+    <li><strong>橘色大名字</strong>：他是誰、幾年級、哪間學校、上哪個班；兩個數字是到班與最近一次考試；最下面是家長電話。</li>
+    <li><strong>黑工具列</strong>：他下一堂是什麼時候；要登記請假或收錢就在右邊。</li>
+    <li><strong>這學期的課、到班格</strong>：一格是他有課的一天，格子裡寫「到／沒到／請假／停課」，還沒到的那天寫日期。</li>
+    <li><strong>成績、帳單、紀錄</strong>：摘要寫在右邊，要細節才點開。</li>
+  </ul>
+  <h3>代價</h3>
+  <ul>
+    <li>成績的「跟班平均比」現在只有字（「比班平均低 7 分」），一眼看不出全班分布。</li>
+    <li>到班格沒有日期列，要知道某格是哪天得滑過（手機上要長按），或看「沒到 1 天：8/22」那句。</li>
+    <li>到班格沒有每天的到班時間（資料只有逐堂紀錄）；資料裡的「遲到」一律當到班畫（系統沒有遲到狀態）。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, wd, days, money, phone, todayOf } = A2;
+  const s = C.students[0];
+  const enr = s.enrollments.map((e) => ({ ...e, c: C.classById[e.classId] }));
+  const ATT = { came: '到班', absent: '沒到', on_leave: '請假', cancelled: '停課', future: '還沒到那天' };
+  const CELL = { came: '到', absent: '沒到', on_leave: '請假', cancelled: '停課' };
+
+  // 到班格：他有課的每一天（同一天兩堂只算一格）
+  const mine = C.sessions.filter((x) => enr.some((e) => e.classId === x.classId)).sort((a, b) => a.date.localeCompare(b.date));
+  const dayMap = new Map();
+  mine.forEach((x) => {
+    const r = C.attendance[x.id] && C.attendance[x.id][s.id];
+    // 系統沒有「遲到」：資料裡的 late 一律當到班
+    const k = x.status === 'cancelled' ? 'cancelled' : r ? (r === 'absent' ? 'absent' : r === 'on_leave' ? 'on_leave' : 'came') : 'future';
+    if (!dayMap.has(x.date) || k === 'came') dayMap.set(x.date, k);
+  });
+  const dayList = [...dayMap.entries()];
+  const due = dayList.filter(([, k]) => k !== 'cancelled' && k !== 'future').length;
+  const came = dayList.filter(([, k]) => k === 'came').length;
+  const next = mine.find((x) => x.date > C.TODAY && x.status !== 'cancelled');
+  const skipped = mine.find((x) => x.date > C.TODAY && x.status === 'cancelled');
+
+  // 成績
+  const exams = C.exams.filter((x) => s.id in x.scores).sort((a, b) => a.date.localeCompare(b.date));
+  const stat = (x) => { const all = Object.values(x.scores); return { all, avg: Math.round(all.reduce((a, b) => a + b, 0) / all.length), me: x.scores[s.id] }; };
+  const last = exams.length ? stat(exams[exams.length - 1]) : null;
+
+  // 帳單
+  const invs = C.invoices.filter((i) => i.studentId === s.id);
+  const owed = invs.reduce((a, i) => a + i.balance, 0);
+  const dueTag = (i) => i.status === 'overdue' ? `<span class="tag tag--error">${icon.alert}逾期 ${days(i.due, C.TODAY)} 天</span>`
+    : i.status === 'due_soon' ? `<span class="tag tag--warn">${icon.clock}${days(C.TODAY, i.due)} 天後到期 · ${md(i.due)}</span>`
+    : i.status === 'paid' ? `<span class="tag tag--ok">${icon.check}已繳清</span>` : `<span class="tag tag--quiet">${md(i.due)} 到期</span>`;
+
+  const log = [
+    { date: s.since, text: '第一次加入文山旗艦校' },
+    ...enr.map((e) => ({ date: e.from, text: `報名 ${e.c.name}（${C.statusLabel.enrollment[e.status]}）` })),
+    ...dayList.filter(([d, k]) => k === 'absent' || k === 'on_leave').map(([d, k]) => ({ date: d, text: `${ATT[k]}（${enr[0].c.name}）` })),
+    ...exams.map((x) => ({ date: x.date, text: `${x.name} ${x.scores[s.id]} 分` })),
+    ...invs.map((i) => ({ date: i.issuedAt, text: `開立十月帳單 NT$ ${money(i.total)}` })),
+    ...C.leaves.filter((l) => l.studentId === s.id).map((l) => ({ date: l.date, text: `家長${l.via}請假：${l.reason}` })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
+
+  const t = todayOf[s.id];
+  const absentDays = dayList.filter(([, k]) => k === 'absent').map(([d]) => md(d));
+  const curInv = invs.find((i) => i.balance);
+  const main = `
+    <section class="sec" aria-labelledby="h-course">
+      <div class="sec__head"><h2 class="sec__title" id="h-course">這學期的課</h2></div>
+      ${enr.map((e) => `<div class="course">
+        <div><h3 class="course__name">${e.c.name}</h3><p class="sub">${C.weekdayLabel[e.c.weekday]} ${e.c.start}–${e.c.end} · ${e.c.teacher} 老師</p></div>
+        <div class="course__fee">${e.status === 'active' ? '' : C.statusLabel.enrollment[e.status]}</div>
+      </div>`).join('')}
+    </section>
+
+    <section class="sec" aria-labelledby="h-att">
+      <div class="sec__head"><h2 class="sec__title" id="h-att">到班</h2><span class="sec__count">${absentDays.length ? `沒到 ${absentDays.length} 天：${absentDays.join('、')}` : '這學期該到的都有到'}</span></div>
+      <div class="att">
+        <div class="strip" role="list" aria-label="這學期每個上課日的到班">${dayList.map(([d, k]) => `<span class="cell cell--${k}" role="listitem" title="${md(d)}（${wd(d)}）${ATT[k]}${k === 'cancelled' && skipped && skipped.date === d ? '：' + skipped.change.reason : ''}" aria-label="${md(d)} ${ATT[k]}">${k === 'future' ? md(d) : CELL[k]}</span>`).join('')}</div>
+      </div>
+    </section>
+
+    <div class="colls">
+      <details class="coll">
+        <summary class="coll__sum"><span class="coll__t">成績</span><span class="coll__m">${last ? `${exams.length} 次 · 最近 ${last.me} 分（班平均 ${last.avg}）` : '還沒有成績'}</span></summary>
+        <div class="coll__body">${exams.map((x) => { const { all, avg, me } = stat(x); const rank = all.filter((v) => v > me).length + 1; return `<div class="exam">
+          <div><div class="exam__name">${x.name}</div><div class="sub">${md(x.date)}</div></div>
+          <div class="exam__score">${me}</div>
+          <p class="exam__vs"><strong>${me === avg ? '跟班平均一樣' : `比班平均${me > avg ? '高' : '低'} ${Math.abs(me - avg)} 分`}</strong> · 班平均 ${avg} · 第 ${rank}／${all.length} 名</p></div>`; }).join('') || '<p class="empty">還沒有成績。老師登錄校內考之後會出現在這裡。</p>'}</div>
+      </details>
+      <details class="coll">
+        <summary class="coll__sum"><span class="coll__t">帳單</span><span class="coll__m">${curInv ? `NT$ ${money(owed)} · ${curInv.status === 'overdue' ? `逾期 ${days(curInv.due, C.TODAY)} 天` : `${md(curInv.due)} 到期`}` : '沒有待繳'}</span></summary>
+        <div class="coll__body">${invs.map((i) => `<div class="inv">
+          <div><div style="font-weight:600">${i.id} · 十月</div>
+            <div class="inv__lines">${i.items.map((x) => `<span>${x.label}</span><span>${x.amount < 0 ? '−' : ''}${money(Math.abs(x.amount))}</span>`).join('')}</div></div>
+          <div class="inv__side"><div class="inv__total"><span style="font-size:14px;font-weight:500;letter-spacing:0">NT$ </span>${money(i.balance)}</div>${dueTag(i)}</div>
+        </div>`).join('') || '<p class="empty">這個月沒有帳單。</p>'}<p><a class="sec__link" href="billing.html" style="margin-left:0">全部帳單${icon.right}</a></p></div>
+      </details>
+      <details class="coll">
+        <summary class="coll__sum"><span class="coll__t">紀錄</span><span class="coll__m">${log.length} 筆</span></summary>
+        <div class="coll__body"><ul class="log">${log.map((l) => `<li><time datetime="${l.date}">${l.date.slice(0, 4) === C.TODAY.slice(0, 4) ? md(l.date) : l.date.replaceAll('-', '/')}</time><span>${l.text}</span></li>`).join('')}</ul></div>
+      </details>
+    </div>`;
+
+  const more = `<button class="btn" type="button" popovertarget="acts" aria-label="更多動作">${icon.dots}</button>
+    <div class="pop pop--menu" id="acts" popover><button type="button" data-edit>編輯資料</button><button type="button" data-enroll>${icon.plus}報名新班</button></div>`;
+
+  const p = s.parent;
+  shell({
+    page: 'students',
+    back: `<a class="open__back" href="students.html">${icon.left}學生名冊</a>`,
+    title: s.name,
+    titleClass: 'open__title--name',
+    sub: `${s.gradeLabel} · ${s.school} · ${enr.map((e) => e.c.name).join('、')}`,
+    stats: [
+      { n: `${came}<small>／${due}</small>`, label: '這學期到班（天）' },
+      { n: last ? last.me : '—', unit: '分', label: '最近一次考試' },
+    ],
+    extra: `<div class="contact"><span class="contact__who">${p.name}（${p.relation}）</span><span class="contact__tel">${phone(p.phone)}</span><button class="olink" type="button" data-ok="已撥出 ${phone(p.phone)} 給${p.name}（${p.relation}），記了一筆聯絡（${C.NOW}）" data-done="已聯絡 ${C.NOW}">${icon.phone}打電話</button>${p.line ? `<button class="olink" type="button" data-line>${icon.chat}傳 LINE</button>` : ''}</div>`,
+    bar: `<p class="tbar__txt">${t ? `<strong>今天 ${t.dueAt} 有課</strong>` : `<strong>今天沒有他的課</strong>`}${next ? ` · 下一堂 <strong>${md(next.date)}（${wd(next.date)}）${next.start}</strong>` : ''}</p>
+      <div class="tbar__act"><button class="btn only-d" type="button" data-leave>${icon.leave}登記請假</button>${owed ? `<button class="btn btn--cta only-d" type="button" data-pay>收款 NT$ ${money(owed)}</button>` : ''}${more}</div>`,
+    dock: `<button class="btn" type="button" data-leave>${icon.leave}登記請假</button>${owed ? `<button class="btn btn--cta" type="button" data-pay>收款 NT$ ${money(owed)}</button>` : ''}`,
+    phase: 900,
+  }, main);
+
+  // #990 批 0：寫入動作接上表單，完成後就地更新（紀錄多一筆、收款按鈕的金額、標題）
+  let left = owed;
+  const addLog = (text) => {
+    const ul = document.querySelector('.log');
+    ul.insertAdjacentHTML('afterbegin', `<li class="is-new"><time datetime="${C.TODAY}">${md(C.TODAY)}</time><span>${text}</span></li>`);
+    const m = ul.closest('.coll').querySelector('.coll__m'); m.textContent = `${ul.children.length} 筆`;
+  };
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#acts button')) document.getElementById('acts').hidePopover();
+    if (e.target.closest('[data-leave]')) A2.forms.leave({ studentId: s.id, from: t ? t.dueAt : '17:00', onDone: (sid, v) => {
+      addLog(`登記請假 ${md(v.d1)} ${v.t1}–${md(v.d2)} ${v.t2}${v.why ? '：' + v.why : ''}`);
+      if (v.d1 === C.TODAY) document.querySelector('.tbar__txt strong').textContent = `今天請假（${v.t1} 起）`;
+    } });
+    if (e.target.closest('[data-pay]') && curInv) A2.forms.pay({ name: s.name, due: curInv.total, paid: curInv.total - left, onDone: (amt, v) => {
+      left = Math.max(0, left - amt);
+      addLog(`收款 NT$ ${money(amt)}（${v.how}）`);
+      document.querySelectorAll('[data-pay]').forEach((b) => {
+        if (left) b.textContent = `收款 NT$ ${money(left)}`;
+        else { b.innerHTML = `${icon.check}已繳清`; b.setAttribute('aria-disabled', 'true'); b.classList.add('is-done'); }
+      });
+      const m = [...document.querySelectorAll('.coll__t')].find((x) => x.textContent === '帳單').nextElementSibling;
+      m.textContent = left ? `NT$ ${money(left)} · 部分繳` : '已繳清';
+    } });
+    if (e.target.closest('[data-line]')) A2.form({
+      title: `傳 LINE 給${p.name}`, sub: `${s.name}的家長 · 用補習班的官方帳號傳送`,
+      fields: [{ k: 'msg', label: '訊息', value: `${p.name}您好，${s.name}今天`, req: true }],
+      submit: '傳送', busy: '傳送中…', ok: `已用 LINE 傳給${p.name}`, apply: (v) => addLog(`LINE 傳給家長：${v.msg}`),
+    });
+    if (e.target.closest('[data-edit]')) A2.form({
+      title: '編輯資料', sub: '家長資料在家長管理裡改',
+      fields: [
+        { k: 'name', label: '姓名', value: s.name, req: true, half: true },
+        { k: 'grade', label: '年級', type: 'select', options: [['P5', '小五'], ['P6', '小六'], ['J1', '國一'], ['J2', '國二'], ['J3', '國三']], value: s.grade, half: true },
+        { k: 'school', label: '就讀學校', value: s.school, half: true },
+        { k: 'phone', label: '學生電話', type: 'tel', value: phone(s.phone), half: true },
+      ],
+      submit: '儲存', busy: '儲存中…', ok: (v) => `已更新 ${v.name} 的資料`,
+      apply: (v) => {
+        document.querySelector('.open__title').textContent = v.name;
+        const g = { P5: '小五', P6: '小六', J1: '國一', J2: '國二', J3: '國三' }[v.grade];
+        document.querySelector('.open__sub').textContent = `${g} · ${v.school} · ${enr.map((x) => x.c.name).join('、')}`;
+        addLog('更新基本資料');
+      },
+    });
+    if (e.target.closest('[data-enroll]')) {
+      const open = C.classes.filter((c) => !enr.some((x) => x.classId === c.id));
+      A2.form({
+        title: '報名新班', sub: `${s.name} · 報名後狀態是「待繳費」，第一期帳單會一起開立`,
+        fields: [
+          { k: 'cid', label: '班級', type: 'select', ph: '選一個班', req: true, options: open.map((c) => [c.id, `${c.name}（${C.weekdayLabel[c.weekday]} ${c.start}）`]) },
+          { k: 'from', label: '開始上課', type: 'date', value: C.addDays(C.TODAY, 7), req: true },
+        ],
+        submit: '報名', busy: '報名中…', ok: (v) => `已報名 ${C.classById[v.cid].name}，狀態是待繳費`,
+        apply: (v) => {
+          const c = C.classById[v.cid];
+          document.querySelector('#h-course').closest('.sec').insertAdjacentHTML('beforeend', `<div class="course is-new"><div><h3 class="course__name">${c.name}</h3><p class="sub">${C.weekdayLabel[c.weekday]} ${c.start}–${c.end} · ${c.teacher} 老師 · ${md(v.from)} 開始</p></div><div class="course__fee"><span class="tag tag--warn">待繳費</span></div></div>`);
+          addLog(`報名 ${c.name}（待繳費）`);
+        },
+      });
+    }
+  });
+})();
+</script>
+</body>
+</html>

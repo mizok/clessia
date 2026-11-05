@@ -1,0 +1,1 @@
+await page.waitForLoadState("networkidle"); for(let i=0;i<60;i++){ if(!(await page.locator(".p-skeleton:visible,[class*=skeleton]:visible").count())) break; await page.waitForTimeout(250);} await page.waitForTimeout(300);

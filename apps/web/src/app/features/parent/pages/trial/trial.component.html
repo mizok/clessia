@@ -257,27 +257,16 @@
   </div>
 </app-child-scope-gate>
 
-<!-- 申請詳情：唯讀 sheet（同報名頁）；沒有取消鈕，要取消或改時間打電話（A6） -->
+<!-- 申請詳情：唯讀 sheet（同報名頁，共用殼 #2290）；沒有取消鈕，要取消或改時間打電話（A6） -->
 <dialog
   #detailDialog
-  class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(480px,calc(100%-32px))] flex-col overflow-y-auto rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-(--sheet-bg) open:flex"
-  aria-labelledby="trial-detail-title"
+  class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(var(--dlg-w-md),calc(100%-32px))] flex-col overflow-y-auto rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-(--sheet-bg) open:flex"
+  role="dialog"
   (click)="onDetailBackdrop($event)"
   (close)="detail.set(null)"
 >
   @if (detail(); as r) {
-    <div class="flex items-center justify-between pt-4 pr-4 pb-2 pl-6">
-      <h2 id="trial-detail-title" class="m-0 text-xl font-bold">試聽申請詳情</h2>
-      <button
-        type="button"
-        class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900"
-        aria-label="關閉"
-        (click)="closeDetail()"
-      >
-        <i class="pi pi-times" aria-hidden="true"></i>
-      </button>
-    </div>
-    <div class="grid gap-5 px-6 pt-2 pb-6 max-wide:px-4">
+    <app-dialog-frame title="試聽申請詳情" (closed)="closeDetail()">
       <p class="m-0">
         <span
           [class]="
@@ -351,6 +340,6 @@
           }
         </div>
       }
-    </div>
+    </app-dialog-frame>
   }
 </dialog>
