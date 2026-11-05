@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -15,6 +16,7 @@ import {
 import { SystemClockService } from '@core/system-clock.service';
 
 import { StudentPanelComponent } from './student-panel.component';
+import { OrgSettingsService } from '@core/org-settings.service';
 
 const STUDENT = {
   id: 's1',
@@ -74,6 +76,8 @@ describe('StudentPanelComponent（老師的學生面板，TST1）', () => {
       days?: Day[];
       scores?: ScoreRecord[];
       detail?: ReturnType<typeof of> | ReturnType<typeof throwError>;
+      /** 點名負責人；預設老師（大部分條目跟這個無關） */
+      responsible?: 'admin' | 'teacher';
     } = {},
   ) {
     get.mockReset().mockReturnValue(opts.detail ?? of({ data: DETAIL }));
@@ -88,6 +92,14 @@ describe('StudentPanelComponent（老師的學生面板，TST1）', () => {
         { provide: ScoresService, useValue: { list } },
         { provide: MessageService, useValue: { add } },
         { provide: SystemClockService, useValue: { todayTaipei: () => '2026-10-30' } },
+        {
+          provide: OrgSettingsService,
+          useValue: {
+            status: signal('ready'),
+            settings: signal({ attendanceResponsible: opts.responsible ?? 'teacher' }),
+            load: vi.fn(),
+          },
+        },
       ],
     });
     const fixture = TestBed.createComponent(StudentPanelComponent);
@@ -105,6 +117,18 @@ describe('StudentPanelComponent（老師的學生面板，TST1）', () => {
     const foot = host.querySelector('.form-dialog__footer')!;
     expect(foot.textContent).toContain('關閉');
     expect(foot.textContent).toContain('到課表點名');
+  });
+
+  it('行政負責點名的機構：主按鈕寫「看到班名單」，不寫「到課表點名」（課表上沒有點名鈕，#2317）', () => {
+    const host = setup({ responsible: 'admin' });
+    const foot = host.querySelector('.form-dialog__footer')!;
+    expect(foot.textContent).toContain('看到班名單');
+    expect(foot.textContent).not.toContain('到課表點名');
+  });
+
+  it('老師負責點名的機構：照舊「到課表點名」（#2317）', () => {
+    const host = setup({ responsible: 'teacher' });
+    expect(host.querySelector('.form-dialog__footer')!.textContent).toContain('到課表點名');
   });
 
   it('三份資料都走既有的老師範圍端點；成績帶這班的 id、校內考、3 筆', () => {

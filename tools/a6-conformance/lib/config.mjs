@@ -3579,6 +3579,21 @@ export const PAGES = {
         source:
           'tools/a6-conformance/README.md:83（文案模板：數字 → #；位數不同造成的位移，工具不扣）',
       },
+      // 學生面板主按鈕（#2317）：行政負責點名的機構（seed）寫「看到班名單」，老師負責照稿「到課表點名」
+      {
+        status: '文案',
+        pop: 'panel',
+        a6: '>control:link\\[到課表點名\\]$',
+        reason: '行政負責點名時課表上沒有點名鈕，主按鈕改寫「看到班名單」（落點同課表）',
+        source: 'kb/wiki/architecture/a6-adoption-rules.md R5「老師學生面板主按鈕」（#2317）',
+      },
+      {
+        status: '位置',
+        pop: 'panel',
+        a6: '>control:link\\[到課表點名\\]$',
+        reason: '連帶＋資料：文案不同配不上同名鈕；面板上方考試列數與家長電話是資料（稿 3 場、seed 2 場、沒留電話）',
+        source: 'kb/wiki/architecture/a6-adoption-rules.md R5「老師學生面板主按鈕」（#2317）',
+      },
     ],
   },
 };
