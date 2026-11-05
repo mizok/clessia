@@ -496,8 +496,7 @@ export class SettingsPage implements OnInit {
   protected openGradePromotion(): void {
     this.revertResult.set(null);
     const ref = this.dialogService.open(GradePromotionDialogComponent, {
-      width: '560px',
-      breakpoints: { '640px': '96%' },
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: 'body',

@@ -1,4 +1,5 @@
 import {
+  invoicePeriodLabel,
   canCollect,
   canReceipt,
   invoiceExportRow,
@@ -268,5 +269,25 @@ describe('invoiceExportRow', () => {
   it('沒到期日、沒編號：留空，不寫 null', () => {
     const row = invoiceExportRow({ ...base, invoiceNo: null, dueDate: null }, '2026-10-20');
     expect(row).toMatchObject({ 帳單編號: '', 繳費期限: '', 逾期: '' });
+  });
+});
+
+describe('invoicePeriodLabel（#2316）', () => {
+  const item = (o: object) =>
+    ({ type: 'tuition', periodMonth: null, note: null, ...o }) as Invoice['items'][number];
+  it('月結：月份＋類型', () => {
+    expect(invoicePeriodLabel({ items: [item({ periodMonth: '2026-11-01' })] })).toBe('11 月學費');
+  });
+  it('沒有月份：類型＋備註；沒備註只寫類型', () => {
+    expect(invoicePeriodLabel({ items: [item({ note: '展示用' })] })).toBe('學費（展示用）');
+    expect(invoicePeriodLabel({ items: [item({ type: 'session_pack' })] })).toBe('堂數包');
+  });
+  it('多筆：去重後兩種以內用「、」接，超過寫等 N 項', () => {
+    const nov = item({ periodMonth: '2026-11-01' });
+    const meal = item({ type: 'meal', periodMonth: '2026-11-01' });
+    expect(invoicePeriodLabel({ items: [nov, nov, meal] })).toBe('11 月學費、11 月餐費');
+    expect(invoicePeriodLabel({ items: [nov, meal, item({ note: '補' })] })).toBe(
+      '11 月學費 等 3 項',
+    );
   });
 });
