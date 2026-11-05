@@ -145,6 +145,8 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
       ]);
     const elementary = await school(ctx.orgId, '名冊國小', 'elementary');
     const junior = await school(ctx.orgId, '名冊國中', 'junior');
+    // 簡稱也要比得到（只有簡稱命中：全名裡沒有「冊中」）
+    await q("update schools set short_name = '冊中' where id = $1", [junior]);
     const unknown = await school(ctx.orgId, '名冊未分類', null);
     const elementaryB = await school(otherOrg, '別 org 國小', 'elementary');
     // 別 org 的學校**會**出現在 misB 那列的 `schools`（學生自己的 FK，兩條路都一樣），所以不列進 otherIds
@@ -314,6 +316,9 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
       `search=${encodeURIComponent('國中')}`,
       `search=${encodeURIComponent('名*小')}`,
       'search=0912000003',
+      `search=${encodeURIComponent('冊中')}`,
+      // 別 org 的學校（misB 掛著）：學校名搜尋要限本 org，同 builder
+      `search=${encodeURIComponent('別 org 國小')}`,
       'search=0912',
       `search=${encodeURIComponent('媽')}&searchScope=student_name`,
       'today=any',
@@ -343,7 +348,7 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
         }
     ctx.teacher = false;
     ctx.campusScope = null;
-    expect(compared).toBe(300);
+    expect(compared).toBe(330);
     expect(diffs).toEqual([]);
     expect(nonEmpty).toBeGreaterThan(50); // 不是兩邊都空
   });
