@@ -1,29 +1,47 @@
-<form [formGroup]="form" (ngSubmit)="submit()" class="session-op-form">
-  <div
-    class="session-op-form__warning rounded-l-none rounded-r-md border-l-[3px] border-l-warning-600 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--warning-100)_70%,var(--color-white)),var(--color-white))]"
-  >
-    <i class="pi pi-exclamation-triangle"></i>
-    <p>
-      確定要為 {{ session()?.className }} 的
-      <strong>{{ session()?.teacherName }}</strong> 老師停課嗎？
-      <br />
-      （時間：{{ session()?.sessionDate }} {{ session()?.startTime }}–{{ session()?.endTime }}）
-      <br />
-      停課後可在課堂列表中批次恢復，學生與家長將在系統中看到停課通知。
-    </p>
-  </div>
-  <div class="session-op-form__field">
-    <label for="cancelReason" class="session-op-form__label">停課原因（選填）</label>
-    <textarea
-      id="cancelReason"
-      pTextarea
-      formControlName="reason"
-      placeholder="例如：颱風假、老師請假..."
-      class="session-op-form__textarea"
-    ></textarea>
-  </div>
-  <div class="session-op-form__footer">
-    <p-button label="取消" severity="secondary" [text]="true" (onClick)="closeDialog()" />
-    <p-button label="確認停課" severity="danger" type="submit" [loading]="isSubmitting()" />
-  </div>
-</form>
+<!-- 共用殼（#2290）。A6 課表走批次步驟頁，沒畫單堂的這支；標題沿用產品原本的 header -->
+<app-dialog-frame title="停課" (closed)="closeDialog()">
+  <form [formGroup]="form" (ngSubmit)="submit()" class="session-op-form">
+    <div
+      class="session-op-form__warning rounded-l-none rounded-r-md border-l-[3px] border-l-warning-600 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--warning-100)_70%,var(--color-white)),var(--color-white))]"
+    >
+      <i class="pi pi-exclamation-triangle"></i>
+      <p>
+        確定要為 {{ session()?.className }} 的
+        <strong>{{ session()?.teacherName }}</strong> 老師停課嗎？
+        <br />
+        （時間：{{ session()?.sessionDate }} {{ session()?.startTime }}–{{ session()?.endTime }}）
+        <br />
+        停課後可在課堂列表中批次恢復，學生與家長將在系統中看到停課通知。
+      </p>
+    </div>
+    <div class="session-op-form__field">
+      <label for="cancelReason" class="session-op-form__label">停課原因（選填）</label>
+      <textarea
+        id="cancelReason"
+        pTextarea
+        formControlName="reason"
+        placeholder="例如：颱風假、老師請假..."
+        class="session-op-form__textarea"
+      ></textarea>
+    </div>
+  </form>
+
+  <ng-container dialogFoot>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+      (click)="closeDialog()"
+    >
+      取消
+    </button>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 border-error-700 bg-error-700 text-white"
+      data-testid="op-submit"
+      [disabled]="isSubmitting()"
+      (click)="submit()"
+    >
+      {{ isSubmitting() ? '處理中…' : '確認停課' }}
+    </button>
+  </ng-container>
+</app-dialog-frame>

@@ -239,7 +239,8 @@ describe('SessionsPage', () => {
     expect(dialogOpenSpy).toHaveBeenCalledWith(
       SessionAssignDialogComponent,
       expect.objectContaining({
-        header: '指派老師',
+        // 標題改在共用殼裡（#2290），開窗不再帶 header
+        showHeader: false,
         data: expect.objectContaining({ session }),
       }),
     );

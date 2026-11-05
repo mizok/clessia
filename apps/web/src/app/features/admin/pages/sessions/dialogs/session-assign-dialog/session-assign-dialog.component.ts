@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { MessageService } from 'primeng/api';
@@ -15,9 +14,10 @@ interface SessionAssignDialogData {
   readonly teachers?: readonly Staff[];
 }
 
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 @Component({
   selector: 'app-session-assign-dialog',
-  imports: [ReactiveFormsModule, ButtonModule, SelectModule, InlineNoticeComponent],
+  imports: [DialogFrameComponent, ReactiveFormsModule, SelectModule, InlineNoticeComponent],
   templateUrl: './session-assign-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
