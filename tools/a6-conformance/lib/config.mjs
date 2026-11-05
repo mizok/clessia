@@ -78,14 +78,15 @@ export const DEVIATIONS = [
   {
     status: '樣式',
     a6: '(^|>)landmark:dialog\\[[^\\]]*\\]>landmark:form\\[[^\\]]*\\]$',
-    item: '^padding 8px 24px 24px → 0px$',
+    // 手機稿 8/16/24（A6 .acset__body 手機左右 16）
+    item: '^padding 8px (24|16)px 24px → 0px$',
     reason: '殼的內距在內容區外層（.dialog-frame__body），稿在 form 上，幾何相同',
     source: 'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
   },
   {
     status: '位置',
     a6: '(^|>)landmark:dialog\\[[^\\]]*\\]>landmark:form\\[[^\\]]*\\]>',
-    detail: '^相對「form」 Δx -24、Δy -(8|9)（',
+    detail: '^相對「form」 Δx -(24|16)、Δy -(8|9)（',
     reason:
       '殼的內距在內容區外層（.dialog-frame__body），稿在 form 上：子項相對 form 位移，畫面位置相同',
     source: 'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
@@ -1518,6 +1519,33 @@ export const PAGES = {
     a6Open: { checkin: { click: '[data-checkin]', root: 'dialog[open]' } },
     appOpen: { checkin: { click: 'button:has-text("櫃台代刷")', root: 'dialog[open]' } },
     deviations: [
+      // ── 櫃台代刷到班（#2314）──
+      // 學生：app-select-field（p-select）對稿的 .dd；稿的按鈕名「選擇：…」跟 app 的 trigger 錯配
+      ...selectFieldDeviations('選擇|學生（今天還沒到的）\\*').map((d) => ({ ...d, pop: 'checkin' })),
+      ...[
+        { status: '角色', a6: '>landmark:form\\[\\]>text:label\\[學生（今天還沒到的）\\]$' },
+        ...['文案', '位置', '樣式'].map((status) => ({
+          status,
+          a6: '>landmark:form\\[\\]>control:button\\[選擇：[^\\]]*\\]$',
+        })),
+      ].map((d) => ({ ...d, pop: 'checkin', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
+      // 稿的「到班時間」欄不畫：API 用伺服器時間記到班
+      ...['text:label\\[到班時間\\]', 'control:textbox\\[到班時間\\*\\]'].map((part) => ({
+        status: '缺',
+        pop: 'checkin',
+        a6: `>landmark:form\\[\\]>${part}$`,
+        reason: '到班時間一律是伺服器收到的時間，不畫可填的欄',
+        source: `${rule('R5')}「櫃台代刷到班對話框不畫「到班時間」」2026-11-05；#2314`,
+      })),
+      {
+        status: '尺寸',
+        pop: 'checkin',
+        widths: [360],
+        a6: '>landmark:dialog\\[櫃台代刷到班\\]>control:button\\[關閉\\]$',
+        detail: '^寬 39→44$',
+        reason: '可點元素基底 ≥44px（同直接報名的關閉鈕）',
+        source: `${rule('R3')}`,
+      },
       {
         // #2057（保留類，已合）：改時段改成「從某天起」，不再是整期一起改（#2246 放回捷徑時照用）
         status: '文案',
