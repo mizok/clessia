@@ -1,4 +1,5 @@
 import { RouterLink } from '@angular/router';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { AuditLogButtonComponent } from '@shared/components/audit-log-button/audit-log-button.component';
 import {
   Component,
@@ -80,6 +81,7 @@ import { HeightFollowDirective } from '@shared/directives/height-follow.directiv
   selector: 'app-admin-fee-templates',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     AuditLogButtonComponent,
     RouterLink,
     SkeletonComponent,
