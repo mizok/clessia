@@ -20,11 +20,14 @@ export function permissionLock(me: Requester, target: readonly HeldPermission[])
     return '你沒有「角色管理」權限，只能查看。要調整請找有這個權限的人。';
   }
   // grantsWiderThanScope 看的是整份送出的清單：對方已有跨分校時，原樣送回也會被擋
-  if (
-    !me.has('all_campuses') &&
-    target.some((p) => p === 'all_campuses' || p === WILDCARD_PERMISSION)
-  ) {
-    return '他有「跨分校」權限，而你的範圍受分校限制，不能改他的權限。';
+  // （`*` 涵蓋跨分校，但對使用者要說「全部權限」，計畫席 11-05 二讀）
+  if (!me.has('all_campuses')) {
+    if (target.includes(WILDCARD_PERMISSION)) {
+      return '他有全部權限，而你的範圍受分校限制，不能改他的權限。';
+    }
+    if (target.includes('all_campuses')) {
+      return '他有「跨分校」權限，而你的範圍受分校限制，不能改他的權限。';
+    }
   }
   return null;
 }

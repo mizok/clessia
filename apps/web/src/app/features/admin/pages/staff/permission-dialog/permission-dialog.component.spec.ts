@@ -138,4 +138,12 @@ describe('PermissionDialogComponent', () => {
     );
     expect(save()).toBeNull();
   });
+
+  it('我受分校限制、對方持 *：寫「全部權限」，不寫跨分校', () => {
+    const { el } = setup(['*'], { perms: ['manage_roles'] });
+
+    const lock = el.querySelector('[data-testid="permission-lock"]')?.textContent;
+    expect(lock).toContain('他有全部權限');
+    expect(lock).not.toContain('跨分校');
+  });
 });
