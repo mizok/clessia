@@ -245,7 +245,7 @@
                         type="button"
                         class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-sm leading-normal text-zinc-700 underline decoration-zinc-300 underline-offset-[3px] hover:decoration-current wide:inline-block wide:min-h-0"
                         [attr.data-testid]="'permission-count-' + staff.id"
-                        (click)="openPermissionList(staff)"
+                        (click)="openPermissions(staff)"
                       >
                         @if (staff.permissions.includes('*')) {
                           全部權限

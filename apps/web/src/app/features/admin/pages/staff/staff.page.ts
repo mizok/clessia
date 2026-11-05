@@ -27,7 +27,7 @@ import {
   type KioskFormDialogResult,
 } from './kiosk-form-dialog/kiosk-form-dialog.component';
 import { TeachingLogDialogComponent } from './teaching-log-dialog/teaching-log-dialog.component';
-import { PermissionListDialogComponent } from './permission-list-dialog/permission-list-dialog.component';
+import { PermissionDialogComponent } from './permission-dialog/permission-dialog.component';
 
 // Services
 import {
@@ -331,6 +331,16 @@ export class StaffPage implements OnInit {
         icon: 'pi pi-pencil',
         command: () => (kiosk ? this.openKioskDialog(staff) : this.openEditDialog(staff)),
       },
+      // A6 `staff.html:189`：管理員才有權限設定
+      ...(staff.roles.includes('admin')
+        ? [
+            {
+              label: '權限設定',
+              icon: 'pi pi-shield',
+              command: () => this.openPermissions(staff),
+            },
+          ]
+        : []),
       // 機台不上課
       ...(kiosk
         ? []
@@ -654,15 +664,20 @@ export class StaffPage implements OnInit {
       });
   }
 
-  /** 「權限 N 項」：唯讀清單（#1314 ST2），不給編輯 */
-  protected openPermissionList(staff: Staff): void {
-    this.dialogService.open(PermissionListDialogComponent, {
-      width: 'min(480px, 90%)',
-      modal: true,
-      showHeader: false,
-      appendTo: this.overlayContainer || 'body',
-      data: { staffName: staff.displayName, permissions: staff.permissions },
-    });
+  /** 「權限 N 項」與「⋯ → 權限設定」（#1314 ST2）：存了就重抓列表 */
+  protected openPermissions(staff: Staff): void {
+    this.dialogService
+      .open(PermissionDialogComponent, {
+        // A6 sheet 是 `.acset.fdlg`：寬 520（staff.html:199）
+        width: '520px',
+        modal: true,
+        showHeader: false,
+        appendTo: this.overlayContainer || 'body',
+        data: { staff },
+      })
+      ?.onClose.subscribe((result) => {
+        if (result) this.loadStaff({ rows: true });
+      });
   }
 
   /** 姓名＝編輯入口（A6 / 規格「點擊進入編輯」） */

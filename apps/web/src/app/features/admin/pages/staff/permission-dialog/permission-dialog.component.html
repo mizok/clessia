@@ -1,0 +1,72 @@
+<div class="form-dialog form-dialog--a6">
+  <!-- A6 `staff.html:240`：sheet 標題「○○ 的權限」＋副句 -->
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      <h2 appDialogTitle class="dialog-header-inline__title">{{ staff.displayName }} 的權限</h2>
+      <p class="dialog-header-inline__sub">勾了才看得到、做得到；選單會跟著隱藏沒權限的頁</p>
+    </div>
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11 wide:size-10"
+      (click)="close()"
+      aria-label="關閉"
+    >
+      <i class="pi pi-times" aria-hidden="true"></i>
+    </button>
+  </div>
+
+  <div class="flex flex-col gap-3 px-6 pt-2 pb-6 max-wide:px-4">
+    @if (lock) {
+      <!-- A6 `.perm__why` -->
+      <p
+        class="m-0 flex gap-2 rounded-md bg-zinc-100 p-3 text-md text-zinc-800"
+        data-testid="permission-lock"
+      >
+        <i class="pi pi-info-circle mt-0.5" aria-hidden="true"></i>{{ lock }}
+      </p>
+    }
+    <!-- A6 `.perm`：一項一格，名稱＋一行說明 -->
+    <div class="grid gap-2">
+      @for (opt of options; track opt.value) {
+        @let block = grantBlock(opt.value);
+        <label
+          class="grid cursor-pointer grid-cols-[20px_minmax(0,1fr)] items-start gap-x-3 gap-y-0.5 rounded-md bg-white p-3 has-disabled:cursor-default has-disabled:opacity-60"
+          [attr.data-permission]="opt.value"
+        >
+          <input
+            type="checkbox"
+            class="mt-0.5 size-[18px] accent-zinc-900"
+            [checked]="checked(opt.value)"
+            [disabled]="!!lock || !!block || saving()"
+            (change)="toggle(opt.value, $any($event.target).checked)"
+          />
+          <b class="text-base text-zinc-900">{{ opt.label }}</b>
+          <small class="col-start-2 text-sm text-zinc-600">{{ block ?? opt.description }}</small>
+        </label>
+      }
+    </div>
+  </div>
+
+  <!-- A6 sheet 的 .fdlg__foot：能改時先「儲存權限」，最後一定有「關閉」（staff.html:197-201） -->
+  <div class="form-dialog__footer">
+    <p class="form-dialog__why"></p>
+    @if (!lock) {
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+        data-testid="permission-save"
+        [attr.aria-disabled]="saving()"
+        (click)="save()"
+      >
+        {{ saving() ? '儲存中…' : '儲存權限' }}
+      </button>
+    }
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
+      (click)="close()"
+    >
+      關閉
+    </button>
+  </div>
+</div>
