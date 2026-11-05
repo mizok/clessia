@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Hono } from 'hono';
 
 import contactBookApp, { ALL_CLASSES, toContactBookEntryResponse } from './contact-book';
@@ -151,7 +151,12 @@ describe('toContactBookEntryResponse', () => {
 interface SummaryFixture {
   readonly candidates: Array<{ student_id: string; class_id: string; name: string }>;
   readonly entries: Array<{ student_id: string; entry_date: string }>;
-  readonly sessions: Array<{ class_id: string; status: string; session_date: string }>;
+  readonly sessions: Array<{
+    class_id: string;
+    status: string;
+    session_date: string;
+    end_time?: string | null;
+  }>;
 }
 
 function createSummaryApp(fixture: SummaryFixture | 'no-db') {
@@ -235,6 +240,57 @@ describe('GET /api/contact-book/missing/summary', () => {
       { date: '2026-04-08', missingCount: 0 },
     ]);
     expect(payload.meta.total).toBe(3);
+  });
+
+  it('只算已經上完的堂：今天還沒下課、之後的課不算未寫（#2315）', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-04-07T16:00:00+08:00'));
+    try {
+      const app = createSummaryApp({
+        candidates: [{ student_id: 'stu-1', class_id: 'class-1', name: '王小明' }],
+        entries: [],
+        sessions: [
+          {
+            class_id: 'class-1',
+            status: 'scheduled',
+            session_date: '2026-04-06',
+            end_time: '18:00:00',
+          },
+          // 今天兩堂：15:00 下課的算、18:00 下課的還沒上完
+          {
+            class_id: 'class-1',
+            status: 'scheduled',
+            session_date: '2026-04-07',
+            end_time: '15:00:00',
+          },
+          {
+            class_id: 'class-2',
+            status: 'scheduled',
+            session_date: '2026-04-07',
+            end_time: '18:00:00',
+          },
+          {
+            class_id: 'class-1',
+            status: 'scheduled',
+            session_date: '2026-04-08',
+            end_time: '15:00:00',
+          },
+        ],
+      });
+      const response = await app.request(
+        '/api/contact-book/missing/summary?dateFrom=2026-04-06&dateTo=2026-04-08',
+      );
+      const payload = (await response.json()) as {
+        data: Array<{ date: string; missingCount: number }>;
+      };
+      expect(payload.data).toEqual([
+        { date: '2026-04-06', missingCount: 1 },
+        { date: '2026-04-07', missingCount: 1 },
+        { date: '2026-04-08', missingCount: 0 },
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('rejects a backwards range without touching the database', async () => {
