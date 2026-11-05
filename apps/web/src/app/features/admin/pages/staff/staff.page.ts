@@ -632,8 +632,8 @@ export class StaffPage implements OnInit {
   /** 唯讀的授課紀錄檢視。不計算薪資，只呈現這位老師某段期間上了哪些課。 */
   openTeachingLog(staff: Staff): void {
     this.dialogService.open(TeachingLogDialogComponent, {
-      header: `授課紀錄 · ${staff.displayName}`,
-      width: '760px',
+      width: 'var(--dlg-w-lg)',
+      showHeader: false,
       modal: true,
       appendTo: this.overlayContainer || 'body',
       data: { staffId: staff.id, staffName: staff.displayName },
