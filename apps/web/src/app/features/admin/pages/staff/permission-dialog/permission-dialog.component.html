@@ -1,0 +1,60 @@
+<!-- 共用殼（#2290）：標題「○○ 的權限」＋副句照 A6 `staff.html:240` 的 sheet -->
+<app-dialog-frame
+  [title]="staff.displayName + ' 的權限'"
+  sub="勾了才看得到、做得到；選單會跟著隱藏沒權限的頁"
+  (closed)="close()"
+>
+  <div class="flex flex-col gap-3">
+    @if (lock) {
+      <!-- A6 `.perm__why` -->
+      <p
+        class="m-0 flex gap-2 rounded-md bg-zinc-100 p-3 text-md text-zinc-800"
+        data-testid="permission-lock"
+      >
+        <i class="pi pi-info-circle mt-0.5" aria-hidden="true"></i>{{ lock }}
+      </p>
+    }
+    <!-- A6 `.perm`：一項一格，名稱＋一行說明 -->
+    <div class="grid gap-2">
+      @for (opt of options; track opt.value) {
+        @let block = grantBlock(opt.value);
+        <label
+          class="grid cursor-pointer grid-cols-[20px_minmax(0,1fr)] items-start gap-x-3 gap-y-0.5 rounded-md bg-white p-3 has-disabled:cursor-default has-disabled:opacity-60"
+          [attr.data-permission]="opt.value"
+        >
+          <input
+            type="checkbox"
+            class="mt-0.5 size-[18px] accent-zinc-900"
+            [checked]="checked(opt.value)"
+            [disabled]="!!lock || !!block || saving()"
+            (change)="toggle(opt.value, $any($event.target).checked)"
+          />
+          <b class="text-base text-zinc-900">{{ opt.label }}</b>
+          <small class="col-start-2 text-sm text-zinc-600">{{ block ?? opt.description }}</small>
+        </label>
+      }
+    </div>
+  </div>
+
+  <!-- A6 sheet 的 .fdlg__foot：能改時先「儲存權限」，最後一定有「關閉」（staff.html:197-201） -->
+  <ng-container dialogFoot>
+    @if (!lock) {
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+        data-testid="permission-save"
+        [attr.aria-disabled]="saving()"
+        (click)="save()"
+      >
+        {{ saving() ? '儲存中…' : '儲存權限' }}
+      </button>
+    }
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
+      (click)="close()"
+    >
+      關閉
+    </button>
+  </ng-container>
+</app-dialog-frame>
