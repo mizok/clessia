@@ -5,6 +5,8 @@
       @if (sub()) {
         <p class="dialog-header-inline__sub">{{ sub() }}</p>
       }
+      <!-- 副標裡要放按鈕等元素時用（教室對話框的清單）；元素自己掛 dialog-header-inline__sub -->
+      <ng-content select="[dialogSub]" />
     </div>
     <button
       type="button"

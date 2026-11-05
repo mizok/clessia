@@ -22,6 +22,21 @@ class HostComponent {
   closedCount = 0;
 }
 
+@Component({
+  imports: [DialogFrameComponent],
+  template: `
+    <div role="dialog">
+      <app-dialog-frame title="教室：本校">
+        <p dialogSub class="dialog-header-inline__sub" data-sub>
+          101<button type="button" aria-label="101 的更多動作">⋯</button>
+        </p>
+        <p data-body>內容</p>
+      </app-dialog-frame>
+    </div>
+  `,
+})
+class SubSlotHostComponent {}
+
 describe('DialogFrameComponent', () => {
   async function setup(patch: Partial<HostComponent> = {}) {
     await TestBed.configureTestingModule({ imports: [HostComponent] }).compileComponents();
@@ -44,6 +59,20 @@ describe('DialogFrameComponent', () => {
     expect(h2.textContent?.trim()).toBe('拆時段');
     expect(el.querySelector('[role=dialog]')?.getAttribute('aria-labelledby')).toBe(h2.id);
     expect(head.querySelector('button')?.getAttribute('aria-label')).toBe('關閉');
+  });
+
+  it('副標投影槽：[dialogSub] 放進標頭 h2 之後，裡面的按鈕照樣可點；不會掉進 body', async () => {
+    await TestBed.configureTestingModule({ imports: [SubSlotHostComponent] }).compileComponents();
+    const fixture = TestBed.createComponent(SubSlotHostComponent);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const head = el.querySelector('.dialog-header-inline__content')!;
+
+    const sub = head.querySelector('[data-sub]');
+    expect(sub).not.toBeNull();
+    expect(sub!.previousElementSibling?.tagName).toBe('H2');
+    expect(sub!.querySelector('button')?.getAttribute('aria-label')).toBe('101 的更多動作');
+    expect(el.querySelector('.dialog-frame__body [data-sub]')).toBeNull();
   });
 
   it('沒給副標就不渲染', async () => {

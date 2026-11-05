@@ -13,6 +13,8 @@ import { DialogTitleDirective } from '@shared/directives/dialog-title.directive'
  *   <ng-container dialogFoot><button>取消</button><button>建立</button></ng-container>
  * </app-dialog-frame>
  * ```
+ * 副標要放元素（按鈕、清單）時，投影 `[dialogSub]`（元素自己掛 `dialog-header-inline__sub`）；
+ * 字串的 `sub` 照舊，兩者擇一。沒有投影就什麼都不渲染。
  * 底部沒有投影任何元素就藏起來（`.form-dialog__footer:not(:has(*))`）；左邊要放「還沒填：…」就給 `class="form-dialog__why"`。
  */
 @Component({
