@@ -1,9 +1,5 @@
-<div class="flex flex-col gap-4">
-  <header class="flex flex-col gap-1">
-    <h2 class="m-0 text-[1.125rem] font-semibold">{{ input.className }}</h2>
-    <p class="m-0 text-[0.875rem] text-muted">{{ input.entryDate }}　聯絡簿</p>
-  </header>
-
+<!-- 共用殼 app-dialog-frame（#2290）：A6 t-schedule `dlg()`（h2＋副標＋✕、sticky 底部） -->
+<app-dialog-frame [title]="input.className" [sub]="input.entryDate + '　聯絡簿'" (closed)="close()">
   @if (loading()) {
     <app-skeleton label="聯絡簿名單載入中" [count]="3" />
   } @else if (loadError()) {
@@ -13,7 +9,7 @@
     <p class="m-0 text-muted">這堂課的聯絡簿都寫完了。</p>
   } @else {
     <ul
-      class="m-0 flex max-h-[calc(var(--window-height,100dvh)*0.5)] list-none flex-col overflow-y-auto p-0"
+      class="m-0 flex max-h-[calc(var(--window-height,640px)*0.5)] list-none flex-col overflow-y-auto p-0"
     >
       @for (student of students(); track student.studentId) {
         <li
@@ -33,7 +29,7 @@
     </ul>
   }
 
-  <footer class="flex justify-end">
+  <ng-container dialogFoot>
     <p-button label="關閉" [text]="true" size="small" (onClick)="close()" />
-  </footer>
-</div>
+  </ng-container>
+</app-dialog-frame>
