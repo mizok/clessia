@@ -1710,6 +1710,32 @@ export const PAGES = {
         reason: '可點元素基底 ≥44px；稿的 padding 是 UA 預設（同分校表單的關閉鈕）',
         source: `${rule('R3')}`,
       })),
+      // #2290 換殼：殼的內距在內容區外層（.dialog-frame__body），稿在 form 上 —— 全站那兩條只涵蓋桌機 24px；
+      // 這裡補 form 本身的位移與手機 16px（同一份裁定）
+      ...[
+        {
+          status: '位置',
+          a6: '>landmark:dialog\\[直接報名\\]>landmark:form\\[\\]$',
+          detail: '^相對「直接報名」 Δx \\+(16|24)、Δy \\+(8|9|1[01])（',
+        },
+        {
+          status: '樣式',
+          a6: '>landmark:dialog\\[直接報名\\]>landmark:form\\[\\]$',
+          item: '^padding 8px (16|24)px 24px → 0px$',
+        },
+        {
+          status: '位置',
+          widths: [360],
+          a6: '>landmark:form\\[\\]>',
+          detail: '^相對「form」 Δx -16、Δy -(8|9)（',
+        },
+      ].map((d) => ({
+        ...d,
+        pop: 'direct',
+        reason: '殼的內距在內容區外層（.dialog-frame__body），稿在 form 上，幾何相同',
+        source:
+          'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
+      })),
       // 手機：選第一欄後少一行（稿 .dd 的占位字）、多一欄方案 —— 計費模式那排與底部按鈕跟著位移
       ...[
         {
@@ -2303,7 +2329,7 @@ export const PAGES = {
       ...[
         {
           status: '多',
-          app: 'landmark:form\\[\\]>(control:textbox\\[對外暱稱\\]|text:label\\[對外暱稱\\]|text:p\\[對外的頁面只會顯示暱稱)',
+          app: 'landmark:form\\[\\]>(control:textbox\\[對外暱稱\\]|text:label\\[對外暱稱\\]|text:p\\[公開課程目錄顯示暱稱)',
         },
       ].map((d) => ({
         ...d,
@@ -3583,6 +3609,21 @@ export const PAGES = {
         reason: '資料：班級人數位數不同（稿兩位數、seed 多是一位數），「人」跟著左移',
         source:
           'tools/a6-conformance/README.md:83（文案模板：數字 → #；位數不同造成的位移，工具不扣）',
+      },
+      // 學生面板主按鈕（#2317）：行政負責點名的機構（seed）寫「看到班名單」，老師負責照稿「到課表點名」
+      {
+        status: '文案',
+        pop: 'panel',
+        a6: '>control:link\\[到課表點名\\]$',
+        reason: '行政負責點名時課表上沒有點名鈕，主按鈕改寫「看到班名單」（落點同課表）',
+        source: 'kb/wiki/architecture/a6-adoption-rules.md R5「老師學生面板主按鈕」（#2317）',
+      },
+      {
+        status: '位置',
+        pop: 'panel',
+        a6: '>control:link\\[到課表點名\\]$',
+        reason: '連帶＋資料：文案不同配不上同名鈕；面板上方考試列數與家長電話是資料（稿 3 場、seed 2 場、沒留電話）',
+        source: 'kb/wiki/architecture/a6-adoption-rules.md R5「老師學生面板主按鈕」（#2317）',
       },
     ],
   },

@@ -3,7 +3,7 @@ title: 新生報名表單
 summary: 新家長為孩子提交報名申請。
 category: spec
 status: active
-updated: 2026-10-16
+updated: 2026-11-05
 tags: [specs, public, enrollment]
 ---
 
@@ -88,5 +88,5 @@ tags: [specs, public, enrollment]
 ## 實作註記
 
 - 顯示剩餘名額（「剩 N 位」）；額滿的照樣可勾，送出後登記候補
-- 老師只顯示**暱稱**，沒設暱稱就不顯示（#1637 Q6，絕不退回本名）
+- 老師**有暱稱顯示暱稱，沒填就顯示本名**（#1637 Q6；11-05 改判，原本「沒設就不顯示、絕不退回本名」作廢，#1665 最新留言）
 - 申請保存 6 個月，pg_cron 每天刪（#1637 Q2、Q3）

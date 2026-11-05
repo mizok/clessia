@@ -9,6 +9,7 @@ import { TextareaModule } from 'primeng/textarea';
 import { DatePickerModule } from 'primeng/datepicker';
 import { AutoCompleteModule, type AutoCompleteCompleteEvent } from 'primeng/autocomplete';
 import { MessageService } from 'primeng/api';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import { TooltipModule } from 'primeng/tooltip';
 import { SchoolsService, type School } from '@core/schools.service';
@@ -28,6 +29,7 @@ import {
   selector: 'app-student-form-dialog',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     CommonModule,
     FormsModule,
     ButtonModule,

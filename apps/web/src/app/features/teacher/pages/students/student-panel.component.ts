@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnInit,
+  computed,
   inject,
   input,
   output,
@@ -24,6 +25,7 @@ import {
 import { SystemClockService, addDaysToDateString } from '@core/system-clock.service';
 import { isFailingScore } from '@shared/utils/score-threshold.util';
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
+import { OrgSettingsService } from '@core/org-settings.service';
 
 /** 往回找幾天的到班格：一週一堂的班也湊得到 5 堂（API 上限 366 天） */
 const DAYS_BACK = 90;
@@ -149,7 +151,8 @@ interface PanelData {
           class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 no-underline hover:border-accent-vivid-2 hover:bg-accent-vivid-2 wide:h-9"
           [routerLink]="schedulePath"
         >
-          到課表點名 <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
+          {{ teacherLed() ? '到課表點名' : '看到班名單' }}
+          <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
         </a>
       </ng-container>
     </app-dialog-frame>
@@ -165,6 +168,15 @@ export class StudentPanelComponent implements OnInit {
   private readonly scoresService = inject(ScoresService);
   private readonly messages = inject(MessageService);
   private readonly clock = inject(SystemClockService);
+  private readonly orgSettings = inject(OrgSettingsService);
+
+  /**
+   * 行政負責點名的機構，課表上沒有點名鈕（只有唯讀名單）—— 寫「到課表點名」是死路（#2317）。
+   * 讀不到設定時照課表頁的預設（`?? 'admin'`，保守、不叫老師去點他點不到的名）
+   */
+  protected readonly teacherLed = computed(
+    () => (this.orgSettings.settings()?.attendanceResponsible ?? 'admin') === 'teacher',
+  );
 
   protected readonly schedulePath = RoutesCatalog.TEACHER_SCHEDULE.absolutePath;
   protected readonly dayLabel = DAY_LABEL;
@@ -179,6 +191,7 @@ export class StudentPanelComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    if (this.orgSettings.status() === 'unloaded') this.orgSettings.load();
     const id = this.student().id;
     const today = this.clock.todayTaipei();
     forkJoin({
