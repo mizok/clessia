@@ -61,7 +61,7 @@ interface Pick {
             學生
             <button
               type="button"
-              class="ml-1 inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid border-transparent bg-transparent px-0 py-0.5 text-base font-medium whitespace-nowrap text-zinc-600 hover:border-zinc-300 hover:text-zinc-900 wide:min-h-0"
+              class="ml-1 inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid border-transparent bg-transparent px-0 py-0.5 text-base leading-normal font-medium whitespace-nowrap text-zinc-600 hover:border-zinc-300 hover:text-zinc-900 wide:min-h-0"
               (click)="toggleAll()"
             >
               全選
