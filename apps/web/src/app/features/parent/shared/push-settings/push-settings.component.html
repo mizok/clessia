@@ -1,11 +1,9 @@
+<!-- 標題「繳費提醒通知」在開它的對話框殼上（#2290） -->
 <section
-  class="push-settings flex flex-col gap-3 border-b border-surface-border px-4 py-5"
-  aria-labelledby="push-settings-title"
+  class="push-settings flex flex-col gap-3"
   data-testid="push-settings"
   [attr.data-state]="push.state()"
 >
-  <h2 id="push-settings-title" class="m-0 text-lg font-semibold text-zinc-900">繳費提醒通知</h2>
-
   @switch (push.state()) {
     @case ('loading') {
       <p class="m-0 text-md text-zinc-600" aria-busy="true">讀取這台裝置的通知設定…</p>
