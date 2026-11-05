@@ -1,12 +1,5 @@
-<div class="flex flex-col gap-4">
-  <header class="flex flex-col gap-1">
-    <h2 class="m-0 text-[1.125rem] font-semibold">到班名單</h2>
-    <p class="m-0 text-[0.875rem] text-muted">
-      {{ input.eventDate | date: 'M/d' }} {{ input.startTime ?? '' }} {{ input.className
-      }}{{ input.campusName ? ' · ' + input.campusName : '' }} · 日到班：掃碼就算今天的課都到了
-    </p>
-  </header>
-
+<!-- 共用殼 app-dialog-frame（#2290）：A6 t-schedule `dlg()`（acset fdlg：h2＋副標＋✕、sticky 底部） -->
+<app-dialog-frame title="到班名單" [sub]="sub" (closed)="close()">
   @if (loading()) {
     <app-skeleton label="到班名單載入中" [count]="3" />
   } @else if (loadError()) {
@@ -58,7 +51,7 @@
     </ul>
   }
 
-  <footer class="flex justify-end">
+  <ng-container dialogFoot>
     <p-button label="關閉" [text]="true" size="small" (onClick)="close()" />
-  </footer>
-</div>
+  </ng-container>
+</app-dialog-frame>
