@@ -1497,6 +1497,23 @@ export const PAGES = {
         reason: '語意結構依內容：篩選區是有名字的 search landmark',
         source: `${rule('R7', '，#1590')}`,
       },
+      // 列尾 ⋯（EN1）：手機 44×44（稿 36），靠右、跨兩行置中 —— 寬多 8 往左，兩行 44px 的連結把列撐高，置中點往下
+      {
+        status: '尺寸',
+        widths: [360],
+        a6: '>landmark:main\\[\\]>row>control:button$',
+        detail: '^寬 36→44$',
+        reason: '可點元素基底 ≥44px：⋯ 是方形鈕，寬跟著高',
+        source: `${rule('R3')}`,
+      },
+      {
+        status: '位置',
+        widths: [360],
+        a6: '>landmark:main\\[\\]>row>control:button$',
+        detail: '^相對所在列 Δx -8、Δy \\+(1[0-9]|2[0-4])（',
+        reason: '連帶 R3：鈕寬 44 靠右（Δx -8）；列內連結手機 44px 高，列變高、跨兩行置中的鈕往下',
+        source: `${rule('R3')}`,
+      },
       // EN2（直接報名）已裁先做不開帳單的版本（11-05），還沒做
       ...[
         { status: '缺', a6: '>control:button\\[直接報名新\\]$' },
