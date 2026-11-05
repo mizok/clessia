@@ -269,7 +269,7 @@ describe('LeavePage', () => {
 
     // 同 attendance.page.spec：`showHeader: false` 讓 `header` 永遠不渲染（#448）
     expect(dialogServiceMock.open).toHaveBeenCalledWith(AuditLogDialogComponent, {
-      width: '800px',
+      width: '520px',
       modal: true,
       showHeader: false,
       appendTo: 'body',
@@ -387,8 +387,11 @@ describe('LeavePage', () => {
 
       const name = (fixture.nativeElement as HTMLElement).querySelector('.chapter-head__name');
       expect(name?.classList).toContain('text-[28px]');
-      // #1715：A6 `.chap` 手機上內距 24px（章頭上的 pt-6），原本 pt-4 差 8px
-      expect(name!.closest('app-chapter-head')!.classList).toContain('pt-6');
+      // #1715：A6 `.chap` 手機上內距 24px；#1314 11-05 起內距放在章本身（稿的 .chap 自己帶 padding），每章都有下框
+      const chapter = name!.closest('[data-testid="chapter"]')!;
+      expect(chapter.classList).toContain('pt-6');
+      expect(chapter.classList).toContain('wide:py-8');
+      expect(chapter.classList).not.toContain('last:border-b-0');
     });
 
     it('全部分頁依開始日分章，不把進行中的歸到今天', () => {

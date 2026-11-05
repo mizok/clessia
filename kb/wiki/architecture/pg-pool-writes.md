@@ -3,7 +3,7 @@ title: 經過 pg 連線池寫入
 summary: PostgREST 一次請求一個交易，要「全有或全無」的多步寫入只能走 auth.pool 的交易（repo 不引入 RPC）。規則：只在多步寫入必須原子時用；用 withTx 包；只用參數化 SQL 且每句帶 org_id；範圍判斷在交易裡用 FOR UPDATE 重做；23503 → 409、其他 → 500；池不在就 500，不退回沒有交易的舊寫法。第一個用的是刪班級（#1652）。
 category: architecture
 status: active
-updated: 2026-11-04
+updated: 2026-11-05
 tags: [architecture, database, transaction, authorization]
 ---
 
@@ -59,6 +59,9 @@ Better Auth 每個請求本來就建一個 `pg` 池（`getAuth(c).pool`，正式
    | FK 違反（23503，`isFkViolation`） | 409 `IN_USE`，整筆已回滾                               |
    | 其他例外                          | 500，整筆已回滾；**不要折成 404**（#1651 的教訓）      |
    | `getAuth(c).pool` 不在            | 500。**不能退回沒有交易的舊寫法** —— 那條就是 bug 本身 |
+
+   走 REST（supabase-js）的路徑同一原則：**`code: 'DB_ERROR'` 一律 500**，不是 400 —— DB 失敗不是客戶端的錯
+   （#2285；`routes/db-error-status.spec.ts` 靜態掃 `routes/`，新寫一個 400 的 `DB_ERROR` 就紅）。
 
 7. **交易裡不做對外 I/O**（#1661）：fetch 第三方服務期間交易開著，對方一慢，交易與它握的鎖就跟著拖；
    正式 DB 有沒有 `idle_in_transaction_session_timeout` 之類的逾時也不該由程式碼去賭。要「先佔住、再對外、再回寫」時，

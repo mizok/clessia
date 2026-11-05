@@ -194,19 +194,20 @@
       <div>
         @for (chapter of chapters(); track chapter.key) {
           <section
-            class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+            class="grid grid-cols-1 gap-2 border-b border-surface-border pt-6 pb-2 wide:grid-cols-[208px_minmax(0,1fr)] wide:gap-8 wide:py-8"
             [attr.aria-label]="chapter.name"
             data-testid="chapter"
           >
+            <!-- A6 `.chap`：內距在章本身（桌機上下 32、手機 24／8），每一章（含最後一章）都有下框 -->
             <app-chapter-head
-              class="block pt-6 wide:pt-8"
+              class="block"
               [name]="chapter.name"
               [listRow]="true"
               [sub]="chapter.meta"
               [count]="chapter.rows.length"
               unit="位"
             />
-            <div class="wide:pt-4">
+            <div>
               @for (record of chapter.rows; track record.id) {
                 <details
                   class="vt-row group border-b border-surface-border last:border-b-0"

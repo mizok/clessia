@@ -350,6 +350,7 @@ app.openapi(
         content: { 'application/json': { schema: ErrorSchema } },
       },
       400: { description: '驗證錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -373,7 +374,7 @@ app.openapi(
       if (error?.code === '23505') {
         return c.json({ error: '已有同名的收費期間', code: 'DUPLICATE' }, 409);
       }
-      return c.json({ error: error?.message ?? '建立失敗', code: 'DB_ERROR' }, 400);
+      return c.json({ error: error?.message ?? '建立失敗', code: 'DB_ERROR' }, 500);
     }
 
     logAudit(
@@ -414,6 +415,7 @@ app.openapi(
       400: { description: '驗證錯誤', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: '不存在', content: { 'application/json': { schema: ErrorSchema } } },
       409: { description: '名稱重複', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -458,7 +460,7 @@ app.openapi(
       if (error?.code === '23505') {
         return c.json({ error: '已有同名的收費期間', code: 'DUPLICATE' }, 409);
       }
-      return c.json({ error: error?.message ?? '更新失敗', code: 'DB_ERROR' }, 400);
+      return c.json({ error: error?.message ?? '更新失敗', code: 'DB_ERROR' }, 500);
     }
 
     logAudit(
@@ -495,6 +497,7 @@ app.openapi(
       },
       404: { description: '不存在', content: { 'application/json': { schema: ErrorSchema } } },
       409: { description: '已被引用', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -528,7 +531,7 @@ app.openapi(
           409,
         );
       }
-      return c.json({ error: error.message, code: 'DB_ERROR' }, 409);
+      return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
     }
 
     logAudit(

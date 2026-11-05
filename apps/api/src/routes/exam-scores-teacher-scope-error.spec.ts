@@ -5,7 +5,7 @@ import { createMultiOrgDb } from '../test-utils/multi-org-db';
 
 /**
  * #2232 ②：老師存成績時「這些學生在不在我任課的班」那支 enrollments 查詢（分段送）**讀錯**，
- * 要回 400 `DB_ERROR` —— 不能吞成「讀到 0 筆」，再落到「不在範圍 → 403」誤報老師沒權限。
+ * 要回 500 `DB_ERROR`（#2285） —— 不能吞成「讀到 0 筆」，再落到「不在範圍 → 403」誤報老師沒權限。
  * 任課範圍本身（staff、任期）替身掉，只讓 enrollments 那支回錯。
  */
 
@@ -90,12 +90,12 @@ async function call(route: unknown, body: Record<string, unknown>) {
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 
-describe('老師存成績：任課範圍讀錯 → 400 DB_ERROR，不是 403（#2232 ②）', () => {
+describe('老師存成績：任課範圍讀錯 → 500 DB_ERROR，不是 403（#2232 ②）', () => {
   it('補習班考試', async () => {
     const r = await call(academyRoute, {
       scores: [{ studentId: STU, score: 85, status: 'scored' }],
     });
-    expect(r.status).toBe(400);
+    expect(r.status).toBe(500);
     expect(r.body['code']).toBe('DB_ERROR');
     expect(write).not.toHaveBeenCalled();
   });
@@ -104,7 +104,7 @@ describe('老師存成績：任課範圍讀錯 → 400 DB_ERROR，不是 403（#
     const r = await call(schoolRoute, {
       scores: [{ studentId: STU, subjectId: MATH, score: 88, status: 'scored' }],
     });
-    expect(r.status).toBe(400);
+    expect(r.status).toBe(500);
     expect(r.body['code']).toBe('DB_ERROR');
     expect(write).not.toHaveBeenCalled();
   });

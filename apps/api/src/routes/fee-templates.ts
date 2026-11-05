@@ -193,6 +193,7 @@ app.openapi(
       },
       400: { description: '驗證錯誤', content: { 'application/json': { schema: ErrorSchema } } },
       409: { description: '名稱重複', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -219,7 +220,7 @@ app.openapi(
       if (error?.code === '23505') {
         return c.json({ error: '已有同名的價目表', code: 'DUPLICATE' }, 409);
       }
-      return c.json({ error: error?.message ?? '建立失敗', code: 'DB_ERROR' }, 400);
+      return c.json({ error: error?.message ?? '建立失敗', code: 'DB_ERROR' }, 500);
     }
 
     logAudit(
@@ -260,6 +261,7 @@ app.openapi(
       400: { description: '驗證錯誤', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: '不存在', content: { 'application/json': { schema: ErrorSchema } } },
       409: { description: '名稱重複', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -287,7 +289,7 @@ app.openapi(
       if (error.code === '23505') {
         return c.json({ error: '已有同名的價目表', code: 'DUPLICATE' }, 409);
       }
-      return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
     }
 
     if (!data) {
@@ -330,6 +332,7 @@ app.openapi(
       },
       404: { description: '不存在', content: { 'application/json': { schema: ErrorSchema } } },
       409: { description: '已被引用', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -359,7 +362,7 @@ app.openapi(
       if (error.code === '23503') {
         return c.json({ error: '這份價目表已被報名引用，請改為停用', code: 'IN_USE' }, 409);
       }
-      return c.json({ error: error.message, code: 'DB_ERROR' }, 409);
+      return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
     }
 
     logAudit(
