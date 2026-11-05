@@ -715,17 +715,54 @@
   .form-dialog--a6 {
     gap: 0;
   }
-  .form-dialog--a6 .form-dialog__footer {
-    padding: var(--space-3) var(--space-6) var(--space-6);
-    background: inherit;
+  /* 對話框的尺寸與留白（#2290，規則頁 kb/wiki/architecture/dialog-frame.md）：
+     寬只有三種（開窗端寫 `width: 'var(--dlg-w-md)'`）、左右內距一個值、貼底抽屜的底部留白一個值 */
+  :root {
+    --dlg-w-sm: 420px;
+    --dlg-w-md: 520px;
+    --dlg-w-lg: 760px;
+    --dlg-pad-x: var(--space-6);
+    --sheet-foot-gap: var(--space-4);
   }
   @media (max-width: 860px) {
-    /* 手機是深灰底部面板（A6 `--gray-sheet` #ebe7e4 ＝ zinc-200），欄位本身仍是白底 */
+    :root {
+      --dlg-pad-x: var(--space-4);
+    }
+  }
+  .form-dialog--a6 .form-dialog__footer {
+    padding: var(--space-3) var(--dlg-pad-x) var(--space-6);
+    background: inherit;
+  }
+  /* 共用殼 app-dialog-frame 的內容區（A6 `.acset__body`：8 24 24，手機 8 16 16）。
+     有底部列時內容區底下不另留（動作列自己有上內距）；底部列沒有任何元素就藏起來
+     （不用 :empty —— @if 的錨點註解、空白文字都可能留在裡面） */
+  .dialog-frame__body {
+    padding: var(--space-2) var(--dlg-pad-x) var(--space-6);
+  }
+  .dialog-frame:has(.form-dialog__footer > *) .dialog-frame__body {
+    padding-bottom: 0;
+  }
+  .dialog-frame .form-dialog__footer:not(:has(*)) {
+    display: none;
+  }
+  @media (max-width: 860px) {
+    /* 手機是深灰底部面板（A6 `--gray-sheet` #ebe7e4 ＝ zinc-200），欄位本身仍是白底。
+       safe-area 只墊一次：用 a6 底部列／殼的對話框，抽屜本體不墊（全站 .p-dialog 手機那條），由底部列或內容區墊 */
     .p-dialog:has(.form-dialog--a6) {
       background: var(--zinc-200);
+      padding-bottom: 0;
     }
+    /* 貼底抽屜的底部列：下內距＝--sheet-foot-gap＋safe-area，鈕不貼 home indicator（使用者 11-05，#2290 Q1 選 b：抽屜照 A6 貼底） */
     .form-dialog--a6 .form-dialog__footer {
-      padding: var(--space-2) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+      padding: var(--space-2) var(--dlg-pad-x)
+        calc(var(--sheet-foot-gap) + env(safe-area-inset-bottom, 0px));
+    }
+    .dialog-frame__body {
+      padding-bottom: calc(var(--sheet-foot-gap) + env(safe-area-inset-bottom, 0px));
+    }
+    /* 標頭左距跟內容對齊（A6 手機標頭仍是 24、內容 16，差 8px；#2290「標頭」） */
+    .dialog-header-inline {
+      padding-left: var(--dlg-pad-x);
     }
   }
   .form-dialog__empty-note {
