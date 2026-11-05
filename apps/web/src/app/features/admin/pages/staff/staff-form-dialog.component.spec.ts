@@ -107,6 +107,37 @@ describe('StaffFormDialogComponent', () => {
     });
   });
 
+  // 新增管理員的預設權限（#1314 ST2，計畫席 11-05 裁 (a)；審核席 #2324 二讀要求專門一條）
+  describe('新增時的預設權限', () => {
+    const create = (roles: string[], subjectIds: string[] = []) => {
+      const c = component as unknown as {
+        formData: { set: (v: unknown) => void };
+        save: () => void;
+      };
+      c.formData.set({
+        displayName: '新同事',
+        nickname: '',
+        email: 'new@example.com',
+        phone: '0912345678',
+        birthday: null,
+        notes: '',
+        campusIds: ['campus-1'],
+        roles,
+        subjectIds,
+      });
+      c.save();
+      return (staffServiceMock.create as any).mock.calls.at(-1)[0] as { permissions: string[] };
+    };
+
+    it('新增管理員只給「日常行政」', () => {
+      expect(create(['admin']).permissions).toEqual(['basic_operations']);
+    });
+
+    it('新增純老師不給任何權限（權限只掛在管理員角色上）', () => {
+      expect(create(['teacher'], ['subject-1']).permissions).toEqual([]);
+    });
+  });
+
   /**
    * **#663：驗收條件不是「toast 有沒有出現」，是「不做任何額外操作能不能看出是哪一欄」。**
    *
