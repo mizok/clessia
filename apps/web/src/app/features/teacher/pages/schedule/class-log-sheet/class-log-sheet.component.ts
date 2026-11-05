@@ -13,6 +13,7 @@ import { ButtonModule } from 'primeng/button';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { ClassLogsService, type ClassLog } from '@core/class-logs.service';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 
 /** 開啟這個面板需要的最小資料 —— 課堂卡上都有 */
 export interface ClassLogSheetInput {
@@ -33,7 +34,7 @@ export interface ClassLogSheetInput {
  */
 @Component({
   selector: 'app-class-log-sheet',
-  imports: [FormsModule, ButtonModule],
+  imports: [DialogFrameComponent, FormsModule, ButtonModule],
   templateUrl: './class-log-sheet.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

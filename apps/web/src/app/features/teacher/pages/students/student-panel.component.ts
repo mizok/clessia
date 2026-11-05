@@ -23,6 +23,7 @@ import {
 } from '@core/students.service';
 import { SystemClockService, addDaysToDateString } from '@core/system-clock.service';
 import { isFailingScore } from '@shared/utils/score-threshold.util';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 
 /** 往回找幾天的到班格：一週一堂的班也湊得到 5 堂（API 上限 366 天） */
 const DAYS_BACK = 90;
@@ -43,26 +44,10 @@ interface PanelData {
  */
 @Component({
   selector: 'app-student-panel',
-  imports: [RouterLink],
+  imports: [DialogFrameComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'flex min-h-0 flex-col' },
   template: `
-    <div class="flex items-start justify-between pt-4 pr-4 pb-2 pl-6 max-wide:pl-4">
-      <div>
-        <h2 id="student-panel-title" class="m-0 text-xl font-bold">{{ student().name }}</h2>
-        <p class="m-0 mt-0.5 text-md text-zinc-600">{{ subtitle() }}</p>
-      </div>
-      <button
-        type="button"
-        class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900"
-        aria-label="關閉"
-        (click)="closed.emit()"
-      >
-        <i class="pi pi-times" aria-hidden="true"></i>
-      </button>
-    </div>
-
-    <div class="grid min-h-0 gap-5 overflow-y-auto overscroll-contain px-6 py-2 max-wide:px-4">
+    <app-dialog-frame [title]="student().name" [sub]="subtitle()" (closed)="closed.emit()">
       @switch (state()) {
         @case ('loading') {
           <p class="m-0 text-md text-zinc-600" aria-live="polite">載入中…</p>
@@ -152,25 +137,22 @@ interface PanelData {
           }
         }
       }
-    </div>
-
-    <div
-      class="flex flex-wrap items-center justify-end gap-2 px-6 pt-3 pb-6 max-wide:px-4 max-wide:pb-[calc(16px+env(safe-area-inset-bottom,0px))]"
-    >
-      <button
-        type="button"
-        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
-        (click)="closed.emit()"
-      >
-        關閉
-      </button>
-      <a
-        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 no-underline hover:border-accent-vivid-2 hover:bg-accent-vivid-2 wide:h-9"
-        [routerLink]="schedulePath"
-      >
-        到課表點名 <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
-      </a>
-    </div>
+      <ng-container dialogFoot>
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
+          (click)="closed.emit()"
+        >
+          關閉
+        </button>
+        <a
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 no-underline hover:border-accent-vivid-2 hover:bg-accent-vivid-2 wide:h-9"
+          [routerLink]="schedulePath"
+        >
+          到課表點名 <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
+        </a>
+      </ng-container>
+    </app-dialog-frame>
   `,
 })
 export class StudentPanelComponent implements OnInit {
