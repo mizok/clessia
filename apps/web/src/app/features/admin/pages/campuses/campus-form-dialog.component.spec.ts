@@ -106,6 +106,16 @@ describe('CampusFormDialogComponent —— A6 campusForm（#1314 SE3）', () => 
     expect(el.textContent).toContain('建好之後就可以在這個分校開課');
   });
 
+  it('送出鈕指回表單（順手修既有：換殼前就在 form 外）：在欄位按 Enter 送一次', () => {
+    const { el, update, type } = setup([]);
+    type('campus-name', '中正二館');
+    const form = el.querySelector('form')!;
+    expect(el.querySelector<HTMLButtonElement>('button[form="campus-form"]')!.form).toBe(form);
+
+    form.requestSubmit(); // 瀏覽器在欄位按 Enter 走的就是這條路
+    expect(update).toHaveBeenCalledTimes(1);
+  });
+
   it('共用殼（#2290）：原生 dialog 的可及名稱指到殼的 h2', async () => {
     const { el, fixture } = setup([]);
     await fixture.whenStable();
