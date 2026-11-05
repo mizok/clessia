@@ -1228,7 +1228,7 @@ export const PAGES = {
       },
       // 操作紀錄彈窗：本機 seed 沒有課程的操作紀錄 → app 是空狀態「尚無操作紀錄」（稿也有這句，只是示範資料有 11 筆）
       ...[
-        { status: '缺', a6: '(^|>)landmark:dialog\\[操作紀錄\\]>list$' },
+        { status: '缺', a6: '(^|>)landmark:dialog\\[操作紀錄\\]>list(>.*)?$' },
         { status: '多', app: '(^|>)landmark:dialog\\[操作紀錄\\]>text:p\\[尚無操作紀錄\\]$' },
         // 彈窗高度隨紀錄筆數（置中的彈窗頂端跟著動）
         { status: '位置', a6: '^pop\\[log\\]>landmark:dialog\\[操作紀錄\\]$', detail: 'Δx 0、' },
@@ -1603,7 +1603,7 @@ export const PAGES = {
         // 章裡只有 1 筆時工具認不出是列（稿同章有好幾筆、是列），整個 summary 被當成多包一層的按鈕。
         // 兩邊都是 details＞summary（A6 `.lv`），同一章有 ≥2 筆時就配得上
         status: '多',
-        app: '>landmark:main\\[\\]>landmark:region\\[[^\\]]*\\]>control:button\\[[^\\]]*\\]$',
+        app: '>landmark:main\\[\\]>landmark:region\\[[^\\]]*\\]>control:button\\[[^\\]]*\\](>.*)?$',
         reason: '工具限制「資料太少」：章裡只有 1 筆，認不出是列',
         source: 'tools/a6-conformance/README.md「資料少的日子」：只剩 1 個時認不出來',
       },
@@ -2466,7 +2466,8 @@ export const PAGES = {
         // 舊有新無：稿的章頭只有課程名＋「N 個班」，app 在章名下保留科目小字
         status: '多',
         host: '^app-chapter-head$',
-        app: 'landmark:region\\[[^\\]]*\\]>text:span\\[[^\\]]*\\]$',
+        // 小字是 p（#1314 11-05 起 app-chapter-head 照 A6 `.chap__meta` 改 p）
+        app: 'landmark:region\\[[^\\]]*\\]>text:(span|p)\\[[^\\]]*\\]$',
         reason: '章名下保留科目小字：課程名不保證含科目，照稿拿掉這頁就看不到科目',
         source:
           'kb/wiki/architecture/a6-adoption-rules.md R5（2026-10-21）；https://github.com/mizok/clessia/pull/1769#issuecomment-6310159607',
