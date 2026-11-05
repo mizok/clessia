@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { chunkByUrlLength, inChunks } from '../lib/in-chunks';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAuth } from '../lib/get-auth';
 import { mintLoginLinkForRequest } from './login-links/mint';
@@ -1339,12 +1340,22 @@ app.openapi(
     }
 
     // Step 2: 查詢 DB 同名家長（ilike 縮小範圍，JS 端精確比對）
+    // 姓名照 URL 編碼後的長度分段（#2232：中文名一字 9 bytes，整串一百多列就 414）
     const namesToQuery = Array.from(nameMap.keys());
-    const { data: dbParents, error: parentsError } = await supabase
-      .from('parents')
-      .select('id, name, user_id')
-      .eq('org_id', orgId)
-      .or(namesToQuery.map((n) => `name.ilike."${n.replace(/"/g, '\\"')}"`).join(','));
+    const { data: dbParents, error: parentsError } = await inChunks<{
+      id: string;
+      name: string;
+      user_id: string;
+    }>(
+      namesToQuery,
+      (part) =>
+        supabase
+          .from('parents')
+          .select('id, name, user_id')
+          .eq('org_id', orgId)
+          .or(part.map((n) => `name.ilike."${n.replace(/"/g, '\\"')}"`).join(',')),
+      chunkByUrlLength(namesToQuery),
+    );
 
     if (parentsError || !dbParents) {
       console.error('[batch-check] Step2 query parents failed:', parentsError);
@@ -1357,10 +1368,14 @@ app.openapi(
 
     // Step 3: 查詢每個 DB 家長的聯絡資訊
     const userIds = dbParents.map((p: { user_id: string }) => p.user_id);
-    const { data: baUsers } = await supabase
-      .from('ba_user')
-      .select('id, phone, email')
-      .in('id', userIds);
+    const { data: baUsers, error: baUsersError } = await inChunks(userIds, (part) =>
+      supabase.from('ba_user').select('id, phone, email').in('id', part),
+    );
+    // 讀不到聯絡資訊就回錯：吞掉會讓「電話／Email 已屬於別的家長」的檢查無聲失效（#2232）
+    if (baUsersError) {
+      console.error('[batch-check] Step3 query ba_user failed:', baUsersError);
+      return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+    }
 
     const userContactMap = new Map<string, { phone: string | null; email: string | null }>();
     for (const u of (baUsers ?? []) as Array<{
@@ -1376,10 +1391,12 @@ app.openapi(
 
     // Step 3.5: 預載所有 dbParent 的學生名稱（批次查詢，避免 N+1）
     const allDbParentIds = (dbParents as Array<{ id: string }>).map((p) => p.id);
-    const { data: allRelData, error: allRelError } = await supabase
-      .from('parent_student_relations')
-      .select('parent_id, student_id')
-      .in('parent_id', allDbParentIds);
+    const { data: allRelData, error: allRelError } = await inChunks(allDbParentIds, (part) =>
+      supabase
+        .from('parent_student_relations')
+        .select('parent_id, student_id')
+        .in('parent_id', part),
+    );
 
     if (allRelError || !allRelData) {
       console.error('[batch-check] Step3.5 query parent_student_relations failed:', allRelError);
@@ -1392,10 +1409,9 @@ app.openapi(
     const parentStudentNamesMap = new Map<string, Set<string>>(); // parentId -> Set<normalizedStudentName>
 
     if (allStudentIds.length > 0) {
-      const { data: allStudents, error: allStudentsError } = await supabase
-        .from('students')
-        .select('id, name')
-        .in('id', allStudentIds);
+      const { data: allStudents, error: allStudentsError } = await inChunks(allStudentIds, (part) =>
+        supabase.from('students').select('id, name').in('id', part),
+      );
 
       if (allStudentsError || !allStudents) {
         console.error('[batch-check] Step3.5 query students failed:', allStudentsError);
@@ -1945,11 +1961,12 @@ app.openapi(
     );
     const schoolIdByName = new Map<string, string>();
     if (uniqueSchoolNames.length > 0) {
-      const { data: existingSchools } = await supabase
-        .from('schools')
-        .select('id, name')
-        .eq('org_id', orgId)
-        .in('name', uniqueSchoolNames);
+      // 校名照 URL 長度分段（#2232）；讀不到不擋：下面的 upsert 照樣會建好或回傳既有的
+      const { data: existingSchools } = await inChunks(
+        uniqueSchoolNames,
+        (part) => supabase.from('schools').select('id, name').eq('org_id', orgId).in('name', part),
+        chunkByUrlLength(uniqueSchoolNames),
+      );
       for (const s of (existingSchools ?? []) as Array<{ id: string; name: string }>) {
         schoolIdByName.set(s.name, s.id);
       }

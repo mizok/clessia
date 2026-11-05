@@ -44,7 +44,6 @@ export type OrgTable =
   | 'notifications'
   | 'parents'
   | 'payment_records'
-  | 'profiles'
   | 'public_applications'
   | 'push_subscriptions'
   | 'receipt_counters'

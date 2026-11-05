@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { inChunks } from '../lib/in-chunks';
 import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
@@ -193,7 +194,9 @@ const BatchUpsertSchoolScoresSchema = z
           notes: z.string().max(5000).nullable().optional(),
         }),
       )
-      .min(1),
+      .min(1)
+      // 上限（#2232）：一張名冊（學生×科目）實務上幾百列；沒上限的話異常輸入整串進 DB
+      .max(2000),
   })
   .openapi('BatchUpsertSchoolScores');
 
@@ -1403,12 +1406,20 @@ app.openapi(upsertScoresRoute, async (c) => {
       return c.json({ error: '沒有任課班級', code: 'NO_TAUGHT_CLASS' }, 403);
     }
 
-    const { data: allowedRows } = await supabase
-      .from('enrollments')
-      .select('student_id')
-      .eq('org_id', orgId)
-      .in('class_id', taught)
-      .in('student_id', requestedStudentIds);
+    // 學生 id 分段送（#2232：一張段考名冊上百人，整串放 URL 會 414）；讀不到就 500，不吞成「全部不在範圍」
+    const { data: allowedRows, error: allowedError } = await inChunks<{ student_id: string }>(
+      requestedStudentIds,
+      (part) =>
+        supabase
+          .from('enrollments')
+          .select('student_id')
+          .eq('org_id', orgId)
+          .in('class_id', taught)
+          .in('student_id', part),
+    );
+    if (allowedError) {
+      return c.json({ error: allowedError.message, code: 'DB_ERROR' }, 400);
+    }
     const allowed = new Set(
       (allowedRows ?? []).map((row: { student_id: string }) => row.student_id),
     );
@@ -1432,7 +1443,9 @@ app.openapi(upsertScoresRoute, async (c) => {
 
   const [{ data: students, error: studentError }, { data: subjects, error: subjectError }] =
     await Promise.all([
-      supabase.from('students').select('id').eq('org_id', orgId).in('id', studentIds),
+      inChunks(studentIds, (part) =>
+        supabase.from('students').select('id').eq('org_id', orgId).in('id', part),
+      ),
       supabase.from('subjects').select('id').eq('org_id', orgId).in('id', subjectIds),
     ]);
 
