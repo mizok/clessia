@@ -1586,6 +1586,14 @@ export const PAGES = {
         reason: '現況有、稿沒畫：空狀態的分校範圍提示',
         source: `${rule('R2')}；#1138`,
       },
+      {
+        // 章裡只有 1 筆時工具認不出是列（稿同章有好幾筆、是列），整個 summary 被當成多包一層的按鈕。
+        // 兩邊都是 details＞summary（A6 `.lv`），同一章有 ≥2 筆時就配得上
+        status: '多',
+        app: '>landmark:main\\[\\]>landmark:region\\[[^\\]]*\\]>control:button\\[[^\\]]*\\]$',
+        reason: '工具限制「資料太少」：章裡只有 1 筆，認不出是列',
+        source: 'tools/a6-conformance/README.md「資料少的日子」：只剩 1 個時認不出來',
+      },
       // 稿的「新」小標（設計說明）在鈕裡；app 的鈕只有 label span，工具把它配到「新」上
       ...['文案', '位置', '樣式'].map((status) => ({
         status,

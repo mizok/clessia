@@ -120,7 +120,8 @@ describe('ChapterHeadComponent', () => {
     const order = [
       ...host.querySelectorAll('h2, [data-testid="chapter-sub"], .chapter-head__tally'),
     ].map((e) => e.tagName + (e.getAttribute('data-testid') ?? ''));
-    expect(order).toEqual(['H2', 'SPANchapter-sub', 'P']);
+    // 小字是 p（A6 `.chap__meta`）
+    expect(order).toEqual(['H2', 'Pchapter-sub', 'P']);
   });
 
   // A6：手機 `.chap`（上下疊）的張數跟桌機一樣是 xl（18px）；只有 `.chap--row`（橫排）縮成 lg（#1698）
