@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { restBackedSummaryPool } from '../test-utils/rest-backed-summary-pool';
 import { describe, expect, it } from 'vitest';
 
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
@@ -39,6 +40,8 @@ describe('GET /students —— 每列帶 enrollmentState', () => {
     app.use('*', async (c, next) => {
       const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
       set('supabase', db.client);
+      // 今日到班的在籍／打卡／請假走 pg（#1595 P2 ①）：替身把 SQL 翻回改寫前的 REST 鏈
+      set('auth', { pool: restBackedSummaryPool(db.client as never) });
       set('orgId', 'org-a');
       set('userId', 'u1');
       set('roles', ['admin']);

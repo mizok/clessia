@@ -54,6 +54,8 @@ export function restBackedLeavePool(client: SupabaseLike): RestBackedLeavePool {
       const data = await settle(q['lte']!('start_date', end)['gte']!('end_date', start));
       return { rows: (data ?? []) as unknown[] };
     }
+    // ponytail: 列表蓋到的堂（LV2）的候選翻成 REST 不划算，替身回空；真查詢由 leaves-covered-sessions-lv2.contract 守
+    if (sql.includes('with page as (')) return { rows: [] };
     if (sql.includes('insert into public.leave_requests')) {
       const [orgId, studentId, startDate, endDate, startTime, endTime, reason, userId, role] = params;
       const row = await settle(
