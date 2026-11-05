@@ -698,7 +698,12 @@ const FORM_DIALOGS = {
       'app-teaching-log-dialog',
     ),
   },
-  parents: { 'new-parent': formOpen('[data-new]', 'button:has-text("新增家長")') },
+  parents: {
+    'new-parent': formOpen('[data-new]', 'button:has-text("新增家長")'),
+    // 家長詳情、批次匯入（#2290 換殼）
+    detail: dlgOpen('[data-detail]', 'button[aria-label$=" 的詳情"]', 'app-parent-detail-dialog'),
+    import: dlgOpen('[data-import]', 'button:has-text("匯入")', 'app-parent-import-dialog'),
+  },
   // #2290 換共用殼的對話框（0950-a 家族）
   leave: { batch: formOpen('[data-batch-leave]', 'button:has-text("批次請假")') },
   schools: { 'new-school': formOpen('[data-new-school]', 'button:has-text("新增學校")') },
@@ -1236,6 +1241,32 @@ export const PAGES = {
     a6Open: opensOf('parents', 'a6Open'),
     appOpen: opensOf('parents', 'appOpen'),
     deviations: [
+      // 家長詳情、匯入（#2290 換殼）：標頭是共用殼的（h2 20px＋✕ 桌機 40），稿各對話框的標頭高低不一
+      ...[
+        {
+          status: '位置',
+          a6: '>landmark:dialog\\[[^\\]]*\\]>(heading:h2\\[[^\\]]*\\]|control:button\\[關閉\\])$',
+        },
+        {
+          status: '尺寸',
+          a6: '>landmark:dialog\\[[^\\]]*\\]>control:button\\[關閉\\]$',
+          detail: '^寬 32→40$',
+        },
+      ].flatMap((d) =>
+        ['detail', 'import'].map((pop) => ({
+          ...d,
+          pop,
+          reason: '共用殼的標頭（h2＋副標＋✕），全站對話框同一套',
+          source: 'kb/wiki/architecture/dialog-frame.md「標頭」「✕」（#2290）',
+        })),
+      ),
+      {
+        status: '文案',
+        pop: 'detail',
+        a6: '>landmark:dialog\\[\\{名\\}\\]>heading:h2\\[\\{名\\}\\]$',
+        reason: '工具限制：標題是家長姓名，app 的家長名不在工具的人名表（只收稿的假人名與登入者）',
+        source: 'tools/a6-conformance/README.md（文案模板 {名}）',
+      },
       // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 students／courses 那條
       ...['尺寸', '樣式', '位置'].map((status) => ({
         status,
