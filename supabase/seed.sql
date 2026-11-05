@@ -31,10 +31,8 @@ DECLARE
     v_grade_levels TEXT[];
     v_teacher_display_name TEXT;
     admin_user_id TEXT;
-    admin_user_uuid UUID;
     v_admin_staff_id UUID;
     teacher_user_id TEXT;
-    teacher_user_uuid UUID;
     v_teacher_staff_id UUID;
 BEGIN
     -- 1. Insert users into Better Auth ba_user table
@@ -78,13 +76,7 @@ BEGIN
     SET "orgId" = demo_org_id
     WHERE id = demo_admin_id::text;
 
-    -- 5. Ensure profiles exist with org_id (must be before user_roles due to FK)
-    INSERT INTO public.profiles (id, display_name, org_id)
-    VALUES
-        (demo_admin_id, 'Demo Admin', demo_org_id)
-    ON CONFLICT (id) DO UPDATE SET
-        display_name = EXCLUDED.display_name,
-        org_id = EXCLUDED.org_id;
+    -- 5.（原本建 profiles；#1839 已 drop 那張表 —— 顯示名稱來自 staff／parents／ba_user）
 
     -- 6. Insert demo user_roles
     INSERT INTO public.user_roles (user_id, role, permissions)
@@ -109,9 +101,6 @@ BEGIN
 
     DELETE FROM public.user_roles
     WHERE user_id LIKE '30000000-0000-0000-0000-%' OR user_id LIKE '40000000-0000-0000-0000-%';
-
-    DELETE FROM public.profiles
-    WHERE id::text LIKE '30000000-0000-0000-0000-%' OR id::text LIKE '40000000-0000-0000-0000-%';
 
     DELETE FROM public.ba_user
     WHERE id LIKE '30000000-0000-0000-0000-%' OR id LIKE '40000000-0000-0000-0000-%';
@@ -207,7 +196,6 @@ BEGIN
 
         -- Admin user + profile + role + staff
         admin_user_id := format('30000000-0000-0000-0000-%s', lpad(staff_index::text, 12, '0'));
-        admin_user_uuid := admin_user_id::uuid;
 
         INSERT INTO public.ba_user (id, name, email, "emailVerified", username, "orgId", "createdAt", "updatedAt")
         VALUES (
@@ -228,12 +216,6 @@ BEGIN
             "updatedAt" = NOW();
 
         -- 不再插入密碼憑證（見檔案上方說明）。要登入就用 npm run login-link。
-
-        INSERT INTO public.profiles (id, display_name, org_id)
-        VALUES (admin_user_uuid, format('管理員%s', lpad(staff_index::text, 2, '0')), demo_org_id)
-        ON CONFLICT (id) DO UPDATE SET
-            display_name = EXCLUDED.display_name,
-            org_id = EXCLUDED.org_id;
 
         INSERT INTO public.user_roles (user_id, role, permissions)
         VALUES (admin_user_id, 'admin', '["*"]'::jsonb)
@@ -272,7 +254,6 @@ BEGIN
 
             -- Teacher user + profile + role + staff + subject link
             teacher_user_id := format('40000000-0000-0000-0000-%s', lpad(teacher_index::text, 12, '0'));
-            teacher_user_uuid := teacher_user_id::uuid;
 
             v_teacher_display_name := format(
                 '%s%s',
@@ -299,12 +280,6 @@ BEGIN
                 "updatedAt" = NOW();
 
             -- 不再插入密碼憑證（見檔案上方說明）。要登入就用 npm run login-link。
-
-            INSERT INTO public.profiles (id, display_name, org_id)
-            VALUES (teacher_user_uuid, v_teacher_display_name, demo_org_id)
-            ON CONFLICT (id) DO UPDATE SET
-                display_name = EXCLUDED.display_name,
-                org_id = EXCLUDED.org_id;
 
             INSERT INTO public.user_roles (user_id, role, permissions)
             VALUES (teacher_user_id, 'teacher', '[]'::jsonb)
