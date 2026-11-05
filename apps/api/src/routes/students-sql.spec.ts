@@ -1,0 +1,171 @@
+import { Hono } from 'hono';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { STUDENT_LIST_SQL, type StudentListResult } from '../lib/student-list-sql';
+import { createMultiOrgDb } from '../test-utils/multi-org-db';
+import studentsRoute from './students';
+
+/**
+ * `GET /api/students` 有 pool 就走 SQL、失敗回 500 不退回（#1595 P2 ② 刀 1a、#2230 (c)）；沒有 pool、
+ * 或帶 search／today（刀 1b 才收）走 builder。這裡守**接線**；兩條路逐欄相同由
+ * `contract/student-list-sql.contract.ts` 對真 DB 驗。
+ */
+
+const ORG = 'org-a';
+const CA = '00000000-0000-0000-0000-0000000000ca';
+
+afterEach(() => vi.restoreAllMocks());
+
+const SQL_RESULT: StudentListResult = {
+  rows: [
+    {
+      id: 's-sql',
+      org_id: ORG,
+      name: 'SQL 回的學生',
+      grade: 'J2',
+      is_active: true,
+      created_at: '2026-10-01T00:00:00+00:00',
+      updated_at: '2026-10-01T00:00:00+00:00',
+      schools: null,
+      parent_student_relations: [
+        {
+          is_primary: true,
+          relation: '父',
+          parents: { id: 'p1', name: '爸', user_id: 'u1', phone: '0912000001' },
+        },
+      ],
+      enrollments: [],
+      active_card: [{ id: 'k1' }],
+    },
+  ],
+  total: 21,
+  activeCount: 7,
+  byGrade: { J2: 3, P1: 1 },
+};
+
+const seed = () =>
+  createMultiOrgDb({
+    students: [{ id: 's-b', org_id: ORG, name: 'builder 回的學生', grade: 'J1', is_active: true }],
+    schools: [],
+    enrollments: [],
+    parent_student_relations: [],
+  });
+
+async function list(
+  path: string,
+  { pool, scope = null }: { pool?: { query: ReturnType<typeof vi.fn> }; scope?: string[] | null },
+) {
+  const app = new Hono();
+  app.use('*', async (c, next) => {
+    const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+    set('supabase', seed().client);
+    set('orgId', ORG);
+    set('userId', 'admin-a');
+    set('roles', ['admin']);
+    set('permissions', ['*']);
+    set('campusScope', scope);
+    if (pool) set('auth', { pool });
+    await next();
+  });
+  app.route('/', studentsRoute);
+  const res = await app.request(path);
+  const text = await res.text();
+  return {
+    status: res.status,
+    text,
+    body: (res.ok ? JSON.parse(text) : {}) as Record<string, unknown>,
+  };
+}
+
+const names = (body: Record<string, unknown>) =>
+  (body['data'] as Array<{ name: string }>).map((s) => s.name);
+const okPool = () => ({ query: vi.fn().mockResolvedValue({ rows: [{ result: SQL_RESULT }] }) });
+
+describe('GET /api/students 先走 SQL（#1595 P2 ② 刀 1a）', () => {
+  it('有 pool：列表、總數、在籍數、章節、主要家長電話都從 SQL 來', async () => {
+    const pool = okPool();
+    const { status, body } = await list('/?withToday=false&pageSize=20', { pool });
+    expect(status).toBe(200);
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    expect(pool.query.mock.calls[0]![0]).toBe(STUDENT_LIST_SQL);
+    expect(names(body)).toEqual(['SQL 回的學生']);
+    expect(body['data']).toMatchObject([
+      { primaryParentPhone: '0912000001', hasActiveCard: true, parentNames: ['爸'] },
+    ]);
+    const summary = body['summary'] as { total: number; activeCount: number; byGrade: unknown[] };
+    expect(summary.total).toBe(21);
+    expect(summary.activeCount).toBe(7);
+    expect(summary.byGrade).toContainEqual({ grade: 'J2', count: 3 });
+    expect(summary.byGrade).toContainEqual({ grade: 'S3', count: 0 });
+    expect(body['meta']).toEqual({ total: 21, page: 1, pageSize: 20, totalPages: 2 });
+  });
+
+  it('SQL 拋錯 → 500，不退回 builder，記一行 [students-sql]', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const pool = {
+      query: vi.fn().mockRejectedValue(Object.assign(new Error('x'), { code: '53300' })),
+    };
+    const { status, text } = await list('/?withToday=false', { pool });
+    expect(status).toBe(500);
+    expect(text).not.toContain('builder 回的學生');
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('[students-sql]'));
+  });
+
+  it.each([
+    ['沒有列', []],
+    ['total 不是數字', [{ result: { ...SQL_RESULT, total: '1' } }]],
+    ['activeCount 少了', [{ result: { ...SQL_RESULT, activeCount: undefined } }]],
+    ['rows 不是陣列', [{ result: { ...SQL_RESULT, rows: null } }]],
+    ['章節計數不是數字', [{ result: { ...SQL_RESULT, byGrade: { J2: null } } }]],
+  ])('SQL 結果形狀不對（%s）→ 500，不退回 builder', async (_label, rows) => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const pool = { query: vi.fn().mockResolvedValue({ rows }) };
+    const { status, text } = await list('/?withToday=false', { pool });
+    expect(status).toBe(500);
+    expect(text).not.toContain('builder 回的學生');
+  });
+
+  it('沒有 pool：走 builder', async () => {
+    expect(names((await list('/?withToday=false', {})).body)).toEqual(['builder 回的學生']);
+  });
+
+  it('帶 search 的請求這刀還走 builder（刀 1b 收），不碰 pool', async () => {
+    const pool = okPool();
+    const { body } = await list(`/?withToday=false&search=${encodeURIComponent('builder')}`, {
+      pool,
+    });
+    expect(pool.query).not.toHaveBeenCalled();
+    expect(names(body)).toEqual(['builder 回的學生']);
+  });
+
+  /** 參數順序見 STUDENT_LIST_SQL 的註解 */
+  const params = async (path: string, scope: string[] | null) => {
+    const pool = okPool();
+    await list(path, { pool, scope });
+    return pool.query.mock.calls[0]![1] as unknown[];
+  };
+
+  it('分校條件用 campusFilterIds 算：不受限 null、受限是範圍、沒指派是空陣列（fail-closed）', async () => {
+    expect((await params('/?withToday=false', null))[1]).toBeNull();
+    expect((await params(`/?withToday=false&campusId=${CA}`, null))[1]).toEqual([CA]);
+    expect((await params('/?withToday=false', [CA]))[1]).toEqual([CA]);
+    expect((await params('/?withToday=false', []))[1]).toEqual([]);
+    // 管理員沒有老師範圍；管理員帶電話
+    const p = await params('/?withToday=false', null);
+    expect(p[2]).toBeNull();
+    expect(p[12]).toBe(true);
+  });
+
+  it('篩選與分頁參數', async () => {
+    const p = await params(
+      '/?withToday=false&grade=J2&isActive=true&schoolMismatch=true&withoutCard=true&cardIssuedToday=true&page=3&pageSize=5',
+      null,
+    );
+    expect(p.slice(3, 8)).toEqual(['J2', true, true, true, true]);
+    expect(p[8]).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00\+08:00$/);
+    expect(p[9]).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00\+08:00$/);
+    expect(p.slice(10, 12)).toEqual([5, 10]);
+    const d = await params('/?withToday=false', null);
+    expect(d.slice(3, 8)).toEqual([null, null, false, false, false]);
+  });
+});
