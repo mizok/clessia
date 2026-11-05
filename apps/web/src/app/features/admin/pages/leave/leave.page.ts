@@ -437,21 +437,27 @@ export class LeavePage implements OnInit {
   protected openCreateDialog(): void {
     const ref = this.dialogService.open(LeaveFormDialogComponent, {
       header: '登記請假',
-      width: '480px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false, // 標題由請假表單裡的共用殼畫（#2290）
       appendTo: this.overlayContainerService.getContainer() || 'body',
       contentStyle: LEAVE_DIALOG_CONTENT_STYLE,
+      data: { pickSessions: true },
     });
 
     if (!ref) return;
 
     ref.onClose.subscribe((leave: LeaveRequest | null) => {
       if (leave) {
+        const n = leave.sessionIds?.length ?? 0;
+        const md = `${Number(leave.startDate.slice(5, 7))}/${Number(leave.startDate.slice(8, 10))}`;
         this.messageService.add({
           severity: 'success',
           summary: '已登記',
-          detail: `${leave.studentName} 的請假已登記`,
+          // 勾堂的照 A6 寫幾堂（#2318）；區間假維持原句
+          detail: n
+            ? `已登記 ${leave.studentName} ${md} 請假（${n} 堂）`
+            : `${leave.studentName} 的請假已登記`,
         });
         this.currentPage.set(1);
         this.loadRecords({ rows: true });
@@ -485,12 +491,12 @@ export class LeavePage implements OnInit {
   protected openEditDialog(record: LeaveRequest): void {
     const ref = this.dialogService.open(LeaveFormDialogComponent, {
       header: '編輯請假',
-      width: '480px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false, // 標題由請假表單裡的共用殼畫（#2290）
       appendTo: this.overlayContainerService.getContainer() || 'body',
       contentStyle: LEAVE_DIALOG_CONTENT_STYLE,
-      data: { leave: record },
+      data: { leave: record, pickSessions: true },
     });
 
     if (!ref) return;

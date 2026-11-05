@@ -706,7 +706,11 @@ const FORM_DIALOGS = {
     import: dlgOpen('[data-import]', 'button:has-text("匯入")', 'app-parent-import-dialog'),
   },
   // #2290 換共用殼的對話框（0950-a 家族）
-  leave: { batch: formOpen('[data-batch-leave]', 'button:has-text("批次請假")') },
+  leave: {
+    batch: formOpen('[data-batch-leave]', 'button:has-text("批次請假")'),
+    // 登記請假（#2318 勾當天的課）
+    'new-leave': dlgOpen('[data-new]', 'button:has-text("登記請假")', 'app-leave-form-dialog'),
+  },
   schools: { 'new-school': formOpen('[data-new-school]', 'button:has-text("新增學校")') },
   exams: {
     'new-exam': formOpen('[data-new]', [
@@ -1864,6 +1868,47 @@ export const PAGES = {
     a6Open: opensOf('leave', 'a6Open'),
     appOpen: opensOf('leave', 'appOpen'),
     deviations: [
+      // 登記請假（#2318）：app 的日期、要請假的課、原因三格同層同子元素數，被工具合成一列（README「列是資料」的 div 格線規則）；
+      // 稿同樣的三格沒觸發，於是「要請假的課」與空狀態那句報缺、app 報多一列 —— 內容與樣式照稿（.pick、.pick__none）
+      ...[
+        {
+          status: '缺',
+          a6: '>landmark:dialog\\[登記請假\\]>text:p\\[(要請假的課|先選學生，這裡會列出他那天的課。)\\]$',
+        },
+        { status: '多', app: '>landmark:dialog\\[登記請假\\]>row(>.*)?$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-leave',
+        reason: '工具限制：同層三格被當成資料列，配對錯開',
+        source: 'tools/a6-conformance/README.md（part key：列是資料）',
+      })),
+      // 登記請假（#2318）：手機內容左右 16（殼的規格，稿 24），欄位寬 +16
+      {
+        status: '尺寸',
+        widths: [360],
+        pop: 'new-leave',
+        a6: '>landmark:dialog\\[登記請假\\]>(text:label|control:textbox)\\[[^\\]]*\\]$',
+        detail: '^寬 312→328$',
+        reason: '對話框手機內容左右 16（共用殼），稿 24',
+        source: `${rule('R5', '「對話框手機內容左右 16」2026-11-05')}`,
+      },
+      // 登記請假（#2318）：分校、年級兩個篩選（縮小學生搜尋）現況有、稿沒有，不刪；下面的欄位跟著往下
+      ...[
+        {
+          status: '多',
+          app: '>landmark:dialog\\[登記請假\\]>(text:label\\[(分校|年級)\\]|control:combobox\\[[^\\]]*\\])$',
+        },
+        {
+          status: '位置',
+          a6: '>landmark:dialog\\[登記請假\\]>',
+          detail: '連帶自待修「control:combobox\\[',
+        },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-leave',
+        reason: '現況有、稿沒畫：學生欄上的分校、年級篩選（縮小同名學生的搜尋），不刪',
+        source: `${rule('R2')}`,
+      })),
       {
         // 稿的請假用今天起算的相對日期（leave.html D(n)），所以永遠有今天、明天的章；
         // 本機 seed 的請假是 reset 當天起算，「待處理」分頁今天以後沒有，app 顯示空狀態
@@ -3640,7 +3685,8 @@ export const PAGES = {
         status: '位置',
         pop: 'panel',
         a6: '>control:link\\[到課表點名\\]$',
-        reason: '連帶＋資料：文案不同配不上同名鈕；面板上方考試列數與家長電話是資料（稿 3 場、seed 2 場、沒留電話）',
+        reason:
+          '連帶＋資料：文案不同配不上同名鈕；面板上方考試列數與家長電話是資料（稿 3 場、seed 2 場、沒留電話）',
         source: 'kb/wiki/architecture/a6-adoption-rules.md R5「老師學生面板主按鈕」（#2317）',
       },
     ],

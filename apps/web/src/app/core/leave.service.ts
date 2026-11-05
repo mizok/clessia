@@ -17,6 +17,8 @@ export interface LeaveRequest {
   submittedByRole: 'parent' | 'admin';
   submittedByName: string | null;
   createdAt: string;
+  /** 勾選的堂次（#1114）；空陣列＝沒綁堂（日期區間／整天的假） */
+  sessionIds?: string[];
 }
 
 /** 列表的列（#1314 LV2）：多帶年級與蓋到的堂；只填日期區間的假也由 API 照點名面板同一支判斷算出 */
@@ -61,6 +63,8 @@ export interface UpdateLeaveInput {
   startTime?: string | null;
   endTime?: string | null;
   reason?: string | null;
+  /** 給了就整組替換綁定的堂次（#1114）；綁定型的假改日期只能走這裡 */
+  sessionIds?: string[];
 }
 
 export interface CreateLeaveInput {
