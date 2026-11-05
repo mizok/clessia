@@ -2879,7 +2879,25 @@ export const PAGES = {
       add: { click: 'button:has-text("加入其他學生")', root: '.p-dialog:has(app-dialog-frame)' },
       complete: { click: 'button:has-text("標記完成")', root: 'dialog[open]' },
     },
-    deviations: [noCampusSwitch('看的是一場考試；班可能跨分校，誰能看由後端權限擋')],
+    deviations: [
+      noCampusSwitch('看的是一場考試；班可能跨分校，誰能看由後端權限擋'),
+      // 標記完成：稿是 fields: [] 的 A2.form（空 <form> 有上下內距），app 的確認沒有欄位、不包 form（同 staff 停用確認）
+      {
+        status: '缺',
+        pop: 'complete',
+        a6: '>landmark:dialog\\[標記完成\\]>landmark:form\\[\\]$',
+        reason: '確認對話框沒有欄位，不包空的 form（稿是 A2.form fields: []）',
+        source: `${rule('R7')}`,
+      },
+      {
+        status: '尺寸',
+        pop: 'complete',
+        a6: '^pop\\[complete\\]>landmark:dialog\\[標記完成\\]$',
+        detail: '^高 ',
+        reason: '連帶：稿的空 form 有上下內距，app 沒有 form',
+        source: `${rule('R7')}`,
+      },
+    ],
   },
   grades: {
     a6: 'grades.html',
