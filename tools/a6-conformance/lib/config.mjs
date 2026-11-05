@@ -875,7 +875,8 @@ export const PAGES = {
     a6: 'billing.html',
     app: '/admin/payments',
     // 收款彈窗（#2316 寫期別、#2290 換殼）：稿列上的「收款」↔ app 列上的「收款」（DynamicDialog）
-    a6Open: { pay: { click: '[data-pay]', root: 'dialog[open]' } },
+    // 稿的「收款」鈕在收合的章節裡（逾期列是「提醒」），先展開第一個章節再點
+    a6Open: { pay: { click: ['details.coll > summary', '[data-pay]'], root: 'dialog[open]' } },
     appOpen: {
       pay: {
         click: 'button[aria-label^="記錄 "]',
@@ -883,6 +884,15 @@ export const PAGES = {
       },
     },
     deviations: [
+      // #2316：逾期章每列多一行期別（稿沒有），列內 span 序號跟著錯開
+      ...[
+        { status: '樣式', a6: '>landmark:region\\[逾期\\]>row>text:span~2$' },
+        { status: '多', app: '>landmark:region\\[逾期\\]>list>row>text:span~3$' },
+      ].map((d) => ({
+        ...d,
+        reason: '每列多一行期別（同一位學生好幾張帳單要分得出來），列內 span 序號錯開',
+        source: `${rule('R5', '「帳單列寫期別」2026-11-05')}；#2316`,
+      })),
       {
         status: '多',
         app: 'control:button\\[有#筆生效中的報名還沒開過帳單\\]$',
