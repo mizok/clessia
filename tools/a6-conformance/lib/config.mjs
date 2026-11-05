@@ -654,7 +654,15 @@ const FORM_DIALOGS = {
   'grades-student': {
     detail: dlgOpen('[data-sid]', '[data-part="student-row"]', 'app-student-score-detail-dialog'),
   },
-  staff: { 'new-staff': formOpen('[data-new]', 'button:has-text("新增人員")') },
+  staff: {
+    'new-staff': formOpen('[data-new]', 'button:has-text("新增人員")'),
+    // 權限設定（#1314 ST2）：稿第一筆林主任是示範的「本人」（鎖住），取第二筆張教務（可改）對 app 的第一筆管理員
+    perm: dlgOpen(
+      '.pp__perm[data-perm="p2"]',
+      '[data-testid^="permission-count-"]',
+      'app-permission-dialog',
+    ),
+  },
   parents: { 'new-parent': formOpen('[data-new]', 'button:has-text("新增家長")') },
   exams: {
     'new-exam': formOpen('[data-new]', [
@@ -2034,6 +2042,40 @@ export const PAGES = {
         '>landmark:main[]>landmark:region[已停用]>heading:h2[已停用]',
     },
     deviations: [
+      // 權限設定（#1314 ST2）。稿量第二筆「張教務」，app 量第一位管理員：人名、權限項數、頁長都是資料
+      ...[
+        { status: '文案', a6: '\\[張教務的權限\\]$' },
+        // 產品權限 10 項、稿 7 項（稿 staff.html:82 自己註記「照產品」）：多 3 格，動作列跟著下移
+        {
+          status: '位置',
+          a6: '>landmark:dialog\\[張教務的權限\\]>control:button\\[(儲存權限|關閉)\\](~2)?$',
+          detail: 'Δx 0、Δy \\+156',
+        },
+        // 置中彈窗頂端隨頁面長度（工具把視窗撐到內容全高，README「黏住」節）；人員列數不同
+        {
+          status: '位置',
+          a6: '^pop\\[perm\\]>landmark:dialog\\[張教務的權限\\]$',
+          detail: 'Δx 0、',
+        },
+      ].map((d) => ({
+        ...d,
+        pop: 'perm',
+        reason: '資料：量的人不同（人名）、產品權限 10 項比稿多 3 項、人員列數不同',
+        source:
+          'staff.html:82（權限項目「照產品」）、:239（稿示範的第一筆是本人）；#1314 issuecomment-6647755506',
+      })),
+      // 手機關閉鈕 44（稿 38）—— 同新增家長那條
+      ...[
+        { status: '尺寸', detail: '^寬 38→44$' },
+        { status: '位置', detail: '^相對「張教務的權限」 Δx -6' },
+      ].map((d) => ({
+        ...d,
+        pop: 'perm',
+        widths: [360],
+        a6: 'landmark:dialog\\[張教務的權限\\]>control:button\\[關閉\\]$',
+        reason: '手機關閉鈕 44px（觸控下限）',
+        source: `${rule('R3')}；${hardRule('A27')}`,
+      })),
       // 新增人員的角色、服務分校維持多選（ST7，使用者 11-02 照計畫席建議裁定）：稿是單選的下拉，app 是勾選框與多選
       ...[
         {
