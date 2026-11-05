@@ -24,8 +24,8 @@ export class DeactivateClassDialogComponent {
   protected readonly breadcrumb = computed(() => {
     const c = this.cls();
     if (!c) return '';
-    // A6 副標「{分校} · {課程}」（courses.html classDialog）
-    return [c.campusName, c.courseName, c.name].filter(Boolean).join(' · ');
+    // 麵包屑當副標（A6 class.html genDialog：`.fdlg__sub`「分校 › 課程 › 班名」）
+    return `${c.campusName ?? ''} › ${c.courseName ?? ''} › ${c.name}`;
   });
 
   protected deactivateOnly(): void {

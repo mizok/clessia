@@ -1491,6 +1491,10 @@ export const PAGES = {
     // 那些是 gen_random_uuid，reset 一次就換，下一個人量到的是「找不到這個班」（10-31 實例）。
     // 課程 id seed.sql 也是隨機的；網址的 courseId 段頁面沒讀（class-detail.page.ts resolvedCourseId 沒有讀者），放佔位字串
     app: '/admin/courses/seed-course/classes/62000000-0000-0000-0000-000000000001',
+    // 產生課堂（#2290 courses）：稿 genDialog 是原生 dialog.acset.fdlg；app 是 DialogService（共用殼）。
+    // 課程頁的 gen 要先有「需介入」的班，seed 在稿的時間點沒有，量不到 —— 改在這裡量
+    a6Open: { gen: { click: '[data-gen]', root: 'dialog[open]' } },
+    appOpen: { gen: { click: 'button:has-text("產生課堂")', root: '.p-dialog:has(app-generate-sessions-dialog)' } },
     deviations: [
       noCampusSwitch('一個班只屬於一間分校，頂欄切到別的分校會跟頁面矛盾'),
       // 量的是 seed.sql 的「數學班 A」，稿是「國三數學A班」：班名不同，狀態標跟著位移
