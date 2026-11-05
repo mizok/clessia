@@ -238,113 +238,102 @@
   <dialog
     #composer
     class="admin-notifications__dialog overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-2rem)] min-h-11 w-[min(760px,calc(100%-2rem))] flex-col overflow-visible rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/32%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-48px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl open:flex"
-    aria-labelledby="notifications-compose-title"
+    role="dialog"
     data-testid="composer"
     (click)="onComposerBackdrop($event)"
   >
-    <div
-      class="admin-notifications__composer grid min-h-0 grid-cols-1 gap-4 overflow-y-auto overscroll-contain p-4 pb-[calc(16px+env(safe-area-inset-bottom,0px))] wide:grid-cols-2 wide:p-6"
-    >
-      <div class="flex items-center gap-2 wide:col-span-2">
-        <h2 id="notifications-compose-title" class="m-0 text-xl font-bold tracking-[-0.02em]">
-          發送通知
-        </h2>
-        <button
-          type="button"
-          class="ml-auto grid size-11 cursor-pointer place-items-center rounded-full border-0 bg-transparent text-zinc-900 hover:bg-zinc-100"
-          aria-label="關閉"
-          (click)="closeComposer()"
-        >
-          <i class="pi pi-times" aria-hidden="true"></i>
-        </button>
-      </div>
+    <!-- 共用殼（#2290）：dialog 帶 role="dialog" 讓殼掛名稱；捲動在外層，殼的底部列黏在它底下 -->
+    <div class="min-h-0 overflow-y-auto overscroll-contain">
+      <app-dialog-frame title="發送通知" (closed)="closeComposer()">
+        <div class="admin-notifications__composer grid grid-cols-1 gap-4 wide:grid-cols-2">
+          <label
+            class="flex min-w-0 flex-col gap-1 text-md font-semibold text-zinc-700 wide:col-span-2"
+          >
+            標題
+            <input
+              #titleInput
+              class="admin-notifications__input h-11 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 [font:inherit] wide:h-10"
+              type="text"
+              maxlength="200"
+              autocomplete="off"
+              [ngModel]="title()"
+              (ngModelChange)="onTitleChange($event)"
+              [class.p-invalid]="!!errors()['title']"
+              [attr.aria-invalid]="!!errors()['title']"
+            />
+            <span
+              class="admin-notifications__error-text min-h-[18px] text-sm font-medium text-error-700"
+              aria-live="polite"
+              >{{ errors()['title'] }}</span
+            >
+          </label>
 
-      <label
-        class="flex min-w-0 flex-col gap-1 text-md font-semibold text-zinc-700 wide:col-span-2"
-      >
-        標題
-        <input
-          #titleInput
-          class="admin-notifications__input h-11 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 [font:inherit] wide:h-10"
-          type="text"
-          maxlength="200"
-          autocomplete="off"
-          [ngModel]="title()"
-          (ngModelChange)="onTitleChange($event)"
-          [class.p-invalid]="!!errors()['title']"
-          [attr.aria-invalid]="!!errors()['title']"
-        />
-        <span
-          class="admin-notifications__error-text min-h-[18px] text-sm font-medium text-error-700"
-          aria-live="polite"
-          >{{ errors()['title'] }}</span
-        >
-      </label>
+          <label
+            class="flex min-w-0 flex-col gap-1 text-md font-semibold text-zinc-700 wide:col-span-2"
+          >
+            內容
+            <textarea
+              #bodyInput
+              class="w-full resize-y rounded-md border border-solid border-zinc-300 bg-white px-3 py-2 [font:inherit]"
+              rows="5"
+              maxlength="5000"
+              [ngModel]="body()"
+              (ngModelChange)="onBodyChange($event)"
+              [class.p-invalid]="!!errors()['body']"
+              [attr.aria-invalid]="!!errors()['body']"
+            ></textarea>
+            <span
+              class="admin-notifications__error-text min-h-[18px] text-sm font-medium text-error-700"
+              aria-live="polite"
+              >{{ errors()['body'] }}</span
+            >
+          </label>
 
-      <label
-        class="flex min-w-0 flex-col gap-1 text-md font-semibold text-zinc-700 wide:col-span-2"
-      >
-        內容
-        <textarea
-          #bodyInput
-          class="w-full resize-y rounded-md border border-solid border-zinc-300 bg-white px-3 py-2 [font:inherit]"
-          rows="5"
-          maxlength="5000"
-          [ngModel]="body()"
-          (ngModelChange)="onBodyChange($event)"
-          [class.p-invalid]="!!errors()['body']"
-          [attr.aria-invalid]="!!errors()['body']"
-        ></textarea>
-        <span
-          class="admin-notifications__error-text min-h-[18px] text-sm font-medium text-error-700"
-          aria-live="polite"
-          >{{ errors()['body'] }}</span
-        >
-      </label>
+          <!-- 下拉掛在 dialog 上：dialog 在 top layer，掛到 body 的面板會被蓋住（select-field 的 appendTo 註解） -->
+          <app-select-field
+            label="發送對象"
+            [options]="audienceOptions"
+            [value]="audience()"
+            [appendTo]="composer"
+            (valueChange)="onAudienceChange($event)"
+          />
+          <app-select-field
+            label="分校範圍"
+            [options]="campusOptions()"
+            [value]="campusId()"
+            [appendTo]="composer"
+            (valueChange)="campusId.set($event)"
+          />
 
-      <!-- 下拉掛在 dialog 上：dialog 在 top layer，掛到 body 的面板會被蓋住（select-field 的 appendTo 註解） -->
-      <app-select-field
-        label="發送對象"
-        [options]="audienceOptions"
-        [value]="audience()"
-        [appendTo]="composer"
-        (valueChange)="onAudienceChange($event)"
-      />
-      <app-select-field
-        label="分校範圍"
-        [options]="campusOptions()"
-        [value]="campusId()"
-        [appendTo]="composer"
-        (valueChange)="campusId.set($event)"
-      />
+          @if (submitError()) {
+            <p class="m-0 text-error-700 wide:col-span-2" role="alert">{{ submitError() }}</p>
+          }
 
-      @if (submitError()) {
-        <p class="m-0 text-error-700 wide:col-span-2" role="alert">{{ submitError() }}</p>
-      }
-
-      <!--
+          <!--
         **「發布」只在 `submitting()` 時 disable**（#723，照 #664／#718）——
         `disabled` 是把「為什麼不行」藏起來，而那正是使用者最需要知道的。
         樣式照 A6 kit 的 `.kdlg__f`：取消（.btn）＋發布（.btn--cta），處理中寫「發布中…」。
       -->
-      <div class="flex justify-end gap-2 wide:col-span-2">
-        <button
-          type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
-          (click)="closeComposer()"
-        >
-          取消
-        </button>
-        <button
-          type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
-          data-testid="publish"
-          [disabled]="submitting()"
-          (click)="submit()"
-        >
-          {{ submitting() ? '發布中…' : '發布' }}
-        </button>
-      </div>
+        </div>
+        <ng-container dialogFoot>
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
+            (click)="closeComposer()"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
+            data-testid="publish"
+            [disabled]="submitting()"
+            (click)="submit()"
+          >
+            {{ submitting() ? '發布中…' : '發布' }}
+          </button>
+        </ng-container>
+      </app-dialog-frame>
     </div>
   </dialog>
 }
