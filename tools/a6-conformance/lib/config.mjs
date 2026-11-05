@@ -3636,7 +3636,8 @@ export const PAGES = {
         status: '位置',
         pop: 'panel',
         a6: '>control:link\\[到課表點名\\]$',
-        reason: '連帶＋資料：文案不同配不上同名鈕；面板上方考試列數與家長電話是資料（稿 3 場、seed 2 場、沒留電話）',
+        reason:
+          '連帶＋資料：文案不同配不上同名鈕；面板上方考試列數與家長電話是資料（稿 3 場、seed 2 場、沒留電話）',
         source: 'kb/wiki/architecture/a6-adoption-rules.md R5「老師學生面板主按鈕」（#2317）',
       },
     ],
