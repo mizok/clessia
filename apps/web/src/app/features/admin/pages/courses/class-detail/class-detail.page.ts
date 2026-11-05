@@ -411,7 +411,8 @@ export class ClassDetailPage implements OnInit {
 
     const ref = this.dialogService.open(StudentPickerDialogComponent, {
       header: '選擇學生',
-      width: '560px',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       modal: true,
       appendTo: this.overlayContainer || 'body',
       data: {
@@ -450,7 +451,8 @@ export class ClassDetailPage implements OnInit {
 
     const ref = this.dialogService.open(CopyRosterDialogComponent, {
       header: '從既有班級複製名單',
-      width: '480px',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       modal: true,
       appendTo: this.overlayContainer || 'body',
       data: { classId: cls.id, campusId: cls.campusId, campusName: cls.campusName },
@@ -467,7 +469,8 @@ export class ClassDetailPage implements OnInit {
 
     const ref = this.dialogService.open(RosterImportDialogComponent, {
       header: '從 Excel 匯入名單',
-      width: '640px',
+      width: 'var(--dlg-w-lg)',
+      showHeader: false,
       modal: true,
       appendTo: this.overlayContainer || 'body',
       data: { classId: cls.id },

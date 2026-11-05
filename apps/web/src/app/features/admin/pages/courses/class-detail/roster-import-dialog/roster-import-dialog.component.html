@@ -1,8 +1,9 @@
-<div class="flex flex-col">
+<!-- 共用殼（#2290）：標題原本是開窗端的 PrimeNG header；各步驟的動作列收成一個 dialogFoot（投影只吃最上層節點） -->
+<app-dialog-frame title="從 Excel 匯入名單" (closed)="close()">
   @switch (step()) {
     <!-- ── 步驟一：上傳 ────────────────────────────────────────────── -->
     @case ('upload') {
-      <div class="flex flex-1 flex-col gap-4 p-5">
+      <div class="flex flex-1 flex-col gap-4">
         <p class="m-0 text-sm leading-[1.6] text-zinc-600">
           兩欄就好：<strong>姓名</strong>、<strong>就讀學校</strong>。一次最多
           {{ maxRows }} 人。
@@ -45,7 +46,7 @@
 
     <!-- ── 步驟二：學校對照 ────────────────────────────────────────── -->
     @case ('schools') {
-      <div class="flex flex-1 flex-col gap-4 p-5">
+      <div class="flex flex-1 flex-col gap-4">
         <p class="m-0 text-sm leading-[1.6] text-zinc-600">
           名單上的學校寫法要對到系統裡的學校。對錯了學生就會配到別間學校，所以請確認一次。
         </p>
@@ -79,21 +80,11 @@
           />
         }
       </div>
-
-      <div class="flex justify-end gap-2 border-t border-zinc-200 px-5 py-4">
-        <p-button label="重新選檔" severity="secondary" [text]="true" (onClick)="backToUpload()" />
-        <p-button
-          label="下一步"
-          [disabled]="unresolvedSchools().length > 0 || busy()"
-          [loading]="busy()"
-          (onClick)="runMatch()"
-        />
-      </div>
     }
 
     <!-- ── 步驟三：確認名單 ────────────────────────────────────────── -->
     @case ('review') {
-      <div class="flex flex-1 flex-col gap-4 p-5">
+      <div class="flex flex-1 flex-col gap-4">
         <div class="flex flex-wrap items-center gap-3 rounded-md bg-zinc-50 p-3">
           <label class="text-sm font-semibold text-zinc-700" for="roster-import-date">生效日</label>
           <p-datepicker
@@ -189,8 +180,32 @@
           />
         }
       </div>
+    }
 
-      <div class="flex justify-end gap-2 border-t border-zinc-200 px-5 py-4">
+    <!-- ── 步驟四：結果 ────────────────────────────────────────────── -->
+    @case ('done') {
+      <div class="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-center">
+        <i class="pi pi-check-circle text-3xl text-success-600"></i>
+        <p class="m-0 text-lg font-semibold text-zinc-900">已匯入 {{ enrolledCount() }} 人</p>
+        @if (skippedCount() > 0) {
+          <p class="m-0 text-sm text-zinc-500">{{ skippedCount() }} 人略過（已在班上或建立失敗）</p>
+        }
+        <p class="m-0 text-sm text-zinc-500">生效日 {{ effectiveFrom() | date: 'yyyy-MM-dd' }}</p>
+      </div>
+    }
+  }
+  <ng-container dialogFoot>
+    @switch (step()) {
+      @case ('schools') {
+        <p-button label="重新選檔" severity="secondary" [text]="true" (onClick)="backToUpload()" />
+        <p-button
+          label="下一步"
+          [disabled]="unresolvedSchools().length > 0 || busy()"
+          [loading]="busy()"
+          (onClick)="runMatch()"
+        />
+      }
+      @case ('review') {
         <p-button label="重新選檔" severity="secondary" [text]="true" (onClick)="backToUpload()" />
         @if (conflicts().length > 0) {
           <p-button label="仍要匯入" severity="warn" [loading]="busy()" (onClick)="submitForce()" />
@@ -202,23 +217,10 @@
             (onClick)="submit()"
           />
         }
-      </div>
-    }
-
-    <!-- ── 步驟四：結果 ────────────────────────────────────────────── -->
-    @case ('done') {
-      <div class="flex flex-1 flex-col items-center justify-center gap-3 px-5 py-10 text-center">
-        <i class="pi pi-check-circle text-3xl text-success-600"></i>
-        <p class="m-0 text-lg font-semibold text-zinc-900">已匯入 {{ enrolledCount() }} 人</p>
-        @if (skippedCount() > 0) {
-          <p class="m-0 text-sm text-zinc-500">{{ skippedCount() }} 人略過（已在班上或建立失敗）</p>
-        }
-        <p class="m-0 text-sm text-zinc-500">生效日 {{ effectiveFrom() | date: 'yyyy-MM-dd' }}</p>
-      </div>
-
-      <div class="flex justify-end gap-2 border-t border-zinc-200 px-5 py-4">
+      }
+      @case ('done') {
         <p-button label="完成" (onClick)="close()" />
-      </div>
+      }
     }
-  }
-</div>
+  </ng-container>
+</app-dialog-frame>

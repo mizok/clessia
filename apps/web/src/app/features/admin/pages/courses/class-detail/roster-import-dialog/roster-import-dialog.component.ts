@@ -1,3 +1,4 @@
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { DatePipe } from '@angular/common';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -43,6 +44,7 @@ interface ReviewRow {
 @Component({
   selector: 'app-roster-import-dialog',
   imports: [
+    DialogFrameComponent,
     DatePipe,
     FormsModule,
     ButtonModule,

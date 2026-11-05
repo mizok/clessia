@@ -1,3 +1,4 @@
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { Component, OnInit, inject, signal, computed, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -43,6 +44,7 @@ import {
   selector: 'app-student-picker-dialog',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     FormsModule,
     ButtonModule,
     InputTextModule,
