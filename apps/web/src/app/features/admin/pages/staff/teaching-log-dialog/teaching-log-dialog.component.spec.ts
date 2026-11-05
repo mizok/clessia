@@ -202,6 +202,15 @@ describe('TeachingLogDialogComponent', () => {
         (b) => (b as HTMLElement).textContent?.trim() === '關閉',
       ) as HTMLButtonElement | undefined;
 
+    it('共用殼（#2290）：h2「授課紀錄 · 姓名」、月份是帶標籤的欄位、關閉在底部列', async () => {
+      await setup();
+      const el = fixture.nativeElement as HTMLElement;
+
+      expect(el.querySelector('h2')?.textContent?.trim()).toBe(`授課紀錄 · ${data.staffName}`);
+      expect(el.querySelector('label')?.textContent).toContain('月份');
+      expect(closeButton()!.closest('.form-dialog__footer')).not.toBeNull();
+    });
+
     it('有一顆「關閉」，按下去會關掉對話框', async () => {
       await setup();
 

@@ -611,7 +611,7 @@ export class StaffPage implements OnInit {
   /** 新增（沒帶 staff）或編輯掃碼機台（#1127） */
   openKioskDialog(staff?: Staff): void {
     const ref = this.dialogService.open(KioskFormDialogComponent, {
-      width: 'min(480px, 90%)',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
@@ -632,8 +632,9 @@ export class StaffPage implements OnInit {
   /** 唯讀的授課紀錄檢視。不計算薪資，只呈現這位老師某段期間上了哪些課。 */
   openTeachingLog(staff: Staff): void {
     this.dialogService.open(TeachingLogDialogComponent, {
-      header: `授課紀錄 · ${staff.displayName}`,
-      width: '760px',
+      // A6 是 .acset.fdlg（520，staff.html:251），不是寬內容
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       modal: true,
       appendTo: this.overlayContainer || 'body',
       data: { staffId: staff.id, staffName: staff.displayName },

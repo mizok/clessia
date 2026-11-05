@@ -9,7 +9,6 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
-import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
 import { TagModule } from 'primeng/tag';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
@@ -31,9 +30,11 @@ import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-c
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 @Component({
   selector: 'app-teaching-log-dialog',
   imports: [
+    DialogFrameComponent,
     SkeletonComponent,
     ResponsiveTableComponent,
     RtColDefDirective,
@@ -41,7 +42,6 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
     RtRowDirective,
     StatusDotComponent,
     FormsModule,
-    ButtonModule,
     SelectModule,
     TagModule,
   ],
