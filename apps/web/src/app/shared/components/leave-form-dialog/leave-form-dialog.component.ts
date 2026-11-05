@@ -142,43 +142,46 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
           <p class="m-0 mb-1 text-md font-semibold text-zinc-700" id="leave-pick-label">
             要請假的課
           </p>
-          @if (!studentId()) {
-            <!-- A6 .pick__none -->
-            <p class="m-0 rounded-md bg-zinc-100 p-3 text-md text-zinc-700">
-              先選學生，這裡會列出他那天的課。
-            </p>
-          } @else if (dayState() === 'loading') {
-            <p class="m-0 text-md text-zinc-600" role="status">載入這天的課…</p>
-          } @else if (dayState() === 'error') {
-            <p class="m-0 text-md text-error-700">讀不到這天的課，請換個日期或稍後再試。</p>
-          } @else if (daySessions().length === 0) {
-            <p class="m-0 rounded-md bg-zinc-100 p-3 text-md text-zinc-700">
-              該日無排課。{{ studentLabel() }}在 {{ dayLabel() }} 沒有課，換一天試試。
-            </p>
-          } @else {
-            <div class="flex flex-col gap-2" role="group" aria-labelledby="leave-pick-label">
-              @for (s of daySessions(); track s.sessionId) {
-                <label
-                  class="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-3 has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset has-disabled:cursor-not-allowed has-disabled:text-zinc-500"
-                >
-                  <input
-                    type="checkbox"
-                    class="m-0 size-[18px] accent-zinc-900"
-                    [checked]="picked().has(s.sessionId)"
-                    [disabled]="!!blockedReason(s)"
-                    (change)="toggle(s.sessionId)"
-                  />
-                  <span class="font-semibold">{{ s.className }}</span>
-                  <small class="ml-auto text-sm text-zinc-600 tabular-nums"
-                    >{{ s.startTime?.slice(0, 5) }}–{{ s.endTime?.slice(0, 5) }}</small
+          <!-- A6 .pick：清單與空狀態都在這一層（標題在外面） -->
+          <div class="flex flex-col gap-2">
+            @if (!studentId()) {
+              <!-- A6 .pick__none -->
+              <p class="m-0 rounded-md bg-zinc-100 p-3 text-md text-zinc-700">
+                先選學生，這裡會列出他那天的課。
+              </p>
+            } @else if (dayState() === 'loading') {
+              <p class="m-0 text-md text-zinc-600" role="status">載入這天的課…</p>
+            } @else if (dayState() === 'error') {
+              <p class="m-0 text-md text-error-700">讀不到這天的課，請換個日期或稍後再試。</p>
+            } @else if (daySessions().length === 0) {
+              <p class="m-0 rounded-md bg-zinc-100 p-3 text-md text-zinc-700">
+                該日無排課。{{ studentLabel() }}在 {{ dayLabel() }} 沒有課，換一天試試。
+              </p>
+            } @else {
+              <div class="contents" role="group" aria-labelledby="leave-pick-label">
+                @for (s of daySessions(); track s.sessionId) {
+                  <label
+                    class="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-3 has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset has-disabled:cursor-not-allowed has-disabled:text-zinc-500"
                   >
-                  @if (blockedReason(s); as why) {
-                    <span class="text-sm text-zinc-600">{{ why }}</span>
-                  }
-                </label>
-              }
-            </div>
-          }
+                    <input
+                      type="checkbox"
+                      class="m-0 size-[18px] accent-zinc-900"
+                      [checked]="picked().has(s.sessionId)"
+                      [disabled]="!!blockedReason(s)"
+                      (change)="toggle(s.sessionId)"
+                    />
+                    <span class="font-semibold">{{ s.className }}</span>
+                    <small class="ml-auto text-sm text-zinc-600 tabular-nums"
+                      >{{ s.startTime?.slice(0, 5) }}–{{ s.endTime?.slice(0, 5) }}</small
+                    >
+                    @if (blockedReason(s); as why) {
+                      <span class="text-sm text-zinc-600">{{ why }}</span>
+                    }
+                  </label>
+                }
+              </div>
+            }
+          </div>
         </div>
         <div class="min-w-0">
           <label class="mb-1 block text-md font-semibold text-zinc-700" for="leave-reason"
