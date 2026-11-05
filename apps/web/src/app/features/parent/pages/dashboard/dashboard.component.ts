@@ -56,6 +56,7 @@ import {
   weekdayChar,
 } from './dashboard.util';
 import { PushPromptComponent } from './push-prompt/push-prompt.component';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 type Detail =
@@ -83,6 +84,7 @@ interface Loaded {
   standalone: true,
   imports: [
     SkeletonComponent,
+    DialogFrameComponent,
     DecimalPipe,
     NgTemplateOutlet,
     RouterLink,
@@ -189,6 +191,21 @@ export class DashboardComponent implements OnInit {
 
   protected hhmm(time: string | null): string {
     return time ? time.slice(0, 5) : '';
+  }
+
+  /** 詳情對話框的標題與副標（共用殼 app-dialog-frame 收字串，#2290） */
+  protected detailHead(d: Detail): { title: string; sub: string } {
+    switch (d.kind) {
+      case 'session':
+        return {
+          title: d.session.className ?? '',
+          sub: `${dayLabel(d.session.date)}${this.hhmm(d.session.startTime)}–${this.hhmm(d.session.endTime)}`,
+        };
+      case 'log':
+        return { title: `${d.log.className ?? ''} 聯絡簿`, sub: dayLabel(d.log.logDate) };
+      case 'class':
+        return { title: d.cls.className, sub: slotsLabel(d.cls) };
+    }
   }
 
   /** 列右邊的標籤：課務異動、有小考、上課中（A6 `tagsOf`） */

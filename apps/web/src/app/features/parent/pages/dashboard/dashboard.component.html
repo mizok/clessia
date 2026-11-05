@@ -314,167 +314,133 @@
   </app-child-scope-gate>
 </div>
 
-<!-- 唯讀詳情（A6 用帳號設定那型對話框）：課堂／聯絡簿／課程。原生 <dialog>：Esc、焦點圈住由瀏覽器做 -->
+<!-- 唯讀詳情（A6 用帳號設定那型對話框）：課堂／聯絡簿／課程。原生 <dialog>：Esc、焦點圈住由瀏覽器做。
+     共用殼 app-dialog-frame（#2290）：手機貼底抽屜、由下滑入；底部照 A6 p-dashboard（每種都有「關閉」）、sticky -->
 <dialog
   #detailDialog
-  class="dashboard__detail m-auto min-h-11 w-[min(32rem,calc(100%-2rem))] rounded-lg border-0 p-0 text-zinc-900 shadow-md backdrop:bg-zinc-900/40"
-  aria-labelledby="dash-detail-title"
+  role="dialog"
+  class="dashboard__detail overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(var(--dlg-w-md),calc(100%-32px))] rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-zinc-200"
   (click)="onDialogClick($event)"
   (close)="detail.set(null)"
 >
   @if (detail(); as d) {
-    <div class="flex items-start justify-between gap-3 px-6 pt-6 max-wide:px-4">
-      <div class="min-w-0">
-        <h2 id="dash-detail-title" class="m-0 text-xl font-bold">
-          @switch (d.kind) {
-            @case ('session') {
-              {{ d.session.className }}
-            }
-            @case ('log') {
-              {{ d.log.className }} 聯絡簿
-            }
-            @case ('class') {
-              {{ d.cls.className }}
-            }
-          }
-        </h2>
-        <p class="m-0 mt-1 text-md text-zinc-700 tabular-nums">
-          @switch (d.kind) {
-            @case ('session') {
-              {{ dayLabel(d.session.date) }}{{ hhmm(d.session.startTime) }}–{{
-                hhmm(d.session.endTime)
-              }}
-            }
-            @case ('log') {
-              {{ dayLabel(d.log.logDate) }}
-            }
-            @case ('class') {
-              {{ slotsLabel(d.cls) }}
-            }
-          }
-        </p>
-      </div>
-      <button
-        type="button"
-        class="inline-grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-700 hover:bg-zinc-100"
-        aria-label="關閉"
-        (click)="closeDetail()"
-      >
-        <i class="pi pi-times" aria-hidden="true"></i>
-      </button>
-    </div>
-
-    @switch (d.kind) {
-      @case ('session') {
-        <dl
-          class="m-0 grid grid-cols-[6em_minmax(0,1fr)] gap-x-3 gap-y-2 px-6 pt-2 pb-4 text-base max-wide:px-4"
-        >
-          <dt class="text-zinc-600">老師</dt>
-          <dd class="m-0 font-medium">
-            {{ d.session.teacherName ?? '—' }}
-            @if (d.session.isSubstitute && d.session.originalTeacherName) {
-              （代課，原任 {{ d.session.originalTeacherName }}）
-            }
-          </dd>
-          <dt class="text-zinc-600">地點</dt>
-          <dd class="m-0 font-medium">
-            {{ d.session.campusName ?? '—' }}
-            @if (d.session.classroomName) {
-              · {{ d.session.classroomName }}
-            }
-          </dd>
-          @if (d.session.campusPhone; as phone) {
-            <dt class="text-zinc-600">分校電話</dt>
-            <dd class="m-0 font-medium" data-part="campus-phone">
-              <a
-                class="inline-flex min-h-11 items-center text-zinc-900 underline underline-offset-[3px]"
-                [href]="'tel:' + phone"
-                >{{ phone }}</a
-              >
-            </dd>
-          }
-          @if (sessionTags(d.session).length > 0) {
-            <dt class="text-zinc-600">狀態</dt>
+    <app-dialog-frame
+      [title]="detailHead(d).title"
+      [sub]="detailHead(d).sub"
+      (closed)="closeDetail()"
+    >
+      @switch (d.kind) {
+        @case ('session') {
+          <dl class="m-0 grid grid-cols-[6em_minmax(0,1fr)] gap-x-3 gap-y-2 text-base">
+            <dt class="text-zinc-600">老師</dt>
             <dd class="m-0 font-medium">
-              {{ tagText(d.session) }}
+              {{ d.session.teacherName ?? '—' }}
+              @if (d.session.isSubstitute && d.session.originalTeacherName) {
+                （代課，原任 {{ d.session.originalTeacherName }}）
+              }
             </dd>
-          }
-          @if (d.session.examNames.length > 0) {
-            <dt class="text-zinc-600">考試</dt>
-            <dd class="m-0 font-medium">這堂有考試（{{ d.session.examNames.join('、') }}）</dd>
-          }
-        </dl>
-        <div class="flex flex-wrap justify-end gap-2 px-6 pb-6 max-wide:px-4 max-wide:pb-8">
-          <a
-            routerLink="/parent/attendance"
-            class="inline-flex h-11 items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
-            (click)="closeDetail()"
-            >到班紀錄</a
-          >
-          <a
-            routerLink="/parent/schedule"
-            class="inline-flex h-11 items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
-            (click)="closeDetail()"
-            >看課表</a
-          >
-          <button
-            type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
-            (click)="closeDetail()"
-          >
-            關閉
-          </button>
-        </div>
-      }
-      @case ('log') {
-        <!-- white-space: pre-line：老師寫的換行要留著 -->
-        <!-- prettier-ignore -->
-        <p class="m-0 px-6 pt-2 pb-4 text-base leading-relaxed whitespace-pre-line text-zinc-800 max-wide:px-4">{{ d.log.homework }}</p>
-        <div class="flex flex-wrap justify-end gap-2 px-6 pb-6 max-wide:px-4 max-wide:pb-8">
-          <button
-            type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
-            (click)="closeDetail()"
-          >
-            關閉
-          </button>
-        </div>
-      }
-      @case ('class') {
-        <dl
-          class="m-0 grid grid-cols-[6em_minmax(0,1fr)] gap-x-3 gap-y-2 px-6 pt-2 pb-4 text-base max-wide:px-4"
-        >
-          <dt class="text-zinc-600">老師</dt>
-          <dd class="m-0 font-medium">{{ d.cls.teacherNames.join('、') || '—' }}</dd>
-          <dt class="text-zinc-600">地點</dt>
-          <dd class="m-0 font-medium">{{ d.cls.campusName ?? '—' }}</dd>
-          @if (d.cls.fee) {
-            <dt class="text-zinc-600">費用</dt>
+            <dt class="text-zinc-600">地點</dt>
             <dd class="m-0 font-medium">
-              {{ d.cls.fee.amount | number }} 元 / {{ feeUnit(d.cls.fee.billingMode) }}
+              {{ d.session.campusName ?? '—' }}
+              @if (d.session.classroomName) {
+                · {{ d.session.classroomName }}
+              }
             </dd>
-          }
-          <dt class="text-zinc-600">名額</dt>
-          <dd class="m-0 font-medium">
-            上限 {{ d.cls.maxStudents }} 人，還有 {{ d.cls.remainingSeats }} 個位子
-          </dd>
-        </dl>
-        <div class="flex flex-wrap justify-end gap-2 px-6 pb-6 max-wide:px-4 max-wide:pb-8">
-          <a
-            routerLink="/parent/add-course"
-            class="inline-flex h-11 items-center justify-center rounded-md border border-accent-vivid bg-accent-vivid px-4 text-md font-semibold text-zinc-900 no-underline hover:border-accent-vivid-2 hover:bg-accent-vivid-2 max-wide:flex-1 wide:h-9"
-            (click)="closeDetail()"
-            >申請加選</a
-          >
-          <button
-            type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
-            (click)="closeDetail()"
-          >
-            關閉
-          </button>
-        </div>
+            @if (d.session.campusPhone; as phone) {
+              <dt class="text-zinc-600">分校電話</dt>
+              <dd class="m-0 font-medium" data-part="campus-phone">
+                <a
+                  class="inline-flex min-h-11 items-center text-zinc-900 underline underline-offset-[3px]"
+                  [href]="'tel:' + phone"
+                  >{{ phone }}</a
+                >
+              </dd>
+            }
+            @if (sessionTags(d.session).length > 0) {
+              <dt class="text-zinc-600">狀態</dt>
+              <dd class="m-0 font-medium">
+                {{ tagText(d.session) }}
+              </dd>
+            }
+            @if (d.session.examNames.length > 0) {
+              <dt class="text-zinc-600">考試</dt>
+              <dd class="m-0 font-medium">這堂有考試（{{ d.session.examNames.join('、') }}）</dd>
+            }
+          </dl>
+        }
+        @case ('log') {
+          <!-- white-space: pre-line：老師寫的換行要留著 -->
+          <!-- prettier-ignore -->
+          <p class="m-0 text-base leading-relaxed whitespace-pre-line text-zinc-800">{{ d.log.homework }}</p>
+        }
+        @case ('class') {
+          <dl class="m-0 grid grid-cols-[6em_minmax(0,1fr)] gap-x-3 gap-y-2 text-base">
+            <dt class="text-zinc-600">老師</dt>
+            <dd class="m-0 font-medium">{{ d.cls.teacherNames.join('、') || '—' }}</dd>
+            <dt class="text-zinc-600">地點</dt>
+            <dd class="m-0 font-medium">{{ d.cls.campusName ?? '—' }}</dd>
+            @if (d.cls.fee) {
+              <dt class="text-zinc-600">費用</dt>
+              <dd class="m-0 font-medium">
+                {{ d.cls.fee.amount | number }} 元 / {{ feeUnit(d.cls.fee.billingMode) }}
+              </dd>
+            }
+            <dt class="text-zinc-600">名額</dt>
+            <dd class="m-0 font-medium">
+              上限 {{ d.cls.maxStudents }} 人，還有 {{ d.cls.remainingSeats }} 個位子
+            </dd>
+          </dl>
+        }
       }
-    }
+      <ng-container dialogFoot>
+        @switch (d.kind) {
+          @case ('session') {
+            <a
+              routerLink="/parent/attendance"
+              class="inline-flex h-11 items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+              (click)="closeDetail()"
+              >到班紀錄</a
+            >
+            <a
+              routerLink="/parent/schedule"
+              class="inline-flex h-11 items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+              (click)="closeDetail()"
+              >看課表</a
+            >
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+              (click)="closeDetail()"
+            >
+              關閉
+            </button>
+          }
+          @case ('log') {
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+              (click)="closeDetail()"
+            >
+              關閉
+            </button>
+          }
+          @case ('class') {
+            <a
+              routerLink="/parent/add-course"
+              class="inline-flex h-11 items-center justify-center rounded-md border border-accent-vivid bg-accent-vivid px-4 text-md font-semibold text-zinc-900 no-underline hover:border-accent-vivid-2 hover:bg-accent-vivid-2 max-wide:flex-1 wide:h-9"
+              (click)="closeDetail()"
+              >申請加選</a
+            >
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+              (click)="closeDetail()"
+            >
+              關閉
+            </button>
+          }
+        }
+      </ng-container>
+    </app-dialog-frame>
   }
 </dialog>
