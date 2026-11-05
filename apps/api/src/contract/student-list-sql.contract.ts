@@ -382,6 +382,8 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
       `search=${encodeURIComponent('別 org 國小')}`,
       `search=${PHONE}`, // 三位家長都中（前綴）
       `search=${encodeURIComponent('媽')}&searchScope=student_name`,
+      // 別 org 家長的名字（#1595 P2 ② 裁定 (c)）：兩條路都要是空 —— builder 少了 parents.org_id 會命中乙
+      `search=${encodeURIComponent('跨org家長')}`,
       'today=any',
       'today=arrived',
       'today=missing',
@@ -409,10 +411,11 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
         }
     ctx.teacher = false;
     ctx.campusScope = null;
-    expect(compared).toBe(330);
+    expect(compared).toBe(345);
     expect(diffs).toEqual([]);
     expect(nonEmpty).toBeGreaterThan(50); // 不是兩邊都空
-  });
+    // 近 700 支請求：負載高時會撞預設 30 秒，逾時後 ctx 停在迴圈中途、後面幾條連鎖紅
+  }, 120_000);
 
   it('第一頁（含今日到班）也逐欄相同', async () => {
     for (const who of Object.values(WHO)) {
@@ -466,6 +469,31 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     ).body;
     expect(body['data']).toEqual([]);
     expect((body['summary'] as { total: number }).total).toBe(0);
+    // builder（契約的對照組、無 pool 的單元測試）也要守同一條：直接打，不經 route
+    const supabase = createServiceClientFromEnv({
+      SUPABASE_URL: URL!,
+      SUPABASE_SECRET_KEY: KEY!,
+    } as never);
+    const viaBuilder = await loadStudentListViaBuilder(supabase as never, {
+      orgId: ctx.orgId,
+      campusIds: null,
+      classIds: null,
+      grade: null,
+      isActive: null,
+      schoolMismatch: false,
+      withoutCard: false,
+      cardIssuedToday: false,
+      cardDayStart: '2026-01-01T00:00:00+08:00',
+      cardDayEnd: '2026-01-02T00:00:00+08:00',
+      limit: 20,
+      offset: 0,
+      withPhone: false,
+      search: '跨org家長',
+      searchRelated: true,
+      searchPhone: false,
+      todayIds: null,
+    });
+    expect([viaBuilder.rows, viaBuilder.total]).toEqual([[], 0]);
   });
 
   it('受限管理員帶搜尋也不碰 REST（舊碼：家長、學校前置查詢＋列表＋計數）', async () => {
