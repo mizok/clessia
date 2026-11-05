@@ -2252,6 +2252,14 @@ export const PAGES = {
   'fee-templates': {
     a6: 'fee-templates.html',
     app: '/admin/fee-templates',
+    // #2290 換殼的對話框：稿 A2.form（原生 dialog）↔ app DynamicDialog
+    a6Open: { 'new-ft': { click: '[data-newft]', root: 'dialog[open]' } },
+    appOpen: {
+      'new-ft': {
+        click: 'button:has-text("新增價目表")',
+        root: '.p-dialog:has(app-fee-template-form-dialog)',
+      },
+    },
     deviations: [
       // 用模板建立：A6 放在系統設定、是一選就建的 select；使用者 11-02 搬到這裡、改成 radio＋預覽＋送出鈕，
       // 11-04 收進彈窗（#2235），頁面上只剩開彈窗的那顆鈕（列表空時在空狀態裡）
@@ -2369,6 +2377,11 @@ export const PAGES = {
   meals: {
     a6: 'meals.html',
     app: '/admin/meals',
+    // #2290 換殼的對話框：稿 A2.form（原生 dialog）↔ app DynamicDialog
+    a6Open: { run: { click: '[data-close]', root: 'dialog[open]' } },
+    appOpen: {
+      run: { click: 'button:has-text("月結")', root: '.p-dialog:has(app-billing-run-dialog)' },
+    },
     deviations: [
       {
         status: '黏住',
