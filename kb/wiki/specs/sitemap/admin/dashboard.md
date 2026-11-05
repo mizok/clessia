@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-10-01
+updated: 2026-11-05
 ---
 
 # 儀表板
@@ -432,7 +432,7 @@ leave_requests:     許雅雯 → 只有 09-10 一筆
 
 | 顆 | 原因 |
 | --- | --- |
-| `class-logs.upsert`（`寫日誌`） | **`attendance_responsible = 'admin'`**（seed 預設）⇒ `isTeacherLed()` 為 false ⇒ **老師端的動作鈕整層不渲染**（點名、寫日誌、寫聯絡簿都一樣）。而 **`attendanceResponsible` 在 admin 設定頁沒有 UI 入口**（`grep` 只在 `settings.page.spec.ts` 命中），所以連「先改設定再按」都做不到 |
+| `class-logs.upsert`（`寫日誌`） | **`attendance_responsible = 'admin'`**（seed 預設）⇒ `isTeacherLed()` 為 false ⇒ **老師端的動作鈕整層不渲染**（點名、寫日誌；寫聯絡簿 #2315 起已解綁、只看班有沒有開聯絡簿）。而 **`attendanceResponsible` 在 admin 設定頁沒有 UI 入口**（`grep` 只在 `settings.page.spec.ts` 命中），所以連「先改設定再按」都做不到 |
 | `class-logs.publish` | 同上，**而且它在 UI 上本來就沒有入口** —— `schedule.page.html:238` 的註解逐字寫「v1a 只有撰寫，**沒有發布** —— 發布不可逆，而家長端讀取與 LINE 推播都還不存在」 |
 | `announcement-inbox.markAllRead` | `全部標為已讀` 只在**有未讀時**渲染。本輪唯一那則公告已被第 11 顆讀掉，按鈕就消失了 |
 | `parent-form-dialog.update` | **第 5 輪已按過**（同元件的編輯模式），不是漏按 |

@@ -439,6 +439,7 @@ export class LeavePage implements OnInit {
       header: '登記請假',
       width: '480px',
       modal: true,
+      showHeader: false, // 標題由請假表單裡的共用殼畫（#2290）
       appendTo: this.overlayContainerService.getContainer() || 'body',
       contentStyle: LEAVE_DIALOG_CONTENT_STYLE,
     });
@@ -486,6 +487,7 @@ export class LeavePage implements OnInit {
       header: '編輯請假',
       width: '480px',
       modal: true,
+      showHeader: false, // 標題由請假表單裡的共用殼畫（#2290）
       appendTo: this.overlayContainerService.getContainer() || 'body',
       contentStyle: LEAVE_DIALOG_CONTENT_STYLE,
       data: { leave: record },
