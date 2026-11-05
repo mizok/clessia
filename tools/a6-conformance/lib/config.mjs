@@ -884,6 +884,23 @@ export const PAGES = {
       },
     },
     deviations: [
+      // #2316：收款彈窗標題寫期別、副標加到期日 —— 標題文字變了，工具把稿的 h2 配到別的字上
+      ...[
+        { status: '文案', a6: '^pop\\[pay\\]>landmark:dialog\\[記錄收款\\]$' },
+        {
+          status: '文案',
+          a6: '>landmark:dialog\\[記錄收款\\]>text:p\\[\\{名\\} ·應繳#元·已收#元·尚欠#元\\]$',
+        },
+        ...['角色', '位置', '尺寸', '樣式'].map((status) => ({
+          status,
+          a6: '>landmark:dialog\\[記錄收款\\]>heading:h2\\[記錄收款\\]$',
+        })),
+      ].map((d) => ({
+        ...d,
+        pop: 'pay',
+        reason: '收款彈窗標題寫期別（「記錄收款 · 11 月學費」）、副標加到期日',
+        source: `${rule('R5', '「帳單列寫期別」2026-11-05')}；#2316`,
+      })),
       // #2316：逾期章每列多一行期別（稿沒有），列內 span 序號跟著錯開
       ...[
         { status: '樣式', a6: '>landmark:region\\[逾期\\]>row>text:span~2$' },
