@@ -4,7 +4,7 @@ import { catchError, from, map, mergeMap, of, tap, toArray } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { InputTextModule } from 'primeng/inputtext';
-import { SelectModule } from 'primeng/select';
+import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 
 import { EnrollmentsService } from '@core/enrollments.service';
@@ -30,29 +30,25 @@ interface Pick {
 @Component({
   selector: 'app-leave-batch-dialog',
   standalone: true,
-  imports: [DialogFrameComponent, FormsModule, InputTextModule, SelectModule],
+  imports: [DialogFrameComponent, FormsModule, InputTextModule, SelectFieldComponent],
   template: `
     <!-- 共用殼（#2290）：標題、副標照 A6 leave.html batchLeave -->
     <app-dialog-frame title="批次請假" sub="同一堂課，一次幫好幾位學生請假" (closed)="close()">
       <div class="flex flex-col gap-4">
-        <label class="flex flex-col gap-1 text-md font-semibold text-zinc-700">
-          <span>課堂 <span class="text-error-700" aria-hidden="true">*</span></span>
-          <p-select
-            styleClass="w-full"
-            [options]="sessionOptions()"
-            optionLabel="label"
-            optionValue="value"
-            [filter]="true"
-            filterBy="label"
+        <div class="flex flex-col gap-1">
+          <!-- A6 的下拉（#2325）：全站 app-select-field，超過 8 項自動出搜尋框 -->
+          <app-select-field
+            label="課堂"
+            labelSize="md"
             placeholder="選一堂課"
-            [ngModel]="sessionId()"
-            (ngModelChange)="onSessionChange($event)"
-            [appendTo]="'body'"
-            ariaLabel="課堂"
+            [required]="true"
+            [options]="sessionOptions()"
+            [value]="sessionId()"
+            (valueChange)="onSessionChange($event)"
           />
           <!-- A6 .acset__hint -->
           <span class="text-sm font-normal text-zinc-600">例如全班校外教學、颱風停課補假</span>
-        </label>
+        </div>
 
         <fieldset class="m-0 flex flex-col gap-1 border-0 p-0" data-testid="batch-students">
           <legend class="flex w-full items-center gap-3 p-0 text-md font-semibold text-zinc-700">

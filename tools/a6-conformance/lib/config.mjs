@@ -1863,6 +1863,8 @@ export const PAGES = {
     a6Open: opensOf('leave', 'a6Open'),
     appOpen: opensOf('leave', 'appOpen'),
     deviations: [
+      // 批次請假的課堂：app-select-field 對稿的 .dd（#2325，全站同一套）
+      ...selectFieldDeviations('課堂').map((d) => ({ ...d, pop: 'batch' })),
       {
         // 稿的請假用今天起算的相對日期（leave.html D(n)），所以永遠有今天、明天的章；
         // 本機 seed 的請假是 reset 當天起算，「待處理」分頁今天以後沒有，app 顯示空狀態
@@ -2305,6 +2307,8 @@ export const PAGES = {
         source:
           'staff.html:82（權限項目「照產品」）、:239（稿示範的第一筆是本人）；#1314 issuecomment-6647755506',
       })),
+      // 授課紀錄的月份：app-select-field 對稿的 .dd（#2325，全站同一套）
+      ...selectFieldDeviations('月份').map((d) => ({ ...d, pop: 'teaching-log' })),
       // 授課紀錄（#2290 B 批）：量的是 seed 的老師，稿是假人名 —— 標題文案是資料
       {
         status: '文案',
@@ -3639,7 +3643,8 @@ export const PAGES = {
         status: '位置',
         pop: 'panel',
         a6: '>control:link\\[到課表點名\\]$',
-        reason: '連帶＋資料：文案不同配不上同名鈕；面板上方考試列數與家長電話是資料（稿 3 場、seed 2 場、沒留電話）',
+        reason:
+          '連帶＋資料：文案不同配不上同名鈕；面板上方考試列數與家長電話是資料（稿 3 場、seed 2 場、沒留電話）',
         source: 'kb/wiki/architecture/a6-adoption-rules.md R5「老師學生面板主按鈕」（#2317）',
       },
     ],
