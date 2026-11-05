@@ -471,6 +471,21 @@ const selectFieldDeviations = (names) =>
     { status: '多', app: 'control:button\\[dropdown trigger\\](~\\d+)?$' },
   ].map((d) => ({ ...d, reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE }));
 /**
+ * 對話框裡的 app-select-field（#2325）：selectFieldDeviations 只管缺／多；稿的選單鈕本身（位置、文案、樣式、尺寸）
+ * 與標籤（稿 label、app span）也是同一個結構差。app 的可及名稱可能帶必填星號；稿的選單鈕名稱是「ddName：目前值」
+ */
+const selectFieldInDialog = (pop, name, ddName = name) =>
+  [
+    { status: '缺', a6: `control:button\\[${ddName}：[^\\]]*\\](>text:span\\[[^\\]]*\\])?$` },
+    { status: '多', app: `control:combobox\\[${name}\\*?\\]$` },
+    { status: '多', app: 'control:button\\[dropdown trigger\\](~\\d+)?$' },
+    ...['文案', '位置', '樣式', '尺寸'].map((status) => ({
+      status,
+      a6: `control:button\\[${ddName}：[^\\]]*\\]$`,
+    })),
+    ...['角色', '尺寸'].map((status) => ({ status, a6: `text:label\\[${name}\\]$` })),
+  ].map((d) => ({ ...d, pop, reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE }));
+/**
  * 公開頁（登入、選身分、試聽、報名）的品牌面：補習班名稱當主標，Clessia 退成一行小字併「· 學程管家」
  * （稿是大字 Clessia、下面一行學程管家）。字標兩顆的文案、尺寸、樣式，以及多出來的「· 學程管家」字。
  */
@@ -1864,7 +1879,7 @@ export const PAGES = {
     appOpen: opensOf('leave', 'appOpen'),
     deviations: [
       // 批次請假的課堂：app-select-field 對稿的 .dd（#2325，全站同一套）
-      ...selectFieldDeviations('課堂').map((d) => ({ ...d, pop: 'batch' })),
+      ...selectFieldInDialog('batch', '課堂', '選擇'),
       {
         // 稿的請假用今天起算的相對日期（leave.html D(n)），所以永遠有今天、明天的章；
         // 本機 seed 的請假是 reset 當天起算，「待處理」分頁今天以後沒有，app 顯示空狀態
@@ -2308,7 +2323,7 @@ export const PAGES = {
           'staff.html:82（權限項目「照產品」）、:239（稿示範的第一筆是本人）；#1314 issuecomment-6647755506',
       })),
       // 授課紀錄的月份：app-select-field 對稿的 .dd（#2325，全站同一套）
-      ...selectFieldDeviations('月份').map((d) => ({ ...d, pop: 'teaching-log' })),
+      ...selectFieldInDialog('teaching-log', '月份'),
       // 授課紀錄（#2290 B 批）：量的是 seed 的老師，稿是假人名 —— 標題文案是資料
       {
         status: '文案',
