@@ -80,8 +80,8 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
           (submit)="$event.preventDefault(); save()"
         >
           <div class="col-span-full min-w-0">
-            <span class="mb-1 block text-md font-semibold text-zinc-700"
-              >學生 <span class="text-error-700" aria-hidden="true">*</span></span
+            <label class="mb-1 block text-md font-semibold text-zinc-700"
+              >學生 <span class="text-error-700" aria-hidden="true">*</span></label
             >
             <app-student-autocomplete
               placeholder="輸入姓名搜尋"
@@ -106,8 +106,9 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
             />
           </div>
           <div class="col-span-full min-w-0">
-            <span class="mb-1 block text-md font-semibold text-zinc-700" id="direct-enroll-mode"
-              >計費模式</span
+            <!-- 稿是 label；radiogroup 沒有單一控制項可以 for，靠 aria-labelledby 指回來（同 campus-form-dialog） -->
+            <label class="mb-1 block text-md font-semibold text-zinc-700" id="direct-enroll-mode"
+              >計費模式</label
             >
             <div
               class="flex flex-wrap gap-2"
@@ -281,7 +282,8 @@ export class DirectEnrollDialogComponent {
     this.student.set(null);
     this.studentSuggestions.set([]);
     this.classId.set(null);
-    this.mode.set(null);
+    // 稿的 radio 預設選第一個（月繳）
+    this.mode.set('monthly');
     this.feeTemplateId.set(null);
     this.from.set(this.today());
     this.to.set('');
