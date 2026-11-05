@@ -514,7 +514,7 @@ export class ClassFormDialogComponent {
    */
   private openConflictWarning(conflicts: ScheduleConflict[]): void {
     const ref = this.dialogService.open(ConflictWarningDialogComponent, {
-      width: '520px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       // 跟 courses.page 開這支對話框時同一個容器 —— 疊在既有對話框之上
@@ -731,7 +731,7 @@ export class ClassFormDialogComponent {
       teacherOptions: this.filteredStaffOptions(),
     };
     const ref = this.dialogService.open(ScheduleSplitDialogComponent, {
-      width: '520px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: 'body',

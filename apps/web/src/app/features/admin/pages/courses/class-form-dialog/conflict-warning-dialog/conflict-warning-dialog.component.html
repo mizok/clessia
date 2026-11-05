@@ -1,11 +1,10 @@
-<div class="flex flex-col gap-4 p-2">
+<!-- 共用殼（#2290）：標頭不放圖示；警示色留在下面的說明句與清單左框。✕＝返回修改 -->
+<app-dialog-frame title="排課衝突警告" (closed)="cancel()">
   <!-- 800 而不是 600：warning-600 疊 warning-100 只有 4.03:1 -->
-  <div class="flex items-center gap-2 text-warning-800">
+  <p class="m-0 flex items-center gap-2 font-semibold text-warning-800">
     <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-    <h2 class="m-0 text-lg font-semibold">排課衝突警告</h2>
-  </div>
-
-  <p class="m-0 text-zinc-700">以下老師在指定時間已有其他班級的排課：</p>
+    以下老師在指定時間已有其他班級的排課：
+  </p>
 
   <!-- 衝突可能很多筆。給一個上限並自己捲，而不是讓整個對話框長到超出視窗 ——
        那會把下面的「返回修改／仍要儲存」推出視野，變成另一個看不見的東西。 -->
@@ -30,9 +29,8 @@
       </li>
     }
   </ul>
-
-  <div class="flex justify-end gap-2">
+  <ng-container dialogFoot>
     <p-button label="返回修改" [text]="true" severity="secondary" (onClick)="cancel()" />
     <p-button label="仍要儲存" severity="warn" (onClick)="proceed()" />
-  </div>
-</div>
+  </ng-container>
+</app-dialog-frame>
