@@ -1891,6 +1891,9 @@ export const PAGES = {
   // 家長端加選課程（#1727 ⑤）：卡片點開是 JS 打開的 <dialog>（稿 sheet()、app 原生 showModal）
   'p-add-course': {
     a6: 'p-add-course.html',
+    // 課程詳情（點卡片）：兩邊都是原生 dialog（#2290 換殼）
+    a6Open: { detail: { click: '[data-c]', root: 'dialog[open]' } },
+    appOpen: { detail: { click: 'button[data-class]', root: 'dialog[open]' } },
     app: '/parent/add-course',
     state: PARENT_STATE,
     prep: PARENT_PREP,
