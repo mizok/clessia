@@ -7,7 +7,7 @@ import { AuditLogsService, type AuditLog } from '@core/audit-logs.service';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
-import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 
 /** 彈窗裡的分頁（課表：課堂異動／出勤紀錄）。不給就是單一清單，照 `resourceTypes` 查 */
 export interface AuditLogTab {
@@ -77,7 +77,7 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
   selector: 'app-audit-log-dialog',
   standalone: true,
   imports: [
-    DialogTitleDirective,
+    DialogFrameComponent,
     SkeletonComponent,
     DataChipComponent,
     DatePipe,

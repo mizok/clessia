@@ -1685,3 +1685,17 @@ test('配對：稿的「新」標記不擋配對（用 alt 再配一次），「
   );
   assert.ok(!pairs.has('>control:button[批次請假新]>text:span[新]'));
 });
+
+test('偏離的 delta：尺寸只在 後−前＝delta（±1）時命中，其他高度變化照報（#2322 二讀）', async () => {
+  const { classify } = await import('./diff.mjs');
+  const dev = [{ status: '尺寸', delta: -8, reason: 't', source: 't' }];
+  const row = (detail) => ({ status: '尺寸', detail, a6: 'x', app: 'x', kind: 'landmark' });
+  assert.deepEqual(
+    classify(
+      [row('高 520→512'), row('高 520→513'), row('高 520→480'), row('高 520→528')],
+      dev,
+      360,
+    ).map((x) => x.bucket),
+    ['已記錄偏離', '已記錄偏離', '待修', '待修'],
+  );
+});
