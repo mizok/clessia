@@ -195,7 +195,7 @@ export class InvoiceDetailDialogComponent {
   protected openPaymentDialog(kind: PaymentKind): void {
     const dialogRef = this.dialogService.open(PaymentFormDialogComponent, {
       header: kind === 'refund' ? '記錄退費' : '記錄收款',
-      width: '440px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',

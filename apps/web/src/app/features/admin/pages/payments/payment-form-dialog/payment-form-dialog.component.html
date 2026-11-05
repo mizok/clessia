@@ -1,20 +1,5 @@
-<div class="flex flex-col gap-5 p-5">
-  <header class="flex flex-col gap-1">
-    <h2 class="m-0 text-lg font-semibold text-zinc-900">
-      {{ isRefund() ? '記錄退費' : '記錄收款' }}
-    </h2>
-    <p class="m-0 text-xs text-zinc-500">
-      {{ invoice().studentName ?? '未知學生' }} · 應繳 {{ invoice().total | number }} 元 · 已收
-      {{ invoice().netPaid | number }} 元
-      @if (outstandingAmount() > 0) {
-        ·
-        <span class="font-semibold text-zinc-700 tabular-nums"
-          >尚欠 {{ outstandingAmount() | number }} 元</span
-        >
-      }
-    </p>
-  </header>
-
+<!-- 共用殼（#2290）。標題寫期別（#2316）：同一位學生好幾張帳單，收之前要看得出是哪一張 -->
+<app-dialog-frame [title]="title()" [sub]="sub()" (closed)="cancel()">
   <div class="flex flex-col gap-4">
     <div class="flex flex-col gap-2">
       <label class="text-sm font-medium text-zinc-600" for="pf-amount">
@@ -90,7 +75,7 @@
     }
   </div>
 
-  <footer class="flex justify-end gap-2">
+  <ng-container dialogFoot>
     <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
     <p-button
       [label]="isRefund() ? '記錄退費' : '記錄收款'"
@@ -98,5 +83,5 @@
       [loading]="saving()"
       (onClick)="save()"
     />
-  </footer>
-</div>
+  </ng-container>
+</app-dialog-frame>

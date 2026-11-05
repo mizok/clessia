@@ -906,7 +906,7 @@ export class PaymentsPage implements OnInit {
   protected collect(invoice: Invoice): void {
     const ref = this.dialogService.open(PaymentFormDialogComponent, {
       header: '記錄收款',
-      width: '440px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
@@ -934,7 +934,7 @@ export class PaymentsPage implements OnInit {
 
   protected openCreateDialog(): void {
     const ref = this.dialogService.open(InvoiceFormDialogComponent, {
-      width: '640px',
+      width: 'var(--dlg-w-lg)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',

@@ -1,5 +1,4 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { format } from 'date-fns';
 
@@ -11,6 +10,8 @@ import { SelectModule } from 'primeng/select';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
+
 import {
   InvoicesService,
   PAYMENT_METHOD_LABELS,
@@ -20,7 +21,7 @@ import {
   type RecordPaymentResult,
 } from '@core/invoices.service';
 
-import { outstanding } from '../payments.util';
+import { invoicePeriodLabel, outstanding } from '../payments.util';
 
 /**
  * 記收款後的 toast 內文（#1778）：金額，加上這次收款的連帶結果（有才寫）——
@@ -53,13 +54,13 @@ export function paymentToastDetail(
   selector: 'app-payment-form-dialog',
   standalone: true,
   imports: [
-    DecimalPipe,
     FormsModule,
     ButtonModule,
     DatePickerModule,
     InputNumberModule,
     InputTextModule,
     SelectModule,
+    DialogFrameComponent,
   ],
   templateUrl: './payment-form-dialog.component.html',
 })
@@ -75,6 +76,23 @@ export class PaymentFormDialogComponent {
   protected readonly saving = signal(false);
 
   protected readonly outstandingAmount = computed(() => outstanding(this.invoice()));
+  /** 收的是哪一期（#2316）；帳單在開窗後不會換 */
+  private readonly period = invoicePeriodLabel(this.config.data.invoice);
+  protected readonly title = computed(
+    () => (this.isRefund() ? '記錄退費' : '記錄收款') + (this.period ? ` · ${this.period}` : ''),
+  );
+  /** 學生 · 應繳／已收／尚欠 · 到期（#2316：到期日放在金額旁） */
+  protected readonly sub = computed(() => {
+    const inv = this.invoice();
+    const n = (v: number) => v.toLocaleString('zh-TW');
+    return [
+      inv.studentName ?? '未知學生',
+      `應繳 ${n(inv.total)} 元`,
+      `已收 ${n(inv.netPaid)} 元`,
+      ...(this.outstandingAmount() > 0 ? [`尚欠 ${n(this.outstandingAmount())} 元`] : []),
+      `到期 ${inv.dueDate ?? '未設定'}`,
+    ].join(' · ');
+  });
 
   protected readonly methodOptions = (Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]).map(
     (value) => ({ value, label: PAYMENT_METHOD_LABELS[value] }),
