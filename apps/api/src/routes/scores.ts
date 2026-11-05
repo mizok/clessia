@@ -1317,6 +1317,7 @@ const studentSummaryRoute = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -1349,7 +1350,7 @@ app.openapi(studentSummaryRoute, async (c) => {
     .maybeSingle();
 
   if (studentError) {
-    return c.json({ error: studentError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: studentError.message, code: 'DB_ERROR' }, 500);
   }
   if (!student) {
     return c.json({ error: '找不到學生', code: 'NOT_FOUND' }, 404);
@@ -1390,7 +1391,7 @@ app.openapi(studentSummaryRoute, async (c) => {
         error: academyResult.error?.message ?? schoolResult.error?.message ?? 'DB_ERROR',
         code: 'DB_ERROR',
       },
-      400,
+      500,
     );
   }
 
@@ -1574,6 +1575,7 @@ const classExamStatsRoute = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -1626,7 +1628,7 @@ app.openapi(classExamStatsRoute, async (c) => {
   if (classError || examClassError) {
     return c.json(
       { error: classError?.message ?? examClassError?.message ?? 'DB_ERROR', code: 'DB_ERROR' },
-      400,
+      500,
     );
   }
   if (!classRow) {
@@ -1657,7 +1659,7 @@ app.openapi(classExamStatsRoute, async (c) => {
     .neq('status', 'void');
 
   if (enrollmentsError) {
-    return c.json({ error: enrollmentsError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: enrollmentsError.message, code: 'DB_ERROR' }, 500);
   }
 
   const studentIds = Array.from(new Set((enrollments ?? []).map((row) => row.student_id)));
@@ -1672,7 +1674,7 @@ app.openapi(classExamStatsRoute, async (c) => {
       : { data: [], error: null };
 
   if (scoreError) {
-    return c.json({ error: scoreError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: scoreError.message, code: 'DB_ERROR' }, 500);
   }
 
   const scoreMap = new Map<

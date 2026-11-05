@@ -405,6 +405,7 @@ const createCampusRoute = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -446,7 +447,7 @@ app.openapi(createCampusRoute, async (c) => {
     if (error.code === '23505') {
       return c.json({ error: '此組織已有同名分校', code: 'DUPLICATE' }, 409);
     }
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
   logAudit(

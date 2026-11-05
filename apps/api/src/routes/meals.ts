@@ -420,6 +420,7 @@ app.openapi(
       },
       400: { description: '錯誤', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: '學生不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -454,7 +455,7 @@ app.openapi(
           .eq('org_id', orgId)
           .in('id', unique.slice(i, i + ID_CHUNK))
           .in('enrollments.classes.campus_id', campusIds);
-        if (error) return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+        if (error) return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
         for (const row of (data ?? []) as Array<{ id: string }>) inScope.add(row.id);
       }
       if (inScope.size < unique.length) {
@@ -501,7 +502,7 @@ app.openapi(
       );
 
       if (error) {
-        return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+        return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
       }
 
       // #901：這一支是 `meals.ts` 唯一的寫入端點，而它寫的是**金額鄰近**的資料
