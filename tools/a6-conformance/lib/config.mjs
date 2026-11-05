@@ -74,6 +74,15 @@ export function rule(id, note = '') {
 
 export const DEVIATIONS = [
   {
+    // 使用者 11-05 17:10：手機貼底抽屜改白底（--sheet-bg），稿是 --gray-sheet 灰。只拆底色這一項
+    status: '樣式',
+    widths: [360],
+    a6: '^pop\\[[^\\]]*\\]>landmark:(dialog|popover)\\[[^\\]]*\\]$',
+    item: '^backgroundColor rgb\\(235, 231, 228\\) → rgb\\(255, 255, 255\\)$',
+    reason: '手機貼底抽屜白底（稿灰底）',
+    source: `${rule('R5')}「手機貼底抽屜白底」2026-11-05；使用者 11-05 截圖`,
+  },
+  {
     // #2290：對話框手機的左右內距 16（標頭與內容一致），稿 `.acset__head`／`.acset__body` 手機仍是 24 —— 對話框裡的部件 Δx −8
     status: '位置',
     widths: [360],
@@ -1609,16 +1618,6 @@ export const PAGES = {
         reason: '可點元素基底 ≥44px；稿的 padding 是 UA 預設（同分校表單的關閉鈕）',
         source: `${rule('R3')}`,
       })),
-      // 手機貼底抽屜用白底，不用稿的灰（使用者 11-05 裁定；共用殼的 token 由 0859 換）
-      {
-        status: '樣式',
-        widths: [360],
-        pop: 'direct',
-        a6: '>landmark:dialog\\[直接報名\\]$',
-        item: '^backgroundColor rgb\\([^)]*\\) → rgb\\(255, 255, 255\\)$',
-        reason: '手機貼底抽屜白底，不用稿的灰底',
-        source: '使用者 11-05 裁定（計畫席 labor-plan-20261105-1551 轉達）',
-      },
       // 手機：選第一欄後少一行（稿 .dd 的占位字）、多一欄方案 —— 計費模式那排與底部按鈕跟著位移
       ...[
         {

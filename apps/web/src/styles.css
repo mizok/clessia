@@ -723,6 +723,9 @@
     --dlg-w-lg: 760px;
     --dlg-pad-x: var(--space-6);
     --sheet-foot-gap: var(--space-4);
+    /* 手機貼底抽屜的底色：白（使用者 11-05 17:10：A6 的 --gray-sheet 灰底讓內容看起來像停用／空狀態）。
+       原生 <dialog> 的貼底寫 `max-wide:bg-(--sheet-bg)` 讀同一個 */
+    --sheet-bg: var(--color-white);
   }
   @media (max-width: 860px) {
     :root {
@@ -748,10 +751,10 @@
     display: none;
   }
   @media (max-width: 860px) {
-    /* 手機是深灰底部面板（A6 `--gray-sheet` #ebe7e4 ＝ zinc-200），欄位本身仍是白底。
+    /* 手機貼底抽屜的底色讀 --sheet-bg（白；A6 是 `--gray-sheet` 灰，使用者 11-05 改白，R5），欄位靠框線區隔。
        safe-area 只墊一次：用 a6 底部列／殼的對話框，抽屜本體不墊（全站 .p-dialog 手機那條），由底部列或內容區墊 */
     .p-dialog:has(.form-dialog--a6) {
-      background: var(--zinc-200);
+      background: var(--sheet-bg);
       padding-bottom: 0;
     }
     /* 貼底抽屜的底部列：下內距＝--sheet-foot-gap＋safe-area，鈕不貼 home indicator（使用者 11-05，#2290 Q1 選 b：抽屜照 A6 貼底） */
