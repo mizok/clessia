@@ -291,7 +291,8 @@ export class FeeTemplatesComponent implements OnInit {
 
   protected openAuditLog(): void {
     this.dialogService.open(AuditLogDialogComponent, {
-      width: '800px',
+      // A6 操作紀錄是 .acset.fdlg（寬 520）
+      width: '520px',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',

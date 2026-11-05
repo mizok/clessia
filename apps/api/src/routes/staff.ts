@@ -815,10 +815,10 @@ app.openapi(listRoute, async (c) => {
   ]);
 
   if (roleResult.error) {
-    return c.json({ error: roleResult.error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: roleResult.error.message, code: 'DB_ERROR' }, 500);
   }
   if (subjectResult.error) {
-    return c.json({ error: subjectResult.error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: subjectResult.error.message, code: 'DB_ERROR' }, 500);
   }
 
   const filteredStaffIdsByCampus: string[] | null = campusIds
@@ -943,10 +943,10 @@ app.openapi(listRoute, async (c) => {
   ]);
 
   if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
   if (summaryError) {
-    return c.json({ error: summaryError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: summaryError.message, code: 'DB_ERROR' }, 500);
   }
 
   const staffRows = (data || []) as Record<string, unknown>[];
@@ -980,10 +980,10 @@ app.openapi(listRoute, async (c) => {
   const total = count || 0;
 
   if (summaryRoleResult.error) {
-    return c.json({ error: summaryRoleResult.error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: summaryRoleResult.error.message, code: 'DB_ERROR' }, 500);
   }
   if (summaryBaResult.error) {
-    return c.json({ error: summaryBaResult.error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: summaryBaResult.error.message, code: 'DB_ERROR' }, 500);
   }
   const summaryRoleInfoMap = toRoleInfoMap(
     ((summaryRoleResult.data || []) as UserRoleRow[]).filter(
@@ -1822,6 +1822,7 @@ const archiveRoute = createRoute({
       description: '人員不存在',
       content: { 'application/json': { schema: ErrorSchema } },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -1848,7 +1849,7 @@ app.openapi(archiveRoute, async (c) => {
   );
 
   if (deactivateError) {
-    return c.json({ error: deactivateError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: deactivateError.message, code: 'DB_ERROR' }, 500);
   }
 
   // 移除登入權限
@@ -1860,7 +1861,7 @@ app.openapi(archiveRoute, async (c) => {
     .in('role', ['admin', 'teacher']);
 
   if (roleError) {
-    return c.json({ error: roleError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: roleError.message, code: 'DB_ERROR' }, 500);
   }
 
   // 解除未來課堂指派 —— 台北時間，不是 UTC（見 lib/taipei-date.ts 檔頭）。
@@ -1878,7 +1879,7 @@ app.openapi(archiveRoute, async (c) => {
     .select('id');
 
   if (unassignError) {
-    return c.json({ error: unassignError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: unassignError.message, code: 'DB_ERROR' }, 500);
   }
 
   logAudit(
@@ -1928,6 +1929,7 @@ const deactivateRoute = createRoute({
       description: '人員不存在',
       content: { 'application/json': { schema: ErrorSchema } },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -1952,7 +1954,7 @@ app.openapi(deactivateRoute, async (c) => {
     orgId,
   );
   if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
   logAudit(
@@ -2002,6 +2004,7 @@ const activateRoute = createRoute({
       description: '人員不存在',
       content: { 'application/json': { schema: ErrorSchema } },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -2026,7 +2029,7 @@ app.openapi(activateRoute, async (c) => {
     orgId,
   );
   if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
   logAudit(

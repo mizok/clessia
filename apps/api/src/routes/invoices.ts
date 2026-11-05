@@ -668,6 +668,7 @@ app.openapi(
         description: '學生或明細參照不存在',
         content: { 'application/json': { schema: ErrorSchema } },
       },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -731,7 +732,7 @@ app.openapi(
       .single();
 
     if (error || !created) {
-      return c.json({ error: error?.message ?? '開帳失敗', code: 'DB_ERROR' }, 400);
+      return c.json({ error: error?.message ?? '開帳失敗', code: 'DB_ERROR' }, 500);
     }
 
     const invoiceId = created['id'] as string;
@@ -806,6 +807,7 @@ app.openapi(
       400: { description: '驗證錯誤', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: '帳單不存在', content: { 'application/json': { schema: ErrorSchema } } },
       409: { description: '帳單已作廢', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -849,7 +851,7 @@ app.openapi(
     });
 
     if (error) {
-      return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
     }
 
     const { data } = await supabase.from('invoices').select(INVOICE_SELECT).eq('id', id).single();

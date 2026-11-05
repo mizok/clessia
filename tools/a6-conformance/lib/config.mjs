@@ -1226,6 +1226,19 @@ export const PAGES = {
         reason: '工具列「⋯」：現況有、稿沒畫的動作收進「⋯」',
         source: `${rule('R2')}；#1226`,
       },
+      // 操作紀錄彈窗：本機 seed 沒有課程的操作紀錄 → app 是空狀態「尚無操作紀錄」（稿也有這句，只是示範資料有 11 筆）
+      ...[
+        { status: '缺', a6: '(^|>)landmark:dialog\\[操作紀錄\\]>list(>.*)?$' },
+        { status: '多', app: '(^|>)landmark:dialog\\[操作紀錄\\]>text:p\\[尚無操作紀錄\\]$' },
+        // 彈窗高度隨紀錄筆數（置中的彈窗頂端跟著動）
+        { status: '位置', a6: '^pop\\[log\\]>landmark:dialog\\[操作紀錄\\]$', detail: 'Δx 0、' },
+      ].map((d) => ({
+        ...d,
+        pop: 'log',
+        reason: '資料：本機沒有課程的操作紀錄，彈窗是空狀態',
+        source:
+          'courses.html logDialog（LOG 空時同樣寫「尚無操作紀錄」）；#1314 issuecomment-6625976591',
+      })),
       {
         // 課程列：稿是 <details><summary>，summary 裡包「新增班」「⋯」按鈕（summary 是按鈕角色，裡面不能再放按鈕）；
         // app 是展開鈕＋並排的動作鈕，每門課一個 region（計畫席 10-30 #2078 同意）。結構不同，課程列裡的子項配不上，一起歸這條
@@ -1594,6 +1607,14 @@ export const PAGES = {
         app: '>landmark:main\\[\\]>text:p\\[目前只看\\{分校\\}，換分校在頂欄。\\]$',
         reason: '現況有、稿沒畫：空狀態的分校範圍提示',
         source: `${rule('R2')}；#1138`,
+      },
+      {
+        // 章裡只有 1 筆時工具認不出是列（稿同章有好幾筆、是列），整個 summary 被當成多包一層的按鈕。
+        // 兩邊都是 details＞summary（A6 `.lv`），同一章有 ≥2 筆時就配得上
+        status: '多',
+        app: '>landmark:main\\[\\]>landmark:region\\[[^\\]]*\\]>control:button\\[[^\\]]*\\](>.*)?$',
+        reason: '工具限制「資料太少」：章裡只有 1 筆，認不出是列',
+        source: 'tools/a6-conformance/README.md「資料少的日子」：只剩 1 個時認不出來',
       },
       // 稿的「新」小標（設計說明）在鈕裡；app 的鈕只有 label span，工具把它配到「新」上
       ...['文案', '位置', '樣式'].map((status) => ({
@@ -2148,6 +2169,14 @@ export const PAGES = {
         reason: '發布表單改成彈窗：工具列「發送通知」是它的入口',
         source: `${rule('R5')}「通知中心發布表單」2026-10-16；#1689`,
       },
+      // 稿有 3 個月份章、本機公告只有 2 個月（多出的那章工具已歸資料差）；那章的章名被後綴配對配到 app 第一章的清單上
+      ...['角色', '文案', '黏住', '樣式'].map((status) => ({
+        status,
+        a6: '>landmark:region\\[#月\\]~3>text:div\\[#月\\]$',
+        app: '>landmark:region\\[#月\\]>list$',
+        reason: '工具限制：稿多一個月份章（資料差），它的章名被配到 app 第一章的清單',
+        source: '本頁 diff 的資料差列「A6 多一個同型區塊：landmark:region「#月」」',
+      })),
     ],
   },
   meals: {
@@ -2446,7 +2475,8 @@ export const PAGES = {
         // 舊有新無：稿的章頭只有課程名＋「N 個班」，app 在章名下保留科目小字
         status: '多',
         host: '^app-chapter-head$',
-        app: 'landmark:region\\[[^\\]]*\\]>text:span\\[[^\\]]*\\]$',
+        // 小字是 p（#1314 11-05 起 app-chapter-head 照 A6 `.chap__meta` 改 p）
+        app: 'landmark:region\\[[^\\]]*\\]>text:(span|p)\\[[^\\]]*\\]$',
         reason: '章名下保留科目小字：課程名不保證含科目，照稿拿掉這頁就看不到科目',
         source:
           'kb/wiki/architecture/a6-adoption-rules.md R5（2026-10-21）；https://github.com/mizok/clessia/pull/1769#issuecomment-6310159607',
@@ -2573,6 +2603,70 @@ export const PAGES = {
         reason: '工具限制：稿的「新」標記是設計說明，app 欄位標籤的 span 被配到它身上',
         source: '.design-explorations a6.js ddLabel（剔除 .new）',
       })),
+      // ── 成績明細對話框（pop[detail]，#2186／#1314 11-05 歸零）──
+      // 學生名、年級、學校是資料：{名} 只收稿的假人名與 app 登入者，點開的學生不在裡面
+      {
+        status: '文案',
+        pop: 'detail',
+        a6: '(^|>)landmark:dialog\\[\\{名\\}的成績\\](>heading:h2\\[\\{名\\}的成績\\]|>text:p\\[國三·實踐國中\\])?$',
+        reason: '學生名、年級、學校是資料（點開的是 seed 的學生，不是稿的示範學生）',
+        source:
+          'tools/a6-conformance/README.md「part key」：{名} 只收稿的假人名與 app 登入者的 displayName',
+      },
+      // 型態／科目下拉：app-select-field（稿 .dd 是一顆按鈕；app 是 combobox＋箭頭鈕，箭頭鈕被配到稿的按鈕上）
+      ...selectFieldDeviations('考試型態|科目').map((d) => ({ ...d, pop: 'detail' })),
+      ...['文案', '位置', '樣式', '尺寸'].map((status) => ({
+        status,
+        pop: 'detail',
+        a6: '(^|>)control:button\\[(考試型態|科目)：[^\\]]*\\]$',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      })),
+      // 各科摘要灰面：既有功能、稿沒畫，保留在對話框頂端
+      {
+        status: '多',
+        pop: 'detail',
+        app: '(^|>)landmark:dialog\\[[^\\]]*\\]>(text:b\\[[^\\]]*\\]|text:span\\[(#筆|近期小考|# / #|最近段考|—)\\])$',
+        reason: '各科摘要（近期小考、最近段考）是既有功能，稿沒畫；保留在對話框頂端',
+        source: `${rule('R5')}「成績學生頁的成績明細對話框」2026-11-05`,
+      },
+      // 合計列：寫「顯示 N／M 場 · 不及格 N 場」，不寫稿的跨場平均（各場總分不同，平均沒有意義）
+      ...[
+        { status: '文案', a6: '(^|>)text:p\\[#場·平均#分·不及格#場\\]$' },
+        { status: '多', app: '(^|>)text:p\\[顯示／#場·不及格#場\\]>text:b\\[#\\]$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'detail',
+        reason: '合計列不算跨場平均（各場總分不同），改寫篩選後／全部場數',
+        source: `${rule('R5')}「成績學生頁的成績明細對話框」2026-11-05`,
+      })),
+      // 紀錄列包在 ul／li（稿是 div 列）：ul 本身由全站 R7 那條歸偏離，列跟著
+      {
+        status: '多',
+        pop: 'detail',
+        app: '(^|>)landmark:dialog\\[[^\\]]*\\]>list>row$',
+        reason: '語意結構依內容：列表用 ul／li，外觀照稿',
+        source: `${rule('R7', '，#1590')}`,
+      },
+      // 期間鈕：桌機 40（灰帶工具列控制項同高），稿 34；手機 44 由全站 R3 那條管
+      {
+        status: '尺寸',
+        pop: 'detail',
+        widths: [1440],
+        a6: '(^|>)control:button\\[(近#月|近半年|全部)\\](~\\d+)?$',
+        detail: '^高 34→40$',
+        reason: '工具列控制項全部同高：桌機 40',
+        source: `${rule('R5')}「灰帶工具列控制項高度」2026-10-23；#1903`,
+      },
+      // 動作列的上下位置：稿示範學生的紀錄比 seed 多（稿整頁列出、app 每頁 10 場），對話框高度不同
+      {
+        status: '位置',
+        pop: 'detail',
+        a6: '(^|>)landmark:dialog\\[\\{名\\}的成績\\]>(control:link\\[學生檔案\\]|control:button\\[關閉\\]~2)$',
+        detail: '^相對「\\{名\\}的成績」 Δx -?\\d+、Δy -\\d+（',
+        reason: '紀錄列數是資料：稿的示範學生場數多、整份列出；app 每頁 10 場',
+        source: 'tools/a6-conformance/README.md「資料差的判定」：清單列數不同',
+      },
     ],
   },
   // `prep`：量之前先在兩邊做的步驟（步驟格式同 scenarios.mjs）。週視圖與儲存列都要操作後才出現，

@@ -429,7 +429,7 @@ async function teacherEligibilityProblem(
   orgId: string,
   classId: string,
   teacherId: string,
-): Promise<{ status: 400 | 409; error: string; code: string } | null> {
+): Promise<{ status: 400 | 409 | 500; error: string; code: string } | null> {
   const { data: classRow } = await supabase
     .from('classes')
     .select('id, campus_id, course_id')
@@ -463,7 +463,7 @@ async function teacherEligibilityProblem(
 
   if (!eligibility.eligible) {
     if ('dbError' in eligibility) {
-      return { status: 400, error: eligibility.dbError, code: 'DB_ERROR' };
+      return { status: 500, error: eligibility.dbError, code: 'DB_ERROR' };
     }
     return { status: 409, error: eligibility.reason, code: 'TEACHER_NOT_ELIGIBLE' };
   }
@@ -1211,6 +1211,7 @@ app.openapi(
         description: '班名重複',
         content: { 'application/json': { schema: ErrorSchema } },
       },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -1269,7 +1270,7 @@ app.openapi(
       if (error.code === '23505') {
         return c.json({ error: '此課程已有同名班級', code: 'DUPLICATE' }, 409);
       }
-      return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
     }
 
     logAudit(
@@ -1560,6 +1561,7 @@ app.openapi(
         description: '時段重複，或教室不在這個班級的分校（CLASSROOM_CAMPUS_MISMATCH）',
         content: { 'application/json': { schema: ErrorSchema } },
       },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -1622,7 +1624,7 @@ app.openapi(
       if (error.code === '23514') {
         return c.json({ error: '結束日不能早於生效日', code: 'INVALID_RANGE' }, 400);
       }
-      return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
     }
 
     logAudit(
@@ -1677,6 +1679,7 @@ app.openapi(
           '這位老師未被指派到本分校或科目（#854，跟代課同一個錯誤碼）；或教室不在這個班級的分校（CLASSROOM_CAMPUS_MISMATCH，#1796）',
         content: { 'application/json': { schema: ErrorSchema } },
       },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -2027,6 +2030,7 @@ app.openapi(
         description: '參數錯誤',
         content: { 'application/json': { schema: ErrorSchema } },
       },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -2053,7 +2057,7 @@ app.openapi(
       .maybeSingle();
 
     if (clsError) {
-      return c.json({ error: clsError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: clsError.message, code: 'DB_ERROR' }, 500);
     }
     if (!cls) {
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
@@ -2160,6 +2164,7 @@ app.openapi(
         description: '參數錯誤',
         content: { 'application/json': { schema: ErrorSchema } },
       },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -2189,7 +2194,7 @@ app.openapi(
       .maybeSingle();
 
     if (clsError) {
-      return c.json({ error: clsError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: clsError.message, code: 'DB_ERROR' }, 500);
     }
     if (!cls) {
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
@@ -2300,7 +2305,7 @@ app.openapi(
       .select('id, assignment_status');
 
     if (error) {
-      return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
     }
 
     const insertedRows = inserted ?? [];
@@ -2392,6 +2397,7 @@ app.openapi(
         description: '參數或資料錯誤',
         content: { 'application/json': { schema: ErrorSchema } },
       },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -2438,7 +2444,7 @@ app.openapi(
       .lte('session_date', body.to);
 
     if (classSessionsError) {
-      return c.json({ error: classSessionsError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: classSessionsError.message, code: 'DB_ERROR' }, 500);
     }
 
     const filteredSessions = (classSessions || []).filter((session) => {
@@ -2466,7 +2472,7 @@ app.openapi(
       .lte('session_date', body.to);
 
     if (teacherBusyError) {
-      return c.json({ error: teacherBusyError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: teacherBusyError.message, code: 'DB_ERROR' }, 500);
     }
 
     const mode = body.mode as BatchAssignMode;
@@ -2576,7 +2582,7 @@ app.openapi(
       );
 
       if (updateError) {
-        return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
+        return c.json({ error: updateError.message, code: 'DB_ERROR' }, 500);
       }
 
       // #1693：這支不寫流水，通知照樣發（Q3）；原老師與新老師都收
@@ -2654,6 +2660,7 @@ app.openapi(
         description: '參數或資料錯誤',
         content: { 'application/json': { schema: ErrorSchema } },
       },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -2691,7 +2698,7 @@ app.openapi(
       .in('id', uniqueSessionIds);
 
     if (sessionRowsError) {
-      return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 500);
     }
 
     const targetSessions = (sessionRows ?? []) as Array<{
@@ -2734,7 +2741,7 @@ app.openapi(
       .in('session_date', targetDates);
 
     if (classDateSessionsError) {
-      return c.json({ error: classDateSessionsError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: classDateSessionsError.message, code: 'DB_ERROR' }, 500);
     }
 
     const teacherDateSessionsResult =
@@ -2749,7 +2756,7 @@ app.openapi(
             .in('session_date', targetDates);
 
     if (teacherDateSessionsResult.error) {
-      return c.json({ error: teacherDateSessionsResult.error.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: teacherDateSessionsResult.error.message, code: 'DB_ERROR' }, 500);
     }
 
     const classPeers = (classDateSessions ?? []) as Array<{
@@ -2845,7 +2852,7 @@ app.openapi(
         .in('id', processableIds);
 
       if (updateError) {
-        return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
+        return c.json({ error: updateError.message, code: 'DB_ERROR' }, 500);
       }
 
       const targetSessionDateMap = new Map(
@@ -2872,7 +2879,7 @@ app.openapi(
       );
 
       if (insertChangeError) {
-        return c.json({ error: insertChangeError.message, code: 'DB_ERROR' }, 400);
+        return c.json({ error: insertChangeError.message, code: 'DB_ERROR' }, 500);
       }
 
       // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
@@ -2943,6 +2950,7 @@ app.openapi(
         description: '參數或資料錯誤',
         content: { 'application/json': { schema: ErrorSchema } },
       },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -2974,7 +2982,7 @@ app.openapi(
       .in('id', uniqueSessionIds);
 
     if (sessionRowsError) {
-      return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 500);
     }
 
     const targetSessions = (sessionRows ?? []) as Array<{
@@ -3025,7 +3033,7 @@ app.openapi(
         .in('id', processableIds);
 
       if (cancelError) {
-        return c.json({ error: cancelError.message, code: 'DB_ERROR' }, 400);
+        return c.json({ error: cancelError.message, code: 'DB_ERROR' }, 500);
       }
 
       const actorName = await loadDisplayName(supabase, orgId, userId);
@@ -3045,7 +3053,7 @@ app.openapi(
       );
 
       if (insertChangeError) {
-        return c.json({ error: insertChangeError.message, code: 'DB_ERROR' }, 400);
+        return c.json({ error: insertChangeError.message, code: 'DB_ERROR' }, 500);
       }
 
       // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
@@ -3114,6 +3122,7 @@ app.openapi(
         description: '參數或資料錯誤',
         content: { 'application/json': { schema: ErrorSchema } },
       },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -3145,7 +3154,7 @@ app.openapi(
       .in('id', uniqueSessionIds);
 
     if (sessionRowsError) {
-      return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 500);
     }
 
     const targetSessions = (sessionRows ?? []) as Array<{
@@ -3192,7 +3201,7 @@ app.openapi(
       .in('session_date', targetDates);
 
     if (classDateSessionsError) {
-      return c.json({ error: classDateSessionsError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: classDateSessionsError.message, code: 'DB_ERROR' }, 500);
     }
 
     const teacherDateSessionsResult =
@@ -3207,7 +3216,7 @@ app.openapi(
             .in('session_date', targetDates);
 
     if (teacherDateSessionsResult.error) {
-      return c.json({ error: teacherDateSessionsResult.error.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: teacherDateSessionsResult.error.message, code: 'DB_ERROR' }, 500);
     }
 
     const classPeers = (classDateSessions ?? []) as Array<{
@@ -3244,7 +3253,7 @@ app.openapi(
             .in('makeup_for_session_id', makeupTargetIds);
 
     if (makeupSiblingsResult.error) {
-      return c.json({ error: makeupSiblingsResult.error.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: makeupSiblingsResult.error.message, code: 'DB_ERROR' }, 500);
     }
 
     const coveredMakeupTargets = findCoveredMakeupTargets(
@@ -3349,7 +3358,7 @@ app.openapi(
         .in('id', processableIds);
 
       if (reopenError) {
-        return c.json({ error: reopenError.message, code: 'DB_ERROR' }, 400);
+        return c.json({ error: reopenError.message, code: 'DB_ERROR' }, 500);
       }
 
       // #1693：這支不寫流水，通知照樣發（Q3）
@@ -3420,6 +3429,7 @@ app.openapi(
         description: '班級不存在',
         content: { 'application/json': { schema: ErrorSchema } },
       },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -3456,7 +3466,7 @@ app.openapi(
       .select('id');
 
     if (updateError) {
-      return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: updateError.message, code: 'DB_ERROR' }, 500);
     }
 
     const sessionIds = (updatedRows ?? []).map((r) => r['id'] as string);
@@ -3480,7 +3490,7 @@ app.openapi(
       const { error: insertError } = await supabase.from('schedule_changes').insert(changeRecords);
 
       if (insertError) {
-        return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
+        return c.json({ error: insertError.message, code: 'DB_ERROR' }, 500);
       }
 
       // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
