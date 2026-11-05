@@ -44,6 +44,22 @@
       共 {{ rows().length }} 筆、去重後 {{ parentsCount() }} 位家長
     </div>
 
+    <!-- #2232：衝突預檢沒做成要明說，不能當成「沒有衝突」照樣匯入 -->
+    @if (dbCheckFailed()) {
+      <div class="mb-3 flex flex-col items-start gap-2" data-testid="db-check-failed">
+        <app-inline-notice
+          class="w-full"
+          severity="warning"
+          [dismissible]="false"
+          summary="沒檢查到跟系統裡既有的家長是否重複"
+          detail="連線出了問題，下面的預覽沒有標出跟系統既有資料重複的列。建議重新檢查再匯入。"
+        />
+        <button pButton type="button" class="min-h-11" severity="secondary" (click)="recheck()">
+          重新檢查
+        </button>
+      </div>
+    }
+
     <p-table [value]="rows()" [scrollable]="true" scrollHeight="400px">
       <ng-template pTemplate="header">
         <tr>
