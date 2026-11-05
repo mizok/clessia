@@ -68,12 +68,10 @@ export class KioskFormDialogComponent {
         .update(this.existing.id, { displayName, campusIds: [campusId] })
         .subscribe({ next: (res) => done({ data: res.data }), error: fail });
     } else {
-      this.staffService
-        .create({ displayName, campusIds: [campusId], roles: ['kiosk'] })
-        .subscribe({
-          next: (res) => done({ data: res.data, loginUrl: res.loginUrl }),
-          error: fail,
-        });
+      this.staffService.create({ displayName, campusIds: [campusId], roles: ['kiosk'] }).subscribe({
+        next: (res) => done({ data: res.data, loginUrl: res.loginUrl }),
+        error: fail,
+      });
     }
   }
 
