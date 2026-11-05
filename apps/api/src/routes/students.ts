@@ -3,7 +3,8 @@ import { waitUntilFrom } from '../lib/wait-until';
 import { attachParentContacts, type ParentRelationRow } from '../lib/student-parents';
 import { resolveStudentScope } from './students/teacher-scope';
 import { outOfCampusScope, teacherCannotRead } from './students/read-scope';
-import { taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
+import { taughtClassIds, taughtStudentIds, tenureFromSchedules } from '../lib/teacher-scope';
+import { loadTeacherRosterViaSql } from '../lib/teacher-roster-sql';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
@@ -369,9 +370,21 @@ app.openapi(
 
     const roles = c.get('roles') ?? [];
 
-    // 管理員不受限，所以不必查 staff
+    // 有 pool 就走 SQL（Hyperdrive，一次往返，#1595 P2 ②）；失敗 → 500，不退回 builder（#2230 (c)）。
+    // 搜尋與今日到班也在 SQL 裡（刀 1b）；老師範圍的前置也是（刀 2）。沒有 pool 才走 builder（單元測試）——
+    // 兩份條件由 contract/student-list-sql.contract.ts 逐欄比對
+    const pool = c.get('auth')?.pool;
+    const viaSql = !!pool;
+
+    // 管理員不受限，所以不必查 staff。非管理員有 pool 時，本人 staff＋任課時段＋在籍報名一支 pg 撈齊（刀 2）
     let ownStaffId: string | null = null;
-    if (!roles.includes('admin')) {
+    const roster =
+      pool && !roles.includes('admin')
+        ? await loadTeacherRosterViaSql(pool, { orgId, userId: c.get('userId') })
+        : null;
+    if (roster) {
+      ownStaffId = roster.staffId;
+    } else if (!roles.includes('admin')) {
       const { data: ownStaff } = await supabase
         .from('staff')
         .select('id')
@@ -394,11 +407,22 @@ app.openapi(
       // 這裡原本自己組同一支查詢，而且同樣對 `schedules` 下了 `org_id` ——
       // **那張表沒有這個欄位**（42703）。改成共用 `lib/teacher-scope` 的那一份，
       // 兩處各修一次的話，下一次只會修好一處。
-      const classIds = await taughtClassIds(supabase, orgId, scope.teacherStaffId);
+      const classIds = roster
+        ? [...tenureFromSchedules(roster.schedules).current]
+        : await taughtClassIds(supabase, orgId, scope.teacherStaffId);
       myClassIds = classIds;
 
       if (classIds.length === 0) {
         taughtStudentIds = [];
+      } else if (roster) {
+        // 報名已在 SQL 篩過狀態；班是不是現任在這裡濾（判準只有 tenureFromSchedules 一份）
+        taughtStudentIds = [
+          ...new Set(
+            roster.enrollments
+              .filter((e) => classIds.includes(e.class_id))
+              .map((e) => e.student_id),
+          ),
+        ];
       } else {
         // 只在記憶體裡用（今日到班濾掉別人的學生、沒有學生就提早回空）—— 列表本身的老師範圍在 DB 端篩（#1928，
         // 見 `scopeEmbed`），這份清單不進 URL。分頁撈齊，免得 max_rows 1000 靜默截斷
@@ -473,12 +497,6 @@ app.openapi(
         );
       }
     }
-
-    // 有 pool 就走 SQL（Hyperdrive，一次往返，#1595 P2 ②）；失敗 → 500，不退回 builder（#2230 (c)）。
-    // 搜尋與今日到班也在 SQL 裡（刀 1b）。沒有 pool 才走 builder（單元測試）——
-    // 兩份條件由 contract/student-list-sql.contract.ts 逐欄比對
-    const pool = c.get('auth')?.pool;
-    const viaSql = !!pool;
 
     let searchClause: string | null = null;
     if (search && !viaSql) {

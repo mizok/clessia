@@ -137,6 +137,32 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
        values ($1, 1, '18:00', '19:00', $2, '2026-01-01')`,
       [klass['c1'], staff],
     );
+    // 刀 2：二校那班是**前任**（時段已結束）—— 現任／前任判錯，w（二校在籍）就會進老師名冊
+    await q(
+      `insert into schedules (class_id, weekday, start_time, end_time, teacher_id, effective_from, effective_to)
+       values ($1, 2, '18:00', '19:00', $2, '2025-09-01', '2026-01-31')`,
+      [klass['c2'], staff],
+    );
+    // 別 org 的班，時段卻掛本 org 這位老師（FK 不擋）：任課班要經 classes.org_id 收，同 loadTenure
+    const campusB = await one("insert into campuses (org_id, name) values ($1, '別 org 分校')", [
+      otherOrg,
+    ]);
+    const subjectB = await one("insert into subjects (org_id, name) values ($1, '數學')", [
+      otherOrg,
+    ]);
+    const courseB = await one(
+      "insert into courses (org_id, campus_id, name, subject_id) values ($1, $2, '別 org 課', $3)",
+      [otherOrg, campusB, subjectB],
+    );
+    const classB = await one(
+      "insert into classes (org_id, campus_id, course_id, name) values ($1, $2, $3, '別 org 班')",
+      [otherOrg, campusB, courseB],
+    );
+    await q(
+      `insert into schedules (class_id, weekday, start_time, end_time, teacher_id, effective_from)
+       values ($1, 3, '18:00', '19:00', $2, '2026-01-01')`,
+      [classB, staff],
+    );
     const school = async (org: string, name: string, level: string | null) =>
       one('insert into schools (org_id, name, level) values ($1, $2, $3::school_level)', [
         org,
@@ -167,7 +193,7 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
       onlyC2: await student('只在二校', 'P6', null),
       w: await student('一校退班', 'S1', null),
       p2: await student('待繳費', 'J3', null),
-      none: await student('沒報名', 'P1', null),
+      none: await student('只在別 org 班', 'P1', null),
     };
     const enroll = async (studentId: string, classId: string, status = 'active') =>
       q(
@@ -181,6 +207,7 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     await enroll(s.w, klass['c1']!, 'withdrawal');
     await enroll(s.w, klass['c2']!);
     await enroll(s.p2, klass['c1']!, 'pending_payment');
+    await enroll(s.none, classB);
 
     const card = (studentId: string, issuedAt: string, revoked = false) =>
       q(
@@ -267,6 +294,7 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
         'delete from students where org_id = $1',
         'delete from schools where org_id = $1',
         'delete from schedules where class_id in (select id from classes where org_id = $1)',
+        'delete from schedules where teacher_id in (select id from staff where org_id = $1)',
         'delete from classes where org_id = $1',
         'delete from courses where org_id = $1',
         'delete from subjects where org_id = $1',
@@ -426,6 +454,25 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     } finally {
       spy.mockRestore();
       ctx.campusScope = null;
+    }
+  });
+
+  it('老師的列表不碰 REST（舊碼：staff → schedules → enrollments 三波）', async () => {
+    const realFetch = globalThis.fetch;
+    let rest = 0;
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      if (String(input instanceof Request ? input.url : input).includes('/rest/v1/')) rest += 1;
+      return realFetch(input, init);
+    });
+    try {
+      ctx.teacher = true;
+      const res = await hit('/api/students?withToday=false', true);
+      expect(res.status).toBe(200);
+      expect((res.body['data'] as unknown[]).length).toBeGreaterThan(0);
+      expect(rest).toBe(0);
+    } finally {
+      spy.mockRestore();
+      ctx.teacher = false;
     }
   });
 
