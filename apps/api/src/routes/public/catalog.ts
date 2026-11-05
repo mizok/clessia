@@ -23,16 +23,18 @@ import { getCurrentTaipeiDateString } from '../../lib/taipei-date';
  *
  * #1665（#1637 Q5、Q6）：
  * - 只列 `is_public_enrollment` 的班（行政可以把班藏起來；家長目錄不受影響）
- * - 老師只露**暱稱**：沒設暱稱的老師不出現，**絕不退回本名**。select 字串裡就沒有 `display_name` ——
- *   從查詢那一步就拿不到本名，而不是拿到再濾掉（`catalog.spec.ts` 兩層都守）
+ * - 老師**有暱稱用暱稱，沒填（或只有空白）就顯示本名**（使用者 11-05 改判 #1637 Q6，#1665 最新留言；
+ *   原本的「沒設就不露、絕不退回本名」作廢）。家長目錄本來就顯示本名，不受影響
  * - `campuses`：有開放班的分校的對外聯絡資訊，成功畫面與失敗訊息要用
  */
 
-/** ⚠️ 只准選 `nickname`。改這行之前讀上面的註解 */
-const CLASS_SELECT = catalogClassSelect(', teacher:staff!teacher_id(nickname)');
+const CLASS_SELECT = catalogClassSelect(', teacher:staff!teacher_id(nickname, display_name)');
 
 const PublicCatalogClassSchema = CatalogClassSchema.extend({
-  /** 目前有效時段的任課老師暱稱（去重）；沒設暱稱的老師不列 —— 可能是空陣列 */
+  /**
+   * 目前有效時段的任課老師（去重）：有暱稱用暱稱，沒填就是本名（11-05 改判）。
+   * 欄位名沿用（web 已在讀）；只有時段沒排老師時才是空陣列
+   */
   teacherNicknames: z.array(z.string()),
 }).openapi('PublicCatalogClass');
 
@@ -112,9 +114,12 @@ app.openapi(
             teacherNicknames: [
               ...new Set(
                 liveSchedules(row, today)
-                  // 只取 nickname；沒有就是沒有，不看任何其他欄位
-                  .map((s) => one(s['teacher'])?.['nickname'] as string | null | undefined)
-                  .map((n) => n?.trim())
+                  // 暱稱優先；空白暱稱當沒填，退回本名（11-05 改判）
+                  .map((s) => {
+                    const t = one(s['teacher']);
+                    const nick = (t?.['nickname'] as string | null | undefined)?.trim();
+                    return nick || (t?.['display_name'] as string | null | undefined)?.trim();
+                  })
                   .filter((n): n is string => !!n),
               ),
             ],

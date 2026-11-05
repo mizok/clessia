@@ -356,6 +356,19 @@ describe('StaffFormDialogComponent —— 編輯', () => {
     expect(note(el)).toContain('你沒有「角色管理」權限');
   });
 
+  it('Email 是表單裡的唯讀欄位、欄下寫為什麼不能改；編輯沒有副標（R5：使用者 11-05）', () => {
+    const { fixture } = setup();
+    const el = fixture.nativeElement as HTMLElement;
+    const email = el.querySelector<HTMLInputElement>('#staff-email')!;
+
+    expect(email.readOnly).toBe(true);
+    expect(email.value).toBe('boss@example.com');
+    expect(el.querySelector('#' + email.getAttribute('aria-describedby'))?.textContent).toContain(
+      '產生登入連結的查人鍵，不能改',
+    );
+    expect(el.querySelector('.dialog-header-inline__sub')).toBeNull();
+  });
+
   it('沒有權限勾選區塊（搬到權限設定）', () => {
     const { fixture } = setup();
     expect((fixture.nativeElement as HTMLElement).querySelector('[id^="perm_"]')).toBeNull();

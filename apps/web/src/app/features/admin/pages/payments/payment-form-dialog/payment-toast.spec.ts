@@ -73,7 +73,9 @@ describe('PaymentFormDialogComponent：記收款 toast 接伺服器回應（#177
         {
           provide: DynamicDialogConfig,
           useValue: {
-            data: { invoice: { id: 'inv-1', status: 'unpaid', total: 3600, netPaid: 0 } },
+            data: {
+              invoice: { id: 'inv-1', status: 'unpaid', total: 3600, netPaid: 0, items: [] },
+            },
           },
         },
       ],
@@ -91,5 +93,41 @@ describe('PaymentFormDialogComponent：記收款 toast 接伺服器回應（#177
       }),
     );
     expect(close).toHaveBeenCalledWith(res.data);
+  });
+});
+
+describe('PaymentFormDialogComponent：標頭寫期別與到期日（#2316）', () => {
+  it('同一位學生好幾張帳單：標題寫是哪一期，副標金額旁寫到期日', async () => {
+    await TestBed.configureTestingModule({
+      imports: [PaymentFormDialogComponent],
+      providers: [
+        { provide: InvoicesService, useValue: {} },
+        { provide: MessageService, useValue: { add: vi.fn() } },
+        { provide: DynamicDialogRef, useValue: { close: vi.fn() } },
+        {
+          provide: DynamicDialogConfig,
+          useValue: {
+            data: {
+              invoice: {
+                id: 'inv-1',
+                studentName: '林小華',
+                status: 'unpaid',
+                total: 520,
+                netPaid: 0,
+                dueDate: '2026-11-10',
+                items: [{ type: 'tuition', periodMonth: '2026-11-01', note: null }],
+              },
+            },
+          },
+        },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(PaymentFormDialogComponent);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('h2')?.textContent?.trim()).toBe('記錄收款 · 11 月學費');
+    expect(el.textContent).toContain(
+      '林小華 · 應繳 520 元 · 已收 0 元 · 尚欠 520 元 · 到期 2026-11-10',
+    );
   });
 });

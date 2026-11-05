@@ -10,6 +10,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DecimalPipe } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
 import { catchError, forkJoin, map, of } from 'rxjs';
 
@@ -35,7 +36,13 @@ import { payableAmount } from '../../courses/class-detail/enrollment-billing.uti
 @Component({
   selector: 'app-uninvoiced-dialog',
   standalone: true,
-  imports: [DecimalPipe, ButtonModule, ProgressSpinnerModule, InlineNoticeComponent],
+  imports: [
+    DialogFrameComponent,
+    DecimalPipe,
+    ButtonModule,
+    ProgressSpinnerModule,
+    InlineNoticeComponent,
+  ],
   templateUrl: './uninvoiced-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

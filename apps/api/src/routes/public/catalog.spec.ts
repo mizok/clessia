@@ -138,11 +138,9 @@ describe('GET /api/public/catalog', () => {
     expect((byId.get(id(12)) as any).fee).toBeNull();
   });
 
-  it('不回老師名（公開頁是任何人）', async () => {
-    const res = await call(seed(), 'demo');
-    const body = JSON.stringify(await res.json());
+  it('沒有舊的 teacherNames 欄位（老師只走 teacherNicknames）', async () => {
+    const body = JSON.stringify(await (await call(seed(), 'demo')).json());
 
-    expect(body).not.toContain('王老師');
     expect(body).not.toContain('teacherNames');
   });
 
@@ -154,7 +152,7 @@ describe('GET /api/public/catalog', () => {
     expect(ids).not.toContain(id(17));
   });
 
-  describe('老師只露暱稱（#1665 Q6：沒設暱稱絕不退回本名）', () => {
+  describe('老師：有暱稱用暱稱，沒填顯示本名（#1637 Q6，使用者 11-05 改判）', () => {
     const slot = (teacher: Record<string, unknown>, effective_to: string | null = null) => ({
       weekday: 3,
       start_time: '18:00:00',
@@ -166,7 +164,6 @@ describe('GET /api/public/catalog', () => {
       createMultiOrgDb({
         organizations: [{ id: ORG, slug: 'demo' }],
         classes: [
-          // 替身一律回整列，所以種子裡刻意放著本名 —— 要證明的是映射不碰它
           cls(id(21), { schedules: [slot({ display_name: '王小明', nickname: null })] }),
           cls(id(22), {
             schedules: [
@@ -180,27 +177,30 @@ describe('GET /api/public/catalog', () => {
         enrollments: [],
       });
 
-    it('沒設暱稱：teacherNicknames 是空陣列，整份回應序列化後不含本名', async () => {
-      const res = await call(withTeachers(), 'demo');
-      const text = await res.text();
-      const byId = new Map(JSON.parse(text).data.map((c: any) => [c.classId, c]));
+    it('沒設暱稱：顯示本名', async () => {
+      const byId = new Map(
+        ((await (await call(withTeachers(), 'demo')).json()) as any).data.map((c: any) => [
+          c.classId,
+          c,
+        ]),
+      );
 
-      expect(res.status).toBe(200);
-      expect((byId.get(id(21)) as any).teacherNicknames).toEqual([]);
-      expect(text).not.toContain('王小明');
+      expect((byId.get(id(21)) as any).teacherNicknames).toEqual(['王小明']);
     });
 
-    it('有設暱稱：只出現暱稱（去重、去空白、不含過期時段），本名一個都不出現', async () => {
-      const text = await (await call(withTeachers(), 'demo')).text();
-      const byId = new Map(JSON.parse(text).data.map((c: any) => [c.classId, c]));
+    it('有暱稱用暱稱、空白暱稱當沒填退回本名；去重、不含過期時段', async () => {
+      const byId = new Map(
+        ((await (await call(withTeachers(), 'demo')).json()) as any).data.map((c: any) => [
+          c.classId,
+          c,
+        ]),
+      );
 
-      expect((byId.get(id(22)) as any).teacherNicknames).toEqual(['大文老師']);
-      for (const realName of ['陳大文', '林美玲', '張志豪', 'display_name']) {
-        expect(text).not.toContain(realName);
-      }
+      // 陳大文有暱稱 → 只出暱稱；林美玲暱稱是空白 → 本名；張志豪的時段過期 → 不列
+      expect((byId.get(id(22)) as any).teacherNicknames).toEqual(['大文老師', '林美玲']);
     });
 
-    it('查詢那一步就拿不到本名：送出的 select 字串不含 display_name', async () => {
+    it('查詢同時選 nickname 與 display_name（fallback 才拿得到本名）', async () => {
       const db = withTeachers();
       const selects: string[] = [];
       const client = new Proxy(db.client as any, {
@@ -224,8 +224,9 @@ describe('GET /api/public/catalog', () => {
       });
 
       expect((await call({ ...db, client } as typeof db, 'demo')).status).toBe(200);
-      expect(selects.some((s) => s.startsWith('classes:') && s.includes('nickname'))).toBe(true);
-      expect(selects.join('\n')).not.toContain('display_name');
+      const classSelect = selects.find((s) => s.startsWith('classes:')) ?? '';
+      expect(classSelect).toContain('nickname');
+      expect(classSelect).toContain('display_name');
     });
   });
 

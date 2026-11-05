@@ -444,6 +444,29 @@ describe('PaymentsPage', () => {
     expect((opened[0] as { invoice: Invoice }).invoice.id).toBe('inv-new');
     dialogService.open = originalOpen;
   });
+  describe('#2316 同一位學生好幾張帳單分得出來', () => {
+    it('逾期章依到期日早的在前（逾期天數多到少），每列寫期別', async () => {
+      const item = { type: 'tuition', periodMonth: '2026-10-01', note: null } as never;
+      invoices.list.mockReturnValue(
+        of(
+          listResponse([
+            invoice({ id: 'late', dueDate: '2026-10-20', items: [item] }),
+            invoice({ id: 'early', dueDate: '2026-10-01', items: [item] }),
+          ]),
+        ),
+      );
+      component['load']();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(component['overdueRows']().map((i) => i.id)).toEqual(['early', 'late']);
+      const periods = (fixture.nativeElement as HTMLElement).querySelectorAll(
+        '[data-testid="invoice-period"]',
+      );
+      expect([...periods].map((p) => p.textContent?.trim())).toEqual(['10 月學費', '10 月學費']);
+    });
+  });
+
   describe('#1314 P1／P2 逾期章、已繳清章與色面', () => {
     const text = () =>
       (fixture.nativeElement as HTMLElement).textContent?.replace(/\s+/g, ' ') ?? '';
