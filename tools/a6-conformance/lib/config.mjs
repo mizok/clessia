@@ -2528,6 +2528,70 @@ export const PAGES = {
         reason: '工具限制：稿的「新」標記是設計說明，app 欄位標籤的 span 被配到它身上',
         source: '.design-explorations a6.js ddLabel（剔除 .new）',
       })),
+      // ── 成績明細對話框（pop[detail]，#2186／#1314 11-05 歸零）──
+      // 學生名、年級、學校是資料：{名} 只收稿的假人名與 app 登入者，點開的學生不在裡面
+      {
+        status: '文案',
+        pop: 'detail',
+        a6: '(^|>)landmark:dialog\\[\\{名\\}的成績\\](>heading:h2\\[\\{名\\}的成績\\]|>text:p\\[國三·實踐國中\\])?$',
+        reason: '學生名、年級、學校是資料（點開的是 seed 的學生，不是稿的示範學生）',
+        source:
+          'tools/a6-conformance/README.md「part key」：{名} 只收稿的假人名與 app 登入者的 displayName',
+      },
+      // 型態／科目下拉：app-select-field（稿 .dd 是一顆按鈕；app 是 combobox＋箭頭鈕，箭頭鈕被配到稿的按鈕上）
+      ...selectFieldDeviations('考試型態|科目').map((d) => ({ ...d, pop: 'detail' })),
+      ...['文案', '位置', '樣式', '尺寸'].map((status) => ({
+        status,
+        pop: 'detail',
+        a6: '(^|>)control:button\\[(考試型態|科目)：[^\\]]*\\]$',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      })),
+      // 各科摘要灰面：既有功能、稿沒畫，保留在對話框頂端
+      {
+        status: '多',
+        pop: 'detail',
+        app: '(^|>)landmark:dialog\\[[^\\]]*\\]>(text:b\\[[^\\]]*\\]|text:span\\[(#筆|近期小考|# / #|最近段考|—)\\])$',
+        reason: '各科摘要（近期小考、最近段考）是既有功能，稿沒畫；保留在對話框頂端',
+        source: `${rule('R5')}「成績學生頁的成績明細對話框」2026-11-05`,
+      },
+      // 合計列：寫「顯示 N／M 場 · 不及格 N 場」，不寫稿的跨場平均（各場總分不同，平均沒有意義）
+      ...[
+        { status: '文案', a6: '(^|>)text:p\\[#場·平均#分·不及格#場\\]$' },
+        { status: '多', app: '(^|>)text:p\\[顯示／#場·不及格#場\\]>text:b\\[#\\]$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'detail',
+        reason: '合計列不算跨場平均（各場總分不同），改寫篩選後／全部場數',
+        source: `${rule('R5')}「成績學生頁的成績明細對話框」2026-11-05`,
+      })),
+      // 紀錄列包在 ul／li（稿是 div 列）：ul 本身由全站 R7 那條歸偏離，列跟著
+      {
+        status: '多',
+        pop: 'detail',
+        app: '(^|>)landmark:dialog\\[[^\\]]*\\]>list>row$',
+        reason: '語意結構依內容：列表用 ul／li，外觀照稿',
+        source: `${rule('R7', '，#1590')}`,
+      },
+      // 期間鈕：桌機 40（灰帶工具列控制項同高），稿 34；手機 44 由全站 R3 那條管
+      {
+        status: '尺寸',
+        pop: 'detail',
+        widths: [1440],
+        a6: '(^|>)control:button\\[(近#月|近半年|全部)\\](~\\d+)?$',
+        detail: '^高 34→40$',
+        reason: '工具列控制項全部同高：桌機 40',
+        source: `${rule('R5')}「灰帶工具列控制項高度」2026-10-23；#1903`,
+      },
+      // 動作列的上下位置：稿示範學生的紀錄比 seed 多（稿整頁列出、app 每頁 10 場），對話框高度不同
+      {
+        status: '位置',
+        pop: 'detail',
+        a6: '(^|>)landmark:dialog\\[\\{名\\}的成績\\]>(control:link\\[學生檔案\\]|control:button\\[關閉\\]~2)$',
+        detail: '^相對「\\{名\\}的成績」 Δx -?\\d+、Δy -\\d+（',
+        reason: '紀錄列數是資料：稿的示範學生場數多、整份列出；app 每頁 10 場',
+        source: 'tools/a6-conformance/README.md「資料差的判定」：清單列數不同',
+      },
     ],
   },
   // `prep`：量之前先在兩邊做的步驟（步驟格式同 scenarios.mjs）。週視圖與儲存列都要操作後才出現，
