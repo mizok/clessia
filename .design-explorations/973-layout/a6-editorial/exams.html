@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 考試管理</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .tabs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+  .tabs .tlink { font-size: var(--text-base); }
+  .tlink__n { font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .seg { display: inline-flex; padding: 2px; border-radius: var(--radius-md); background: var(--zinc-200); }
+  .seg button { height: 32px; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-sm); background: none; font: inherit; font-size: var(--text-md); font-weight: var(--font-semibold); color: var(--zinc-700); cursor: pointer; }
+  .seg button[aria-pressed='true'] { background: #fff; color: var(--zinc-900); box-shadow: 0 1px 2px rgb(26 22 20 / 12%); }
+  .ff { display: grid; grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr)); gap: var(--space-3); margin-top: var(--space-6); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--zinc-100); }
+  .ff label { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--zinc-700); }
+  .ff .acset__in { width: 100%; height: 40px; }
+  .todo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-top: var(--space-6); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--zinc-100); font-size: var(--text-base); }
+  .todo > span { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+  .todo b { font-weight: var(--font-bold); }
+  .todo .btn { margin-left: auto; }
+  .count { margin-top: var(--space-4); font-size: var(--text-md); color: var(--zinc-600); }
+  .count button { border: 0; padding: 0; background: none; font: inherit; font-weight: var(--font-semibold); color: var(--zinc-900); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .ex { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.2fr) minmax(0, 1fr) 44px; gap: var(--space-1) var(--space-6); align-items: center; min-height: 72px; padding: var(--space-3) 0; border-bottom: 1px solid var(--surface-border); }
+  .ex__name { font-size: var(--text-lg); font-weight: var(--font-bold); text-decoration: none; }
+  .ex__name:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .ex__k { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--zinc-600); }
+  .ex__where { font-size: var(--text-md); color: var(--zinc-800); }
+  .ex__where a { color: inherit; text-decoration: underline; text-decoration-color: var(--zinc-300); text-underline-offset: 3px; }
+  .ex__where small { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .prog { display: grid; gap: 6px; }
+  .prog__t { font-size: var(--text-md); font-variant-numeric: tabular-nums; }
+  .prog__t b { font-weight: var(--font-bold); }
+  .prog__bar { height: 4px; border-radius: 2px; background: var(--zinc-200); overflow: hidden; }
+  .prog__bar span { display: block; height: 100%; background: var(--zinc-900); }
+  .ex--closed .ex__name { color: var(--zinc-700); }
+  .ex--closed .prog__bar span { background: var(--zinc-400); }
+  .ex__more { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: var(--radius-md); background: none; color: var(--zinc-800); cursor: pointer; }
+  .ex__more:hover { background: var(--zinc-100); }
+  .pop--menu .is-danger { color: var(--error-700); }
+  .pop--menu hr { margin: 4px 0; border: 0; border-top: 1px solid var(--zinc-200); }
+  .empty { padding: var(--space-8) 0; font-size: var(--text-base); color: var(--zinc-700); }
+  .is-gone { opacity: 0; transform: translateX(8px); transition: opacity 0.14s var(--leave), transform 0.14s var(--leave); }
+  @media (max-width: 860px) {
+    .ff { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin-left: calc(var(--space-4) * -1); margin-right: calc(var(--space-4) * -1); border-radius: 0; }
+    .ff label:first-child { grid-column: 1 / -1; }
+    .ex { grid-template-columns: minmax(0, 1fr) 44px; gap: var(--space-2) var(--space-3); }
+    .ex__where, .prog { grid-column: 1; }
+    .ex__more { grid-column: 2; grid-row: 1; }
+    .chap { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding: var(--space-6) 0 var(--space-2); }
+    .chap__side { position: static; display: flex; align-items: baseline; gap: var(--space-3); }
+    .chap__big { font-size: 28px; }
+    .chap__tally { margin-top: 0; font-size: var(--text-base); }
+    .todo .btn { margin-left: 0; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>考試管理 · A6（#990 批 2）</h2>
+  <h3>規格 vs 現況</h3>
+  <p>admin 沒有考試管理自己的應然規格；考試模型（待處理／全部、登錄進度、標記完成、滿分與及格線、參加範圍）取自 <code>specs/teacher/assessments.md</code>（2026-08-30 校對，老師端同一套考試）。</p>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格</th><th>產品現況（sitemap 實測）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>分頁</td><td>待處理（還沒登完的）／全部</td><td>沒有分頁；期間 toggle（近1月…全部）</td><td>兩個分頁，標「新」；「全部」裡保留產品的期間篩選</td></tr>
+      <tr><td>每列</td><td>考試名稱、課程、日期、完成狀態、進度（8/10 已登錄）</td><td>考試名、類別、分校、科目、型態、日期、已登錄／總人數、狀態</td><td>照應然，另保留分校、科目、類別；進度是字＋細長條</td></tr>
+      <tr><td>待處理提示</td><td>卡片右側小圓點</td><td>兩條橘色橫幅（一筆都沒登／登到一半，只講補習班考試）</td><td>保留產品的兩條提醒（註記），改成灰色提醒列、各一顆「只看這幾場」；不用圓點（要圖例才看得懂）</td></tr>
+      <tr><td>補習班／學校考試</td><td>規格沒寫</td><td>型態 toggle，學校考試一列是「段考 · 第二次 · 學校名 · 全科目 · N 筆」</td><td>保留（註記）</td></tr>
+      <tr><td>完成</td><td>自動完成（都登了）＋手動「標記完成」；完成後仍可改</td><td>結束考試／重新開啟（結束後唯讀）</td><td>照應然（計畫席 10/02 裁定）：只有「標記完成」（標新），完成後仍可修改；產品的結束考試／重新開啟（結束後唯讀）不再畫</td></tr>
+      <tr><td>新增考試</td><td>名稱、課程、課堂關聯（可選）、日期、滿分 100、及格 60、參加範圍（多選開課班）</td><td>有按鈕，表單未驗</td><td>照應然；課堂關聯與多選範圍先做成「開課班」單選＋「課堂（選填）」，滿分／及格標「新」</td></tr>
+      <tr><td>刪除</td><td>—</td><td>⋮ 裡永遠有；API 對有成績的考試回 <code>HAS_SCORES</code> 拒絕（刻意）</td><td>照 API：沒有成績才能刪；已有成績的按「刪除」會說明要先到成績登錄清空，並給「去成績登錄」（計畫席 10/03 裁 B，不開後端單）</td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>打開就是「待處理」：一筆都還沒登的、登到一半的分兩章；按考試名直接進成績登錄。</li>
+    <li>⋮：進入成績登錄、編輯基本資料、標記完成（新）、刪除。完成後仍可修改，所以沒有「結束考試／重新開啟」。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, wd, esc } = A2;
+  const T = C.TODAY;
+  const SUBJ = { 數學: '數學', 英文: '英文', 國文: '國文', 自然: '自然', 理化: '理化', 社會: '社會' };
+  const KIND = ['小考', '模擬考', '段考'];
+  const SCHOOLS = ['實踐國中', '景美國中', '興隆國小', '萬芳高中', '木柵國中'];
+
+  // ── 資料：C.exams 每班 3 場只有已登完的；照最壞情況補到四十幾場（進行中、登到一半、一筆都沒登、已結束）──
+  let r = 11;
+  const rnd = () => ((r = (r * 16807) % 2147483647) - 1) / 2147483646;
+  const E = [];
+  C.exams.forEach((x) => { const c = C.classById[x.classId]; E.push({ id: x.id, type: 'academy', name: x.name, kind: x.name.includes('模擬') ? '模擬考' : '小考', classId: c.id, date: x.date, total: c.studentIds.length, done: Object.keys(x.scores).length, closed: x.date < C.addDays(T, -20) }); });
+  const NAMES = ['第四次小考', '單元測驗', '期中模擬考', '第五次小考', '週考', '總複習測驗'];
+  C.classes.forEach((c, i) => [3, -2, -5, 6].forEach((off, k) => {
+    if (rnd() < 0.25) return;
+    const total = c.studentIds.length, date = C.addDays(T, off - (i % 3));
+    const done = date > T ? 0 : rnd() < 0.4 ? 0 : Math.floor(total * (0.3 + rnd() * 0.6));
+    E.push({ id: `${c.id}-x${k}`, type: 'academy', name: NAMES[(i + k) % NAMES.length], kind: KIND[k % 2], classId: c.id, date, total, done, closed: false });
+  }));
+  SCHOOLS.forEach((s, i) => [1, 2].forEach((n) => E.push({ id: `sch-${i}-${n}`, type: 'school', name: `段考 · 第${n === 1 ? '一' : '二'}次`, kind: '段考', school: s, date: C.addDays(T, n === 1 ? -40 - i : -6 - i), total: 6 + i * 3, done: n === 1 ? 6 + i * 3 : 2 + i, closed: n === 1 })));
+  const cls = (e) => C.classById[e.classId];
+  const campusOf = (e) => (e.type === 'school' ? '—' : C.campus.name);
+  const subjOf = (e) => (e.type === 'school' ? '全科目' : cls(e).subject);
+  const state = (e) => (e.closed ? 'closed' : e.done >= e.total ? 'complete' : e.done ? 'half' : 'none');
+  const LABEL = { none: '一筆都還沒登', half: '登到一半', complete: '已登完', closed: '已完成' };
+
+  const st = { tab: 'pending', type: 'academy', q: '', period: '90', campus: '', subj: '', status: '', only: '' };
+  const goScores = (e) => { try { sessionStorage.setItem('a6-exam', JSON.stringify(Object.assign({}, e, { className: e.type === 'school' ? e.school : cls(e).name, subject: subjOf(e) }))); } catch (_) {} };
+
+  const row = (e) => {
+    const s = state(e);
+    const where = e.type === 'school'
+      ? `<span class="ex__where">${e.school} · 全科目<small>${md(e.date)}（${wd(e.date)}）</small></span>`
+      : `<span class="ex__where"><a href="class.html">${cls(e).name}</a><small>${campusOf(e)} · ${subjOf(e)} · ${md(e.date)}（${wd(e.date)}）</small></span>`;
+    const pct = e.total ? Math.round((e.done / e.total) * 100) : 0;
+    return `<div class="ex${s === 'closed' ? ' ex--closed' : ''}" data-id="${e.id}">
+      <div><a class="ex__name" href="scores.html" data-go="${e.id}">${esc(e.name)}</a><span class="ex__k">${e.kind}${e.type === 'school' ? ' · 學校考試' : ''}${s === 'closed' ? ' · 已結束' : s === 'complete' ? ' · 已登完' : ''}</span></div>
+      ${where}
+      <div class="prog"><span class="prog__t"><b>${e.done}</b>／${e.total} 已登錄</span><span class="prog__bar" aria-hidden="true"><span style="width:${pct}%"></span></span></div>
+      <button class="ex__more" type="button" popovertarget="xm" data-x="${e.id}" aria-label="${esc(e.name)} 的更多動作">${icon.dots}</button>
+    </div>`;
+  };
+
+  const ff = `<div class="ff" id="ff">
+    <label>考試名稱<input class="acset__in" type="search" id="f-q" placeholder="搜尋考試名稱" autocomplete="off"></label>
+    <label>期間<select class="acset__in" id="f-period"><option value="30">近 1 個月</option><option value="90" selected>近 3 個月</option><option value="180">近半年</option><option value="9999">全部</option></select></label>
+    <label>分校<select class="acset__in" id="f-campus"><option value="">全部分校</option>${C.campuses.map((c) => `<option>${c}</option>`).join('')}</select></label>
+    <label>科目<select class="acset__in" id="f-subj"><option value="">全部科目</option>${Object.keys(SUBJ).map((s) => `<option>${s}</option>`).join('')}</select></label>
+    <label>狀態<select class="acset__in" id="f-status"><option value="">全部狀態</option><option value="none">一筆都還沒登</option><option value="half">登到一半</option><option value="complete">已登完</option><option value="closed">已結束</option></select></label>
+  </div>`;
+
+  function render() {
+    const base = E.filter((e) => e.type === st.type);
+    const pend = base.filter((e) => ['none', 'half'].includes(state(e)) && e.date <= T);
+    document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === st.tab));
+    document.querySelectorAll('[data-type]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.type === st.type));
+    document.querySelector('[data-tab="pending"] .tlink__n').textContent = pend.length;
+    document.querySelector('[data-tab="all"] .tlink__n').textContent = base.length;
+    const none = pend.filter((e) => state(e) === 'none').length, half = pend.filter((e) => state(e) === 'half').length;
+    document.querySelector('.open__title').innerHTML = pend.length ? `${none} 場還沒開始登成績，<br>${half} 場登到一半。` : '成績都登完了。';
+    document.getElementById('ff').hidden = st.tab !== 'all';
+    const q = st.q.trim();
+    let list = st.tab === 'pending' ? pend : base.filter((e) => C.addDays(T, -+st.period) <= e.date);
+    if (st.tab === 'all') list = list.filter((e) => (!st.campus || campusOf(e) === st.campus) && (!st.subj || subjOf(e) === st.subj) && (!st.status || state(e) === st.status));
+    if (st.only) list = list.filter((e) => state(e) === st.only);
+    if (q) list = list.filter((e) => e.name.includes(q) || (e.type === 'academy' ? cls(e).name : e.school).includes(q));
+    const todo = document.getElementById('todo');
+    todo.innerHTML = st.tab === 'pending' && st.type === 'academy' && pend.length
+      ? `<span>${icon.alert}<b>${none} 場</b>進行中的考試一筆成績都還沒登錄 · <b>${half} 場</b>登到一半</span>${st.only ? `<button class="btn btn--sm" type="button" data-only="">顯示全部待處理</button>` : `<button class="btn btn--sm" type="button" data-only="none">只看還沒登的</button>`}` : '';
+    todo.hidden = !todo.innerHTML;
+    const filtered = q || st.only || (st.tab === 'all' && (st.campus || st.subj || st.status));
+    const count = document.getElementById('count');
+    count.hidden = !filtered;
+    count.innerHTML = `${list.length} 場符合 · <button type="button" data-clear>清除篩選</button>`;
+    const groups = st.tab === 'pending'
+      ? [['還沒登', list.filter((e) => state(e) === 'none')], ['登到一半', list.filter((e) => state(e) === 'half')]]
+      : [...new Set(list.map((e) => e.date.slice(0, 7)))].sort().reverse().map((m) => [`${+m.slice(5)} 月`, list.filter((e) => e.date.startsWith(m))]);
+    const html = groups.filter(([, a]) => a.length).map(([t, a]) => `<section class="chap" aria-label="${t}"><div class="chap__side"><div class="chap__big">${t}</div><p class="chap__tally">${a.length} 場</p></div><div>${a.sort((x, y) => y.date.localeCompare(x.date)).map(row).join('')}</div></section>`).join('');
+    document.getElementById('list').innerHTML = html || (filtered
+      ? `<p class="empty">找不到符合的考試。<button class="btn btn--sm" type="button" data-clear>清除篩選</button></p>`
+      : `<p class="empty">${st.tab === 'pending' ? '沒有等著登成績的考試。新的考試日期到了，會出現在這裡。' : '這段期間沒有考試。'}</p>`);
+  }
+
+  shell({
+    page: 'exams',
+    title: '',
+    bar: `<nav class="tabs" aria-label="考試"><button class="tlink" type="button" data-tab="pending">待處理 <span class="tlink__n"></span><span class="new">新</span></button><button class="tlink" type="button" data-tab="all">全部 <span class="tlink__n"></span></button>
+        <span class="seg" role="group" aria-label="考試型態"><button type="button" data-type="academy">補習班考試</button><button type="button" data-type="school">學校考試</button></span></nav>
+      <div class="tbar__act only-d"><button class="btn btn--cta" type="button" data-new>${icon.plus}新增考試</button></div>`,
+    dock: `<button class="btn btn--cta" type="button" data-new>${icon.plus}新增考試</button>`,
+    phase: 3100,
+  }, `${ff}<div class="todo" id="todo" hidden></div><p class="count" id="count" hidden></p><div id="list"></div>
+    <div class="pop pop--menu" id="xm" popover></div>`);
+  render();
+
+  const byId = (id) => E.find((e) => e.id === id);
+  // ⋮ 選單：依那場考試的狀態重畫（同一份 popover，a6.js 會貼著實際被按的那顆）
+  document.addEventListener('click', (e) => {
+    const m = e.target.closest('.ex__more[data-x]'); // A2.form 的取消／關閉也叫 data-x，要限縮
+    if (m) {
+      const x = byId(m.dataset.x), s = state(x);
+      document.getElementById('xm').innerHTML = `<a href="scores.html" data-go="${x.id}">${icon.edit}進入成績登錄</a>
+        <button type="button" data-edit="${x.id}">編輯基本資料</button>
+        ${s !== 'complete' && s !== 'closed' ? `<button type="button" data-complete="${x.id}">標記完成<span class="new">新</span></button>` : ''}
+        <hr><button type="button" class="is-danger" data-del="${x.id}">刪除</button>`;
+    }
+  }, true);
+
+  const pop = () => { const p = document.getElementById('xm'); if (p.matches(':popover-open')) p.hidePopover(); };
+  const examFields = (x = {}) => [
+    { k: 'name', label: '考試名稱', value: x.name || '', req: true, ph: '例如：第五次小考' },
+    { k: 'kind', label: '類別', type: 'select', options: KIND, value: x.kind || '小考', half: true },
+    { k: 'date', label: '考試日期', type: 'date', value: x.date || T, half: true, req: true },
+    { k: 'cid', label: '參加的開課班', type: 'select', ph: '選一個班', req: true, value: x.classId || '', options: C.classes.map((c) => [c.id, `${c.name}（${c.teacher}）`]) },
+    { k: 'full', label: '滿分', type: 'money', value: '100', half: true },
+    { k: 'pass', label: '及格分數', type: 'money', value: '60', half: true },
+  ];
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    const go = t.closest('[data-go]'); if (go) goScores(byId(go.dataset.go));
+    const tab = t.closest('[data-tab]'); if (tab) { st.tab = tab.dataset.tab; st.only = ''; render(); }
+    const ty = t.closest('[data-type]'); if (ty) { st.type = ty.dataset.type; st.only = ''; render(); }
+    const only = t.closest('[data-only]'); if (only) { st.only = only.dataset.only; render(); }
+    if (t.closest('[data-clear]')) { Object.assign(st, { q: '', campus: '', subj: '', status: '', only: '' }); ['f-q'].forEach((id) => (document.getElementById(id).value = '')); ['f-campus', 'f-subj', 'f-status'].forEach((id) => (document.getElementById(id).value = '')); render(); }
+    if (t.closest('[data-new]')) A2.form({
+      title: '新增考試', sub: '建好之後就可以進去登成績', fields: examFields(), submit: '建立考試', busy: '建立中…',
+      ok: (v) => `已建立「${v.name}」，${C.classById[v.cid].name} ${C.classById[v.cid].studentIds.length} 人`,
+      apply: (v) => { const c = C.classById[v.cid]; E.unshift({ id: 'new' + E.length, type: 'academy', name: v.name, kind: v.kind, classId: c.id, date: v.date, total: c.studentIds.length, done: 0, closed: false }); Object.assign(st, { tab: 'pending', type: 'academy', only: '' }); render(); },
+    });
+    const ed = t.closest('[data-edit]');
+    if (ed) { pop(); const x = byId(ed.dataset.edit); A2.form({ title: '編輯基本資料', sub: x.name, fields: examFields(x).filter((f) => x.type === 'academy' || !['cid'].includes(f.k)), submit: '儲存', busy: '儲存中…', ok: (v) => `已更新「${v.name}」`, apply: (v) => { Object.assign(x, { name: v.name, kind: v.kind, date: v.date }, v.cid ? { classId: v.cid } : {}); render(); } }); }
+    const cp = t.closest('[data-complete]');
+    if (cp) { pop(); const x = byId(cp.dataset.complete); A2.form({ title: '標記完成', sub: `${x.name} · 還有 ${x.total - x.done} 位沒登`, fields: [], submit: '標記完成', busy: '處理中…', ok: `「${x.name}」已標記完成，之後仍可修改成績`, apply: () => { x.done = x.total; render(); } }); }
+    const dl = t.closest('[data-del]');
+    if (dl) { pop(); const x = byId(dl.dataset.del);
+      // 計畫席 10/03 裁 B：API 刻意拒絕刪除有成績的考試（HAS_SCORES），設計稿不開後端單 —— 先清空成績才能刪
+      if (x.done) { A2.form({ title: `還不能刪除「${x.name}」`, sub: `這場考試已有 ${x.done} 筆成績。要先到成績登錄把成績清空，才能刪除考試。`, fields: [], submit: '去成績登錄', busy: '前往中…', ok: '前往成績登錄', apply: () => { location.href = 'scores.html'; } }); return; }
+      A2.form({ title: `刪除「${x.name}」`, sub: '這場考試還沒有成績。刪除後無法復原。', fields: [], submit: '刪除', busy: '刪除中…', ok: `已刪除「${x.name}」`, apply: () => { const el = document.querySelector(`.ex[data-id="${x.id}"]`); if (el) el.classList.add('is-gone'); setTimeout(() => { E.splice(E.indexOf(x), 1); render(); }, 150); } }); }
+  });
+  const bind = (id, k) => document.getElementById(id).addEventListener(id === 'f-q' ? 'input' : 'change', (e) => { st[k] = e.target.value; render(); });
+  bind('f-q', 'q'); bind('f-period', 'period'); bind('f-campus', 'campus'); bind('f-subj', 'subj'); bind('f-status', 'status');
+})();
+</script>
+</body>
+</html>

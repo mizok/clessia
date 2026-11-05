@@ -1041,6 +1041,9 @@ export const PAGES = {
   // 公開表單（#1665 PR-4）：未登入也進得來，用訪客登入態（跟登入頁同一份）。偏離是 10-16 第一次 diff 跑出來的 key
   trial: {
     a6: 'pub-trial.html',
+    // 個資使用聲明（同意那一行的連結鈕）：稿用 JS showModal（`[data-privacy]`），app 是原生 dialog（#2290 換殼）
+    a6Open: { privacy: { click: '[data-privacy]', root: 'dialog[open]' } },
+    appOpen: { privacy: { click: 'button:has-text("個資使用聲明")', root: 'dialog[open]' } },
     app: '/trial',
     state: path.join(cache, 'state-guest.json'),
     deviations: [
@@ -1065,6 +1068,9 @@ export const PAGES = {
   },
   enrollment: {
     a6: 'pub-enrollment.html',
+    // 個資使用聲明（同意那一行的連結鈕）：稿用 JS showModal（`[data-privacy]`），app 是原生 dialog（#2290 換殼）
+    a6Open: { privacy: { click: '[data-privacy]', root: 'dialog[open]' } },
+    appOpen: { privacy: { click: 'button:has-text("個資使用聲明")', root: 'dialog[open]' } },
     app: '/enrollment',
     state: path.join(cache, 'state-guest.json'),
     deviations: [...PUBLIC_FORM_DEVIATIONS, ...PUBLIC_BRAND_DEVIATIONS],
@@ -1538,7 +1544,99 @@ export const PAGES = {
   enrollments: {
     a6: 'enrollments.html',
     app: '/admin/enrollments',
+    // 直接報名（#1314 EN2）：兩邊都是原生 showModal 的表單對話框
+    a6Open: { direct: { click: '[data-direct]', root: 'dialog[open]' } },
+    appOpen: { direct: { click: '[data-testid="direct-enroll"]', root: 'dialog[open]' } },
     deviations: [
+      // ── 直接報名對話框（#1314 EN2）──
+      // 開課班：app-select-field（p-select）對稿的 .dd；學生：有建議清單＝combobox（R7，同頁面篩選）
+      ...[
+        { status: '缺', a6: '>control:button\\[選擇：選一個班\\]>text:span\\[選一個班\\]$' },
+        { status: '角色', a6: '>landmark:form\\[\\]>text:label\\[開課班\\]$' },
+        { status: '多', app: '>landmark:form\\[\\]>control:combobox\\[開課班\\*\\]$' },
+        ...['文案', '位置', '樣式'].map((status) => ({
+          status,
+          a6: '>landmark:form\\[\\]>control:button\\[選擇：選一個班\\]$',
+        })),
+      ].map((d) => ({ ...d, pop: 'direct', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
+      ...[
+        ...['角色', '位置', '尺寸', '樣式'].map((status) => ({
+          status,
+          a6: '>control:button\\[選擇：輸入姓名搜尋\\]>text:span\\[輸入姓名搜尋\\]$',
+        })),
+        ...['文案', '位置', '樣式'].map((status) => ({
+          status,
+          a6: '>landmark:form\\[\\]>control:button\\[選擇：輸入姓名搜尋\\]$',
+        })),
+      ].map((d) => ({
+        ...d,
+        pop: 'direct',
+        reason: 'ARIA 角色依元件行為：學生欄有建議清單＝combobox（app-student-autocomplete）',
+        source: `${rule('R7')}`,
+      })),
+      // 稿的「繳費單」欄＝SD9，不畫
+      {
+        status: '缺',
+        pop: 'direct',
+        a6: '>landmark:form\\[\\]>text:label\\[(繳費單|建立繳費單（待繳費）|不建立（已收款或免費）)\\](>control:radio\\[[^\\]]*\\])?$',
+        reason: '直接報名不畫「繳費單」欄（SD9 #2296），建正式報名',
+        source: `${rule('R5', '「直接報名不畫繳費單欄」2026-11-05')}`,
+      },
+      // 生效迄可留白＋說明；多一欄「費用方案」—— 下面的欄位跟著往下
+      ...[
+        { status: '文案', a6: '>landmark:form\\[\\]>control:textbox\\[生效迄\\*\\]$' },
+        {
+          status: '多',
+          app: '>landmark:form\\[\\]>(text:p\\[留白＝讀到退班為止\\]|text:span\\[費用方案\\]|control:combobox\\[費用方案\\])$',
+        },
+        {
+          status: '位置',
+          a6: '>landmark:form\\[\\]>(text:label\\[生效[起迄]\\]|control:textbox\\[生效[起迄]\\*\\])$',
+        },
+        {
+          status: '位置',
+          a6: '>landmark:dialog\\[直接報名\\]>(text:p\\[[^\\]]*\\]|control:button\\[(取消|報名)\\])$',
+        },
+      ].map((d) => ({
+        ...d,
+        pop: 'direct',
+        reason: '生效迄可留白（多一行說明）、多一欄同模式的費用方案',
+        source: `${rule('R5', '「直接報名：生效迄可留白、手機入口在工具列」2026-11-05')}`,
+      })),
+      {
+        status: '樣式',
+        pop: 'direct',
+        a6: '>landmark:form\\[\\]>control:textbox\\[生效起\\*\\]$',
+        detail: '^borderTop 1px solid rgb\\(26, 22, 20\\)',
+        reason:
+          '稿開窗時把焦點放在第一個原生 input（生效起，前面的欄位是 .dd 按鈕），量到焦點框色；app 不搶焦點',
+        source: 'a6.js form()：first.focus()',
+      },
+      // 關閉鈕：手機 44×44（稿 39 寬）；稿是 UA 預設 padding
+      ...[
+        { status: '尺寸', widths: [360], detail: '^寬 39→44$' },
+        { status: '位置', widths: [360] },
+        { status: '樣式', detail: '^padding 1px 6px → 0px$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'direct',
+        a6: '>landmark:dialog\\[直接報名\\]>control:button\\[關閉\\]$',
+        reason: '可點元素基底 ≥44px；稿的 padding 是 UA 預設（同分校表單的關閉鈕）',
+        source: `${rule('R3')}`,
+      })),
+      // 手機：選第一欄後少一行（稿 .dd 的占位字）、多一欄方案 —— 計費模式那排與底部按鈕跟著位移
+      ...[
+        {
+          status: '位置',
+          widths: [360],
+          a6: '>landmark:form\\[\\]>(text:label\\[(計費模式|開課班)\\]|row)$',
+        },
+      ].map((d) => ({
+        ...d,
+        pop: 'direct',
+        reason: '連帶：學生欄是 combobox（高度不同）、開課班是 app-select-field',
+        source: `${rule('R7')}；${SELECT_FIELD_SOURCE}`,
+      })),
       // 期間、開課班、事件、狀態：稿是原生 select（a6.js 換成 .dd 按鈕），app 是 p-select（combobox＋箭頭鈕）
       ...selectFieldDeviations('期間|開課班|事件|狀態'),
       ...[
@@ -1793,6 +1891,9 @@ export const PAGES = {
   // 家長端加選課程（#1727 ⑤）：卡片點開是 JS 打開的 <dialog>（稿 sheet()、app 原生 showModal）
   'p-add-course': {
     a6: 'p-add-course.html',
+    // 課程詳情（點卡片）：兩邊都是原生 dialog（#2290 換殼）
+    a6Open: { detail: { click: '[data-c]', root: 'dialog[open]' } },
+    appOpen: { detail: { click: 'button[data-class]', root: 'dialog[open]' } },
     app: '/parent/add-course',
     state: PARENT_STATE,
     prep: PARENT_PREP,
@@ -3258,6 +3359,17 @@ export const PAGES = {
   },
   'p-dashboard': {
     a6: 'p-dashboard.html',
+    // 唯讀詳情三種（課堂／聯絡簿／推薦課程）：兩邊都是原生 dialog（#2290 換殼）
+    a6Open: {
+      ses: { click: '[data-ses]', root: 'dialog[open]' },
+      cb: { click: '[data-cb]', root: 'dialog[open]' },
+      rec: { click: '[data-rec]', root: 'dialog[open]' },
+    },
+    appOpen: {
+      ses: { click: '.dashboard__lesson', root: 'dialog[open]' },
+      cb: { click: '.dashboard__log', root: 'dialog[open]' },
+      rec: { click: '.dashboard__rec', root: 'dialog[open]' },
+    },
     app: '/parent/dashboard',
     // 稿的今天（shared/data.js：2026-10-01 17:40，週四），同 p-schedule（#1314 10-30）
     clock: '2026-10-01T17:40:00+08:00',

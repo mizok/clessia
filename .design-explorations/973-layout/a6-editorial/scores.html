@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 成績登錄</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .note { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-top: var(--space-6); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--zinc-100); font-size: var(--text-base); color: var(--zinc-800); }
+  .note .btn { margin-left: auto; }
+  .sc { width: 100%; margin-top: var(--space-6); border-collapse: collapse; }
+  .sc th { padding: 0 var(--space-3) var(--space-2) 0; border-bottom: 1px solid var(--zinc-900); font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--zinc-600); text-align: left; }
+  .sc td { padding: var(--space-2) var(--space-3) var(--space-2) 0; border-bottom: 1px solid var(--surface-border); vertical-align: middle; }
+  .sc tr.is-empty td:first-child a { color: var(--zinc-600); }
+  .sc tr.is-dirty td:first-child { box-shadow: inset 3px 0 0 var(--zinc-900); padding-left: var(--space-3); }
+  .sc__name a { font-weight: var(--font-bold); text-decoration: none; }
+  .sc__name a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .sc__name small { margin-left: 6px; font-size: var(--text-sm); color: var(--zinc-600); }
+  .sc__in { width: 88px; height: 40px; padding: 0 var(--space-3); border: 1px solid var(--zinc-300); border-radius: var(--radius-md); background: #fff; font: inherit; font-size: var(--text-lg); font-weight: var(--font-semibold); font-variant-numeric: tabular-nums; text-align: right; color: var(--zinc-900); }
+  .sc__in:focus, .sc__memo:focus { outline: none; border-color: var(--zinc-900); box-shadow: 0 0 0 3px rgb(26 22 20 / 14%); }
+  .sc__in:disabled, .sc__memo:disabled { background: var(--zinc-100); color: var(--zinc-700); }
+  .sc__in.is-fail { color: var(--error-700); }
+  .sc__memo { width: 100%; min-width: 120px; height: 40px; padding: 0 var(--space-3); border: 1px solid var(--zinc-300); border-radius: var(--radius-md); background: #fff; font: inherit; font-size: var(--text-md); }
+  .sc .acset__in { width: 116px; height: 40px; }
+  .sc .dd:disabled { background-color: var(--zinc-100); color: var(--zinc-700); cursor: default; }
+  .sc__full { margin-left: 4px; font-size: var(--text-sm); color: var(--zinc-600); }
+  /* sticky 要放在 #save（它的父層是整頁的 .wrap），放在儲存列本身會被只有一列高的 #save 框住 */
+  #save { position: sticky; bottom: 16px; z-index: 5; }
+  .savebar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-6); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--zinc-900); color: #fff; box-shadow: 0 12px 28px -12px rgb(26 22 20 / 45%); animation: row-new 0.2s var(--arrive); }
+  .savebar p { margin-right: auto; font-weight: var(--font-semibold); }
+  .savebar .btn:not(.btn--cta) { background: transparent; border-color: rgb(255 255 255 / 35%); color: #fff; }
+  .acts { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  @media (max-width: 860px) {
+    .sc thead { display: none; }
+    .sc, .sc tbody, .sc tr { display: block; }
+    .sc tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2) var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--surface-border); }
+    .sc td { display: block; padding: 0; border: 0; }
+    .sc td:nth-child(1) { grid-column: 1 / -1; }
+    .sc td:nth-child(4) { grid-column: 1 / -1; }
+    .sc__in { width: 96px; height: 44px; }
+    .sc .acset__in { width: 128px; height: 44px; }
+    .sc__memo { height: 44px; }
+    .sc tr.is-dirty td:first-child { padding-left: var(--space-3); }
+    /* 手機：儲存列浮在底部動作列上方，不是黑塊而是深灰面（五種面：手機上升起的面板） */
+    .savebar { background: var(--gray-sheet); color: var(--zinc-900); border: 1px solid var(--zinc-300); }
+    #save { bottom: 136px; } /* 浮在底部動作列（約 120px 高）上方 */
+    .savebar p { flex-basis: 100%; }
+    .savebar .btn:not(.btn--cta) { border-color: var(--zinc-300); color: var(--zinc-900); background: #fff; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>成績登錄 · A6（#990 批 2）</h2>
+  <h3>規格 vs 現況</h3>
+  <p>應然取自 <code>specs/teacher/assessments.md</code> 的「成績輸入」（admin 沒有自己的成績登錄規格）。</p>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格</th><th>產品現況（sitemap 實測）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>每列</td><td>學生、開課班、分數、狀態（正常／缺考／補考）</td><td>學生、年級、分數 /100、狀態、備註</td><td>照應然＋保留產品的年級與備註</td></tr>
+      <tr><td>沒登的學生</td><td>整列底色稍淡</td><td>—</td><td>名字退成灰字（不用底色，底色要圖例才看得懂）</td></tr>
+      <tr><td>批次動作</td><td>加入其他學生、全部標記缺考、下載範本、匯入成績</td><td>都沒有</td><td>「其餘標記缺考」「匯入成績」「加入其他學生」，標「新」；「全部」改成「其餘」——已登分的不該被蓋掉</td></tr>
+      <tr><td>儲存</td><td>儲存、儲存並關閉、標記完成</td><td>有未存變更時才出現「儲存成績」</td><td>底部儲存列只在有變更時出現，寫出幾筆沒存；「標記完成」標「新」</td></tr>
+      <tr><td>離開前攔截</td><td>—</td><td>瀏覽器原生 <code>window.confirm</code>；直接改網址離開時沒有任何提示（全庫沒有 beforeunload）</td><td>頁內對話框：留下來／不儲存離開／儲存後離開；重新整理則交給瀏覽器的離開提示</td></tr>
+      <tr><td>已完成</td><td>完成後仍可修改（specs/teacher/assessments.md）</td><td>「結束考試」後整頁唯讀、沒有儲存列，要先重新開啟</td><td>照應然（計畫席 10/02 裁定）：已完成照樣可以改，頂上一行說明改過的會記在操作紀錄；不需要「重新開啟」</td></tr>
+      <tr><td>及格線</td><td>依考試設定的及格線區分</td><td>沒有</td><td>不及格的分數紅字（不只靠顏色：統計列寫「不及格 N 位」），標「新」</td></tr>
+    </tbody>
+  </table>
+  <h3>操作</h3>
+  <ul>
+    <li>分數欄按 Enter 或 ↓ 跳下一位、↑ 回上一位；選「缺考」時分數欄清空並停用。</li>
+    <li>網址加 <code>#closed</code> 看已完成的樣子（仍可修改）。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, wd, esc } = A2;
+  // 從考試管理帶過來的那一場；直接打開時用示範資料第一班最近一場（進行中、登到一半）
+  let ex = null;
+  try { ex = JSON.parse(sessionStorage.getItem('a6-exam') || 'null'); } catch (_) {}
+  const c0 = C.classes.find((c) => c.studentIds.length >= 24) || C.classes[0];
+  if (!ex || ex.type === 'school') ex = Object.assign({ id: 'demo', type: 'academy', name: '第五次小考', kind: '小考', classId: c0.id, date: C.addDays(C.TODAY, -2), done: 0, closed: false }, ex && ex.type === 'academy' ? ex : {});
+  if (location.hash === '#closed') ex.closed = true;
+  const c = C.classById[ex.classId] || c0;
+  const FULL = 100, PASS = 60;
+
+  // 名單：已登的照 done 數先填，其餘空白；兩位缺考、一位補考
+  let r = 5;
+  const rnd = () => ((r = (r * 16807) % 2147483647) - 1) / 2147483646;
+  const done = ex.closed ? c.studentIds.length : Math.min(ex.done || Math.floor(c.studentIds.length * 0.4), c.studentIds.length);
+  const R = c.studentIds.map((sid, i) => {
+    const s = C.studentById[sid];
+    const status = i === 3 ? '缺考' : i === 7 ? '補考' : '正常';
+    const score = i < done && status !== '缺考' ? String(Math.max(32, Math.min(100, Math.round(74 + (rnd() - 0.45) * 44)))) : '';
+    return { sid, name: s.name, grade: s.gradeLabel, score, status: i < done ? status : '正常', memo: i === 7 ? '10/3 補考' : '' };
+  });
+  const saved = JSON.stringify(R);
+  let dirty = new Set();
+
+  const stats = () => {
+    const nums = R.filter((x) => x.status !== '缺考' && x.score !== '').map((x) => +x.score);
+    const absent = R.filter((x) => x.status === '缺考').length;
+    const logged = nums.length + absent;
+    const avg = nums.length ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1) : '—';
+    return { logged, absent, avg, max: nums.length ? Math.max(...nums) : '—', min: nums.length ? Math.min(...nums) : '—', fail: nums.filter((n) => n < PASS).length };
+  };
+  const statHtml = () => { const s = stats(); return [
+    { n: `${s.logged}<small>／${R.length}</small>`, label: '已登錄（含缺考）' }, { n: s.avg, label: '平均' }, { n: s.max, label: '最高', d: 1 }, { n: s.min, label: '最低', d: 1 },
+  ]; };
+
+  shell({
+    page: 'exams',
+    back: `<a class="open__back" href="exams.html">${icon.left}考試管理</a>`,
+    title: `${esc(ex.name)} <span class="tag ${ex.closed ? 'tag--quiet' : 'tag--live'}" style="vertical-align:middle;font-size:14px;letter-spacing:0">${ex.closed ? '已完成' : '進行中'}</span>`,
+    titleClass: 'open__title--name',
+    sub: `${C.campus.name} › <a href="class.html" style="color:inherit">${c.name}</a> · ${ex.kind} · ${c.subject} · ${md(ex.date)}（${wd(ex.date)}）`,
+    stats: statHtml(),
+    bar: `<p class="tbar__txt" id="tally"></p>
+      <div class="tbar__act acts">${ex.closed ? '' : `<button class="btn only-d" type="button" data-absent>其餘標記缺考<span class="new">新</span></button><button class="btn only-d" type="button" data-import>匯入成績<span class="new">新</span></button><button class="btn only-d" type="button" data-add>加入其他學生<span class="new">新</span></button><button class="btn btn--cta" type="button" data-complete>標記完成<span class="new">新</span></button>`}</div>`,
+    dock: ex.closed ? '' : `<button class="btn" type="button" data-absent>其餘標記缺考</button><button class="btn btn--cta" type="button" data-complete>標記完成</button>`,
+    phase: 3300,
+  }, `${ex.closed ? `<div class="note">${icon.info}這場考試已完成。成績仍可修改，改過的會記在操作紀錄。</div>` : ''}
+    <table class="sc" aria-label="成績"><thead><tr><th>學生</th><th>分數（滿分 ${FULL}）</th><th>狀態</th><th>備註</th></tr></thead><tbody id="rows"></tbody></table>
+    <div id="save"></div>`);
+
+  const dis = ''; // 應然：完成後仍可修改（計畫席 10/02）
+  const rowHtml = (x, i) => `<tr data-i="${i}" class="${x.score === '' && x.status !== '缺考' ? 'is-empty' : ''}${dirty.has(i) ? ' is-dirty' : ''}">
+    <td class="sc__name"><a href="student.html">${esc(x.name)}</a><small>${x.grade}</small></td>
+    <td><input class="sc__in${x.score !== '' && +x.score < PASS ? ' is-fail' : ''}" inputmode="numeric" aria-label="${esc(x.name)} 的分數" value="${x.score}"${dis}${x.status === '缺考' ? ' disabled placeholder="—"' : ''}><span class="sc__full">／${FULL}</span></td>
+    <td><select class="acset__in" aria-label="${esc(x.name)} 的狀態" data-st="${i}"${dis}>${['正常', '缺考', '補考'].map((s) => `<option${s === x.status ? ' selected' : ''}>${s}</option>`).join('')}</select></td>
+    <td><input class="sc__memo" aria-label="${esc(x.name)} 的備註" value="${esc(x.memo)}" placeholder="備註"${dis}></td></tr>`;
+  const paint = () => {
+    const s = stats();
+    document.getElementById('tally').innerHTML = `<strong>${s.logged}／${R.length}</strong> 已登錄 · 缺考 ${s.absent} · 不及格（&lt; ${PASS}）<strong>${s.fail}</strong> 位`;
+    const dd = document.querySelectorAll('.open__n');
+    statHtml().forEach((x, k) => { if (dd[k]) dd[k].innerHTML = x.n; });
+    document.getElementById('save').innerHTML = dirty.size ? `<div class="savebar" role="region" aria-label="儲存"><p>${dirty.size} 位的成績還沒儲存</p><button class="btn" type="button" data-revert>復原變更</button><button class="btn btn--cta" type="button" data-save>儲存成績</button></div>` : '';
+  };
+  const renderRows = () => { document.getElementById('rows').innerHTML = R.map(rowHtml).join(''); paint(); };
+  renderRows();
+  // 客製下拉的觸發鈕由 a6.js 的 MutationObserver 晚一拍才建出來
+
+
+  const mark = (i) => { dirty.add(i); const tr = document.querySelector(`tr[data-i="${i}"]`); tr.classList.add('is-dirty'); tr.classList.toggle('is-empty', R[i].score === '' && R[i].status !== '缺考'); paint(); };
+  const rows = document.getElementById('rows');
+  rows.addEventListener('input', (e) => {
+    const tr = e.target.closest('tr'); if (!tr) return; const i = +tr.dataset.i;
+    if (e.target.classList.contains('sc__in')) { const v = e.target.value.replace(/\D/g, '').slice(0, 3); e.target.value = v; R[i].score = v; e.target.classList.toggle('is-fail', v !== '' && +v < PASS); }
+    if (e.target.classList.contains('sc__memo')) R[i].memo = e.target.value;
+    mark(i);
+  });
+  rows.addEventListener('change', (e) => {
+    const sel = e.target.closest('select[data-st]'); if (!sel) return; const i = +sel.dataset.st;
+    R[i].status = sel.value;
+    const inp = sel.closest('tr').querySelector('.sc__in');
+    if (sel.value === '缺考') { R[i].score = ''; inp.value = ''; inp.disabled = true; inp.placeholder = '—'; } else { inp.disabled = false; inp.placeholder = ''; }
+    mark(i);
+  });
+  // 鍵盤：分數欄 Enter／↓ 下一位、↑ 上一位（跳過缺考停用的）
+  rows.addEventListener('keydown', (e) => {
+    if (!e.target.classList.contains('sc__in') || !['Enter', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
+    e.preventDefault();
+    const all = [...rows.querySelectorAll('.sc__in:not(:disabled)')], k = all.indexOf(e.target);
+    const n = all[k + (e.key === 'ArrowUp' ? -1 : 1)]; if (n) { n.focus(); n.select(); }
+  });
+
+  const save = (after) => {
+    const btn = document.querySelector('[data-save]');
+    const n = dirty.size;
+    const fin = () => { dirty = new Set(); document.querySelectorAll('tr.is-dirty').forEach((tr) => tr.classList.remove('is-dirty')); paint(); if (after) location.href = after; };
+    if (btn) A2.act(btn, { busy: '儲存中…', ok: `已儲存 ${n} 位的成績`, run: fin }); else { fin(); A2.toast(`已儲存 ${n} 位的成績`); }
+  };
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (t.closest('[data-save]')) save();
+    if (t.closest('[data-revert]')) { const o = JSON.parse(saved); R.splice(0, R.length, ...o); dirty = new Set(); renderRows(); A2.toast('已復原到上次儲存的成績'); }
+    if (t.closest('[data-absent]')) {
+      const idx = R.map((x, i) => (x.score === '' && x.status !== '缺考' ? i : -1)).filter((i) => i >= 0);
+      if (!idx.length) { A2.toast('每位都已經有分數或標了缺考'); return; }
+      idx.forEach((i) => { R[i].status = '缺考'; dirty.add(i); }); renderRows(); A2.toast(`${idx.length} 位還沒分數的標成缺考（還沒儲存）`);
+    }
+    if (t.closest('[data-import]')) A2.form({ title: '匯入成績', sub: '用學生 ID 對名單；先下載範本填好分數再上傳', fields: [{ k: 'f', label: '檔案（.xlsx／.csv）', ph: '成績-第五次小考.xlsx', value: '成績-第五次小考.xlsx', req: true }], submit: '預覽並匯入', busy: '比對中…', ok: '已匯入 12 位的分數（還沒儲存）',
+      apply: () => { let k = 0; R.forEach((x, i) => { if (x.score === '' && x.status !== '缺考' && k < 12) { x.score = String(60 + ((i * 7) % 40)); dirty.add(i); k++; } }); renderRows(); } });
+    if (t.closest('[data-add]')) {
+      const others = C.students.filter((s) => !R.some((x) => x.sid === s.id));
+      A2.form({ title: '加入其他學生', sub: '不在這個班、但這次一起考的學生（例如插班、補考）', fields: [{ k: 'sid', label: '學生', type: 'select', ph: '輸入姓名搜尋', req: true, options: others.map((s) => [s.id, `${s.name}（${s.gradeLabel}）`]) }], submit: '加入', busy: '加入中…',
+        ok: (v) => `已加入 ${C.studentById[v.sid].name}`, apply: (v) => { const s = C.studentById[v.sid]; R.push({ sid: s.id, name: s.name, grade: s.gradeLabel, score: '', status: '正常', memo: '加入' }); dirty.add(R.length - 1); renderRows(); } });
+    }
+    if (t.closest('[data-complete]')) { const s = stats(); A2.form({ title: '標記完成', sub: `${s.logged}／${R.length} 已登錄${dirty.size ? ` · ${dirty.size} 位的變更會一起儲存` : ''}。完成後仍可修改。`, fields: [], submit: '標記完成', busy: '處理中…', ok: `「${ex.name}」已標記完成`, apply: () => { dirty = new Set(); renderRows(); } }); }
+  });
+
+  // 有沒存的變更時，點任何連結先攔下來（產品用的是瀏覽器原生 confirm，這裡用頁內對話框）
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href]');
+    if (!a || !dirty.size || a.closest('.proto-pill, .proto-all') || a.getAttribute('href').startsWith('#')) return;
+    e.preventDefault(); e.stopPropagation();
+    const to = a.getAttribute('href');
+    const d = A2.form({ title: '有成績還沒儲存', sub: `${dirty.size} 位的成績還沒儲存。要先儲存再離開嗎？`, fields: [], submit: '儲存後離開', busy: '儲存中…', ok: `已儲存 ${dirty.size} 位的成績`, apply: () => { dirty = new Set(); paint(); setTimeout(() => (location.href = to), 400); } });
+    const leave = Object.assign(document.createElement('button'), { className: 'btn', type: 'button', textContent: '不儲存離開' });
+    leave.onclick = () => { dirty = new Set(); location.href = to; };
+    d.querySelector('[data-x].btn').textContent = '留下來';
+    d.querySelector('[data-go]').before(leave);
+  }, true);
+  addEventListener('beforeunload', (e) => { if (dirty.size) { e.preventDefault(); e.returnValue = ''; } });
+})();
+</script>
+</body>
+</html>

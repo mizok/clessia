@@ -25,6 +25,7 @@ import { todayLocal } from '@shared/utils/session-time.util';
 import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
 import { effectiveFromSuffix } from '@shared/utils/schedule-effective.util';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 
 /**
  * 家長端加選課程（#1727 ⑤，A6 p-add-course，設計稿 kb/wiki/specs/parent/applications.md）。
@@ -48,6 +49,7 @@ const SENT = ['pending', 'awaiting_payment'];
   selector: 'app-add-course',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     TextSwapDirective,
     PageOpenComponent,
     ChildScopeGateComponent,
@@ -146,6 +148,18 @@ export class AddCourseComponent {
     this.q.set('');
     this.subject.set(null);
     this.weekday.set(null);
+  }
+
+  /** 對話框標題隨步驟換（共用殼 app-dialog-frame 收字串，#2290） */
+  protected dialogTitle(c: ParentCatalogClass): string {
+    switch (this.step()) {
+      case 'detail':
+        return c.className;
+      case 'apply':
+        return `${this.isFull(c) ? '登記候補' : '加選'} ${c.className}`;
+      case 'done':
+        return this.wasWaitlist() ? '已登記候補' : '已送出加選申請';
+    }
   }
 
   protected isFull(c: ParentCatalogClass | null): boolean {

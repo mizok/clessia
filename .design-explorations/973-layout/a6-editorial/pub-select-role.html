@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 選擇身分（公開頁）</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* 照產品 select-role.component.scss ＋ role-picker.component.scss 搬 */
+  @media (min-width: 1025px) {
+    html, body, #app, .ps { height: 100%; }
+    .ps__main { min-height: 100%; }
+    .ps__route { justify-content: center; }
+  }
+  .select-role { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-4); padding: var(--space-8) var(--space-4); }
+  .select-role__wordmark { font-size: var(--text-3xl); font-weight: var(--font-bold); letter-spacing: -0.04em; color: var(--zinc-300); }
+  .select-role__no-roles { max-width: 32ch; text-align: center; color: var(--zinc-600); line-height: 1.7; }
+  /* 彈窗：產品 400px、≤640px 90%（PrimeNG 的 breakpoints）。設計稿改成 min(400px, 100% - 32px) ——
+     產品在 640 那一點是 576 → 400 的不連續跳動（sitemap 有量），沒有理由照抄 */
+  .rp-dlg { width: min(400px, calc(100% - 32px)); max-width: none; padding: var(--space-6); border: 0; border-radius: var(--radius-xl); background: #fff; color: var(--zinc-900); box-shadow: var(--shadow-lg, 0 24px 48px -12px rgb(26 22 20 / 30%)); }
+  /* 非 modal（dlg.show()）＋自繪遮罩：showModal 會讓審稿膠囊變 inert、點不到。產品是 modal，焦點圈在彈窗內 —— 設計稿的取捨，不是提案 */
+  .rp-dlg[open] { position: fixed; inset: 0; margin: auto; height: fit-content; z-index: 50; }
+  .rp-mask { position: fixed; inset: 0; z-index: 49; background: rgb(26 22 20 / 40%); }
+  .role-picker { display: flex; flex-direction: column; gap: var(--space-5); }
+  .role-picker__header { text-align: center; }
+  .role-picker__eyebrow { display: inline-block; margin-bottom: var(--space-3); padding: var(--space-1) var(--space-3); font-size: var(--text-xs); font-weight: var(--font-semibold); letter-spacing: 0.08em; color: var(--accent-600); background: var(--accent-50); border-radius: var(--radius-full); }
+  .role-picker__title { margin-bottom: var(--space-2); font-size: var(--text-xl); font-weight: var(--font-bold); line-height: var(--leading-tight); letter-spacing: -0.01em; }
+  .role-picker__subtitle { font-size: var(--text-sm); line-height: var(--leading-relaxed); color: var(--zinc-600); }
+  .role-picker__list { display: flex; flex-direction: column; gap: var(--space-2); }
+  .role-picker__option { display: flex; align-items: center; gap: var(--space-3); min-height: 44px; padding: var(--space-3) var(--space-4); font: inherit; text-align: left; background: #fff; border: 1px solid var(--zinc-200); border-radius: var(--radius-lg); cursor: pointer; transition: border-color 0.15s, background 0.15s, transform 0.15s; }
+  .role-picker__option:hover { background: var(--accent-50); border-color: var(--accent-400); }
+  .role-picker__option:active { transform: translateY(1px); }
+  .role-picker__option:focus-visible { outline: 2px solid var(--zinc-900); outline-offset: 2px; }
+  .role-picker__option[aria-busy='true'] { background: var(--accent-50); border-color: var(--accent-500); cursor: progress; }
+  .role-picker__option-icon { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 36px; height: 36px; color: var(--zinc-600); background: var(--zinc-100); border-radius: var(--radius-md); transition: color 0.15s, background 0.15s; }
+  .role-picker__option:hover .role-picker__option-icon, .role-picker__option[aria-busy='true'] .role-picker__option-icon { color: var(--accent-600); background: var(--accent-100); }
+  .role-picker__option-text { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+  .role-picker__option-label { font-size: var(--text-md); font-weight: var(--font-semibold); color: var(--zinc-800); }
+  .role-picker__option-desc { font-size: var(--text-sm); color: var(--zinc-600); }
+  .role-picker__option-chevron { flex-shrink: 0; display: flex; color: var(--zinc-400); transition: color 0.15s; }
+  .role-picker__option:hover .role-picker__option-chevron { color: var(--accent-500); }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>選擇身分 · 公開頁（#990 批 6）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然（architecture/login-experience.md）</th><th>產品現況（sitemap/public/select-role.md）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>整體</td><td>選角色是彈窗，載體頁是薄殼</td><td>白面只有淡灰字標；≥2 個身分進頁就開一個關不掉的彈窗（沒有 ✕、Esc 與點背景都不關）</td><td>照現狀搬。示範使用者有管理員、任課老師、家長三個身分</td></tr>
+      <tr><td>選一個</td><td>—</td><td>關窗 → 導到該身分的首頁</td><td>按下去那一列變選中樣子（處理中），接著導到 <code>dashboard.html</code>／<code>t-schedule.html</code>／<code>p-dashboard.html</code></td></tr>
+      <tr><td>1 個身分</td><td>—</td><td>看不到這一頁，直接導走</td><td>不示範（沒有畫面）</td></tr>
+      <tr><td>0 個身分</td><td>—</td><td>字標＋「這個帳號目前沒有可用的身分，請聯絡補習班櫃檯開通。」</td><td>照搬，用 <code>#none</code> 看</td></tr>
+      <tr><td>彈窗寬度</td><td>—</td><td>400px；≤640px 改 90%，在 640 那一點從 576 跳回 400（不連續）</td><td>改成「400px 或畫面寬減 32px，取小的」，連續、兩邊各留 16px</td></tr>
+      <tr><td>角色名稱</td><td>—</td><td>#1086 起彈窗也寫「管理員」（原本寫「管理者」，跟帳號選單不一致）</td><td>照產品寫「管理員」</td></tr>
+    </tbody>
+  </table>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { pub, icon } = A2;
+  // 產品 role-picker.component.ts 的 ROLE_OPTIONS（圖示 pi-shield／pi-book／pi-users）
+  const ROLES = [
+    ['admin', 'shield', '管理員', '跨分校管理、系統設定、日常營運', 'dashboard.html'],
+    ['teacher', 'book', '任課老師', '課表、點名、學生學習紀錄', 't-schedule.html'],
+    ['parent', 'users', '家長', '出缺席、學習進度、繳費', 'p-dashboard.html'],
+  ];
+  const none = location.hash === '#none';
+
+  pub({ page: 'pub-select-role' }, `
+    <div class="select-role">
+      <p class="select-role__wordmark">Clessia</p>
+      ${none ? '<p class="select-role__no-roles">這個帳號目前沒有可用的身分，請聯絡補習班櫃檯開通。</p>' : ''}
+    </div>
+    ${none ? '' : `<div class="rp-mask" aria-hidden="true"></div><dialog class="rp-dlg" aria-modal="true" aria-labelledby="rp-t">
+      <div class="role-picker">
+        <div class="role-picker__header">
+          <p class="role-picker__eyebrow">選擇身分</p>
+          <h2 class="role-picker__title" id="rp-t">林主任，你好</h2>
+          <p class="role-picker__subtitle">這個帳號有多個身分，請選擇要進入的介面</p>
+        </div>
+        <div class="role-picker__list">${ROLES.map(([r, ic, l, d, href]) => `
+          <button class="role-picker__option" type="button" data-go="${href}">
+            <span class="role-picker__option-icon" aria-hidden="true">${icon[ic]}</span>
+            <span class="role-picker__option-text"><span class="role-picker__option-label">${l}</span><span class="role-picker__option-desc">${d}</span></span>
+            <span class="role-picker__option-chevron" aria-hidden="true">${icon.right}</span>
+          </button>`).join('')}</div>
+      </div>
+    </dialog>`}`);
+
+  const dlg = document.querySelector('.rp-dlg');
+  if (!dlg) return;
+  // 產品：closable false、closeOnEscape false、dismissableMask false —— 沒選身分就沒有下一步。
+  // 非 modal 的 dialog 本來就不吃 Esc，遮罩也沒有點擊行為，所以三條都成立
+  dlg.show();
+  dlg.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-go]');
+    if (!b) return;
+    b.setAttribute('aria-busy', 'true');
+    setTimeout(() => { location.href = b.dataset.go; }, 250);
+  });
+})();
+</script>
+</body>
+</html>

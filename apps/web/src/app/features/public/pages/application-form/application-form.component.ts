@@ -13,6 +13,7 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { MessageService } from 'primeng/api';
 import { GRADE_LEVELS, type GradeLevel } from '@core/students.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
@@ -77,7 +78,7 @@ const TURNSTILE_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?ren
  */
 @Component({
   selector: 'app-application-form',
-  imports: [RouterLink, SelectFieldComponent],
+  imports: [RouterLink, SelectFieldComponent, DialogFrameComponent],
   templateUrl: './application-form.component.html',
   host: { class: 'flex w-full flex-col items-center' },
 })

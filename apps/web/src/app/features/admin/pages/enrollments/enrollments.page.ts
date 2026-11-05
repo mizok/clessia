@@ -53,6 +53,7 @@ import {
   type EnrollmentEvent,
 } from './enrollment-event.util';
 import { EnrollmentBillingDialogComponent } from '../courses/class-detail/enrollment-billing-dialog/enrollment-billing-dialog.component';
+import { DirectEnrollDialogComponent } from './direct-enroll-dialog.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
@@ -98,6 +99,7 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
     RouterLink,
     SelectModule,
     PopupMenuComponent,
+    DirectEnrollDialogComponent,
   ],
   providers: [DialogService],
   templateUrl: './enrollments.page.html',
@@ -193,6 +195,10 @@ export class EnrollmentsPage {
   protected readonly classOptions = signal<{ label: string; value: string | null }[]>([
     { label: '全部班級', value: null },
   ]);
+  /** 直接報名的開課班（篩選清單去掉「全部班級」） */
+  protected readonly enrollClassOptions = computed(() =>
+    this.classOptions().flatMap((o) => (o.value ? [{ label: o.label, value: o.value }] : [])),
+  );
   protected readonly filtersOpen = signal(false);
   private readonly campusId = this.campusCtx.id;
 
@@ -475,6 +481,11 @@ export class EnrollmentsPage {
 
   protected openClass(row: EnrollmentRow): void {
     this.router.navigate(this.classRoute(row.enrollment));
+  }
+
+  /** 直接報名成功：回第一頁（新的一列在最上面，排序是 updatedAt） */
+  protected onDirectEnrolled(created: Enrollment | null): void {
+    if (created) this.resetToFirstPage();
   }
 
   protected openRowMenu(event: MouseEvent, e: Enrollment): void {

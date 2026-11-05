@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 學生請假管理</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .tabs { display: flex; align-items: center; gap: var(--space-4); }
+  .tabs .tlink { font-size: var(--text-base); }
+  .tlink__n { font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .ff { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 5fr); gap: var(--space-3); margin-top: var(--space-6); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--zinc-100); }
+  .ff__more { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-3); }
+  .ff[hidden] { display: none; }
+  .ff label { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--zinc-700); }
+  .ff .in, .ff .acset__in { flex: none; width: 100%; height: 40px; }
+  .ff__x { align-self: end; justify-self: start; }
+  .count { margin-top: var(--space-6); font-size: var(--text-md); color: var(--zinc-600); }
+  .count button { border: 0; padding: 0; background: none; font: inherit; font-weight: var(--font-semibold); color: var(--zinc-900); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  /* 一筆請假：摘要列可展開（應然：點擊可展開編輯或刪除） */
+  .lv { border-bottom: 1px solid var(--surface-border); }
+  .lv > summary { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.3fr); gap: var(--space-1) var(--space-6); align-items: baseline; padding: var(--space-4) 0; list-style: none; cursor: pointer; }
+  .lv > summary::-webkit-details-marker { display: none; }
+  .lv > summary:hover .lv__name { text-decoration: underline; text-underline-offset: 3px; }
+  .lv__name { font-size: var(--text-lg); font-weight: var(--font-bold); }
+  .lv__g { margin-left: 6px; font-size: var(--text-sm); font-weight: var(--font-medium); color: var(--zinc-600); }
+  .lv__ss { display: flex; flex-direction: column; gap: 2px; }
+  .lv__s { font-size: var(--text-md); color: var(--zinc-900); font-variant-numeric: tabular-nums; }
+  .lv__why { font-size: var(--text-md); color: var(--zinc-700); }
+  .lv__by { font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; text-align: right; }
+  .lv__late { margin-left: 6px; padding: 0 5px; border-radius: var(--radius-sm); background: var(--zinc-100); color: var(--zinc-800); font-size: var(--text-xs); font-weight: var(--font-semibold); }
+  .lv__days { margin-left: 6px; font-size: var(--text-sm); color: var(--zinc-600); }
+  .lv__body { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: 0 0 var(--space-4); }
+  .lv__note { margin-right: auto; font-size: var(--text-md); color: var(--zinc-700); }
+  .lv.is-gone { opacity: 0; transform: translateX(8px); transition: opacity 0.14s var(--leave), transform 0.14s var(--leave); }
+  .empty { padding: var(--space-8) 0; font-size: var(--text-base); color: var(--zinc-700); }
+  /* 新增請假：當天課堂勾選清單 */
+  .pick { display: grid; gap: var(--space-2); }
+  .pick__o { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; padding: 0 var(--space-3); border: 1px solid var(--zinc-300); border-radius: var(--radius-md); background: #fff; cursor: pointer; }
+  .pick__o:has(input:checked) { border-color: var(--zinc-900); box-shadow: inset 0 0 0 1px var(--zinc-900); }
+  .pick__o input { width: 18px; height: 18px; margin: 0; accent-color: var(--zinc-900); }
+  .pick__o small { margin-left: auto; color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .pick__none { padding: var(--space-3); border-radius: var(--radius-md); background: var(--zinc-100); font-size: var(--text-md); color: var(--zinc-700); }
+  .loglist { display: grid; gap: 0; padding: 0 var(--space-6) var(--space-6); max-height: 420px; overflow: auto; }
+  .loglist li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 2px var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--zinc-200); font-size: var(--text-md); list-style: none; }
+  .loglist time { color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  @media (max-width: 860px) {
+    /* 手機：姓名留著，其他篩選收進一列 */
+    .ff { grid-template-columns: minmax(0, 1fr); margin-left: calc(var(--space-4) * -1); margin-right: calc(var(--space-4) * -1); border-radius: 0; }
+    .ff .fold__sum { min-height: 44px; border-bottom: 0; padding: 0; }
+    .ff__more { grid-template-columns: 1fr 1fr; padding-bottom: var(--space-2); }
+    .lv > summary { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+    .lv__by { text-align: left; }
+    .chap { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding: var(--space-6) 0 var(--space-2); }
+    .chap__side { position: static; display: flex; align-items: baseline; gap: var(--space-3); }
+    .chap__big { font-size: 28px; }
+    .chap__tally { margin-top: 0; font-size: var(--text-base); }
+    .loglist { padding: 0 var(--space-4) var(--space-4); }
+  }
+  .pick__none.is-warn { color: var(--error-700); font-weight: var(--font-semibold); }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>學生請假管理 · A6（#990 批 1）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（specs/admin/student-affairs/leave.md）</th><th>產品現況（sitemap 實測）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>分頁</td><td>待處理（今天與未來）／全部</td><td>沒有，單一表格</td><td>兩個分頁，標「新」；預設待處理</td></tr>
+      <tr><td>篩選</td><td>日期範圍、學生姓名、課程、開課班（全部分頁）</td><td>分校、日期範圍、重置篩選</td><td>應然四個＋保留產品的分校（註記：規格沒寫）；標「新」</td></tr>
+      <tr><td>列內容</td><td>學生、請假日期、課堂（課程＋時間）、原因、建立時間、建立者</td><td>學生、開始／結束日期、天數、原因、申請方</td><td>照應然；保留產品的天數與申請方（電話／LINE／櫃台）</td></tr>
+      <tr><td>編輯</td><td>點擊展開編輯或刪除</td><td>不能編輯，只有取消</td><td>點一筆展開「編輯」「取消請假」；編輯標「新」</td></tr>
+      <tr><td>新增請假</td><td>選學生 → 選日期 → 勾當天的課（可多選，無課顯示「該日無排課」）→ 原因</td><td>分校、年級、學生、開始／結束日期時間、原因</td><td>照應然（勾課堂標「新」）</td></tr>
+      <tr><td>批次請假</td><td>選一堂課 → 勾多位學生</td><td>沒有</td><td>有，標「新」</td></tr>
+      <tr><td>取消後的出勤</td><td>rules/attendance-rules.md §6–7（2026-09-03 使用者定案）：取消＝刪除請假單、沒有「已取消」狀態；區間內<b>還沒點名</b>的請假紀錄刪掉、回到「還沒點名」，<b>已點過名</b>的日子不動（specs/admin/student-affairs/leave.md 規則 5「不自動還原」是舊規格，以 rules 為準）</td><td>#1004 起已照 rules（取消只清還沒點名的；舊的「一起清掉」是那之前的實測）</td><td>照 rules：確認框分開寫「N 堂還沒點名，會回到還沒點名」「M 堂已點過名，不會動」；取消後那筆從清單消失</td></tr>
+      <tr><td>操作紀錄</td><td>規格沒寫</td><td>有</td><td>保留（產品有）</td></tr>
+      <tr><td>用字</td><td>新增請假</td><td>新增請假</td><td>「登記請假」——跟儀表板、學生檔案同一個詞（A6 全站一致）</td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>打開就是「待處理」：今天、明天、之後依日期分章；過去的在「全部」。事後補請的那筆旁邊標「補請」。</li>
+    <li>點一筆展開，可編輯或取消請假；取消時文案照產品（「取消請假申請」「確定要取消 X 的請假申請（A ~ B）？」「返回／確認取消」），並寫清楚取消後出缺席會怎樣：還沒點名的回到「還沒點名」，已點過名的不動（rules/attendance-rules.md §6–7）。</li>
+    <li>新增請假選學生和日期後，列出那天他有的課，預設全勾；沒有課就顯示「該日無排課」，不能送出。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, wd, money, esc } = A2;
+  const T = C.TODAY;
+  const D = (n) => C.addDays(T, n);
+  const stu = (id) => C.studentById[id];
+  const course = (cls) => cls.name.replace(/\s*[A-Z]\s*班$/, '').replace(/班$/, '');
+  // 學生當天有的課（在籍、課堂沒停）
+  const sessOf = (sid, date) => { const ids = stu(sid).enrollments.filter((e) => e.status !== 'withdrawal').map((e) => e.classId); return C.sessions.filter((s) => s.date === date && ids.includes(s.classId) && s.status !== 'cancelled'); };
+  const daysWithClass = (sid, from, to) => { const out = []; for (let d = from; d <= to; d = C.addDays(d, 1)) if (sessOf(sid, d).length) out.push(d); return out; };
+
+  // ── 資料：C.leaves 只有 8 筆，照最壞情況補到四十幾筆（過去、今天、未來；有跨好幾天的；有事後補請的）──
+  let seq = 0;
+  const OPS = ['林主任', '張教務', '陳櫃台'], VIA = ['電話', 'LINE', '櫃台', '家長 App'];
+  const REASONS = ['發燒', '家裡有事', '學校段考', '學校校外教學', '看牙醫', '腸胃炎', '參加比賽', '', '家族旅遊', '感冒'];
+  const L = [];
+  const add = (sid, dates, o = {}) => { const ss = dates.flatMap((d) => sessOf(sid, d)); if (!ss.length) return; L.push(Object.assign({ id: 'lv' + ++seq, sid, from: dates[0], to: dates[dates.length - 1], sess: ss.map((s) => s.id), reason: '', by: OPS[seq % 3], via: VIA[seq % 4], at: `${C.addDays(dates[0], -1 - (seq % 3))}T${String(9 + (seq % 9)).padStart(2, '0')}:${['05', '20', '42'][seq % 3]}` }, o)); };
+  C.leaves.forEach((l) => add(l.studentId, [l.date], { reason: l.reason, via: l.via, by: '林主任' }));
+  let r = 7;
+  const rnd = () => ((r = (r * 16807) % 2147483647) - 1) / 2147483646;
+  for (let i = 0; i < 400 && L.length < 48; i++) {
+    const s = C.students[Math.floor(rnd() * C.students.length)];
+    const off = Math.floor(rnd() * 34) - 20; // 過去 20 天到未來 14 天
+    const span = rnd() < 0.18 ? 3 + Math.floor(rnd() * 5) : 0;
+    const ds = daysWithClass(s.id, D(off), D(off + span));
+    if (!ds.length) continue;
+    const late = ds[0] < T && rnd() < 0.3; // 事後補請
+    add(s.id, ds, Object.assign({ reason: REASONS[i % REASONS.length] }, late ? { at: `${C.addDays(ds[0], 1)}T10:1${i % 10}` } : {}));
+  }
+  // 今天一定要有幾筆
+  C.todayExpected.filter((e) => e.state === 'on_leave').forEach((e) => { if (!L.some((l) => l.sid === e.studentId && l.from <= T && l.to >= T)) add(e.studentId, [T], { reason: '家裡有事', via: 'LINE' }); });
+  const NOWAT = `${T}T${C.NOW}`;
+  L.forEach((l) => { if (l.at > NOWAT) l.at = `${T}T${String(9 + (+l.id.slice(2) % 8)).padStart(2, '0')}:1${+l.id.slice(2) % 10}`; });
+  const isLate = (l) => l.at.slice(0, 10) > l.from;
+  const nDays = (l) => new Set(l.sess.map((id) => C.sessions.find((s) => s.id === id).date)).size;
+
+  const LOGS = [
+    { at: `${T} 16:12`, who: '陳櫃台', what: '新增請假', obj: L[0] ? stu(L[0].sid).name : '' },
+    { at: `${D(-1)} 18:40`, who: '林主任', what: '取消請假', obj: '王柏翰' },
+    { at: `${D(-1)} 10:05`, who: '張教務', what: '批次請假（國一英文 A 班 9 位）', obj: '國一英文 A 班' },
+    { at: `${D(-2)} 14:20`, who: '林主任', what: '編輯請假', obj: '陳品睿' },
+  ];
+
+  // ── 狀態與畫面 ──
+  const st = { tab: 'pending', q: '', course: '', cls: '', from: '', to: '', campus: '' };
+  const CLASSES = C.classes;
+  const COURSES = [...new Set(CLASSES.map(course))];
+  const pend = () => L.filter((l) => l.to >= T);
+  const nToday = () => L.filter((l) => l.from <= T && l.to >= T).length;
+  const ssLabel = (ids) => ids.map((id) => C.sessions.find((s) => s.id === id)).map((s) => `<span class="lv__s">${md(s.date)} ${s.start} ${esc(s.className)}</span>`).join('');
+  const dateLabel = (l) => (l.from === l.to ? `${md(l.from)}（${wd(l.from)}）` : `${md(l.from)}–${md(l.to)}`);
+  const row = (l) => `<details class="lv" data-id="${l.id}">
+      <summary>
+        <span><a class="lv__name" href="student.html">${esc(stu(l.sid).name)}</a><span class="lv__g">${stu(l.sid).gradeLabel}</span>${l.from !== l.to ? `<span class="lv__days">${nDays(l)} 天</span>` : ''}</span>
+        <span class="lv__ss">${ssLabel(l.sess)}</span>
+        <span class="lv__why">${l.reason ? esc(l.reason) : '沒寫原因'}</span>
+        <span class="lv__by">${esc(l.by)} · ${md(l.at.slice(0, 10))} ${l.at.slice(11)} 建立 · ${esc(l.via)}${isLate(l) ? '<span class="lv__late">補請</span>' : ''}</span>
+      </summary>
+      <div class="lv__body"><p class="lv__note">${dateLabel(l)} · ${l.sess.length} 堂課標成請假</p>
+        <button class="btn btn--sm" type="button" data-edit="${l.id}">編輯<span class="new">新</span></button>
+        <button class="btn btn--sm" type="button" data-cancel="${l.id}">取消請假</button></div>
+    </details>`;
+  const chapLabel = (d) => (d === T ? '今天' : d === D(1) ? '明天' : `${md(d)}`);
+  const hit = () => {
+    const q = st.q.trim();
+    return L.filter((l) => {
+      if (st.tab === 'pending' && l.to < T) return false;
+      if (st.tab === 'all') {
+        if (q && !stu(l.sid).name.includes(q)) return false;
+        if (st.from && l.to < st.from) return false;
+        if (st.to && l.from > st.to) return false;
+        const cls = l.sess.map((id) => C.sessions.find((s) => s.id === id).classId);
+        if (st.cls && !cls.includes(st.cls)) return false;
+        if (st.course && !cls.some((c) => course(C.classById[c]) === st.course)) return false;
+        if (st.campus === '景美分校') return false; // ponytail: 示範資料都在文山旗艦校
+      }
+      return true;
+    });
+  };
+  function render() {
+    const list = hit();
+    // 待處理：今天、明天、之後依開始日期分章（進行中的跨日請假歸到今天）；全部：依開始日期由新到舊
+    const key = (l) => (st.tab === 'pending' && l.from < T ? T : l.from);
+    const groups = new Map();
+    list.slice().sort((a, b) => (st.tab === 'pending' ? key(a).localeCompare(key(b)) : b.from.localeCompare(a.from))).forEach((l) => { const k = key(l); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(l); });
+    document.getElementById('list').innerHTML = list.length ? [...groups.entries()].map(([d, ls]) => `<section class="chap" aria-label="${chapLabel(d)}">
+        <div class="chap__side"><div class="chap__big">${chapLabel(d)}</div><p class="chap__meta">${d === T || d === D(1) ? `${md(d)}（${wd(d)}）` : `週${wd(d)}`}</p><p class="chap__tally">${ls.length} 位</p></div>
+        <div>${ls.map(row).join('')}</div></section>`).join('')
+      : `<p class="empty">${st.tab === 'pending' ? '今天和之後都沒有請假。' : '沒有符合這組篩選的請假。'}</p>`;
+    const filtered = st.tab === 'all' && (st.q || st.course || st.cls || st.from || st.to || st.campus);
+    const cnt = document.getElementById('count');
+    cnt.hidden = st.tab !== 'all';
+    cnt.innerHTML = `共 ${list.length} 筆${filtered ? ' · <button type="button" data-reset>清除篩選</button>' : ''}`;
+    document.getElementById('ff').hidden = st.tab !== 'all';
+    const n = [st.course, st.cls, st.from, st.to, st.campus].filter(Boolean).length;
+    document.getElementById('fm').textContent = n ? `${n} 個條件` : '全部';
+    document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === st.tab));
+    document.querySelector('[data-tab="pending"] .tlink__n').textContent = pend().length;
+    document.querySelector('[data-tab="all"] .tlink__n').textContent = L.length;
+    const t = nToday();
+    document.querySelector('.open__title').innerHTML = `今天 ${t} 位請假，<br>之後還有 ${pend().length - t} 筆。`;
+  }
+
+  const ff = `<div class="ff" id="ff" role="search" hidden>
+      <label><span>學生姓名<span class="new">新</span></span><input class="acset__in" type="search" data-f="q" placeholder="輸入姓名"></label>
+      <details class="fold" data-fold><summary class="fold__sum"><span class="fold__t">篩選</span><span class="fold__m" id="fm">全部</span></summary><div class="ff__more">
+      <label><span>課程<span class="new">新</span></span><select class="acset__in" data-f="course"><option value="">全部課程</option>${COURSES.map((c) => `<option>${esc(c)}</option>`).join('')}</select></label>
+      <label><span>開課班<span class="new">新</span></span><select class="acset__in" data-f="cls"><option value="">全部班級</option>${CLASSES.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label>
+      <label>從<input class="acset__in" type="date" data-f="from"></label>
+      <label>到<input class="acset__in" type="date" data-f="to"></label>
+      <label>分校<select class="acset__in" data-f="campus"><option value="">全部分校</option>${C.campuses.map((c) => `<option>${c}</option>`).join('')}</select></label>
+      </div></details></div>`;
+
+  shell({
+    page: 'leave',
+    title: '',
+    bar: `<nav class="tabs" aria-label="請假"><button class="tlink" type="button" data-tab="pending">待處理 <span class="tlink__n"></span></button><button class="tlink" type="button" data-tab="all">全部 <span class="tlink__n"></span></button><span class="new">新</span></nav>
+      <div class="tbar__act"><button class="btn only-d" type="button" data-log>操作紀錄</button><button class="btn only-d" type="button" data-batch-leave>批次請假<span class="new">新</span></button><button class="btn btn--cta only-d" type="button" data-new>${icon.plus}登記請假</button></div>`,
+    dock: `<button class="btn" type="button" data-batch-leave>批次請假</button><button class="btn btn--cta" type="button" data-new>${icon.plus}登記請假</button>`,
+    phase: 2600,
+  }, `${ff}<p class="count" id="count" hidden></p><div id="list"></div>`);
+  A2.fold();
+  render();
+
+  // ── 對話框（頁內；樣子沿用 A2.form 的 .acset.fdlg）──
+  function dlg(title, sub, body, { go, goLabel, busy, ok, why, back = '取消' } = {}) {
+    const d = document.createElement('dialog');
+    d.className = 'acset fdlg';
+    d.setAttribute('aria-labelledby', 'pd-t');
+    d.innerHTML = `<div class="acset__head"><div><h2 class="acset__t" id="pd-t">${esc(title)}</h2>${sub ? `<p class="fdlg__sub">${esc(sub)}</p>` : ''}</div><button class="acset__x" type="button" aria-label="關閉" data-x>${icon.x}</button></div>
+      <div class="acset__body">${body}</div>
+      <div class="fdlg__foot"><p class="fdlg__why" aria-live="polite"></p><button class="btn" type="button" data-x>${go ? back : '關閉'}</button>${go ? `<button class="btn btn--cta" type="button" data-go>${esc(goLabel)}</button>` : ''}</div>`;
+    document.body.append(d);
+    const goBtn = d.querySelector('[data-go]'), whyEl = d.querySelector('.fdlg__why');
+    const check = () => { if (!why || !goBtn) return; const w = why(d); goBtn.setAttribute('aria-disabled', w ? 'true' : 'false'); whyEl.textContent = w || ''; };
+    d.addEventListener('input', check); d.addEventListener('change', check);
+    d.addEventListener('click', (e) => {
+      if (e.target === d || e.target.closest('[data-x]')) d.close();
+      if (e.target.closest('[data-go]')) {
+        if (goBtn.getAttribute('aria-disabled') === 'true') { whyEl.classList.remove('is-shake'); void whyEl.offsetWidth; whyEl.classList.add('is-shake'); return; }
+        const res = go(d);
+        A2.act(goBtn, { busy, ok: typeof ok === 'function' ? ok(res) : ok, undo: res && res.undo, run: () => { d.close(); res && res.apply && res.apply(); } });
+      }
+    });
+    d.addEventListener('close', () => setTimeout(() => d.remove(), 200));
+    d.check = check; check();
+    d.showModal();
+    return d;
+  }
+
+  // 新增請假（應然）：學生 → 日期 → 當天的課（可多選）→ 原因
+  function newLeave(edit) {
+    const l = edit && L.find((x) => x.id === edit);
+    const sid0 = l ? l.sid : '', d0 = l ? l.from : T;
+    const body = `<div class="acset__f"><label class="acset__l" for="nl-s">學生 <span class="fdlg__req" aria-hidden="true">*</span></label><select class="acset__in" id="nl-s"><option value="">輸入姓名搜尋</option>${C.students.map((s) => `<option value="${s.id}"${s.id === sid0 ? ' selected' : ''}>${esc(s.name)}（${s.gradeLabel}）</option>`).join('')}</select></div>
+      <div class="acset__f"><label class="acset__l" for="nl-d">請假日期 <span class="fdlg__req" aria-hidden="true">*</span></label><input class="acset__in" type="date" id="nl-d" value="${d0}"></div>
+      <div class="acset__f"><p class="acset__l">要請假的課<span class="new">新</span></p><div class="pick" id="nl-p"></div></div>
+      <div class="acset__f"><label class="acset__l" for="nl-r">原因（選填）</label><input class="acset__in" id="nl-r" placeholder="請假原因" value="${l ? esc(l.reason) : ''}"></div>`;
+    const sel = () => [...document.querySelectorAll('#nl-p input:checked')].map((x) => x.value);
+    const d = dlg(l ? '編輯請假' : '登記請假', '送出後，勾的課出缺席會標成請假', body, {
+      goLabel: l ? '儲存' : '送出請假', busy: l ? '儲存中…' : '送出中…',
+      why: (dd) => { const s = dd.querySelector('#nl-s').value; if (!s) return '還沒選學生'; if (!dd.querySelector('#nl-p input')) return '這天沒有他的課'; if (!sel().length) return '至少勾一堂課'; return ''; },
+      go: (dd) => {
+        const sid = dd.querySelector('#nl-s').value, day = dd.querySelector('#nl-d').value, ss = sel(), reason = dd.querySelector('#nl-r').value.trim();
+        return { sid, day, n: ss.length, apply: () => {
+          if (l) Object.assign(l, { sid, from: day, to: day, sess: ss, reason });
+          else L.push({ id: 'lv' + ++seq, sid, from: day, to: day, sess: ss, reason, by: '林主任', via: '櫃台', at: `${T}T${C.NOW}` });
+          if (!l) st.tab = day >= T ? 'pending' : 'all';
+          render();
+          const el = document.querySelector(`[data-id="${l ? l.id : 'lv' + seq}"]`); if (el) { el.classList.add('is-new'); el.scrollIntoView({ block: 'center' }); }
+        } };
+      },
+      ok: (x) => `${l ? '已更新' : '已登記'} ${stu(x.sid).name} ${md(x.day)} 請假（${x.n} 堂）`,
+    });
+    const paint = () => {
+      const sid = d.querySelector('#nl-s').value, day = d.querySelector('#nl-d').value, box = d.querySelector('#nl-p');
+      if (!sid) { box.innerHTML = '<p class="pick__none">先選學生，這裡會列出他那天的課。</p>'; return d.check(); }
+      const ss = sessOf(sid, day);
+      box.innerHTML = ss.length ? ss.map((s) => `<label class="pick__o"><input type="checkbox" value="${s.id}"${!l || l.sess.includes(s.id) ? ' checked' : ''}>${esc(s.className)}<small>${s.start}–${s.end}</small></label>`).join('')
+        : `<p class="pick__none">該日無排課。${stu(sid).name}在 ${md(day)}（${wd(day)}）沒有課，換一天試試。</p>`;
+      d.check();
+    };
+    d.querySelector('#nl-s').addEventListener('change', paint);
+    d.querySelector('#nl-d').addEventListener('change', paint);
+    paint();
+  }
+
+  // 批次請假（應然，產品沒有）：選一堂課 → 勾多位學生
+  function batchLeave() {
+    const up = C.sessions.filter((s) => s.date >= T && s.date <= D(14) && s.status !== 'cancelled').sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+    const body = `<div class="acset__f"><label class="acset__l" for="bl-s">課堂 <span class="fdlg__req" aria-hidden="true">*</span></label><select class="acset__in" id="bl-s"><option value="">選一堂課</option>${up.map((s) => `<option value="${s.id}">${md(s.date)}（${wd(s.date)}）${s.start} ${esc(s.className)}</option>`).join('')}</select><p class="acset__hint">例如全班校外教學、颱風停課補假</p></div>
+      <div class="acset__f"><p class="acset__l">學生 <button class="tlink" type="button" id="bl-all">全選</button></p><div class="pick" id="bl-p"><p class="pick__none">先選一堂課，這裡會列出這班的學生。</p></div></div>
+      <div class="acset__f"><label class="acset__l" for="bl-r">原因（選填）</label><input class="acset__in" id="bl-r" placeholder="例如：校外教學"></div>`;
+    const sel = () => [...document.querySelectorAll('#bl-p input:checked')].map((x) => x.value);
+    const d = dlg('批次請假', '同一堂課，一次幫好幾位學生請假', body, {
+      goLabel: '送出請假', busy: '送出中…',
+      why: (dd) => (!dd.querySelector('#bl-s').value ? '還沒選課堂' : !sel().length ? '至少勾一位學生' : ''),
+      go: (dd) => {
+        const s = C.sessions.find((x) => x.id === dd.querySelector('#bl-s').value), ids = sel(), reason = dd.querySelector('#bl-r').value.trim();
+        return { s, n: ids.length, apply: () => {
+          ids.forEach((sid) => L.push({ id: 'lv' + ++seq, sid, from: s.date, to: s.date, sess: [s.id], reason, by: '林主任', via: '櫃台', at: `${T}T${C.NOW}` }));
+          st.tab = 'pending'; render();
+        } };
+      },
+      ok: (x) => `已幫 ${x.n} 位學生請 ${md(x.s.date)} ${x.s.className} 的假`,
+    });
+    const paint = () => {
+      const s = C.sessions.find((x) => x.id === d.querySelector('#bl-s').value), box = d.querySelector('#bl-p');
+      if (!s) return;
+      box.innerHTML = C.classById[s.classId].studentIds.map((sid) => `<label class="pick__o"><input type="checkbox" value="${sid}">${esc(stu(sid).name)}<small>${stu(sid).gradeLabel}</small></label>`).join('');
+      d.check();
+    };
+    d.querySelector('#bl-s').addEventListener('change', paint);
+    d.querySelector('#bl-all').addEventListener('click', () => { const bs = [...d.querySelectorAll('#bl-p input')];
+      // 還沒選課堂時清單是空的：按了要說為什麼沒反應（#990 稽核抓到）
+      if (!bs.length) { const n = d.querySelector('#bl-p .pick__none'); if (n) { n.textContent = '先選一堂課，才能全選這班的學生。'; n.classList.add('is-warn'); } return; } const on = bs.some((b) => !b.checked); bs.forEach((b) => (b.checked = on)); d.check(); });
+  }
+
+  document.addEventListener('click', (e) => {
+    const tb = e.target.closest('[data-tab]');
+    if (tb) { st.tab = tb.dataset.tab; render(); }
+    if (e.target.closest('[data-new]')) newLeave();
+    if (e.target.closest('[data-batch-leave]')) batchLeave();
+    const ed = e.target.closest('[data-edit]');
+    if (ed) newLeave(ed.dataset.edit);
+    if (e.target.closest('[data-reset]')) { Object.assign(st, { q: '', course: '', cls: '', from: '', to: '', campus: '' }); document.querySelectorAll('#ff [data-f]').forEach((x) => (x.value = '')); render(); }
+    if (e.target.closest('[data-log]')) dlg('操作紀錄', '請假的新增、編輯、取消', `<ul class="loglist">${LOGS.map((x) => `<li><time>${md(x.at.slice(0, 10))} ${x.at.slice(11)}</time><span><b>${esc(x.who)}</b> ${esc(x.what)}${x.obj ? ` · ${esc(x.obj)}` : ''}</span></li>`).join('')}</ul>`);
+    const cc = e.target.closest('[data-cancel]');
+    if (cc) {
+      const l = L.find((x) => x.id === cc.dataset.cancel), name = stu(l.sid).name;
+      // 產品文案（future 版逐字）＋rules/attendance-rules.md §6–7（2026-09-03 定案）：
+      // 取消＝刪除請假單（沒有「已取消」狀態）；還沒點名的請假紀錄刪掉、回到「還沒點名」，已點過名的日子不動
+      const done = l.sess.filter((x) => x.attendanceTaken).length, open = l.sess.length - done;
+      const fx = [open ? `${open} 堂還沒點名，會回到「還沒點名」` : '', done ? `${done} 堂已經點過名，不會動` : ''].filter(Boolean).join('；');
+      dlg('取消請假申請', '', `<p>確定要取消 ${esc(name)} 的請假申請（${l.from} ~ ${l.to}）？</p><p class="acset__hint">取消後這張請假單會刪除。${fx}。</p>`, {
+        goLabel: '確認取消', back: '返回', busy: '取消中…', ok: `已取消 ${name} 的請假`,
+        go: () => {
+          const i = L.indexOf(l);
+          return { apply: () => { const el = document.querySelector(`[data-id="${l.id}"]`); if (el) el.classList.add('is-gone'); setTimeout(() => { L.splice(L.indexOf(l), 1); render(); }, 150); },
+            undo: () => { L.splice(i, 0, l); render(); } };
+        },
+      });
+    }
+  });
+  document.getElementById('ff').addEventListener('input', (e) => { const k = e.target.dataset.f; if (k) { st[k] = e.target.value; render(); } });
+  document.getElementById('ff').addEventListener('change', (e) => { const k = e.target.dataset.f; if (k) { st[k] = e.target.value; render(); } });
+})();
+</script>
+</body>
+</html>

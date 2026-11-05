@@ -311,6 +311,23 @@ describe('DashboardComponent（A6 p-dashboard）', () => {
     expect(el().querySelector('[data-part="campus-phone"]')).toBeNull();
   });
 
+  it('詳情對話框：共用殼的 h2 是可及名稱、副標是日期時段；動作在 sticky 底部（#2290）', () => {
+    create();
+    const dialog = el().querySelector('dialog')! as HTMLDialogElement;
+    dialog.showModal = vi.fn();
+    const c = fixture.componentInstance as unknown as { open: (d: unknown) => void };
+    c.open({ kind: 'session', session: ses(TODAY) });
+    fixture.detectChanges();
+    const h2 = dialog.querySelector('h2')!;
+    expect(dialog.getAttribute('aria-labelledby')).toBe(h2.id);
+    expect(dialog.querySelector('.dialog-header-inline__sub')!.textContent).toMatch(
+      /\d\d:\d\d–\d\d:\d\d$/,
+    );
+    const foot = dialog.querySelector('.form-dialog__footer')!;
+    expect(foot.textContent).toContain('到班紀錄');
+    expect(foot.textContent).toContain('關閉');
+  });
+
   it('詳情對話框：點背景才關，點裡面的內容不關', () => {
     create();
     const c = fixture.componentInstance as unknown as {
