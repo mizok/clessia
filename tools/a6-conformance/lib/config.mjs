@@ -1745,6 +1745,13 @@ export const PAGES = {
     appOpen: { leave: { click: 'button:has-text("幫孩子請假")', root: 'dialog[open]' } },
     deviations: [
       {
+        // 到班打卡但不是上課的紀錄照樣列出並標「非課堂」（使用者 11-02 照計畫席建議裁定：保留）
+        status: '多',
+        app: '>landmark:main\\[\\]>row>control:button(~\\d+)?>text:span~2>text:span\\[非課堂\\]$',
+        reason: '「非課堂」標籤保留：到班打卡但不是上課的紀錄照樣列出並標明',
+        source: `${rule('R5')}「家長出缺席頁的『非課堂』標籤」2026-11-02（使用者 11-02 照計畫席建議裁定）`,
+      },
+      {
         // 代表列取最常見的變體：稿的示範期間多是「今日無課」的日子（padding 12、日期 14/600 zinc-700、手機 flex）、
         // 堂多是請假／還沒上（600 zinc-600）；seed 多是有課的日子（16、16/700）、「到了」（700 zinc-900）。
         // 兩種變體 app 都照稿（attendance.page.html 的 day--empty 與 rec 狀態色）
@@ -1959,6 +1966,23 @@ export const PAGES = {
         '>landmark:main[]>landmark:region[已停用]>heading:h2[已停用]',
     },
     deviations: [
+      // 新增人員的角色、服務分校維持多選（ST7，使用者 11-02 照計畫席建議裁定）：稿是單選的下拉，app 是勾選框與多選
+      ...[
+        {
+          status: '缺',
+          a6: 'landmark:form\\[\\](>row>control:button|>control:button\\[選擇：不教課\\])$',
+        },
+        {
+          status: '多',
+          app: 'landmark:form\\[\\]>(control:checkbox\\[(管理員|老師)\\]|row>text:div)$',
+        },
+        { status: '樣式', a6: 'landmark:form\\[\\]>row$', detail: '^display block → flex' },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-staff',
+        reason: '角色、服務分校維持多選：一個人可以同時是管理員兼老師、在多間分校服務',
+        source: `${rule('R5')}「人員的角色／分校／科目」2026-11-02（使用者 11-02 照計畫席建議裁定，ST7）`,
+      })),
       // 新增人員：對外暱稱（#1665 Q6）稿沒畫，舊有新無
       ...[
         {
@@ -2285,7 +2309,19 @@ export const PAGES = {
       })),
     ],
   },
-  changes: { a6: 'changes.html', app: '/admin/changes' },
+  changes: {
+    a6: 'changes.html',
+    app: '/admin/changes',
+    deviations: [
+      {
+        // 稿只有一個搜尋框；「月份」「異動類型」「老師或班級」三個篩選保留（使用者 11-02 照計畫席建議裁定）
+        status: '多',
+        app: '>landmark:search\\[篩選課務異動\\]>(text:span\\[(月份|異動類型)\\]|control:combobox\\[(月份|異動類型)\\]|control:button\\[dropdown trigger\\](~\\d+)?|text:label\\[老師或班級\\]|control:searchbox\\[老師或班級\\]|control:button\\[篩選全部異動\\])$',
+        reason: '課務異動的三個篩選保留：月份、異動類型、老師或班級',
+        source: `${rule('R5')}「課務異動頁的三個篩選」2026-11-02（使用者 11-02 照計畫席建議裁定）`,
+      },
+    ],
+  },
   exams: {
     a6: 'exams.html',
     app: '/admin/grades/exams',
