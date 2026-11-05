@@ -837,10 +837,9 @@ export class SessionsPage implements OnInit {
   // ── Single-session actions ─────────────────────────────────────────────
   protected openReschedule(session: Session): void {
     const ref = this.dialogService.open(SessionRescheduleDialogComponent, {
-      header: '調課',
-      width: '400px',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       data: { session },
-      styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
     });
     ref?.onClose.subscribe((result) => {
@@ -850,10 +849,9 @@ export class SessionsPage implements OnInit {
 
   protected openSubstitute(session: Session): void {
     const ref = this.dialogService.open(SessionSubstituteDialogComponent, {
-      header: '安排代課',
-      width: '400px',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       data: { session },
-      styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
     });
     ref?.onClose.subscribe((result) => {
@@ -863,10 +861,9 @@ export class SessionsPage implements OnInit {
 
   protected openCancelDialog(session: Session): void {
     const ref = this.dialogService.open(SessionCancelDialogComponent, {
-      header: '停課',
-      width: '400px',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       data: { session },
-      styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
     });
     ref?.onClose.subscribe((result?: { result: string } | string) => {
@@ -905,10 +902,9 @@ export class SessionsPage implements OnInit {
   protected openAssignSingle(session: Session): void {
     const eligibleTeachers = this.getEligibleTeachersForSession(session);
     const ref = this.dialogService.open(SessionAssignDialogComponent, {
-      header: '指派老師',
-      width: '400px',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       data: { session, ...(eligibleTeachers.length > 0 ? { teachers: eligibleTeachers } : {}) },
-      styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
     });
     ref?.onClose.subscribe((result) => {
