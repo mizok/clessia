@@ -79,6 +79,30 @@ describe('ClassroomsDialogComponent', () => {
     expect(sub).toBe('A教室（30人）、B教室');
   });
 
+  it('共用殼（#2290）：教室清單投影在殼的標頭（h2 之後），每間的「⋯」照樣在；dialog 的名稱指到 h2', async () => {
+    const { el, fixture } = setup();
+    await fixture.whenStable();
+    const head = el.querySelector('.dialog-header-inline__content')!;
+    const h2 = head.querySelector('h2')!;
+
+    expect(h2.textContent?.trim()).toBe('教室：中正分校');
+    expect(head.querySelector('[data-rooms]')).not.toBeNull();
+    expect(head.querySelectorAll('[data-rooms] button[aria-label$="的更多動作"]')).toHaveLength(2);
+    expect(el.querySelector('dialog')!.getAttribute('aria-labelledby')).toBe(h2.id);
+  });
+
+  it('送出鈕在 form 外但指回表單：點一次送一次；在欄位按 Enter（隱式送出）也只一次', () => {
+    const { el, service, type, go } = setup();
+    type('room-name', 'C 教室');
+    go();
+    expect(service.createClassroom).toHaveBeenCalledTimes(1);
+
+    const form = el.querySelector('form')!;
+    const submit = el.querySelector<HTMLButtonElement>('button[form="classroom-form"]')!;
+    expect(form.contains(submit)).toBe(false);
+    expect(submit.form).toBe(form);
+  });
+
   it('沒有教室：「這個分校還沒有教室」', () => {
     expect(setup([]).el.textContent).toContain('這個分校還沒有教室');
   });
