@@ -171,34 +171,20 @@
   </div>
 </app-child-scope-gate>
 
-<!-- 課堂詳情（A6 .sd）：基本資訊、出勤、小考、課務異動、這堂的作業與之前的作業 -->
+<!-- 課堂詳情（A6 .sd）：基本資訊、出勤、小考、課務異動、這堂的作業與之前的作業。
+     共用殼 app-dialog-frame（#2290）：手機貼底抽屜、由下滑入；底部「關閉」照 A6 p-schedule 留著（sticky） -->
 <dialog
   #detailDialog
-  class="m-auto min-h-11 w-[min(32rem,calc(100%-2rem))] rounded-lg border-0 p-0 text-zinc-900 shadow-md backdrop:bg-zinc-900/40"
-  aria-labelledby="schedule-detail-title"
+  role="dialog"
+  class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(var(--dlg-w-md),calc(100%-32px))] rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-zinc-200"
   (click)="onDialogClick($event)"
 >
   @if (selected(); as s) {
-    <div class="flex items-start justify-between gap-3 px-6 pt-6">
-      <div class="min-w-0">
-        <h2 id="schedule-detail-title" class="m-0 text-xl font-bold">{{ s.className }}</h2>
-        <p class="m-0 mt-1 text-md text-zinc-700 tabular-nums">
-          {{ formatMd(s.date) }}（{{ weekdayOf(s.date) }}）{{ hhmm(s.startTime) }}–{{
-            hhmm(s.endTime)
-          }}
-        </p>
-      </div>
-      <button
-        type="button"
-        class="inline-grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-700 hover:bg-zinc-100"
-        aria-label="關閉"
-        (click)="closeDetail()"
-      >
-        <i class="pi pi-times" aria-hidden="true"></i>
-      </button>
-    </div>
-
-    <div class="grid gap-5 px-6 py-5">
+    <app-dialog-frame
+      [title]="s.className ?? ''"
+      [sub]="`${formatMd(s.date)}（${weekdayOf(s.date)}）${hhmm(s.startTime)}–${hhmm(s.endTime)}`"
+      (closed)="closeDetail()"
+    >
       <dl class="m-0 grid grid-cols-[5.5em_minmax(0,1fr)] gap-x-3 gap-y-2 text-base">
         <dt class="text-zinc-600">老師</dt>
         <dd class="m-0">
@@ -375,16 +361,15 @@
           </details>
         }
       }
-    </div>
-
-    <div class="flex justify-end px-6 pb-6">
-      <button
-        type="button"
-        class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
-        (click)="closeDetail()"
-      >
-        關閉
-      </button>
-    </div>
+      <ng-container dialogFoot>
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
+          (click)="closeDetail()"
+        >
+          關閉
+        </button>
+      </ng-container>
+    </app-dialog-frame>
   }
 </dialog>
