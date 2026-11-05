@@ -1498,8 +1498,21 @@ export const PAGES = {
     app: '/admin/courses/seed-course/classes/62000000-0000-0000-0000-000000000001',
     // 產生課堂（#2290 courses）：稿 genDialog 是原生 dialog.acset.fdlg；app 是 DialogService（共用殼）。
     // 課程頁的 gen 要先有「需介入」的班，seed 在稿的時間點沒有，量不到 —— 改在這裡量
-    a6Open: { gen: { click: '[data-gen]', root: 'dialog[open]' } },
-    appOpen: { gen: { click: 'button:has-text("產生課堂")', root: '.p-dialog:has(app-generate-sessions-dialog)' } },
+    a6Open: {
+      gen: { click: '[data-gen]', root: 'dialog[open]' },
+      // 停用開課班（#2361）：兩邊都在「⋯」選單裡
+      off: { click: ['[popovertarget="kacts"]', '[data-off]'], root: 'dialog[open]' },
+    },
+    appOpen: {
+      gen: {
+        click: 'button:has-text("產生課堂")',
+        root: '.p-dialog:has(app-generate-sessions-dialog)',
+      },
+      off: {
+        click: ['button[aria-label="更多動作"]', '[role=menuitem]:has-text("停用班級")'],
+        root: '.p-dialog:has(app-deactivate-class-dialog)',
+      },
+    },
     deviations: [
       noCampusSwitch('一個班只屬於一間分校，頂欄切到別的分校會跟頁面矛盾'),
       // 量的是 seed.sql 的「數學班 A」，稿是「國三數學A班」：班名不同，狀態標跟著位移
@@ -1569,7 +1582,10 @@ export const PAGES = {
     deviations: [
       // ── 櫃台代刷到班（#2314）──
       // 學生：app-select-field（p-select）對稿的 .dd；稿的按鈕名「選擇：…」跟 app 的 trigger 錯配
-      ...selectFieldDeviations('選擇|學生（今天還沒到的）\\*').map((d) => ({ ...d, pop: 'checkin' })),
+      ...selectFieldDeviations('選擇|學生（今天還沒到的）\\*').map((d) => ({
+        ...d,
+        pop: 'checkin',
+      })),
       ...[
         { status: '角色', a6: '>landmark:form\\[\\]>text:label\\[學生（今天還沒到的）\\]$' },
         ...['文案', '位置', '樣式'].map((status) => ({
