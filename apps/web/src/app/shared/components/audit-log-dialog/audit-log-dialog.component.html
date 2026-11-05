@@ -1,132 +1,135 @@
-<div class="dialog-header-inline">
-  <div class="dialog-header-inline__title-container">
-    <h2 class="dialog-header-inline__title">操作紀錄</h2>
+<!-- A6 `.acset`（courses.html 操作紀錄）：h2 當對話框可及名稱；form-dialog--a6 給圓角 8、手機灰底、內容區內距歸 0 -->
+<div class="form-dialog form-dialog--a6">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      <h2 appDialogTitle class="dialog-header-inline__title">操作紀錄</h2>
+    </div>
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11 wide:size-10"
+      aria-label="關閉"
+      (click)="cancel()"
+    >
+      <i class="pi pi-times" aria-hidden="true"></i>
+    </button>
   </div>
-  <button
-    type="button"
-    class="dialog-header-inline__close size-11"
-    aria-label="關閉"
-    (click)="cancel()"
-  >
-    <i class="pi pi-times" aria-hidden="true"></i>
-  </button>
-</div>
 
-<!--
+  <!--
   A6 `.logt`（courses.html 的操作紀錄，#2006）：四欄都顯示，**不收進展開箭頭** ——
   手機原本只剩「操作者」「時間」，「對象」「動作」藏在箭頭裡，使用者讀成「內容被切掉」。
   桌機一列四欄；手機一筆兩行（動作＋對象／操作者 · 時間）。底部留 24px（A6 `.logwrap`）。
   高度不寫死：彈窗的 max-height（扣鍵盤）與 `.p-dialog-content` 的捲動已經處理。
 -->
-<div class="audit-log-dialog pb-6">
-  @if (tabs().length > 0) {
-    <p-tabs [value]="tabIndex()" (valueChange)="onTab($event)">
-      <p-tablist>
-        @for (tab of tabs(); track tab.label; let i = $index) {
-          <p-tab [value]="i">{{ tab.label }}</p-tab>
-        }
-      </p-tablist>
-    </p-tabs>
-  }
-
-  <div class="audit-log-dialog__body pt-4">
-    @if (loading()) {
-      <app-skeleton label="操作紀錄載入中" [count]="5" />
-    } @else if (loadFailed()) {
-      <app-load-failed description="沒有讀到操作紀錄，可能是連線問題" (retry)="loadPage()" />
-    } @else if (logs().length === 0) {
-      <div
-        class="audit-log-dialog__empty flex flex-col items-center justify-center gap-3 py-8 text-center text-zinc-600"
-      >
-        <i class="pi pi-history text-[2rem]" aria-hidden="true"></i>
-        <p class="m-0 text-md">{{ emptyText() }}</p>
-      </div>
-    } @else {
-      <!-- 桌機：A6 `.logt` 四欄表 -->
-      <table class="audit-log-dialog__table hidden w-full border-collapse text-md wide:table">
-        <thead>
-          <tr>
-            <th
-              class="border-b border-zinc-200 py-2 pr-2 text-left text-sm font-semibold text-zinc-600"
-            >
-              操作者
-            </th>
-            <th
-              class="border-b border-zinc-200 py-2 pr-2 text-left text-sm font-semibold text-zinc-600"
-            >
-              時間
-            </th>
-            <th
-              class="border-b border-zinc-200 py-2 pr-2 text-left text-sm font-semibold text-zinc-600"
-            >
-              對象
-            </th>
-            <th
-              class="border-b border-zinc-200 py-2 pr-2 text-left text-sm font-semibold text-zinc-600"
-            >
-              動作
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (log of logs(); track log.id) {
-            <tr>
-              <td class="border-b border-zinc-200 py-2 pr-2 align-top">{{ actorName(log) }}</td>
-              <td
-                class="border-b border-zinc-200 py-2 pr-2 align-top whitespace-nowrap text-zinc-600 tabular-nums"
-              >
-                {{ log.createdAt | date: 'yyyy-MM-dd HH:mm' }}
-              </td>
-              <td class="border-b border-zinc-200 py-2 pr-2 align-top">
-                <span class="mr-1 text-sm text-zinc-600">{{
-                  getResourceTypeLabel(log.resourceType)
-                }}</span>
-                {{ log.resourceName ?? '—' }}
-              </td>
-              <td class="border-b border-zinc-200 py-2 pr-2 align-top">
-                <app-data-chip>{{ getActionConfig(log.action).label }}</app-data-chip>
-                @if (getDetailsSummary(log); as summary) {
-                  <small class="mt-0.5 block text-sm text-zinc-600">{{ summary }}</small>
-                }
-              </td>
-            </tr>
+  <div class="audit-log-dialog px-6 pb-6">
+    @if (tabs().length > 0) {
+      <p-tabs [value]="tabIndex()" (valueChange)="onTab($event)">
+        <p-tablist>
+          @for (tab of tabs(); track tab.label; let i = $index) {
+            <p-tab [value]="i">{{ tab.label }}</p-tab>
           }
-        </tbody>
-      </table>
-
-      <!-- 手機：一筆兩行，四欄的資訊都在 -->
-      <ul class="audit-log-dialog__list m-0 list-none p-0 wide:hidden">
-        @for (log of logs(); track log.id) {
-          <li class="audit-log-dialog__item border-b border-zinc-200 py-3">
-            <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <app-data-chip>{{ getActionConfig(log.action).label }}</app-data-chip>
-              <span class="min-w-0 text-md text-zinc-900">
-                <span class="mr-1 text-sm text-zinc-600">{{
-                  getResourceTypeLabel(log.resourceType)
-                }}</span>
-                {{ log.resourceName ?? '—' }}
-              </span>
-            </div>
-            @if (getDetailsSummary(log); as summary) {
-              <p class="m-0 mt-1 text-sm text-zinc-600">{{ summary }}</p>
-            }
-            <p class="m-0 mt-1 text-sm text-zinc-600 tabular-nums">
-              {{ actorName(log) }} · {{ log.createdAt | date: 'yyyy-MM-dd HH:mm' }}
-            </p>
-          </li>
-        }
-      </ul>
-
-      @if (total() > pageSize) {
-        <app-pager
-          class="mt-4"
-          [total]="total()"
-          [pageSize]="pageSize"
-          [page]="page()"
-          unit="筆"
-          (pageChange)="onPage($event)"
-        />
-      }
+        </p-tablist>
+      </p-tabs>
     }
+
+    <div class="audit-log-dialog__body pt-4">
+      @if (loading()) {
+        <app-skeleton label="操作紀錄載入中" [count]="5" />
+      } @else if (loadFailed()) {
+        <app-load-failed description="沒有讀到操作紀錄，可能是連線問題" (retry)="loadPage()" />
+      } @else if (logs().length === 0) {
+        <div
+          class="audit-log-dialog__empty flex flex-col items-center justify-center gap-3 py-8 text-center text-zinc-600"
+        >
+          <i class="pi pi-history text-[2rem]" aria-hidden="true"></i>
+          <p class="m-0 text-md">{{ emptyText() }}</p>
+        </div>
+      } @else {
+        <!-- 桌機：A6 `.logt` 四欄表 -->
+        <table class="audit-log-dialog__table hidden w-full border-collapse text-md wide:table">
+          <thead>
+            <tr>
+              <th
+                class="border-b border-zinc-200 py-2 pr-2 text-left text-sm font-semibold text-zinc-600"
+              >
+                操作者
+              </th>
+              <th
+                class="border-b border-zinc-200 py-2 pr-2 text-left text-sm font-semibold text-zinc-600"
+              >
+                時間
+              </th>
+              <th
+                class="border-b border-zinc-200 py-2 pr-2 text-left text-sm font-semibold text-zinc-600"
+              >
+                對象
+              </th>
+              <th
+                class="border-b border-zinc-200 py-2 pr-2 text-left text-sm font-semibold text-zinc-600"
+              >
+                動作
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (log of logs(); track log.id) {
+              <tr>
+                <td class="border-b border-zinc-200 py-2 pr-2 align-top">{{ actorName(log) }}</td>
+                <td
+                  class="border-b border-zinc-200 py-2 pr-2 align-top whitespace-nowrap text-zinc-600 tabular-nums"
+                >
+                  {{ log.createdAt | date: 'yyyy-MM-dd HH:mm' }}
+                </td>
+                <td class="border-b border-zinc-200 py-2 pr-2 align-top">
+                  <span class="mr-1 text-sm text-zinc-600">{{
+                    getResourceTypeLabel(log.resourceType)
+                  }}</span>
+                  {{ log.resourceName ?? '—' }}
+                </td>
+                <td class="border-b border-zinc-200 py-2 pr-2 align-top">
+                  <app-data-chip>{{ getActionConfig(log.action).label }}</app-data-chip>
+                  @if (getDetailsSummary(log); as summary) {
+                    <small class="mt-0.5 block text-sm text-zinc-600">{{ summary }}</small>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        <!-- 手機：一筆兩行，四欄的資訊都在 -->
+        <ul class="audit-log-dialog__list m-0 list-none p-0 wide:hidden">
+          @for (log of logs(); track log.id) {
+            <li class="audit-log-dialog__item border-b border-zinc-200 py-3">
+              <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <app-data-chip>{{ getActionConfig(log.action).label }}</app-data-chip>
+                <span class="min-w-0 text-md text-zinc-900">
+                  <span class="mr-1 text-sm text-zinc-600">{{
+                    getResourceTypeLabel(log.resourceType)
+                  }}</span>
+                  {{ log.resourceName ?? '—' }}
+                </span>
+              </div>
+              @if (getDetailsSummary(log); as summary) {
+                <p class="m-0 mt-1 text-sm text-zinc-600">{{ summary }}</p>
+              }
+              <p class="m-0 mt-1 text-sm text-zinc-600 tabular-nums">
+                {{ actorName(log) }} · {{ log.createdAt | date: 'yyyy-MM-dd HH:mm' }}
+              </p>
+            </li>
+          }
+        </ul>
+
+        @if (total() > pageSize) {
+          <app-pager
+            class="mt-4"
+            [total]="total()"
+            [pageSize]="pageSize"
+            [page]="page()"
+            unit="筆"
+            (pageChange)="onPage($event)"
+          />
+        }
+      }
+    </div>
   </div>
 </div>

@@ -1226,6 +1226,19 @@ export const PAGES = {
         reason: '工具列「⋯」：現況有、稿沒畫的動作收進「⋯」',
         source: `${rule('R2')}；#1226`,
       },
+      // 操作紀錄彈窗：本機 seed 沒有課程的操作紀錄 → app 是空狀態「尚無操作紀錄」（稿也有這句，只是示範資料有 11 筆）
+      ...[
+        { status: '缺', a6: '(^|>)landmark:dialog\\[操作紀錄\\]>list(>.*)?$' },
+        { status: '多', app: '(^|>)landmark:dialog\\[操作紀錄\\]>text:p\\[尚無操作紀錄\\]$' },
+        // 彈窗高度隨紀錄筆數（置中的彈窗頂端跟著動）
+        { status: '位置', a6: '^pop\\[log\\]>landmark:dialog\\[操作紀錄\\]$', detail: 'Δx 0、' },
+      ].map((d) => ({
+        ...d,
+        pop: 'log',
+        reason: '資料：本機沒有課程的操作紀錄，彈窗是空狀態',
+        source:
+          'courses.html logDialog（LOG 空時同樣寫「尚無操作紀錄」）；#1314 issuecomment-6625976591',
+      })),
       {
         // 課程列：稿是 <details><summary>，summary 裡包「新增班」「⋯」按鈕（summary 是按鈕角色，裡面不能再放按鈕）；
         // app 是展開鈕＋並排的動作鈕，每門課一個 region（計畫席 10-30 #2078 同意）。結構不同，課程列裡的子項配不上，一起歸這條
@@ -1585,6 +1598,14 @@ export const PAGES = {
         app: '>landmark:main\\[\\]>text:p\\[目前只看\\{分校\\}，換分校在頂欄。\\]$',
         reason: '現況有、稿沒畫：空狀態的分校範圍提示',
         source: `${rule('R2')}；#1138`,
+      },
+      {
+        // 章裡只有 1 筆時工具認不出是列（稿同章有好幾筆、是列），整個 summary 被當成多包一層的按鈕。
+        // 兩邊都是 details＞summary（A6 `.lv`），同一章有 ≥2 筆時就配得上
+        status: '多',
+        app: '>landmark:main\\[\\]>landmark:region\\[[^\\]]*\\]>control:button\\[[^\\]]*\\](>.*)?$',
+        reason: '工具限制「資料太少」：章裡只有 1 筆，認不出是列',
+        source: 'tools/a6-conformance/README.md「資料少的日子」：只剩 1 個時認不出來',
       },
       // 稿的「新」小標（設計說明）在鈕裡；app 的鈕只有 label span，工具把它配到「新」上
       ...['文案', '位置', '樣式'].map((status) => ({
@@ -2139,6 +2160,14 @@ export const PAGES = {
         reason: '發布表單改成彈窗：工具列「發送通知」是它的入口',
         source: `${rule('R5')}「通知中心發布表單」2026-10-16；#1689`,
       },
+      // 稿有 3 個月份章、本機公告只有 2 個月（多出的那章工具已歸資料差）；那章的章名被後綴配對配到 app 第一章的清單上
+      ...['角色', '文案', '黏住', '樣式'].map((status) => ({
+        status,
+        a6: '>landmark:region\\[#月\\]~3>text:div\\[#月\\]$',
+        app: '>landmark:region\\[#月\\]>list$',
+        reason: '工具限制：稿多一個月份章（資料差），它的章名被配到 app 第一章的清單',
+        source: '本頁 diff 的資料差列「A6 多一個同型區塊：landmark:region「#月」」',
+      })),
     ],
   },
   meals: {
@@ -2437,7 +2466,8 @@ export const PAGES = {
         // 舊有新無：稿的章頭只有課程名＋「N 個班」，app 在章名下保留科目小字
         status: '多',
         host: '^app-chapter-head$',
-        app: 'landmark:region\\[[^\\]]*\\]>text:span\\[[^\\]]*\\]$',
+        // 小字是 p（#1314 11-05 起 app-chapter-head 照 A6 `.chap__meta` 改 p）
+        app: 'landmark:region\\[[^\\]]*\\]>text:(span|p)\\[[^\\]]*\\]$',
         reason: '章名下保留科目小字：課程名不保證含科目，照稿拿掉這頁就看不到科目',
         source:
           'kb/wiki/architecture/a6-adoption-rules.md R5（2026-10-21）；https://github.com/mizok/clessia/pull/1769#issuecomment-6310159607',

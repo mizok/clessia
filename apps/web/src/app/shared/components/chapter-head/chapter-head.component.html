@@ -3,11 +3,13 @@
     {{ name() }}
   </h2>
   @if (sub()) {
-    <span
-      class="chapter-head__sub text-sm font-medium text-zinc-600 tabular-nums wide:mt-1"
+    <!-- A6 `.chap__meta` 是 p -->
+    <p
+      class="chapter-head__sub m-0 text-sm font-medium text-zinc-600 tabular-nums wide:mt-1"
       data-testid="chapter-sub"
-      >{{ sub() }}</span
     >
+      {{ sub() }}
+    </p>
   }
   @if (count() !== null) {
     <!-- A6 `.chap__tally`：「12 位」是同一段字、同字級；只有投影進來的補充說明是小字（`.chap__tally span`） -->
