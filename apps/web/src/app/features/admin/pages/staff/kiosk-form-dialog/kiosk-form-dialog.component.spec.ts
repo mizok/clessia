@@ -31,10 +31,26 @@ function setup(data: KioskFormDialogData, service: Partial<StaffService>) {
   });
   const fixture = TestBed.createComponent(KioskFormDialogComponent);
   fixture.detectChanges();
-  return { close, c: fixture.componentInstance as unknown as Harness };
+  return {
+    close,
+    c: fixture.componentInstance as unknown as Harness,
+    el: fixture.nativeElement as HTMLElement,
+    fixture,
+  };
 }
 
 describe('KioskFormDialogComponent（#1127）', () => {
+  it('共用殼（#2290）：h2 標題；空著按建立不送、左邊寫還差什麼', () => {
+    const create = vi.fn();
+    const { c, el, fixture } = setup({ campuses }, { create });
+
+    expect(el.querySelector('h2')?.textContent?.trim()).toBe('新增掃碼機台');
+    c.save();
+    fixture.detectChanges();
+    expect(create).not.toHaveBeenCalled();
+    expect(el.querySelector('.form-dialog__why')?.textContent).toContain('還沒填：名稱、分校');
+  });
+
   it('建立：只送名稱、一個分校、roles=[kiosk]，不送 email；把 loginUrl 交出去', () => {
     const create = vi.fn(() => of({ data: kiosk, loginUrl: 'https://x/link' }));
     const { c, close } = setup({ campuses }, { create });

@@ -1,12 +1,12 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 
 import type { Campus } from '@core/campuses.service';
 import { StaffService, type Staff } from '@core/staff.service';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 
 export interface KioskFormDialogData {
@@ -27,7 +27,13 @@ export interface KioskFormDialogResult {
  */
 @Component({
   selector: 'app-kiosk-form-dialog',
-  imports: [FormsModule, ButtonModule, InputTextModule, SelectModule, InlineNoticeComponent],
+  imports: [
+    DialogFrameComponent,
+    FormsModule,
+    InputTextModule,
+    SelectModule,
+    InlineNoticeComponent,
+  ],
   templateUrl: './kiosk-form-dialog.component.html',
 })
 export class KioskFormDialogComponent {
@@ -50,10 +56,16 @@ export class KioskFormDialogComponent {
     () => !!this.name().trim() && !!this.campusId() && !this.loading(),
   );
 
+  /** A6 `.fdlg__why`：送出不鎖死，左邊寫還差什麼 */
+  protected readonly missingHint = computed(() => {
+    const missing = [!this.name().trim() && '名稱', !this.campusId() && '分校'].filter(Boolean);
+    return missing.length ? `還沒填：${missing.join('、')}` : null;
+  });
+
   protected save(): void {
     const displayName = this.name().trim();
     const campusId = this.campusId();
-    if (!displayName || !campusId) return;
+    if (!displayName || !campusId || this.loading()) return;
 
     this.loading.set(true);
     this.error.set(null);

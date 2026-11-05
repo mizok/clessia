@@ -1,93 +1,95 @@
-<div class="flex flex-col gap-4 p-2">
-  @if (notice(); as n) {
-    <app-inline-notice
-      [severity]="n.severity"
-      [summary]="n.summary"
-      [detail]="n.detail"
-      (dismissed)="dismissNotice()"
-    />
-  }
-
-  @if (conflictPrompt(); as prompt) {
-    <div class="flex flex-col gap-3 p-3 border border-warning-200 rounded-[8px] bg-warning-50">
+<!-- 共用殼（#2290）：標題是開窗端給的 header（家長姓名） -->
+<app-dialog-frame [title]="title" (closed)="close()">
+  <div class="flex flex-col gap-4">
+    @if (notice(); as n) {
       <app-inline-notice
-        severity="warning"
-        summary="與其他班級時段衝突"
-        [detail]="'此學生已報名以下時段衝突的班級'"
-        [dismissible]="false"
+        [severity]="n.severity"
+        [summary]="n.summary"
+        [detail]="n.detail"
+        (dismissed)="dismissNotice()"
       />
-      <ul class="m-0 pl-5 text-md text-zinc-700 leading-[1.6]">
-        @for (
-          warning of prompt.warnings;
-          track warning.studentId +
-            '-' +
-            warning.conflictingClassId +
-            '-' +
-            warning.weekday +
-            '-' +
-            warning.startTime
-        ) {
-          <li>
-            {{ warning.conflictingCourseName }} · {{ warning.conflictingClassName }} （週{{
-              weekdayLabel(warning.weekday)
-            }}
-            {{ warning.startTime.substring(0, 5) }}–{{ warning.endTime.substring(0, 5) }}）
-          </li>
-        }
-      </ul>
-      <div class="flex justify-end gap-2">
-        <p-button
-          label="取消"
-          severity="secondary"
-          [text]="true"
-          (onClick)="cancelConflictPrompt()"
+    }
+
+    @if (conflictPrompt(); as prompt) {
+      <div class="flex flex-col gap-3 p-3 border border-warning-200 rounded-[8px] bg-warning-50">
+        <app-inline-notice
+          severity="warning"
+          summary="與其他班級時段衝突"
+          [detail]="'此學生已報名以下時段衝突的班級'"
+          [dismissible]="false"
         />
-        <p-button
-          label="仍要報名"
-          severity="warn"
-          [loading]="enrollingStudentId() === prompt.student.id"
-          (onClick)="confirmConflictEnroll()"
-        />
+        <ul class="m-0 pl-5 text-md text-zinc-700 leading-[1.6]">
+          @for (
+            warning of prompt.warnings;
+            track warning.studentId +
+              '-' +
+              warning.conflictingClassId +
+              '-' +
+              warning.weekday +
+              '-' +
+              warning.startTime
+          ) {
+            <li>
+              {{ warning.conflictingCourseName }} · {{ warning.conflictingClassName }} （週{{
+                weekdayLabel(warning.weekday)
+              }}
+              {{ warning.startTime.substring(0, 5) }}–{{ warning.endTime.substring(0, 5) }}）
+            </li>
+          }
+        </ul>
+        <div class="flex justify-end gap-2">
+          <p-button
+            label="取消"
+            severity="secondary"
+            [text]="true"
+            (onClick)="cancelConflictPrompt()"
+          />
+          <p-button
+            label="仍要報名"
+            severity="warn"
+            [loading]="enrollingStudentId() === prompt.student.id"
+            (onClick)="confirmConflictEnroll()"
+          />
+        </div>
       </div>
-    </div>
-  }
+    }
 
-  @if (loading()) {
-    <div class="p-2">
-      <p-skeleton height="20px" width="60%" />
-      <p-skeleton height="16px" width="40%" styleClass="mt-2" />
-    </div>
-  } @else if (parent(); as parentDetail) {
-    <div class="text-base text-zinc-500">
-      <span>
-        {{ parentDetail.phone ?? parentDetail.email ?? '無聯絡資訊' }}
-      </span>
-    </div>
+    @if (loading()) {
+      <div class="p-2">
+        <p-skeleton height="20px" width="60%" />
+        <p-skeleton height="16px" width="40%" styleClass="mt-2" />
+      </div>
+    } @else if (parent(); as parentDetail) {
+      <div class="text-base text-zinc-500">
+        <span>
+          {{ parentDetail.phone ?? parentDetail.email ?? '無聯絡資訊' }}
+        </span>
+      </div>
 
-    <section>
-      <h3 class="m-0 mb-3 text-base font-semibold text-zinc-700">關聯學生</h3>
+      <section>
+        <h3 class="m-0 mb-3 text-base font-semibold text-zinc-700">關聯學生</h3>
 
-      <!--
+        <!--
         **綁定既有學生**（#641 裁定甲）。放在這裡而不是學生頁，是因為
         `parentDetail.students` 在這裡是現成的 —— `studentIds` 是全量替換，
         而「先 GET 再 PUT」的地方，「GET 回空」跟「本來就只有一個小孩」長得一樣。
       -->
-      <div class="mb-3">
-        <p-autocomplete
-          [ngModel]="null"
-          (ngModelChange)="bindExistingStudent($event)"
-          [suggestions]="studentSuggestions()"
-          (completeMethod)="searchStudents($event)"
-          optionLabel="name"
-          placeholder="輸入姓名綁定既有學生"
-          [disabled]="binding()"
-          [fluid]="true"
-          [appendTo]="'body'"
-        />
-      </div>
+        <div class="mb-3">
+          <p-autocomplete
+            [ngModel]="null"
+            (ngModelChange)="bindExistingStudent($event)"
+            [suggestions]="studentSuggestions()"
+            (completeMethod)="searchStudents($event)"
+            optionLabel="name"
+            placeholder="輸入姓名綁定既有學生"
+            [disabled]="binding()"
+            [fluid]="true"
+            [appendTo]="'body'"
+          />
+        </div>
 
-      @if (parentDetail.students.length === 0) {
-        <!--
+        @if (parentDetail.students.length === 0) {
+          <!--
           **原本這裡寫「尚未建立學生資料」，而那句話是這個 bug 的共犯**（#642）：
           它比按鈕更早生效 —— 使用者還沒看到選項就已經被那句話定了框，
           於是走去「新增學生」，而那顆按鈕**在任何情況下都會建立一筆新的**
@@ -96,43 +98,43 @@
 
           改成**同框呈現兩個選項**：上面的搜尋框綁既有的，下面這句指出另一條路。
         -->
-        <p class="py-6 text-base text-zinc-500 text-center">
-          還沒有關聯的學生。<strong>孩子已經在系統裡就用上面的搜尋框綁定</strong>； 真的是新學生才用
-          ⋮ 選單的「新增學生」。
-        </p>
-      } @else {
-        <ul class="flex flex-col gap-2 m-0 p-0 list-none">
-          @for (student of parentDetail.students; track student.id) {
-            <li
-              [style.view-transition-name]="'parent-student-' + student.id"
-              class="vt-row flex items-center justify-between gap-3 py-3 px-4 border border-zinc-200 rounded-[8px] bg-zinc-50"
-            >
-              <div class="flex flex-col gap-1 min-w-0">
-                <span class="text-[15px] font-medium text-zinc-900">{{ student.name }}</span>
-                <span class="text-sm text-zinc-500">{{ getGradeLabel(student.grade) }}</span>
-              </div>
-              <p-button
-                label="報名班級"
-                icon="pi pi-plus"
-                severity="secondary"
-                size="small"
-                [loading]="enrollingStudentId() === student.id"
-                (onClick)="openClassPicker(student)"
-              />
-            </li>
-          }
-        </ul>
-      }
-    </section>
-  } @else {
-    <p class="py-6 text-base text-zinc-500 text-center">載入失敗，請關閉後重試</p>
-  }
+          <p class="py-6 text-base text-zinc-500 text-center">
+            還沒有關聯的學生。<strong>孩子已經在系統裡就用上面的搜尋框綁定</strong>；
+            真的是新學生才用 ⋮ 選單的「新增學生」。
+          </p>
+        } @else {
+          <ul class="flex flex-col gap-2 m-0 p-0 list-none">
+            @for (student of parentDetail.students; track student.id) {
+              <li
+                [style.view-transition-name]="'parent-student-' + student.id"
+                class="vt-row flex items-center justify-between gap-3 py-3 px-4 border border-zinc-200 rounded-[8px] bg-zinc-50"
+              >
+                <div class="flex flex-col gap-1 min-w-0">
+                  <span class="text-[15px] font-medium text-zinc-900">{{ student.name }}</span>
+                  <span class="text-sm text-zinc-500">{{ getGradeLabel(student.grade) }}</span>
+                </div>
+                <p-button
+                  label="報名班級"
+                  icon="pi pi-plus"
+                  severity="secondary"
+                  size="small"
+                  [loading]="enrollingStudentId() === student.id"
+                  (onClick)="openClassPicker(student)"
+                />
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    } @else {
+      <p class="py-6 text-base text-zinc-500 text-center">載入失敗，請關閉後重試</p>
+    }
 
-  <!--
+    <!--
     刻意放在 `@if/@else` 鏈**外面**（#714）：載入失敗那一支的文案就是
     「請關閉後重試」，關閉鈕如果在分支裡面，**它會剛好在那句話出現的時候消失**。
-  -->
-  <footer class="flex justify-end gap-2 mt-4">
+  --></div>
+  <ng-container dialogFoot>
     <p-button label="關閉" [text]="true" severity="secondary" (onClick)="close()" />
-  </footer>
-</div>
+  </ng-container>
+</app-dialog-frame>

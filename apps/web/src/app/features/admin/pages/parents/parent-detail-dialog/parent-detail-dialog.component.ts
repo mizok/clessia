@@ -12,6 +12,8 @@ import { AutoCompleteModule, type AutoCompleteCompleteEvent } from 'primeng/auto
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
+
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { SkeletonModule } from 'primeng/skeleton';
 import { ParentsService, type ParentDetail, type ParentDetailStudent } from '@core/parents.service';
 import { EnrollmentsService, type ScheduleConflictWarning } from '@core/enrollments.service';
@@ -44,13 +46,22 @@ interface ConflictPrompt {
 @Component({
   selector: 'app-parent-detail-dialog',
   standalone: true,
-  imports: [AutoCompleteModule, FormsModule, ButtonModule, SkeletonModule, InlineNoticeComponent],
+  imports: [
+    AutoCompleteModule,
+    FormsModule,
+    ButtonModule,
+    SkeletonModule,
+    InlineNoticeComponent,
+    DialogFrameComponent,
+  ],
   providers: [DialogService],
   templateUrl: './parent-detail-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ParentDetailDialogComponent implements OnInit {
   private readonly config = inject(DynamicDialogConfig);
+  /** 殼的標題：開窗端的 header（家長姓名）；開窗端 `showHeader: false` */
+  protected readonly title = this.config.header ?? '家長';
   /** 列表增刪的頁內 VT（#1641 項 5）：新列淡入、刪掉的淡出、其餘補位 */
   private readonly viewTransition = injectViewTransition();
   private readonly ref = inject(DynamicDialogRef);

@@ -78,14 +78,15 @@ export const DEVIATIONS = [
   {
     status: '樣式',
     a6: '(^|>)landmark:dialog\\[[^\\]]*\\]>landmark:form\\[[^\\]]*\\]$',
-    item: '^padding 8px 24px 24px → 0px$',
+    // 手機稿 8/16/24（A6 .acset__body 手機左右 16）
+    item: '^padding 8px (24|16)px 24px → 0px$',
     reason: '殼的內距在內容區外層（.dialog-frame__body），稿在 form 上，幾何相同',
     source: 'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
   },
   {
     status: '位置',
     a6: '(^|>)landmark:dialog\\[[^\\]]*\\]>landmark:form\\[[^\\]]*\\]>',
-    detail: '^相對「form」 Δx -24、Δy -(8|9)（',
+    detail: '^相對「form」 Δx -(24|16)、Δy -(8|9)（',
     reason:
       '殼的內距在內容區外層（.dialog-frame__body），稿在 form 上：子項相對 form 位移，畫面位置相同',
     source: 'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
@@ -695,8 +696,22 @@ const FORM_DIALOGS = {
       [':nth-match(button[aria-label$=" 的更多動作"], 2)', '[role=menuitem]:has-text("停用帳號")'],
       'app-confirm-dialog',
     ),
+    // 授課紀錄（#2290 B 批）：老師章第一列的「⋯」→「授課紀錄」
+    'teaching-log': dlgOpen(
+      ['[aria-label="老師"] .pp__more', '[data-log-t]'],
+      [
+        '[aria-label="老師"] button[aria-label$="的更多動作"]',
+        '[role=menuitem]:has-text("授課紀錄")',
+      ],
+      'app-teaching-log-dialog',
+    ),
   },
-  parents: { 'new-parent': formOpen('[data-new]', 'button:has-text("新增家長")') },
+  parents: {
+    'new-parent': formOpen('[data-new]', 'button:has-text("新增家長")'),
+    // 家長詳情、批次匯入（#2290 換殼）
+    detail: dlgOpen('[data-detail]', 'button[aria-label$=" 的詳情"]', 'app-parent-detail-dialog'),
+    import: dlgOpen('[data-import]', 'button:has-text("匯入")', 'app-parent-import-dialog'),
+  },
   // #2290 換共用殼的對話框（0950-a 家族）
   leave: { batch: formOpen('[data-batch-leave]', 'button:has-text("批次請假")') },
   schools: { 'new-school': formOpen('[data-new-school]', 'button:has-text("新增學校")') },
@@ -1234,6 +1249,32 @@ export const PAGES = {
     a6Open: opensOf('parents', 'a6Open'),
     appOpen: opensOf('parents', 'appOpen'),
     deviations: [
+      // 家長詳情、匯入（#2290 換殼）：標頭是共用殼的（h2 20px＋✕ 桌機 40），稿各對話框的標頭高低不一
+      ...[
+        {
+          status: '位置',
+          a6: '>landmark:dialog\\[[^\\]]*\\]>(heading:h2\\[[^\\]]*\\]|control:button\\[關閉\\])$',
+        },
+        {
+          status: '尺寸',
+          a6: '>landmark:dialog\\[[^\\]]*\\]>control:button\\[關閉\\]$',
+          detail: '^寬 32→40$',
+        },
+      ].flatMap((d) =>
+        ['detail', 'import'].map((pop) => ({
+          ...d,
+          pop,
+          reason: '共用殼的標頭（h2＋副標＋✕），全站對話框同一套',
+          source: 'kb/wiki/architecture/dialog-frame.md「標頭」「✕」（#2290）',
+        })),
+      ),
+      {
+        status: '文案',
+        pop: 'detail',
+        a6: '>landmark:dialog\\[\\{名\\}\\]>heading:h2\\[\\{名\\}\\]$',
+        reason: '工具限制：標題是家長姓名，app 的家長名不在工具的人名表（只收稿的假人名與登入者）',
+        source: 'tools/a6-conformance/README.md（文案模板 {名}）',
+      },
       // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 students／courses 那條
       ...['尺寸', '樣式', '位置'].map((status) => ({
         status,
@@ -2299,6 +2340,14 @@ export const PAGES = {
         source:
           'staff.html:82（權限項目「照產品」）、:239（稿示範的第一筆是本人）；#1314 issuecomment-6647755506',
       })),
+      // 授課紀錄（#2290 B 批）：量的是 seed 的老師，稿是假人名 —— 標題文案是資料
+      {
+        status: '文案',
+        pop: 'teaching-log',
+        a6: 'heading:h2\\[授課紀錄· \\{名\\}\\]$',
+        reason: '資料：標題帶量測那位老師的本名（稿是示範人名）',
+        source: 'staff.html:251（sheet 標題「授課紀錄 · 姓名」）；#2290',
+      },
       // 手機關閉鈕 44（稿 38）—— 同新增家長那條
       ...[
         { status: '尺寸', detail: '^寬 38→44$' },

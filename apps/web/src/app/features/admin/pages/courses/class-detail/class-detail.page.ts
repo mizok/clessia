@@ -202,7 +202,7 @@ export class ClassDetailPage implements OnInit {
         next: ([course, classes]) => {
           const ref = this.dialogService.open(ClassFormDialogComponent, {
             // 同課程列表：A6 `.cdlg` 760、表單自己聚焦班名
-            width: '760px',
+            width: 'var(--dlg-w-lg)',
             modal: true,
             showHeader: false,
             focusOnShow: false,
