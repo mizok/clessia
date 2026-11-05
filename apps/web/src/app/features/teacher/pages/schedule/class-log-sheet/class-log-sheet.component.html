@@ -1,16 +1,13 @@
-<div class="flex flex-col gap-4">
-  <header class="flex flex-col gap-1">
-    <h2 class="m-0 text-[1.125rem] font-semibold">{{ input.className }}</h2>
-    <p class="m-0 text-[0.875rem] text-muted">{{ input.logDate }}</p>
-    <!--
-      同一班同一天兩場課會開到同一篇（class_logs 的鍵不含時段）。
-      第二場的老師必須知道自己在編輯既有內容 —— 但真正的防線是上面已經
-      把內容預載進輸入框了，這句只是把它說出來。
-    -->
-    @if (existing()) {
-      <p class="m-0 mt-1 text-[0.8rem] text-muted">本日已有日誌，你正在編輯它</p>
-    }
-  </header>
+<!-- 共用殼 app-dialog-frame（#2290）：A6 t-schedule `dlg()`（h2＋副標＋✕、sticky 底部） -->
+<app-dialog-frame [title]="input.className" [sub]="input.logDate" (closed)="close()">
+  <!--
+    同一班同一天兩場課會開到同一篇（class_logs 的鍵不含時段）。
+    第二場的老師必須知道自己在編輯既有內容 —— 但真正的防線是上面已經
+    把內容預載進輸入框了，這句只是把它說出來。
+  -->
+  @if (existing()) {
+    <p class="m-0 text-[0.8rem] text-muted">本日已有日誌，你正在編輯它</p>
+  }
 
   @if (loading()) {
     <div class="class-log-sheet__field-skeleton flex flex-col gap-2" aria-label="教學紀錄載入中">
@@ -95,8 +92,9 @@
         </div>
       </div>
     }
-
-    <footer class="flex justify-end gap-2">
+  }
+  <ng-container dialogFoot>
+    @if (!loading() && !loadError()) {
       <!--
         v1a 只有存檔。**沒有發布按鈕，也不是 disabled** —— 發布不可逆，
         而家長端讀取與 LINE 推播在 v1b 之前都不存在。
@@ -124,6 +122,6 @@
           (onClick)="askPublish()"
         />
       }
-    </footer>
-  }
-</div>
+    }
+  </ng-container>
+</app-dialog-frame>
