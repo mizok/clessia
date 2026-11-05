@@ -1,4 +1,5 @@
 import { Component, DestroyRef, OnInit, computed, effect, inject, signal } from '@angular/core';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
@@ -59,6 +60,7 @@ function trimmedRequiredValidator(control: AbstractControl<string>): ValidationE
   selector: 'app-school-exam-form-dialog',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     ReactiveFormsModule,
     ButtonModule,
     InputNumberModule,
