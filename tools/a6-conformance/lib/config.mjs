@@ -1517,7 +1517,7 @@ export const PAGES = {
       {
         status: '缺',
         pop: 'direct',
-        a6: '>landmark:form\\[\\]>text:label\\[(繳費單|建立繳費單（待繳費）|不建立（已收款或免費）)\\]$',
+        a6: '>landmark:form\\[\\]>text:label\\[(繳費單|建立繳費單（待繳費）|不建立（已收款或免費）)\\](>control:radio\\[[^\\]]*\\])?$',
         reason: '直接報名不畫「繳費單」欄（SD9 #2296），建正式報名',
         source: `${rule('R5', '「直接報名不畫繳費單欄」2026-11-05')}`,
       },
