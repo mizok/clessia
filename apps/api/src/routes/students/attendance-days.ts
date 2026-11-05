@@ -26,10 +26,13 @@ import { outOfCampusScope, teacherCannotRead } from './read-scope';
  * | 格子 | 判定（優先序） |
  * | --- | --- |
  * | `cancelled` | 當天他的課全停 |
- * | `future` | 日期在今天之後；或今天、最早那堂還沒開始 |
+ * | `future` | 日期在今天之後；或今天、最早那堂還沒開始**而且還沒有結果**（下兩列） |
  * | `came` | 日到班分校：當天有打卡；逐堂分校：任一堂出勤 present（系統沒有遲到格） |
  * | `on_leave` | 假單蓋到當天任一堂 |
- * | `absent` | 其餘 |
+ * | `absent` | 其餘（今天還沒開始的課不會落到這裡） |
+ *
+ * 今天課前就打了卡／請了假的，照實寫 `came`／`on_leave`：老師端學生卡「最近 N 堂」不含今天時，
+ * 已到班的孩子看起來像連 N 堂沒到（#2317）。
  *
  * **模式依班的分校逐天判**，不用作業台那種單一 mode —— 同一個學生可能跨兩種模式的分校。
  * 日到班分校**以打卡為準、不看出勤紀錄**（A6「掃一次碼＝當天的課都算出席」；計畫席 10-10 記可否決）。
@@ -290,7 +293,8 @@ app.openapi(
       const held = list.filter((s) => s.status !== 'cancelled');
       const state = ((): z.infer<typeof DayStateSchema> => {
         if (held.length === 0) return 'cancelled';
-        if (date > today || (date === today && !held.some(started))) return 'future';
+        if (date > today) return 'future';
+        const pending = date === today && !held.some(started);
         const came = held.some((s) =>
           modeOf(s.campusId) === 'daily_checkin'
             ? checkinDates.has(date)
@@ -307,7 +311,8 @@ app.openapi(
             }),
           ),
         );
-        return onLeave ? 'on_leave' : 'absent';
+        if (onLeave) return 'on_leave';
+        return pending ? 'future' : 'absent';
       })();
       return {
         date,
