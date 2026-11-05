@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createAuth } from '../auth';
 import { createChildDb } from '../lib/child-db';
+import { loadStudentListViaBuilder } from '../lib/student-list-builder';
 import { STUDENT_LIST_SQL } from '../lib/student-list-sql';
 import { TEACHER_ROSTER_SQL } from '../lib/teacher-roster-sql';
 import { STUDENT_TODAY_SQL } from '../lib/student-today-sql';
@@ -325,21 +326,24 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     await q("update organizations set attendance_mode = 'daily_checkin' where id = $1", [
       ctx.orgId,
     ]);
-    // 一校那班今天的課堂掛一個活動，活動的開始時間（23:00）蓋過課堂的 00:00 —— 到課時間從活動取
+    // 到課時間的 fixture 要跟「幾點跑」無關（classifyToday 沒有寬限：到課時間一到就是沒到）：
+    // 一校那班今天的課堂 23:59、掛的活動 00:00 —— 到課時間從活動取 → 00:00，沒打卡的一律「沒到」；
+    // 讀不到活動的話會變 23:59「還沒到」。只有 23:58–24:00 跑會分不出來
     const event = await one(
       `insert into events (org_id, event_type, title, campus_id, event_date, start_time, end_time)
-       values ($1, 'session', '今日活動', $2, $3, '23:00', '23:30')`,
+       values ($1, 'session', '今日活動', $2, $3, '00:00', '00:30')`,
       [ctx.orgId, campus.c1, today],
     );
     await q(
       `insert into sessions (org_id, class_id, session_date, start_time, end_time, status, assignment_status, event_id)
-       values ($1, $2, $3, '00:00', '00:30', 'scheduled', 'unassigned', $4)`,
+       values ($1, $2, $3, '23:59', '23:59', 'scheduled', 'unassigned', $4)`,
       [ctx.orgId, klass['c1'], today, event],
     );
-    // 別 org 的課堂掛在一校那班（FK 不擋），時間 12:00：課堂少了 org 條件，到課時間就會被它改掉
+    // 別 org 的課堂掛在一校那班（FK 不擋），23:58：同一班多堂時後面那堂蓋過到課時間（sessionByClass），
+    // 課堂少了 org 條件，沒打卡的就從「沒到」變「還沒到」
     await q(
       `insert into sessions (org_id, class_id, session_date, start_time, end_time, status, assignment_status)
-       values ($1, $2, $3, '12:00', '12:30', 'scheduled', 'unassigned')`,
+       values ($1, $2, $3, '23:58', '23:59', 'scheduled', 'unassigned')`,
       [otherOrg, klass['c1'], today],
     );
     // 二校設成逐堂點名（機構是日到班）：指定二校時沒有今日到班
@@ -473,6 +477,8 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
       `search=${encodeURIComponent('別 org 國小')}`,
       `search=${PHONE}`, // 三位家長都中（前綴）
       `search=${encodeURIComponent('媽')}&searchScope=student_name`,
+      // 別 org 家長的名字（#1595 P2 ② 裁定 (c)）：兩條路都要是空 —— builder 少了 parents.org_id 會命中乙
+      `search=${encodeURIComponent('跨org家長')}`,
       'today=any',
       'today=arrived',
       'today=missing',
@@ -500,10 +506,10 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
         }
     ctx.teacher = false;
     ctx.campusScope = null;
-    expect(compared).toBe(330);
+    expect(compared).toBe(345);
     expect(diffs).toEqual([]);
     expect(nonEmpty).toBeGreaterThan(50); // 不是兩邊都空
-    // 660 支請求：負載高時（load 50）跑到 29 秒撞上預設 30 秒，突變基準因此誤紅
+    // 近 700 支請求：負載高時會撞預設 30 秒，逾時後 ctx 停在迴圈中途、後面幾條連鎖紅
   }, 120_000);
 
   it('第一頁（含今日到班）也逐欄相同', async () => {
@@ -537,8 +543,8 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
         .map((r) => r.name)
         .sort();
     expect(await names('today=arrived')).toEqual(['甲']);
-    // 到課時間取活動的 23:00（不是課堂的 00:00）→ 沒打卡的是「還沒到時間」
-    expect((await names('today=not_yet')).length).toBeGreaterThan(3);
+    // 到課時間取活動的 00:00（不是課堂的 23:59）→ 沒打卡的一律「沒到」
+    expect((await names('today=missing')).length).toBeGreaterThan(3);
     expect(await names(`search=${PHONE}03`)).toEqual(['乙']);
     expect(await names(`search=${encodeURIComponent('甲媽')}`)).toEqual(['甲']);
     expect(await names(`search=${encodeURIComponent('名冊國中')}`)).toEqual(['甲', '甲']);
@@ -559,6 +565,31 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     ).body;
     expect(body['data']).toEqual([]);
     expect((body['summary'] as { total: number }).total).toBe(0);
+    // builder（契約的對照組、無 pool 的單元測試）也要守同一條：直接打，不經 route
+    const supabase = createServiceClientFromEnv({
+      SUPABASE_URL: URL!,
+      SUPABASE_SECRET_KEY: KEY!,
+    } as never);
+    const viaBuilder = await loadStudentListViaBuilder(supabase as never, {
+      orgId: ctx.orgId,
+      campusIds: null,
+      classIds: null,
+      grade: null,
+      isActive: null,
+      schoolMismatch: false,
+      withoutCard: false,
+      cardIssuedToday: false,
+      cardDayStart: '2026-01-01T00:00:00+08:00',
+      cardDayEnd: '2026-01-02T00:00:00+08:00',
+      limit: 20,
+      offset: 0,
+      withPhone: false,
+      search: '跨org家長',
+      searchRelated: true,
+      searchPhone: false,
+      todayIds: null,
+    });
+    expect([viaBuilder.rows, viaBuilder.total]).toEqual([[], 0]);
   });
 
   it('受限管理員帶搜尋也不碰 REST（舊碼：家長、學校前置查詢＋列表＋計數）', async () => {
