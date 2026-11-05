@@ -37,3 +37,17 @@ export function cannotGrant(me: Requester, permission: Permission): string | nul
   if (!me.has(permission)) return '你沒有這個權限，不能發給別人';
   return null;
 }
+
+/**
+ * 編輯表單的角色勾選框（`checkSelfAssignment`）：改自己時 admin 不能進出，
+ * 老師角色只有持 `*` 的人能改；沒有 `manage_roles` 不能改別人的角色。
+ */
+export function roleLock(me: Requester, role: 'admin' | 'teacher'): string | null {
+  if (me.isSelf) {
+    if (role === 'admin') return '不能加上或拿掉自己的管理員角色';
+    if (!me.has(WILDCARD_PERMISSION)) return '自己的角色要請另一位有「角色管理」權限的人調整';
+    return null;
+  }
+  if (!me.has('manage_roles')) return '你沒有「角色管理」權限，角色只能查看';
+  return null;
+}
