@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 通知中心</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* 只給讀屏看的字（.sr 原本只在 schedule.css；回報主席收進 a6.css） */
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .tabs { display: flex; align-items: center; gap: var(--space-4); }
+  .tabs .tlink { font-size: var(--text-base); }
+  .tlink__n { font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  /* 收到的通知：一則一列，未讀＝粗體＋左邊橘點（不用藍點：A6 沒有藍，橘只給品牌與位置） */
+  .nt { border-bottom: 1px solid var(--surface-border); }
+  .nt > summary { display: grid; grid-template-columns: 12px 96px minmax(0, 1fr) auto; gap: var(--space-3); align-items: baseline; padding: var(--space-4) 0; list-style: none; cursor: pointer; }
+  .nt > summary::-webkit-details-marker { display: none; }
+  /* 10/02 計畫席裁定：未讀用橘點，不用紅（紅留給錯誤與逾期）。accent-500 對白約 5:1，過圖形元素 3:1 */
+  .nt__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-500); align-self: center; }
+  .nt.is-read .nt__dot { visibility: hidden; }
+  .nt__k { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--zinc-700); white-space: nowrap; }
+  .nt__k svg { width: 14px; height: 14px; }
+  .nt__t { font-size: var(--text-base); font-weight: var(--font-bold); color: var(--zinc-900); }
+  .nt.is-read .nt__t { font-weight: var(--font-medium); color: var(--zinc-700); }
+  .nt > summary:hover .nt__t { text-decoration: underline; text-underline-offset: 3px; }
+  .nt__at { font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .nt__body { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: 0 0 var(--space-4) calc(12px + 96px + var(--space-3) * 2); }
+  .nt__body p { margin-right: auto; max-width: 64ch; font-size: var(--text-md); color: var(--zinc-800); line-height: var(--leading-relaxed); }
+  .keep { padding: var(--space-6) 0; font-size: var(--text-sm); color: var(--zinc-600); }
+  /* 發布公告：頁內表單（產品是頁面內表單，不是對話框） */
+  .pub { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-4); max-width: 760px; margin-top: var(--space-8); padding: var(--space-6); border-radius: var(--radius-lg); background: var(--zinc-100); }
+  .pub__f { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: var(--text-md); font-weight: var(--font-semibold); color: var(--zinc-700); }
+  .pub__f--w { grid-column: 1 / -1; }
+  .pub .acset__in { width: 100%; height: 40px; }
+  .pub textarea.acset__in { height: auto; }
+  .pub__err { min-height: 18px; font-size: var(--text-sm); font-weight: var(--font-medium); color: var(--error-700); }
+  .pub__foot { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+  .sent { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--space-4); padding: var(--space-4) 0; border-bottom: 1px solid var(--surface-border); }
+  .sent__t { font-size: var(--text-base); font-weight: var(--font-semibold); }
+  .sent__m { grid-column: 1; font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .sent__aud { grid-row: 1 / span 2; grid-column: 2; align-self: center; height: 22px; padding: 0 8px; border-radius: var(--radius-full); box-shadow: inset 0 0 0 1px var(--zinc-300); font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--zinc-800); white-space: nowrap; }
+  .sent.is-new { animation: row-new 0.24s var(--arrive); }
+  @media (max-width: 860px) {
+    .nt > summary { grid-template-columns: 12px minmax(0, 1fr) auto; gap: 2px var(--space-3); }
+    .nt__k { grid-column: 2; grid-row: 1; }
+    .nt__at { grid-column: 3; grid-row: 1; }
+    .nt__t { grid-column: 2 / -1; grid-row: 2; }
+    .nt__body { padding-left: calc(12px + var(--space-3)); }
+    .pub { grid-template-columns: minmax(0, 1fr); margin-left: calc(var(--space-4) * -1); margin-right: calc(var(--space-4) * -1); padding: var(--space-4); border-radius: 0; }
+    .pub .acset__in { height: 44px; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>通知中心 · A6（#990 批 2）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（specs/admin/notifications.md）</th><th>產品現況（sitemap 實測）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>這頁是什麼</td><td>管理員查看系統通知與課務異動通知（收件匣）</td><td>發布站內公告的頁面（發布表單＋已發布清單）</td><td>兩個分頁：「收到的」照規格（標「新」，預設打開）；「發布公告」保留產品功能（規格沒寫，註記）</td></tr>
+      <tr><td>收到的</td><td>時間軸最新在上、類型圖示（調課／代課／停課／系統通知）、已讀未讀、點開看全文、全部標為已讀、保留 90 天</td><td>沒有</td><td>全部照做（標「新」）。未讀用橘點＋粗體，不用規格寫的藍點（A6 沒有藍）。點開即已讀</td></tr>
+      <tr><td>發布表單</td><td>規格沒寫</td><td>標題、內容、發送對象（全體老師／全體家長）、分校範圍、發布</td><td>欄位照產品</td></tr>
+      <tr><td>發布鈕</td><td>—</td><td>剛進頁面就是停用（<code>[disabled]</code>）</td><td>不停用；按了才在欄位旁寫錯在哪（跟人員、學生、家長三支表單同一個方向，#664→#716→#718）</td></tr>
+      <tr><td>副標</td><td>—</td><td>「發布站內公告給老師」—— 早就能發給家長（#636），這句沒跟著改</td><td>不寫副標；對象在表單裡選</td></tr>
+      <tr><td>已發布</td><td>—</td><td>標題＋時間・對象・分校，實測 5 則</td><td>照產品，最壞情況幾十則、依月份分章</td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>打開就是收到的通知，開場寫幾則未讀。點一則展開全文並標為已讀；課務異動那幾則有「看這堂」到課表，系統通知連到對應的頁。</li>
+    <li>網址加 <code>#publish</code> 直接打開「發布公告」。發布：處理中 → 訊息 → 已發布清單最上面多一則。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, esc } = A2;
+  const T = C.TODAY;
+  const P = (d) => `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  // 類型照規格的四種（調課／代課／停課／系統通知），再加課表「全部異動」也有的恢復上課、補課
+  const KIND = {
+    move: ['調課', icon.right], sub: ['代課', icon.swap], cancel: ['停課', icon.x], resume: ['恢復上課', icon.check],
+    makeup: ['補課', icon.plus], sys: ['系統通知', icon.bell],
+  };
+
+  // ── 收到的：近 30 天約 40 則（最壞情況）——課務異動依 C.classes 合成，系統通知連到對應的頁 ──
+  let r = 23;
+  const rnd = () => ((r = (r * 16807) % 2147483647) - 1) / 2147483646;
+  const T_NAMES = C.teachers.map((t) => t.name);
+  const SYS = [
+    ['10 月帳單已開立', '系統依月繳班級開立了 10 月帳單，共 132 張、NT$ 485,900。', 'billing.html', '看帳單'],
+    ['有 9 張帳單逾期', '9 位家長的帳單已過繳費期限，可以一次提醒。', 'billing.html', '看逾期帳單'],
+    ['3 位家長還沒登入過', '這 3 位家長建立帳號後一直沒有登入，可能沒收到登入連結。', 'parents.html', '看家長'],
+    ['明天有 4 位學生請假', '明天的課有 4 位學生已經請假，點名時會自動標成請假。', 'leave.html', '看請假'],
+    ['國三數學 A 班沒有未來的課堂', '這個班之後沒有排課，家長看不到下一堂。', 'courses.html', '到課程管理'],
+    ['聯絡簿還有 2 個班沒寫', '今天國小六年級數學班、國小五年級英文班還沒寫完聯絡簿。', 'contact-book.html', '看聯絡簿'],
+  ];
+  const N = [];
+  for (let i = 0; i < 40; i++) {
+    const day = C.addDays(T, -Math.floor(i * i / 52));
+    // 今天的時間不能晚於「現在」（C.NOW 17:40）
+    const at = `${String(day === T ? 9 + (i % 8) : 20 - (i % 11)).padStart(2, '0')}:${['05', '18', '32', '47'][i % 4]}`;
+    if (i % 4 === 3) { const s = SYS[(i / 4 | 0) % SYS.length]; N.push({ id: 'n' + i, k: 'sys', title: s[0], body: s[1], href: s[2], go: s[3], day, at }); continue; }
+    const c = C.classes[Math.floor(rnd() * C.classes.length)];
+    const k = ['move', 'sub', 'cancel', 'move', 'sub', 'resume', 'makeup'][i % 7];
+    const when = `${md(C.addDays(day, 1 + (i % 3)))} ${c.start}`;
+    const t2 = T_NAMES[(i + 2) % T_NAMES.length];
+    const body = { move: `${c.name} ${when} 的課改到 ${md(C.addDays(day, 3))} ${c.start}。`, sub: `${c.name} ${when} 由 ${t2} 老師代課（${c.teacher} 老師請假）。`, cancel: `${c.name} ${when} 停課：${['颱風', '老師請假', '場地'][i % 3]}。`, resume: `${c.name} ${when} 恢復上課。`, makeup: `${c.name} ${md(C.addDays(day, 5))} ${c.start} 是 ${when} 停課的補課。` }[k];
+    N.push({ id: 'n' + i, k, title: `${c.name} ${KIND[k][0]}`, body, href: 'schedule.html', go: '看這堂', day, at });
+  }
+  N.sort((a, b) => b.day.localeCompare(a.day) || b.at.localeCompare(a.at));
+  N.forEach((n, i) => (n.read = !(n.day === T || (n.day === C.addDays(T, -1) && i % 2 === 0))));
+
+  // ── 已發布：最壞情況 30 則（產品實測 5 則）──
+  const AUD = ['全體老師', '全體家長'];
+  const PUBT = ['颱風停課通知', '10 月繳費提醒', '期中考成績已登錄', '國慶連假停課', '新學期課表公告', '家長座談會', '教室冷氣維修', '線上請假教學', '補課時間調整', '寒假班開放報名'];
+  const SENT = Array.from({ length: 30 }, (_, i) => ({ t: PUBT[i % PUBT.length], aud: AUD[i % 3 === 0 ? 0 : 1], camp: i % 4 === 0 ? C.campuses[1] : '全部分校', at: `${C.addDays(T, -1 - i * 3)} ${String(9 + (i % 9)).padStart(2, '0')}:${['00', '30', '15'][i % 3]}` }));
+
+  const st = { tab: location.hash === '#publish' ? 'publish' : 'inbox' };
+  const unread = () => N.filter((n) => !n.read).length;
+  const label = (d) => (d === T ? '今天' : d === C.addDays(T, -1) ? '昨天' : d > C.addDays(T, -7) ? '這週' : '更早');
+
+  function inbox() {
+    const groups = ['今天', '昨天', '這週', '更早'].map((g) => [g, N.filter((n) => label(n.day) === g)]).filter(([, a]) => a.length);
+    return groups.map(([g, a]) => `<section class="chap" aria-label="${g}">
+      <div class="chap__side"><div class="chap__big">${g}</div><p class="chap__tally">${a.length} 則${a.some((n) => !n.read) ? ` · 未讀 ${a.filter((n) => !n.read).length}` : ''}</p></div>
+      <div>${a.map((n) => `<details class="nt${n.read ? ' is-read' : ''}" data-n="${n.id}">
+        <summary><span class="nt__dot" aria-hidden="true"></span><span class="nt__k">${KIND[n.k][1]}${KIND[n.k][0]}</span><span class="nt__t">${esc(n.title)}${n.read ? '' : '<span class="sr">（未讀）</span>'}</span><span class="nt__at">${md(n.day)} ${n.at}</span></summary>
+        <div class="nt__body"><p>${esc(n.body)}</p><a class="btn btn--sm" href="${n.href}">${n.go}${icon.right}</a></div>
+      </details>`).join('')}</div>
+    </section>`).join('') + `<p class="keep">通知保留 90 天。</p>`;
+  }
+
+  function publish() {
+    const byMonth = [...new Set(SENT.map((s) => s.at.slice(0, 7)))];
+    return `<form class="pub" id="pub" novalidate>
+        <label class="pub__f pub__f--w">標題<input class="acset__in" id="p-t" autocomplete="off"><span class="pub__err" id="p-t-e" aria-live="polite"></span></label>
+        <label class="pub__f pub__f--w">內容<textarea class="acset__in" id="p-c" rows="5"></textarea><span class="pub__err" id="p-c-e" aria-live="polite"></span></label>
+        <label class="pub__f">發送對象<select class="acset__in" id="p-a">${AUD.map((a) => `<option>${a}</option>`).join('')}</select></label>
+        <label class="pub__f">分校範圍<select class="acset__in" id="p-s"><option>全部分校</option>${C.campuses.map((c) => `<option>${c}</option>`).join('')}</select></label>
+        <div class="pub__foot"><button class="btn btn--cta" type="submit" id="p-go">發布</button></div>
+      </form>
+      <div id="sent">${byMonth.map((m) => `<section class="chap" aria-label="${+m.slice(5)} 月">
+        <div class="chap__side"><div class="chap__big">${+m.slice(5)} 月</div><p class="chap__tally">${SENT.filter((s) => s.at.startsWith(m)).length} 則</p></div>
+        <div data-m="${m}">${SENT.filter((s) => s.at.startsWith(m)).map(sentRow).join('')}</div></section>`).join('')}</div>`;
+  }
+  const sentRow = (s) => `<div class="sent"><span class="sent__t">${esc(s.t)}</span><span class="sent__m">${s.at.replaceAll('-', '/')} · ${s.camp}</span><span class="sent__aud">${s.aud}</span></div>`;
+
+  function render() {
+    const u = unread();
+    document.querySelector('.open__title').innerHTML = st.tab === 'inbox' ? (u ? `${u} 則未讀，<br>今天 ${N.filter((n) => n.day === T).length} 則新通知。` : '通知都看過了。') : `已發布 ${SENT.length} 則公告，<br>上一則是 ${md(SENT[0].at.slice(0, 10))}。`;
+    document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === st.tab));
+    document.querySelector('[data-tab="inbox"] .tlink__n').textContent = u ? `未讀 ${u}` : '';
+    document.querySelectorAll('[data-allread]').forEach((b) => { b.hidden = st.tab !== 'inbox'; b.setAttribute('aria-disabled', u ? 'false' : 'true'); });
+    document.getElementById('body').innerHTML = st.tab === 'inbox' ? inbox() : publish();
+  }
+
+  shell({
+    page: 'notifications',
+    title: '',
+    bar: `<nav class="tabs" aria-label="通知"><button class="tlink" type="button" data-tab="inbox">收到的 <span class="tlink__n"></span><span class="new">新</span></button><button class="tlink" type="button" data-tab="publish">發布公告</button></nav>
+      <div class="tbar__act"><button class="btn" type="button" data-allread>${icon.check}全部標為已讀<span class="new">新</span></button></div>`,
+    phase: 3600,
+  }, `<div id="body"></div>`);
+  render();
+
+  document.addEventListener('click', (e) => {
+    const tb = e.target.closest('[data-tab]');
+    if (tb) { st.tab = tb.dataset.tab; history.replaceState(null, '', st.tab === 'publish' ? '#publish' : location.pathname); render(); }
+    const all = e.target.closest('[data-allread]');
+    if (all && all.getAttribute('aria-disabled') !== 'true') {
+      const was = N.filter((n) => !n.read);
+      was.forEach((n) => (n.read = true));
+      render();
+      A2.toast(`已把 ${was.length} 則標為已讀`, { undo: () => { was.forEach((n) => (n.read = false)); render(); } });
+    }
+  });
+  // 點開一則＝已讀（圓點消失、字變細、開場的未讀數跟著減）
+  document.addEventListener('toggle', (e) => {
+    const d = e.target;
+    if (!d.matches || !d.matches('details.nt') || !d.open) return;
+    const n = N.find((x) => x.id === d.dataset.n);
+    if (n.read) return;
+    n.read = true;
+    d.classList.add('is-read');
+    const sr = d.querySelector('.sr'); if (sr) sr.remove();
+    const u = unread();
+    document.querySelector('.open__title').innerHTML = u ? `${u} 則未讀，<br>今天 ${N.filter((x) => x.day === T).length} 則新通知。` : '通知都看過了。';
+    document.querySelector('[data-tab="inbox"] .tlink__n').textContent = u ? `未讀 ${u}` : '';
+    document.querySelectorAll('[data-allread]').forEach((b) => b.setAttribute('aria-disabled', u ? 'false' : 'true'));
+  }, true);
+
+  // 發布：不停用按鈕；按了才在欄位旁寫錯在哪（產品是 [disabled]，見設計說明）
+  document.addEventListener('submit', (e) => {
+    if (e.target.id !== 'pub') return;
+    e.preventDefault();
+    const t = document.getElementById('p-t'), c = document.getElementById('p-c');
+    document.getElementById('p-t-e').textContent = t.value.trim() ? '' : '標題還沒填';
+    document.getElementById('p-c-e').textContent = c.value.trim() ? '' : '內容還沒填';
+    if (!t.value.trim() || !c.value.trim()) { (t.value.trim() ? c : t).focus(); return; }
+    const aud = document.getElementById('p-a').value, camp = document.getElementById('p-s').value;
+    A2.act(document.getElementById('p-go'), {
+      busy: '發布中…', ok: `已發布給${aud}（${camp}）`,
+      run: () => {
+        const s = { t: t.value.trim(), aud, camp, at: `${T} ${C.NOW}` };
+        SENT.unshift(s);
+        let box = document.querySelector(`[data-m="${T.slice(0, 7)}"]`);
+        if (!box) { document.getElementById('sent').insertAdjacentHTML('afterbegin', `<section class="chap" aria-label="${+T.slice(5, 7)} 月"><div class="chap__side"><div class="chap__big">${+T.slice(5, 7)} 月</div><p class="chap__tally"></p></div><div data-m="${T.slice(0, 7)}"></div></section>`); box = document.querySelector(`[data-m="${T.slice(0, 7)}"]`); }
+        box.insertAdjacentHTML('afterbegin', sentRow(s).replace('class="sent"', 'class="sent is-new"'));
+        box.closest('.chap').querySelector('.chap__tally').textContent = `${box.children.length} 則`;
+        t.value = ''; c.value = '';
+        document.querySelector('.open__title').innerHTML = `已發布 ${SENT.length} 則公告，<br>上一則是 ${md(T)}。`;
+      },
+    });
+  });
+})();
+</script>
+</body>
+</html>

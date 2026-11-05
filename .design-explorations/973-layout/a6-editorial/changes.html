@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 課務異動</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .ff { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 3.4fr); gap: var(--space-3); flex: 1 1 640px; }
+  .ff label { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--zinc-700); }
+  .ff .acset__in { flex: none; width: 100%; height: 40px; }
+  .ff__more { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr); gap: var(--space-3); }
+  .count { margin-top: var(--space-6); font-size: var(--text-md); color: var(--zinc-600); }
+  .count button, .empty button { border: 0; padding: 0; background: none; font: inherit; font-weight: var(--font-semibold); color: var(--zinc-900); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  /* 類型小標：沿用課表「全部異動」的 .stag */
+  .stag { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: var(--radius-sm); background: var(--zinc-100); color: var(--zinc-800); font-size: var(--text-xs); font-weight: var(--font-semibold); white-space: nowrap; }
+  .stag svg { width: 11px; height: 11px; flex: none; }
+  .stag--cancel { background: transparent; box-shadow: inset 0 0 0 1px var(--zinc-500); }
+  .bchip { display: inline-flex; align-items: center; padding: 0 5px; border: 1px solid var(--zinc-900); border-radius: var(--radius-sm); font-size: var(--text-xs); font-weight: var(--font-semibold); }
+  .ch { display: grid; grid-template-columns: 56px minmax(0, 1.3fr) minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: var(--space-1) var(--space-5); align-items: baseline; padding: var(--space-4) 0; border-bottom: 1px solid var(--surface-border); }
+  .ch__t { font-size: var(--text-md); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .ch__cls { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--space-2); font-weight: var(--font-semibold); }
+  .ch__d { font-size: var(--text-md); font-variant-numeric: tabular-nums; }
+  .ch__why { font-size: var(--text-md); color: var(--zinc-700); }
+  .ch__by { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .ch__go { white-space: nowrap; }
+  .chb { border-bottom: 1px solid var(--surface-border); }
+  .chb > summary { display: grid; grid-template-columns: 56px minmax(0, 1.3fr) minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: var(--space-1) var(--space-5); align-items: baseline; padding: var(--space-4) 0; list-style: none; cursor: pointer; }
+  .chb > summary::-webkit-details-marker { display: none; }
+  .chb__more { font-size: var(--text-md); font-weight: var(--font-semibold); text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+  .chb[open] .chb__more::after { content: '（收起）'; font-weight: var(--font-medium); }
+  .chb__sub { margin: 0 0 var(--space-4) 76px; padding: var(--space-1) var(--space-3); border-radius: var(--radius-md); background: var(--zinc-100); list-style: none; }
+  .chb__sub li { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 0 var(--space-3); align-items: baseline; padding: 8px 0; font-size: var(--text-md); }
+  .chb__sub li + li { border-top: 1px solid var(--zinc-200); }
+  .chb__sub small { color: var(--zinc-600); }
+  .empty { padding: var(--space-8) 0; font-size: var(--text-base); color: var(--zinc-700); }
+  .synth { margin-top: var(--space-8); font-size: var(--text-sm); color: var(--zinc-600); }
+  @media (max-width: 860px) {
+    /* 手機首屏只回答「這個月有哪些異動」：月份留著，其他篩選收進一列 */
+    .ff { grid-template-columns: minmax(0, 1fr); flex-basis: 100%; }
+    .ff .fold { display: block; }
+    .ff .fold__sum { min-height: 44px; border-bottom: 0; padding: 0; }
+    .ff__more { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); padding-bottom: var(--space-2); }
+    .ff__more .ff__q { grid-column: 1 / -1; }
+    .tbar__act { width: 100%; justify-content: flex-end; }
+    .ch, .chb > summary { grid-template-columns: 48px minmax(0, 1fr); gap: 2px var(--space-3); }
+    .ch > :nth-child(n+3), .chb > summary > :nth-child(n+3) { grid-column: 2; }
+    .chb__sub { margin-left: 0; }
+    .chap { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding: var(--space-6) 0 var(--space-2); }
+    .chap__side { position: static; display: flex; align-items: baseline; gap: var(--space-3); }
+    .chap__big { font-size: 28px; }
+    .chap__tally { margin-top: 0; font-size: var(--text-base); }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>課務異動 · A6（#990 批 1）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格</th><th>產品現況（sitemap 實測）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>規格</td><td>沒有獨立的應然規格</td><td>唯讀紀錄表：月份、異動類型、分校三個下拉</td><td>照現況，內容與用字跟課表的「全部異動」一致</td></tr>
+      <tr><td>篩選</td><td>—</td><td>月份、異動類型、分校</td><td>同三個＋「老師或班級」搜尋（課表全部異動已有），標「新」</td></tr>
+      <tr><td>批次</td><td>—</td><td>類型欄出現「批次」</td><td>批次收成一則「停課 14 堂 · 批次」，點開看哪幾堂</td></tr>
+      <tr><td>寫入</td><td>—</td><td>沒有；副標寫「要修改課堂請至課堂管理」</td><td>維持唯讀；每則有「看這堂」、工具列有「到課表」</td></tr>
+      <tr><td>欄位</td><td>—</td><td>課堂／變更內容／類型／異動時間／操作者／原因</td><td>全保留，改成依上課日分章的列</td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>預設本月（10 月）。9 月是合成的歷史，跟課表全部異動同一份樣子；8 月沒有異動，可以看空狀態。</li>
+    <li>「看這堂」帶你到課表那一天。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/stress.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, wd, esc } = A2;
+  const X = window.CLESSIA_STRESS, T = X.today;
+  const P = (d) => `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  // 類型與用字照產品異動紀錄頁（changes.component.ts），跟 schedule.js 的 TYPE 同一份
+  const TYPE = { reschedule: '調課', substitute: '代課', cancel: '停課', time: '改時間', uncancel: '恢復上課', makeup: '補課' };
+  const ICON = { cancel: icon.x, substitute: icon.swap, reschedule: icon.right, time: icon.clock, makeup: P('<path d="M6.5 9.5l3-3M5 7.5L3.5 9a2.5 2.5 0 003.5 3.5L8.5 11M11 8.5L12.5 7A2.5 2.5 0 009 3.5L7.5 5"/>'), uncancel: P('<path d="M4 6.5h6a3 3 0 010 6H7M4 6.5L6.5 4M4 6.5L6.5 9"/>') };
+  const tag = (type, label) => `<span class="stag${type === 'cancel' ? ' stag--cancel' : ''}">${ICON[type]}${esc(label || TYPE[type])}</span>`;
+  const addD = C.addDays;
+
+  // ── 異動紀錄：本週取自 stress.js（跟課表同源），9 月合成歷史（同 schedule.js 的做法），8 月刻意留空 ──
+  const LOG = [];
+  let bseq = 0;
+  const log = (s, type, o) => LOG.push({ sid: s.id || null, date: s.date, start: s.start, cls: s.className, teacher: s.teacher, campus: o.campus || '文山旗艦校', type, detail: o.detail || '', reason: o.reason || '', by: o.by || '林主任', at: o.at, batch: o.batch || null });
+  const B0 = 'b' + ++bseq;
+  X.sessions.forEach((s) => {
+    const c = s.change;
+    if (!c) return;
+    if (c.type === 'cancel') log(s, 'cancel', { reason: (c.reason || '').replace('（批次）', ''), batch: B0, at: '2026-10-01T16:05' });
+    if (c.type === 'substitute') log(s, 'substitute', { detail: `${c.from} → ${s.teacher}`, reason: c.reason, by: '張教務', at: '2026-10-01T13:40' });
+    if (c.type === 'reschedule') log(s, 'reschedule', { detail: `從 ${md(c.fromDate)} ${c.fromStart} 移來`, reason: c.reason, by: '張教務', at: '2026-09-29T10:02' });
+    if (c.type === 'makeup') log(s, 'makeup', { detail: `補 ${c.forLabel}`, reason: '颱風停課補課', at: '2026-10-01T16:20' });
+  });
+  // ponytail: 合成歷史跟 schedule.js 是兩份（課表那份包在 IIFE 裡拿不到）；正式實作是同一支 API
+  (function synth() {
+    let seed = 977;
+    const r = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    const pk = (a) => a[Math.floor(r() * a.length)];
+    const TN = X.teachers.map((t) => t.name), CN = [...new Set(X.sessions.map((s) => s.className))], S = ['17:00', '17:30', '18:00', '18:30', '19:00'], OPS = ['林主任', '張教務', '陳櫃台'];
+    const at = (d) => `${addD(d, -1 - Math.floor(r() * 4))}T${String(9 + Math.floor(r() * 10)).padStart(2, '0')}:${pk(['05', '12', '20', '38', '47'])}`;
+    const mk = (date, type, o) => log({ date, start: o.start || pk(S), className: o.cls || pk(CN), teacher: o.teacher || pk(TN) }, type, Object.assign({ by: pk(OPS), at: at(date), campus: r() < 0.25 ? '景美分校' : '文山旗艦校' }, o));
+    const b1 = 'b' + ++bseq;
+    for (let i = 0; i < 14; i++) mk('2026-09-25', 'cancel', { reason: '中秋節停課', batch: b1, by: '林主任', at: '2026-09-14T10:20', campus: '文山旗艦校' });
+    const out = TN[3], sub = TN[8];
+    ['2026-09-16', '2026-09-17', '2026-09-18'].forEach((d, i) => mk(d, 'substitute', { teacher: sub, detail: `${out} → ${sub}`, reason: `${out} 請假`, by: '張教務', at: `2026-09-15T1${i + 1}:05` }));
+    const c3 = CN.find((c) => c.startsWith('國三')) || CN[0], b2 = 'b' + ++bseq;
+    ['2026-09-07', '2026-09-14', '2026-09-21'].forEach((d) => mk(d, 'time', { cls: c3, start: '19:00', detail: '18:30 → 19:00', reason: '配合學校第八節課', batch: b2, by: '林主任', at: '2026-09-04T15:30' }));
+    ['reschedule', 'cancel', 'makeup', 'reschedule', 'uncancel', 'substitute', 'cancel', 'reschedule', 'makeup', 'time', 'cancel', 'substitute'].forEach((type) => {
+      let d; do d = `2026-09-${String(1 + Math.floor(r() * 26)).padStart(2, '0')}`; while (new Date(d + 'T00:00:00').getDay() === 0);
+      const cls = pk(CN), a = pk(TN), b = pk(TN.filter((x) => x !== a));
+      const o = {
+        reschedule: { detail: `從 ${md(addD(d, -2))} ${pk(S)} 移來`, reason: pk(['學校段考週', '老師研習', '家長要求']) },
+        cancel: { reason: pk(['學校段考', '老師病假', '教室冷氣維修']) },
+        makeup: { detail: `補 ${md(addD(d, -5))} ${cls}`, reason: '停課補課' },
+        uncancel: { detail: '恢復成要上課', reason: '段考改期' },
+        substitute: { teacher: b, detail: `${a} → ${b}`, reason: `${a} 病假` },
+        time: { detail: '19:00 → 19:30', reason: '家長接送時間' },
+      }[type];
+      mk(d, type, Object.assign({ cls }, o));
+    });
+  })();
+
+  const MONTHS = ['2026-10', '2026-09', '2026-08'];
+  const st = { month: '2026-10', type: '', campus: '', q: '' };
+  const when = (at) => `${md(at.slice(0, 10))} ${at.slice(11)}`;
+  const go = (e) => (e.sid ? `<a class="btn btn--sm ch__go" href="schedule.html">看這堂${icon.right}</a>` : '');
+  const one = (e) => `<div class="ch">
+      <span class="ch__t">${e.start}</span>
+      <span class="ch__cls">${esc(e.cls)}${tag(e.type)}</span>
+      <span class="ch__d">${e.detail ? esc(e.detail) : TYPE[e.type]}</span>
+      <span class="ch__why">${e.reason ? esc(e.reason) : '沒寫原因'}<span class="ch__by">${esc(e.by)} · ${when(e.at)}</span></span>
+      ${go(e)}</div>`;
+  const batch = (es) => { const e = es[0]; return `<details class="chb"><summary>
+      <span class="ch__t">${es.map((x) => x.start).sort()[0]}</span>
+      <span class="ch__cls">${tag(e.type, `${TYPE[e.type]} ${es.length} 堂`)}<span class="bchip">批次</span></span>
+      <span class="ch__d">${e.detail ? esc(e.detail) : `${new Set(es.map((x) => x.cls)).size} 個班`}</span>
+      <span class="ch__why">${e.reason ? esc(e.reason) : '沒寫原因'}<span class="ch__by">${esc(e.by)} · ${when(e.at)}</span></span>
+      <span class="chb__more">看是哪 ${es.length} 堂</span></summary>
+      <ul class="chb__sub">${es.slice().sort((a, b) => a.start.localeCompare(b.start)).map((x) => `<li><span class="ch__t">${x.start}</span><span>${esc(x.cls)} <small>${x.teacher ? esc(x.teacher) : '未指派'}</small></span>${x.sid ? '<a class="tlink" href="schedule.html">看這堂</a>' : ''}</li>`).join('')}</ul></details>`; };
+
+  function render() {
+    const q = st.q.trim();
+    const es = LOG.filter((e) => e.date.startsWith(st.month) && (!st.type || e.type === st.type) && (!st.campus || e.campus === st.campus) && (!q || [e.cls, e.teacher, e.detail].some((x) => x && x.includes(q))));
+    const filtered = st.type || st.campus || q;
+    const days = new Map();
+    es.slice().sort((a, b) => { const fa = a.date >= T, fb = b.date >= T; if (fa !== fb) return fa ? -1 : 1; return fa ? (a.date + a.start).localeCompare(b.date + b.start) : (b.date + a.start).localeCompare(a.date + b.start); }).forEach((e) => { if (!days.has(e.date)) days.set(e.date, []); days.get(e.date).push(e); });
+    document.getElementById('count').innerHTML = es.length ? `${+st.month.slice(5)} 月共 ${es.length} 則${filtered ? ' · <button type="button" data-reset>清除篩選</button>' : ''}` : '';
+    document.getElementById('list').innerHTML = es.length ? [...days.entries()].map(([d, list]) => {
+      const rows = [], bs = new Map();
+      list.forEach((e) => { if (!e.batch) return rows.push(one(e)); if (!bs.has(e.batch)) { bs.set(e.batch, []); rows.push(e.batch); } bs.get(e.batch).push(e); });
+      return `<section class="chap" aria-label="${md(d)}"><div class="chap__side"><div class="chap__big">${d === T ? '今天' : d === addD(T, 1) ? '明天' : md(d)}</div><p class="chap__meta">${d === T || d === addD(T, 1) ? md(d) + ' ' : ''}週${wd(d)}</p><p class="chap__tally">${list.length} 則</p></div>
+        <div>${rows.map((x) => (typeof x === 'string' && bs.has(x) ? batch(bs.get(x)) : x)).join('')}</div></section>`;
+    }).join('') + (st.month === '2026-09' ? '<p class="synth">9 月是合成的歷史（設計稿示範用，沒有對應的課堂，所以沒有「看這堂」）。</p>' : '')
+      : `<p class="empty">${filtered ? `${+st.month.slice(5)} 月沒有符合的異動。<button type="button" data-reset>清除篩選</button>` : `${+st.month.slice(5)} 月沒有任何調課、代課或停課。`}</p>`;
+    const fm = document.getElementById('fm'); if (fm) fm.textContent = `${st.type ? TYPE[st.type] : '全部異動'} · ${st.campus || '全部分校'}${q ? ` · 「${q}」` : ''}`;
+    const m = LOG.filter((e) => e.date.startsWith(st.month));
+    document.querySelector('.open__title').innerHTML = m.length ? `${+st.month.slice(5)} 月 ${m.length} 則異動，<br>停課 ${m.filter((e) => e.type === 'cancel').length} 堂。` : `${+st.month.slice(5)} 月沒有異動。`;
+  }
+
+  shell({
+    page: 'changes',
+    title: '',
+    sub: '調課、代課、停課的完整紀錄。要改課堂，到課表。',
+    bar: `<div class="ff" role="search">
+        <label>月份<select class="acset__in" data-f="month">${MONTHS.map((m) => `<option value="${m}">${m.slice(0, 4)} 年 ${+m.slice(5)} 月</option>`).join('')}</select></label>
+        <details class="fold" data-fold><summary class="fold__sum"><span class="fold__t">篩選</span><span class="fold__m" id="fm">全部異動 · 全部分校</span></summary><div class="ff__more">
+        <label>異動類型<select class="acset__in" data-f="type"><option value="">全部異動</option>${Object.entries(TYPE).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
+        <label>分校<select class="acset__in" data-f="campus"><option value="">全部分校</option>${C.campuses.map((c) => `<option>${c}</option>`).join('')}</select></label>
+        <label class="ff__q"><span>老師或班級<span class="new">新</span></span><input class="acset__in" type="search" data-f="q" placeholder="例如：周雅琳、國三數學"></label>
+      </div></details></div>
+      <div class="tbar__act"><a class="btn" href="schedule.html">到課表${icon.right}</a></div>`,
+    phase: 3100,
+  }, `<p class="count" id="count"></p><div id="list"></div>`);
+  A2.fold();
+  render();
+
+  const bar = document.querySelector('.ff');
+  const onF = (e) => { const k = e.target.dataset.f; if (k) { st[k] = e.target.value; render(); } };
+  bar.addEventListener('input', onF); bar.addEventListener('change', onF);
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-reset]')) return;
+    Object.assign(st, { type: '', campus: '', q: '' });
+    bar.querySelector('[data-f="type"]').value = ''; bar.querySelector('[data-f="campus"]').value = ''; bar.querySelector('[data-f="q"]').value = '';
+    render();
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 班級詳情</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* 橘面上只用近黑：狀態色（綠／灰）不放在橘上，改成近黑細框的小標 */
+  .open__title .tag { margin-left: var(--space-3); padding: 2px 10px; background: none; box-shadow: inset 0 0 0 1.5px var(--band-rule); color: var(--band-ink); font-size: var(--text-md); vertical-align: middle; letter-spacing: 0; }
+  .tabs { display: flex; gap: var(--space-5); }
+  .tabs .tlink { min-height: 40px; font-size: var(--text-base); }
+  .sec__head .btn { margin-left: auto; }
+  .sec__tools { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-left: auto; }
+  .stu { display: grid; grid-template-columns: 32px minmax(0, 1.2fr) minmax(0, 1fr) 104px auto; align-items: center; gap: var(--space-1) var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--surface-border); }
+  .stu__i { font-size: var(--text-md); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .stu__name { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--text-lg); font-weight: var(--font-semibold); text-decoration: none; }
+  .stu__name:hover span:first-child { text-decoration: underline; text-underline-offset: 4px; }
+  .stu__meta { font-size: var(--text-md); color: var(--zinc-600); }
+  .stu__since { font-size: var(--text-md); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .stu.is-leaving { opacity: 0; transform: translateX(8px); transition: opacity 0.14s var(--leave), transform 0.14s var(--leave); }
+  .icobtn { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: var(--radius-md); background: none; color: var(--zinc-900); cursor: pointer; }
+  .icobtn:hover { background: var(--zinc-100); }
+  .slotrow { display: grid; grid-template-columns: 80px 140px minmax(0, 1fr) minmax(0, 1fr) auto; align-items: center; gap: var(--space-1) var(--space-4); padding: var(--space-4) 0; border-bottom: 1px solid var(--surface-border); font-variant-numeric: tabular-nums; }
+  .slotrow__d { font-size: var(--text-xl); font-weight: var(--font-bold); }
+  .slotrow__t { font-size: var(--text-lg); font-weight: var(--font-semibold); }
+  .slotrow__m { font-size: var(--text-md); color: var(--zinc-600); }
+  .pop--menu .is-danger { color: var(--error-700); }
+  .fdlg--danger [data-go] { background: var(--error-700); border-color: var(--error-700); color: #fff; }
+  .prev { max-height: 240px; overflow: auto; padding: var(--space-2); border-radius: var(--radius-md); background: var(--zinc-50); box-shadow: inset 0 0 0 1px var(--zinc-200); }
+  .prev label { display: flex; align-items: center; gap: var(--space-2); min-height: 36px; padding: 0 var(--space-2); font-variant-numeric: tabular-nums; cursor: pointer; }
+  .prev label:has(input:not(:checked)) span { color: var(--zinc-500); text-decoration: line-through; }
+  .prev input { width: 18px; height: 18px; accent-color: var(--zinc-900); }
+  .prev__sum { margin-top: var(--space-2); font-size: var(--text-md); font-weight: var(--font-semibold); }
+  [data-panel][hidden] { display: none; }
+  @media (max-width: 860px) {
+    .stu { grid-template-columns: minmax(0, 1fr) auto; }
+    .stu__i { display: none; }
+    .stu__meta, .stu__since { grid-column: 1; }
+    .stu > :last-child { grid-column: 2; grid-row: 1 / span 3; }
+    .slotrow { grid-template-columns: minmax(0, 1fr) auto; }
+    .slotrow > :not(:last-child) { grid-column: 1; }
+    .slotrow > :last-child { grid-column: 2; grid-row: 1 / span 4; }
+    .sec__tools { margin-left: 0; width: 100%; }
+    .icobtn { width: 44px; height: 44px; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>班級詳情 · A6（#990 批 1）</h2>
+  <h3>規格 vs 現況（設計稿以應然規格為準）</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（academic/classes.md）</th><th>產品現況（sitemap）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>快速操作</td><td>詳情有「編輯、產生課堂、停用」</td><td>詳情頁沒有，三個動作在課程管理的班級 ⋮ 裡</td><td>照應然：工具列「產生課堂」＋ ⋮（編輯班級、停用班級）。動作本身產品已有，只是換位置，所以不標「新」。</td></tr>
+      <tr><td>上課時段</td><td>可新增多個時段，每個時段可獨立編輯或刪除；欄位含老師、教室、生效起訖</td><td>「課表」分頁零互動，時段要到課程頁的「編輯班級」改</td><td>課表分頁每個時段一顆「編輯」、底部「新增時段」，重疊即時擋住並寫出跟哪一筆重疊。教室與生效期間標「新」。</td></tr>
+      <tr><td>學生名單</td><td>學生名單摘要（人數、可展開查看）</td><td>完整名單＋加入學生、複製名單、Excel 匯入；每列 ⋮：停權、計費設定、移除</td><td>保留產品的完整名單與三顆按鈕（應然沒寫，註記於此）。</td></tr>
+      <tr><td>待付款／暫停那列的選單</td><td>—</td><td>只驗過「在籍」那列</td><td>不臆測「恢復」：暫停與待付款只放「計費設定、移除」，在籍多一個「停權」。需要恢復的話請開單。</td></tr>
+      <tr><td>移除的確認文案</td><td>—</td><td>「此操作不留紀錄，無法復原」（前半句過期：其實有稽核紀錄）</td><td>只寫「無法復原，會留在操作紀錄裡」。</td></tr>
+      <tr><td>載入失敗</td><td>—</td><td>toast 消失後整頁只剩麵包屑</td><td>畫真正的錯誤態（網址加 <code>#error</code>）：說明＋重新載入＋回課程管理。</td></tr>
+    </tbody>
+  </table>
+  <p>從課程管理點進來的是哪一班，就顯示那一班（名冊照班級年級從示範學生裡挑）。直接打開時顯示示範資料裡的國三班。</p>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/stress.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, esc, money } = A2;
+  const ZH = '日一二三四五六';
+  const TEACH = window.CLESSIA_STRESS.teachers.map((t) => t.name), ROOMS = window.CLESSIA_STRESS.rooms;
+  // 從課程管理帶過來的班（sessionStorage）；沒有就用示範資料的國三數學 D 班
+  let k = null;
+  try { k = JSON.parse(sessionStorage.getItem('a6-class') || 'null'); } catch (_) {}
+  if (!k) {
+    const c = C.classes.find((x) => x.name.includes('國三')) || C.classes[0];
+    k = { course: c.subject === '數學' ? '國三數學' : c.name.split(' ')[0], campus: C.campus.name, name: c.name, cap: c.capacity, grades: c.grades.map((g) => ({ J1: '國一', J2: '國二', J3: '國三', P5: '小五', P6: '小六' })[g]),
+      slots: [{ wd: c.weekday, start: c.start, end: c.end, teacher: c.teacher, room: '', from: '2026-09-01', to: '' }], status: 'on', real: c.id };
+  }
+  // 名冊：真實班級用它的報名；合成的班依年級從示範學生挑
+  const EL = { active: '在籍', pending_payment: '待付款', suspended: '暫停' };
+  const TAG = { active: '', pending_payment: 'tag--warn', suspended: 'tag--quiet' };
+  let roster;
+  if (k.real && C.classById[k.real]) {
+    roster = C.students.filter((s) => s.enrollments.some((e) => e.classId === k.real && e.status !== 'withdrawal' && e.status !== 'void'))
+      .map((s) => { const e = s.enrollments.find((x) => x.classId === k.real); return { s, st: e.status in EL ? e.status : 'active', since: e.from }; });
+  } else {
+    const pool = C.students.filter((s) => (k.grades || []).includes(s.gradeLabel));
+    roster = (pool.length ? pool : C.students).slice(0, k.n || 12).map((s, i) => ({ s, st: i % 11 === 3 ? 'pending_payment' : i % 13 === 7 ? 'suspended' : 'active', since: C.addDays('2026-09-01', (i * 3) % 20) }));
+  }
+  const stOn = { on: ['開班中', 'tag--ok'], off: ['已停用', 'tag--quiet'], ended: ['已結束', 'tag--quiet'] };
+  const LOG = [];
+  const state = { tab: 'roster' };
+
+  const title = () => `${esc(k.name)}<span class="tag ${stOn[k.status][1]}" id="ktag">${stOn[k.status][0]}</span>`;
+  shell({
+    page: 'courses',
+    back: `<a class="open__back" href="courses.html">${icon.left}課程管理</a>`,
+    title: title(),
+    sub: `${esc(k.course)} · ${esc(k.campus)} · 適合年級 ${(k.grades || []).join('、') || '不限'}`,
+    stats: [{ n: `<span id="nstu">${roster.length}</span><small>／${k.cap}</small>`, label: '在籍人數' }, { n: `<span id="nslot">${k.slots.length}</span>`, label: '個上課時段' }],
+    bar: `<nav class="tabs" aria-label="班級內容"><button class="tlink" type="button" data-tab="roster" aria-current="true">學生名單</button><button class="tlink" type="button" data-tab="slots">課表</button></nav>
+      <div class="tbar__act"><button class="btn" type="button" data-gen${k.status !== 'on' ? ' aria-disabled="true"' : ''}>產生課堂</button><button class="btn tbar__icon" type="button" popovertarget="kacts" aria-label="更多動作">${icon.dots}</button></div>
+      <div class="pop pop--menu" id="kacts" popover><button type="button" data-edit>編輯班級</button><button type="button" data-off>${k.status === 'on' ? '停用班級' : '恢復開班'}</button><a href="schedule.html">課堂管理</a></div>`,
+    phase: 3100,
+  }, `<div data-panel="roster"></div><div data-panel="slots" hidden></div>`);
+
+  const stuRow = (r, i) => `<div class="stu${r.isNew ? ' is-new' : ''}" data-sid="${r.s.id}">
+      <span class="stu__i">${i + 1}</span>
+      <a class="stu__name" href="student.html"><span>${esc(r.s.name)}</span>${EL[r.st] !== '在籍' ? `<span class="tag ${TAG[r.st]}">${EL[r.st]}</span>` : ''}</a>
+      <span class="stu__meta">${esc(r.s.school)} · ${r.s.gradeLabel}</span>
+      <span class="stu__since">加入 ${md(r.since)}</span>
+      <button class="icobtn" type="button" data-smenu="${r.s.id}" aria-label="${esc(r.s.name)} 的動作">${icon.dots}</button>
+    </div>`;
+  const renderRoster = () => {
+    document.querySelector('[data-panel="roster"]').innerHTML = `<section class="sec" aria-labelledby="h-stu">
+      <div class="sec__head"><h2 class="sec__title" id="h-stu">${roster.length} 位學生</h2><span class="sec__count">上限 ${k.cap} 人${roster.length >= k.cap ? ' · 已滿' : ''}</span>
+        <div class="sec__tools"><button class="btn btn--cta" type="button" data-add${roster.length >= k.cap ? ' aria-disabled="true"' : ''}>${icon.plus}加入學生</button><button class="btn" type="button" data-copy>複製名單</button><button class="btn" type="button" data-import>Excel 匯入</button></div></div>
+      ${roster.length >= k.cap ? '<p class="sec__lede">已經滿班。要多收一位，先在「編輯班級」把人數上限調高。</p>' : ''}
+      ${roster.length ? roster.map(stuRow).join('') : '<p class="empty">這個班還沒有學生。按「加入學生」或用 Excel 匯入名冊。</p>'}</section>`;
+    roster.forEach((r) => delete r.isNew);
+    document.getElementById('nstu').textContent = roster.length;
+  };
+  const slotRow = (s, i) => `<div class="slotrow${s.isNew ? ' is-new' : ''}">
+      <span class="slotrow__d">週${ZH[s.wd]}</span><span class="slotrow__t">${s.start} – ${s.end}</span>
+      <span>${esc(s.teacher)} 老師<br><span class="slotrow__m">${s.room ? `教室 ${esc(s.room)}` : '沒有指定教室'}</span></span>
+      <span class="slotrow__m">${md(s.from || '2026-09-01')} 起${s.to ? `，到 ${md(s.to)}` : '，持續有效'}</span>
+      <span><button class="btn btn--sm" type="button" data-eslot="${i}">編輯</button></span>
+    </div>`;
+  const renderSlots = () => {
+    document.querySelector('[data-panel="slots"]').innerHTML = `<section class="sec" aria-labelledby="h-slot">
+      <div class="sec__head"><h2 class="sec__title" id="h-slot">${k.slots.length} 個上課時段</h2><button class="btn" type="button" data-eslot="-1">${icon.plus}新增時段</button></div>
+      ${k.slots.map(slotRow).join('')}
+      <p class="sec__lede">改了時段之後，已經產生的課堂不會自己變；要按「產生課堂」補上新時段的課。</p></section>`;
+    k.slots.forEach((s) => delete s.isNew);
+    document.getElementById('nslot').textContent = k.slots.length;
+  };
+
+  // ⋮ 選單（學生）
+  const menu = Object.assign(document.createElement('div'), { className: 'pop pop--menu', id: 'smenu' });
+  menu.popover = 'auto';
+  document.body.append(menu);
+  let anchor;
+  menu.addEventListener('toggle', (e) => {
+    if (e.newState !== 'open' || !anchor) return;
+    const r = anchor.getBoundingClientRect();
+    const top = r.bottom + 6 + menu.offsetHeight > innerHeight - 16 ? r.top - menu.offsetHeight - 6 : r.bottom + 6;
+    Object.assign(menu.style, { position: 'fixed', left: Math.max(16, Math.min(r.right - menu.offsetWidth, innerWidth - menu.offsetWidth - 16)) + 'px', top: Math.max(16, top) + 'px' });
+  });
+  const byId = (id) => roster.find((r) => r.s.id === id);
+  const reason = (title, text, submit, ok, apply) => A2.form({ title, sub: text, fields: [{ k: 'why', label: '原因', ph: '請填寫原因（必填）', req: true }], submit, busy: '處理中…', ok, apply }).classList.add('fdlg--danger');
+  const toMin = (t) => +t.slice(0, 2) * 60 + +t.slice(3);
+
+  // 單一時段表單（A2.form），與其他時段重疊就擋住並寫出是哪一筆
+  function slotForm(i) {
+    const s = i >= 0 ? k.slots[i] : { wd: k.slots[0] ? k.slots[0].wd : 1, start: '', end: '', teacher: k.slots[0] ? k.slots[0].teacher : '', room: '', from: C.TODAY, to: '' };
+    const d = A2.form({
+      title: i >= 0 ? `編輯第 ${i + 1} 筆時段` : '新增時段', sub: k.name,
+      fields: [
+        { k: 'wd', label: '星期', type: 'select', options: [1, 2, 3, 4, 5, 6, 0].map((w) => [w, `週${ZH[w]}`]), value: s.wd, req: true, half: true },
+        { k: 'teacher', label: '任課老師', type: 'select', options: TEACH, value: s.teacher, ph: '選一位老師', req: true, half: true },
+        { k: 'start', label: '開始', type: 'time', value: s.start, req: true, half: true }, { k: 'end', label: '結束', type: 'time', value: s.end, req: true, half: true },
+        { k: 'room', label: '教室（選填，新）', type: 'select', options: ROOMS, value: s.room, ph: '不指定', half: true },
+        { k: 'from', label: '生效起始日', type: 'date', value: s.from || C.TODAY, req: true, half: true },
+        { k: 'to', label: '生效結束日（選填）', type: 'date', value: s.to || '', hint: '留空表示持續有效' },
+      ],
+      submit: i >= 0 ? '儲存' : '新增時段', busy: '儲存中…',
+      ok: (v) => `已${i >= 0 ? '更新' : '新增'}時段：週${ZH[v.wd]} ${v.start}–${v.end}`,
+      apply: (v) => { const n = { ...v, wd: +v.wd, isNew: true }; if (i >= 0) k.slots[i] = n; else k.slots.push(n); renderSlots(); },
+    });
+    if (i >= 0) {
+      const foot = d.querySelector('.fdlg__foot');
+      foot.insertAdjacentHTML('afterbegin', `<button class="btn" type="button" data-delslot${k.slots.length < 2 ? ' aria-disabled="true" title="至少要有一個時段"' : ''} style="color:var(--error-700)">刪除這個時段</button>`);
+      foot.querySelector('[data-delslot]').addEventListener('click', (e) => {
+        if (k.slots.length < 2) { d.querySelector('.fdlg__why').textContent = '至少要有一個時段，不能刪最後一個'; return; }
+        A2.act(e.currentTarget, { busy: '刪除中…', ok: `已刪除週${ZH[s.wd]} ${s.start}–${s.end} 的時段`, ms: 400, run: () => { d.close(); k.slots.splice(i, 1); renderSlots(); } });
+      });
+    }
+    const go = d.querySelector('[data-go]'), why = d.querySelector('.fdlg__why');
+    d.addEventListener('input', () => setTimeout(() => {
+      const val = (n) => d.querySelector(`[data-k="${n}"]`).value;
+      if (!val('start') || !val('end')) return;
+      let msg = toMin(val('end')) <= toMin(val('start')) ? '結束要晚於開始' : '';
+      k.slots.forEach((o, j) => { if (!msg && j !== i && o.wd === +val('wd') && toMin(val('start')) < toMin(o.end) && toMin(o.start) < toMin(val('end'))) msg = `時段重疊：跟第 ${j + 1} 筆（週${ZH[o.wd]} ${o.start}–${o.end}）重疊`; });
+      if (msg) { go.setAttribute('aria-disabled', 'true'); why.textContent = msg; }
+    }));
+  }
+
+  // 產生課堂：選範圍 → 預覽（可排除）→ 確認
+  function genDialog() {
+    const d = document.createElement('dialog');
+    d.className = 'acset fdlg';
+    d.setAttribute('aria-labelledby', 'gd-t');
+    d.innerHTML = `<div class="acset__head"><div><h2 class="acset__t" id="gd-t">產生課堂</h2><p class="fdlg__sub">${esc(k.campus)} › ${esc(k.course)} › ${esc(k.name)}</p></div><button class="acset__x" type="button" aria-label="關閉" data-x>${icon.x}</button></div>
+      <div class="acset__body fdlg__body">
+        <p class="acset__f fdlg__sub" style="margin:0">依上課時段在這段期間產生課堂。先預覽，可以排除放假日，確認後才建立；已經存在的課堂不會重複建立。</p>
+        <div class="acset__f fdlg__half"><label class="acset__l" for="gd-a">開始日期 <span class="fdlg__req">*</span></label><input class="acset__in" id="gd-a" type="date" value="${C.addDays(C.TODAY, 5)}"></div>
+        <div class="acset__f fdlg__half"><label class="acset__l" for="gd-b">結束日期 <span class="fdlg__req">*</span></label><input class="acset__in" id="gd-b" type="date" value="2026-12-31"></div>
+        <div class="acset__f" id="gd-prev"></div>
+      </div>
+      <div class="fdlg__foot"><p class="fdlg__why" aria-live="polite"></p><button class="btn" type="button" data-x>取消</button><button class="btn btn--cta" type="button" data-go>預覽課堂</button></div>`;
+    document.body.append(d);
+    const go = d.querySelector('[data-go]'), why = d.querySelector('.fdlg__why'), prev = d.querySelector('#gd-prev');
+    const wdOf = (iso) => new Date(iso + 'T00:00:00').getDay();
+    let step = 1;
+    const sum = () => { const on = prev.querySelectorAll('input:checked').length, all = prev.querySelectorAll('input').length; prev.querySelector('.prev__sum').textContent = `將產生 ${on} 堂（排除 ${all - on} 堂）。`; go.textContent = `確認產生 ${on} 堂`; go.setAttribute('aria-disabled', on ? 'false' : 'true'); why.textContent = on ? '' : '全部都排除了，沒有要產生的課堂'; };
+    d.addEventListener('input', (e) => { if (e.target.closest('#gd-prev')) sum(); else if (step === 2) { step = 1; prev.innerHTML = ''; go.textContent = '預覽課堂'; go.setAttribute('aria-disabled', 'false'); } });
+    d.addEventListener('click', (e) => {
+      if (e.target === d || e.target.closest('[data-x]')) d.close();
+      if (!e.target.closest('[data-go]') || go.getAttribute('aria-disabled') === 'true') return;
+      if (step === 1) {
+        const a = d.querySelector('#gd-a').value, b = d.querySelector('#gd-b').value;
+        if (!a || !b || a > b) { why.textContent = '結束日期要晚於開始日期'; return; }
+        const out = [];
+        for (let x = a; x <= b && out.length < 200; x = C.addDays(x, 1)) k.slots.forEach((s) => wdOf(x) === s.wd && out.push([x, s]));
+        if (!out.length) { why.textContent = '這段期間沒有任何上課日'; return; }
+        step = 2;
+        prev.innerHTML = `<p class="acset__l">預覽：取消勾選就排除那一天</p><div class="prev">${out.map(([x, s]) => `<label><input type="checkbox" checked><span>${md(x)}（${ZH[wdOf(x)]}） ${s.start}–${s.end} · ${esc(s.teacher)}</span></label>`).join('')}</div><p class="prev__sum"></p>`;
+        prev.classList.add('is-new'); sum(); return;
+      }
+      const n = prev.querySelectorAll('input:checked').length, first = prev.querySelector('input:checked + span').textContent.split(' ')[0];
+      A2.act(go, { busy: '產生中…', ok: `已產生 ${n} 堂課堂，下一堂 ${first}`, run: () => d.close() });
+    });
+    d.addEventListener('close', () => setTimeout(() => d.remove(), 200));
+    d.showModal();
+  }
+
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    const tab = t.closest('[data-tab]');
+    if (tab) { state.tab = tab.dataset.tab; document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-current', b === tab)); document.querySelectorAll('[data-panel]').forEach((p) => (p.hidden = p.dataset.panel !== state.tab)); }
+    if (t.closest('#kacts button, #kacts a')) document.getElementById('kacts').hidePopover();
+    const g = t.closest('[data-gen]');
+    if (g) { if (g.getAttribute('aria-disabled') === 'true') A2.toast('班級沒有在開，不能產生課堂；先「恢復開班」'); else genDialog(); }
+    if (t.closest('[data-edit]')) A2.form({
+      title: '編輯班級', sub: `${k.course} · 上課時段在「課表」分頁改`,
+      fields: [{ k: 'name', label: '開課班名稱', value: k.name, req: true }, { k: 'cap', label: '人數上限', type: 'number', value: String(k.cap), req: true, half: true, hint: `目前 ${roster.length} 位在籍` }],
+      submit: '儲存', busy: '儲存中…', ok: (v) => `已更新「${v.name}」`,
+      apply: (v) => { k.name = v.name; k.cap = +v.cap || k.cap; document.querySelector('.open__title').innerHTML = title(); document.querySelector('.open__stats dd').innerHTML = `<span id="nstu">${roster.length}</span><small>／${k.cap}</small>`; renderRoster(); },
+    });
+    const off = t.closest('[data-off]');
+    if (off) {
+      if (k.status === 'on') A2.form({
+        title: `停用「${k.name}」`, sub: `目前 ${roster.length} 位學生在籍`,
+        fields: [{ k: 'mode', label: '停用方式', type: 'radio', options: ['停用並停課未來課堂', '僅停用班級'], hint: '停用並停課未來課堂：未來、還沒開始的課都改成停課，已上過的課保留。僅停用班級：已排的課照常上，之後不能再排新的課。' }],
+        submit: '停用班級', busy: '停用中…', ok: (v) => (v.mode === '僅停用班級' ? `已停用「${k.name}」，已排的課照常上` : `已停用「${k.name}」，已停課 9 筆未來課堂`),
+        apply: () => { k.status = 'off'; document.querySelector('.open__title').innerHTML = title(); off.textContent = '恢復開班'; document.querySelector('[data-gen]').setAttribute('aria-disabled', 'true'); },
+      });
+      else A2.act(off, { busy: '處理中…', ok: `「${k.name}」恢復開班`, ms: 300, run: () => { k.status = 'on'; document.querySelector('.open__title').innerHTML = title(); off.textContent = '停用班級'; document.querySelector('[data-gen]').removeAttribute('aria-disabled'); } });
+    }
+    const add = t.closest('[data-add]');
+    if (add) {
+      if (add.getAttribute('aria-disabled') === 'true') { A2.toast(`已經滿班（${k.cap} 人）。先在「編輯班級」調高人數上限`); return; }
+      const ids = new Set(roster.map((r) => r.s.id));
+      A2.form({
+        title: '加入學生', sub: `${k.name} · 加入後狀態是「待付款」，帳單在下次開帳一起開`,
+        fields: [{ k: 'sid', label: '學生', type: 'select', ph: '輸入姓名搜尋', req: true, options: C.students.filter((s) => !ids.has(s.id)).map((s) => [s.id, `${s.name}（${s.gradeLabel} · ${s.school}）`]) }, { k: 'from', label: '開始上課', type: 'date', value: C.addDays(C.TODAY, 5), req: true }],
+        submit: '加入', busy: '加入中…', ok: (v) => `已把 ${C.studentById[v.sid].name} 加入「${k.name}」`,
+        apply: (v) => { roster.push({ s: C.studentById[v.sid], st: 'pending_payment', since: v.from, isNew: true }); renderRoster(); },
+      });
+    }
+    if (t.closest('[data-copy]')) A2.act(t.closest('[data-copy]'), { busy: '複製中…', ms: 300, ok: `已複製 ${roster.length} 位學生的名單（姓名、學校、家長電話），可以貼到 Excel` });
+    if (t.closest('[data-import]')) A2.form({
+      title: 'Excel 匯入名冊', sub: `${k.name} · 每列一位學生：姓名、年級、學校、家長電話`,
+      fields: [{ k: 'file', label: 'Excel 檔案（.xlsx／.xls／.csv）', type: 'file', req: true, hint: '名冊裡已經在這個班的學生會略過，不會重複加入' }],
+      submit: '匯入', busy: '匯入中…', ok: (v) => `已讀取「${v.file.split(/[\\/]/).pop()}」：新增的學生狀態是待付款`,
+    });
+    const sm = t.closest('[data-smenu]');
+    if (sm) {
+      const r = byId(sm.dataset.smenu);
+      anchor = sm;
+      menu.innerHTML = `${r.st === 'active' ? `<button type="button" data-sact="ban" data-id="${r.s.id}">停權</button>` : ''}<button type="button" data-sact="bill" data-id="${r.s.id}">計費設定</button><button type="button" class="is-danger" data-sact="rm" data-id="${r.s.id}">移除</button>`;
+      menu.showPopover();
+    }
+    const sa = t.closest('#smenu [data-sact]');
+    if (sa) {
+      menu.hidePopover();
+      const r = byId(sa.dataset.id), act = sa.dataset.sact;
+      if (act === 'ban') reason('停權', `確定要停權「${r.s.name}」嗎？停權期間不能上課，請填寫停權原因。`, '停權', `已停權 ${r.s.name}`, () => { r.st = 'suspended'; renderRoster(); });
+      if (act === 'rm') reason('移除學生', `確定要把「${r.s.name}」移出「${k.name}」？無法復原，會留在操作紀錄裡。`, '移除', `已把 ${r.s.name} 移出「${k.name}」`, () => {
+        const row = document.querySelector(`.stu[data-sid="${r.s.id}"]`);
+        if (row) row.classList.add('is-leaving');
+        setTimeout(() => { roster.splice(roster.indexOf(r), 1); renderRoster(); }, 150);
+      });
+      if (act === 'bill') A2.form({
+        title: '計費設定', sub: `${r.s.name} · ${k.name}`,
+        fields: [{ k: 'mode', label: '計費方式', type: 'radio', options: ['月繳', '期繳', '堂數包'] }, { k: 'fee', label: '每期金額', type: 'money', value: '4800', req: true, half: true }, { k: 'disc', label: '折扣說明（選填）', ph: '如：手足優惠 9 折', half: true }],
+        submit: '儲存', busy: '儲存中…', ok: (v) => `已設定 ${r.s.name} ${v.mode} NT$ ${money(+v.fee.replace(/\D/g, '') || 0)}`,
+      });
+    }
+    const es = t.closest('[data-eslot]');
+    if (es) slotForm(+es.dataset.eslot);
+  });
+
+  if (location.hash === '#error') {
+    document.querySelector('[data-panel="roster"]').innerHTML = `<div class="empty" role="alert" style="margin-top:32px"><strong>班級資料沒有載入成功。</strong><br>可能是網路斷了或系統忙碌，資料沒有不見。<br><span style="display:flex;gap:8px;margin-top:12px"><button class="btn" type="button" data-reload>重新載入</button><a class="btn" href="courses.html">回課程管理</a></span></div>`;
+    document.addEventListener('click', (e) => { const b = e.target.closest('[data-reload]'); if (b) A2.act(b, { busy: '載入中…', ok: '已重新載入班級資料', run: () => { history.replaceState(null, '', location.pathname); renderRoster(); } }); });
+  } else renderRoster();
+  renderSlots();
+})();
+</script>
+</body>
+</html>

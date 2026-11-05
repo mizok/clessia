@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 帳單</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* 色面上的收款長條：只用近黑實心／空心，不放語意色（E3） */
+  .pbar { margin-top: var(--space-6); max-width: 760px; }
+  .pbar__track { display: flex; height: 14px; border-radius: var(--radius-full); box-shadow: inset 0 0 0 1.5px var(--band-rule); overflow: hidden; }
+  .pbar__fill { background: var(--band-ink); }
+  .pbar__cap { display: flex; justify-content: space-between; margin-top: var(--space-2); font-size: var(--text-md); color: var(--band-ink-muted); font-variant-numeric: tabular-nums; }
+  .pbar__cap strong { color: var(--band-ink); font-weight: var(--font-semibold); }
+
+  .ledger { margin-top: var(--space-4); }
+  .chap__big--overdue { color: var(--error-700); }
+  .chap__act { margin-top: var(--space-4); }
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 120px 96px; gap: var(--space-4); align-items: center; min-height: 64px; padding: var(--space-3) 0; border-bottom: 1px solid var(--surface-border); }
+  .row__name { font-weight: var(--font-semibold); }
+  .row__name a { text-decoration: none; }
+  .row__name a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .row__sub { font-size: var(--text-md); color: var(--zinc-600); }
+  .row__due { font-size: var(--text-md); font-variant-numeric: tabular-nums; }
+  .row__due--overdue { display: inline-flex; align-items: center; gap: 4px; color: var(--error-700); font-weight: var(--font-semibold); }
+  .row__due--due_soon { color: var(--warning-800); font-weight: var(--font-semibold); }
+  .row__due--paid { color: var(--success-600); }
+  .row__amt { text-align: right; font-size: var(--text-lg); font-weight: var(--font-semibold); font-variant-numeric: tabular-nums; }
+  .row__act { text-align: right; }
+  .coll .chap { grid-template-columns: minmax(0, 1fr); padding: 0; border-bottom: 0; }
+  .coll .chap__side { display: none; }
+
+  @media (max-width: 860px) {
+    .row { grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--space-3); }
+    .row > :nth-child(2) { grid-column: 1; grid-row: 2; }
+    .row__amt { grid-column: 2; grid-row: 1; }
+    .row__act { grid-column: 2; grid-row: 2; align-self: center; }
+    .chap__side { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3); }
+    .chap__side .chap__tally { margin-top: 0; }
+    .chap__act { display: none; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>帳單 · 排版（A6 第六輪）</h2>
+<h3>10/02 修正（第二次）：匯出改成圖示＋彈出面板</h3>
+<p>你說「放在那邊也很奇怪，不考慮改成匯出的圖標嗎？按下匯出可以彈出 popup」。匯出現在是工具列尾端一顆下載圖示（只有圖示，滑過顯示「匯出」，讀屏念「匯出」），按下彈出面板：月份、範圍（全部／只有逾期／還沒繳清，各附張數）、格式 Excel，最後是「取消」「匯出」。桌機是貼著圖示的浮層，手機是從底部升起的深灰面板。帳單頁沒有別的次要動作，所以「⋯」拿掉了。下面那段是上一版的紀錄。</p>
+<h3>（上一版）「匯出」收進「⋯」</h3>
+<p>你說「匯出我覺得不該放在這裡」。原本手機上搜尋框下面單獨一列只放一顆「匯出」。現在匯出收進工具列尾端的「⋯」選單（跟學生檔案的「編輯資料／報名新班」同一個做法），桌機與手機一致；手機上「⋯」跟搜尋框在同一列，不再為一顆按鈕多佔一列。產品目前沒有匯出功能，所以選單裡標「新」。</p>
+
+<h3>10/02 修正：主要按鈕改橘、縮小</h3>
+<p>你說「太大的黑色區塊就是在說按鈕」「可以改橘色，但按鈕不要這麼大」。這頁的主要按鈕改成品牌橘實心（跟課表「停課」同一個橘、近黑字），手機上高度 48 → 40px、寬度依內容，不再撐滿；底部動作列的兩顆靠右、依內容寬。桌機同步改色（同一顆按鈕不該兩種寬度兩種顏色），尺寸沿用桌機原本的 36px。</p>
+
+<h3>這一輪（A6）</h3>
+<ul>
+  <li><strong>帳戶＋切換身分合成一個入口</strong>（五頁共用的頁首）：桌機右上「頭像＋林主任 · 管理員 ▾」；手機右上「頭像＋管理員 ▾」。點開最上面是人（大頭像、名字、email），接著灰底的「切換身分」（列出其他角色），再來「帳號設定」「登出」（紅字）。桌機是貼著入口的浮層，手機是底部抽屜（同一份內容）。網址加 <code>#account</code> 直接打開。</li>
+  <li><strong>示範使用者改成管理員＋任課老師＋家長</strong>（DIRECTION 原寫管理員＋家長），好讓「切換身分」列出兩個選項；只有一個角色的人，產品是只顯示徽章、不能切換，這一區就不會出現。</li>
+  <li><strong>點切換身分</strong> → 整面白的過場「正在切換到 家長…」，1.4 秒後變「已切換到 家長」。家長頁不在這一輪，所以留一顆「回到管理員」讓你回來。</li>
+  <li><strong>帳號設定</strong>：照產品的對話框欄位（顯示名稱、生日、Email、電話，每欄各自「儲存」；家長身份）。因為示範使用者已經是家長，家長身份那塊顯示「已啟用」（產品在已是家長時整塊不顯示 —— 這裡畫出來是為了讓你看到它的位置）。手機是從底部升起的全寬面板。</li>
+  <li><strong>頭像</strong>：產品是 jdenticon（依使用者 id 產生的幾何圖），設計稿用名字首字「林」代替。</li>
+  <li><strong>第四種面：灰</strong>（zinc-100 為主）＝次要分區與收起來的東西。這頁用在：色面下的工具列、「快到期／未到期／已繳清」三列摘要（灰底；已繳清這種次要資訊收在灰裡）、手機底部動作列。逾期那一章仍是白面，因為它是這頁的主要內容。灰上的字都是 zinc-600 以上；可點的灰列 hover 時底再深一階，停用仍是原本的半透明樣式 —— 灰不是停用。</li>
+  
+</ul>
+
+<h3>A5：黑色減量（這一輪改的）</h3>
+<p>你說手機版黑色塊面太多、桌機也略多。這一輪把「黑」的意思縮小：<strong>黑只用在全站導覽（頁首），以及暫時出現的操作</strong>（勾了課之後的批次動作列、步驟頁的底部按鈕列）。頁面自己的工具列和手機底部動作列改回白底，用一條近黑細線分區 —— 分區靠線，不靠整片黑。手機頁首只有字標那一列是黑，導覽那一列改成白底分頁。下面各段裡講到「黑工具列」「黑動作列」的地方，現在都是白底。</p>
+<h3>這一輪：拿掉說明按鈕、改用字</h3>
+<p>「這頁怎麼看」按鈕與浮層整個拿掉。原本收在裡面的每一項：</p>
+<ul>
+  <li><strong>四種狀態的定義</strong>（逾期／7 天內到期／還沒到期／已繳清）→ <strong>刪掉</strong>。章名就是這四個詞，每列又寫了「逾期 12 天」「3 天後到期」「9/28 繳清」，行政不需要再被教一次。</li>
+  <li><strong>「提醒」會做什麼</strong>→ <strong>刪掉</strong>。按鈕只出現在逾期那章，旁邊寫著「還沒提醒」或「9/30 提醒過」，意思已經在列上。</li>
+  <li><strong>色面長條的意思</strong>→ <strong>畫面本來就說了</strong>：長條下面一左一右寫「已收 NT$ …」「還差 NT$ …」。說明刪掉。</li>
+  <li><strong>「怎麼找某張帳單」</strong>→ <strong>畫面本來就說了</strong>：搜尋框提示字「找學生、家長或帳單編號」；找不到時的空狀態再給例子（「王太太」「INV-2610-012」）。說明刪掉。</li>
+</ul>
+
+  <p class="lede">打開就是逾期那章：誰欠錢、拖多久、提醒過沒、按「提醒」。其他三章收成摘要列。</p>
+  <h3>收了什麼、收到哪、怎麼叫出來</h3>
+  <ul>
+    <li><strong>色面的四個數字</strong>（逾期 9／7 天內到期 17／還沒到期 8／已繳清 16 張）→ <strong>刪掉</strong>：下面每一章的章名或摘要列就寫著同樣的張數。桌機色面只剩一句話＋收款長條；手機只剩一句話。</li>
+    <li><strong>白面開頭「2026 年 10 月 · 50 張帳單 · 文山旗艦校」＋匯出／開立帳單</strong>→ 搬進黑工具列。月份與張數那句刪掉（色面的「十月應收」已經講了月份；張數在各章）。</li>
+    <li><strong>狀態篩選列（全部／逾期／7 天內到期／未到期／已繳清）</strong>→ <strong>刪掉</strong>：帳本本來就依狀態分章，篩選跟分章在講同一件事。要看哪一章就點開哪一列。</li>
+    <li><strong>搜尋框</strong>→ 搬進黑工具列（手機也是首屏可見，不再收在「找某張帳單」裡）。搜尋時所有章自動攤開。</li>
+    <li><strong>7 天內到期、還沒到期、已繳清三章</strong>→ 桌機也收成摘要列（「17 張 · 待收 NT$ 141,150」），點開才是清單。逾期那章永遠攤開。</li>
+    <li><strong>每列的品項清單、家長稱呼・帳單編號、「9/19 到期」、「已收 x」、已繳清的「現金 · 收據號」、7 天內到期的日期</strong>→ 刪掉（列尾灰字）。一列只剩：誰（名字・年級）、狀態（逾期 12 天 / 還沒提醒）、欠多少、一顆按鈕。明細在學生檔案的帳單章。</li>
+    <li><strong>手機「全部提醒（9）」整寬按鈕</strong>→ 移到手機底部的黑色固定動作列，跟「開立帳單」放一起；桌機仍在逾期章邊。</li>
+  </ul>
+  <h3>黑色塊面用在哪、為什麼</h3>
+  <ul>
+    <li><strong>頁首</strong>（已有）：導覽。</li>
+    <li><strong>色面正下方的全寬黑工具列</strong>：搜尋（家長來繳錢時找那張帳單）＋匯出＋開立帳單（白底＝主要）。這三件事都不是「看帳」，是「動手」，所以跟頁首同一種面。</li>
+    <li><strong>手機底部固定動作列</strong>：開立帳單、全部提醒（9）—— 批次動作列就是黑面該在的地方。</li>
+    <li>紅色「逾期」大字留在白面，跟橘色面中間隔著黑工具列，紅不貼橘、也不上黑。</li>
+  </ul>
+  <h3>第一次看的人會怎麼讀</h3>
+  <ul>
+    <li><strong>橘色大字＋黑長條</strong>：這個月要收多少、收了幾成（桌機）。</li>
+    <li><strong>黑工具列</strong>：找某張帳單就打字；要開新帳單按右邊。</li>
+    <li><strong>紅色「逾期」那章</strong>：每列紅字寫拖了幾天、下面寫提醒過沒，按「提醒」通知家長；章邊「全部提醒」一次處理。</li>
+    <li><strong>下面三列摘要</strong>：還沒逾期的帳單，右邊是張數與金額，點開才看。</li>
+  </ul>
+  <h3>代價</h3>
+  <ul>
+    <li>拿掉品項欄之後，櫃台要回答「這張包含什麼」得點進學生檔案。</li>
+    <li>拿掉狀態篩選：想「只看已繳清」要點開那一列（等價，但少了計數一覽）。</li>
+    <li>帳本仍只能依狀態分章；依金額或家長排序要另一個表格檢視。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, days, money } = A2;
+  const L = C.statusLabel.invoice;
+  const inv = C.invoices;
+  const total = inv.reduce((a, i) => a + i.total, 0);
+  const paid = inv.reduce((a, i) => a + i.paid, 0);
+  const pct = Math.round((paid / total) * 100);
+  const by = (k) => inv.filter((i) => i.status === k);
+  const order = ['overdue', 'due_soon', 'open', 'paid'];
+  const state = { q: '' };
+
+  const dueText = (i) => {
+    if (i.status === 'overdue') return `<span class="row__due row__due--overdue">${icon.alert}逾期 ${days(i.due, C.TODAY)} 天</span><div class="row__sub">${i.lastReminder ? `${md(i.lastReminder)} 提醒過` : '還沒提醒'}</div>`;
+    if (i.status === 'due_soon') { const n = days(C.TODAY, i.due); return `<span class="row__due row__due--due_soon">${n === 0 ? '今天到期' : `${n} 天後到期`}</span>`; }
+    if (i.status === 'paid') { const p = i.payments[i.payments.length - 1]; return `<span class="row__due row__due--paid">${md(p.at)} 繳清</span>`; }
+    return `<span class="row__due">${md(i.due)} 到期</span>`;
+  };
+  // #990 批 0：每列的動作都有結果 —— 提醒（處理中→toast→按鈕變「今天提醒過」）、收款（表單→帳本重畫）、收據（明細→產生收據）
+  const act = (i) => i.status === 'overdue' ? `<button class="btn btn--sm btn--touch" type="button" data-busy="寄送中…" data-ok="已用 LINE 提醒${i.studentName}的家長繳費" data-done="今天提醒過">${icon.bell}提醒</button>` : i.status === 'paid' ? `<button class="btn btn--sm btn--touch" type="button" data-receipt="${i.id}">收據</button>` : `<button class="btn btn--sm btn--touch" type="button" data-pay="${i.id}">收款</button>`;
+
+  shell({
+    page: 'billing',
+    title: `十月應收 NT$ ${money(total)}，<br>已收 ${pct}%。`,
+    extra: `<div class="pbar only-d" role="img" aria-label="已收 ${pct}%"><div class="pbar__track"><span class="pbar__fill" style="width:${pct}%"></span></div>
+      <div class="pbar__cap"><span>已收 <strong>NT$ ${money(paid)}</strong></span><span>還差 <strong>NT$ ${money(total - paid)}</strong></span></div></div>`,
+    bar: `<label class="tsearch">${icon.search}<input type="search" placeholder="找學生、家長或帳單編號" aria-label="搜尋帳單"></label>
+      <div class="tbar__act"><button class="btn btn--cta only-d" type="button" data-new>${icon.plus}開立帳單</button><button class="btn tbar__icon" type="button" popovertarget="bexp" aria-label="匯出" title="匯出"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v7.5M4.8 7l3.2 3.2L11.2 7M2.5 11.5v1.5a.5.5 0 00.5.5h10a.5.5 0 00.5-.5v-1.5"/></svg></button></div>
+      <div class="xp" id="bexp" popover aria-labelledby="bexp-h">
+        <div class="xp__head"><h2 class="xp__h" id="bexp-h">匯出帳單</h2><span class="new">新</span><button class="xp__x" type="button" popovertarget="bexp" popovertargetaction="hide" aria-label="關閉"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div>
+        <form class="xp__body" id="bexp-f">
+          <label class="xp__f"><span class="xp__l">月份</span><select class="xp__in" id="bexp-m"><option>2026 年 10 月</option><option>2026 年 9 月</option><option>2026 年 8 月</option></select></label>
+          <fieldset class="xp__f"><legend class="xp__l">範圍</legend>
+            <label class="xp__r"><input type="radio" name="bexp-r" value="all" checked> 全部帳單<span class="xp__n">${inv.length} 張</span></label>
+            <label class="xp__r"><input type="radio" name="bexp-r" value="overdue"> 只有逾期<span class="xp__n">${by('overdue').length} 張</span></label>
+            <label class="xp__r"><input type="radio" name="bexp-r" value="unpaid"> 還沒繳清<span class="xp__n">${inv.filter((i) => i.status !== 'paid').length} 張</span></label>
+          </fieldset>
+          <div class="xp__f"><span class="xp__l">格式</span><span class="xp__fixed">Excel（.xlsx）</span></div>
+          <p class="xp__done" id="bexp-done" hidden></p>
+          <div class="xp__foot"><button class="btn" type="button" popovertarget="bexp" popovertargetaction="hide">取消</button><button class="btn btn--cta" type="submit">匯出</button></div>
+        </form>
+      </div></div>`,
+    dock: `<button class="btn" type="button" data-new>${icon.plus}開立帳單</button><button class="btn btn--cta" type="button" data-busy="寄送中…" data-ok="已用 LINE 提醒 ${by('overdue').length} 位逾期的家長" data-done="今天都提醒過">${icon.bell}全部提醒（${by('overdue').length}）</button>`,
+    phase: 1700,
+  }, `<div id="ledger" class="ledger"></div>`);
+
+  const sumOf = (k, a) => a.reduce((s, i) => s + (k === 'paid' ? i.paid : i.balance), 0);
+  const rows = (a) => a.map((i) => `<div class="row">
+    <div class="row__name"><a href="student.html">${i.studentName}</a> <span class="muted" style="font-weight:400">· ${i.gradeLabel}</span></div>
+    <div>${dueText(i)}</div>
+    <div class="row__amt">${money(i.status === 'paid' ? i.total : i.balance)}</div>
+    <div class="row__act">${act(i)}</div>
+  </div>`).join('');
+
+  function render() {
+    const q = state.q.trim();
+    const hit = inv.filter((i) => !q || i.studentName.includes(q) || i.parent.name.includes(q) || i.id.includes(q.toUpperCase()));
+    const groups = order.map((k) => [k, hit.filter((i) => i.status === k).sort((a, b) => a.due.localeCompare(b.due))]).filter(([, a]) => a.length);
+    const od = groups.find(([k]) => k === 'overdue');
+    const rest = groups.filter(([k]) => k !== 'overdue');
+    document.getElementById('ledger').innerHTML = groups.length ? `
+      ${od ? `<section class="chap" aria-label="逾期">
+        <div class="chap__side">
+          <div class="chap__big chap__big--overdue">逾期</div>
+          <p class="chap__tally">${od[1].length} 張<span> · 待收</span></p>
+          <p class="chap__tally" style="margin-top:0">NT$ ${money(sumOf('overdue', od[1]))}</p>
+          <div class="chap__act"><button class="btn btn--sm" type="button" data-busy="寄送中…" data-ok="已用 LINE 提醒 ${od[1].length} 位逾期的家長" data-done="今天都提醒過">${icon.bell}全部提醒（${od[1].length}）</button></div>
+        </div>
+        <div>${rows(od[1])}</div>
+      </section>` : ''}
+      ${rest.length ? `<div class="colls">${rest.map(([k, a]) => `<details class="coll"${q ? ' open' : ''}>
+        <summary class="coll__sum"><span class="coll__t">${L[k]}</span><span class="coll__m">${a.length} 張 · ${k === 'paid' ? '收到' : '待收'} NT$ ${money(sumOf(k, a))}</span></summary>
+        <div class="coll__body"><section class="chap" aria-label="${L[k]}"><div class="chap__side"></div><div>${rows(a)}</div></section></div>
+      </details>`).join('')}</div>` : ''}` : `<p class="empty">找不到「${q}」的帳單。可以用學生名、家長稱呼（例如「王太太」）或帳單編號（INV-2610-012）找。</p>`;
+  }
+  document.querySelector('.tsearch input').addEventListener('input', (e) => { state.q = e.target.value; render(); });
+  render();
+
+  const byId = (id) => inv.find((i) => i.id === id);
+  document.addEventListener('click', (e) => {
+    const p = e.target.closest('[data-pay]');
+    if (p) { const i = byId(p.dataset.pay); A2.forms.pay({ name: i.studentName, due: i.total, paid: i.paid, onDone: (amt, v) => {
+      i.paid += amt; i.balance = Math.max(0, i.total - i.paid);
+      i.payments.push({ at: C.TODAY, amount: amt, method: v.how });
+      if (!i.balance) i.status = 'paid';
+      render();
+    } }); }
+    const r = e.target.closest('[data-receipt]');
+    if (r) { const i = byId(r.dataset.receipt), last = i.payments[i.payments.length - 1];
+      A2.form({ title: `收據 · ${i.id}`, sub: `${i.studentName} · ${md(last.at)} 繳清 NT$ ${money(i.total)}`, fields: [], submit: '下載收據', busy: '產生中…', ok: `已產生 ${i.studentName} 的收據（PDF）` }); }
+    if (e.target.closest('[data-new]')) A2.form({
+      title: '手動開立帳單', sub: '月繳與期繳的批次開帳走自動排程，這裡處理它涵蓋不到的個案：補開、雜費、人工調整。',
+      fields: [
+        { k: 'sid', label: '學生', type: 'select', ph: '輸入姓名搜尋', req: true, options: C.students.map((st) => [st.id, `${st.name}（${st.gradeLabel}）`]) },
+        { k: 'at', label: '開立日期', type: 'date', value: C.TODAY, half: true, req: true },
+        { k: 'due', label: '繳費期限', type: 'date', half: true, hint: '不填則用機構預設天數（14 天）' },
+        { k: 'kind', label: '明細', type: 'select', options: ['學費', '教材費', '雜費', '調整'], value: '學費', half: true },
+        { k: 'amt', label: '金額', type: 'money', half: true, req: true, ph: '0' },
+        { k: 'note', label: '帳單備註', ph: '如：9 月補開' },
+      ],
+      submit: '開立帳單', busy: '開立中…',
+      ok: (v) => `已開立 ${C.studentById[v.sid].name} 的帳單 NT$ ${money(+v.amt.replace(/\D/g, '') || 0)}`,
+      apply: (v) => {
+        const st = C.studentById[v.sid], amt = +v.amt.replace(/\D/g, '') || 0, due = v.due || C.addDays(v.at, 14);
+        inv.push({ id: `INV-2610-${String(inv.length + 1).padStart(3, '0')}`, studentId: st.id, studentName: st.name, gradeLabel: st.gradeLabel, parent: st.parent,
+          total: amt, paid: 0, balance: amt, status: 'open', due, issuedAt: v.at, items: [{ label: v.kind, amount: amt }], payments: [] });
+        render();
+      },
+    });
+  });
+})();
+
+  // 匯出 popup：桌機貼著圖示按鈕、靠右對齊；手機由 CSS 放成底部面板（跟帳號選單同一種）
+  (() => {
+    const xp = document.getElementById('bexp'), btn = document.querySelector('[popovertarget="bexp"].tbar__icon');
+    const narrow = matchMedia('(max-width: 860px)');
+    xp.addEventListener('toggle', (e) => {
+      if (e.newState !== 'open') return;
+      document.getElementById('bexp-done').hidden = true;
+      if (narrow.matches) { xp.removeAttribute('style'); return; }
+      const r = btn.getBoundingClientRect();
+      Object.assign(xp.style, { position: 'fixed', left: Math.max(16, r.right - xp.offsetWidth) + 'px', top: r.bottom + 8 + 'px' });
+    });
+    document.getElementById('bexp-f').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const m = document.getElementById('bexp-m').value;
+      const lab = document.querySelector('[name="bexp-r"]:checked').closest('label');
+      const r = lab.firstChild.nextSibling.textContent.trim() + ' ' + lab.querySelector('.xp__n').textContent;
+      // #990 批 0：處理中 → 收起面板 → toast（設計稿示意，沒有真的下載檔案）
+      A2.act(e.submitter || document.querySelector('#bexp-f [type=submit]'), { busy: '匯出中…', ok: `已匯出 ${m} · ${r}（Excel）`, run: () => xp.hidePopover() });
+    });
+  })();
+</script>
+</body>
+</html>

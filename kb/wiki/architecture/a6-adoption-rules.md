@@ -11,7 +11,7 @@ updated: 2026-11-05
 
 # A6 採用規則
 
-這一頁把使用者對 A6 設計稿（`.design-explorations/973-layout/a6-editorial/`，不進版控）的裁定集中成可引用的條文，給 `tools/a6-conformance` 的 `DEVIATIONS` 與各頁範圍說明當**出處**。裁定原文多半發生在計畫席的對話裡，由計畫席轉記；之後的新裁定也加在這裡，不要散在 PR 留言。
+這一頁把使用者對 A6 設計稿（`.design-explorations/973-layout/a6-editorial/`，2026-11-05 起進版控）的裁定集中成可引用的條文，給 `tools/a6-conformance` 的 `DEVIATIONS` 與各頁範圍說明當**出處**。裁定原文多半發生在計畫席的對話裡，由計畫席轉記；之後的新裁定也加在這裡，不要散在 PR 留言。
 
 ## R1 A6 全採
 

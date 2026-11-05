@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 系統設定</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .tabs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+  .tabs .tlink { font-size: var(--text-base); text-decoration: none; }
+  .tlink__n { font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .lede { margin-top: var(--space-6); max-width: 64ch; font-size: var(--text-base); color: var(--zinc-700); }
+  .count { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-top: var(--space-4); font-size: var(--text-md); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .count b { color: var(--zinc-900); }
+  .count button { border: 0; padding: 0; background: none; font: inherit; font-weight: var(--font-semibold); color: var(--zinc-900); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .find { display: flex; align-items: center; gap: var(--space-2); max-width: 420px; height: 40px; margin-top: var(--space-6); padding: 0 var(--space-3); border: 1px solid var(--zinc-300); border-radius: var(--radius-md); background: #fff; color: var(--zinc-600); }
+  .find:focus-within { border-color: var(--zinc-900); }
+  .find input { flex: 1; min-width: 0; border: 0; outline: none; background: none; font: inherit; font-size: var(--text-base); color: var(--zinc-900); }
+
+  /* 一般：出勤紀錄模式（兩張可選的卡） */
+  .mode { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin-top: var(--space-4); }
+  .mode__o { display: grid; align-content: start; gap: 6px; padding: var(--space-4) var(--space-5); border: 1px solid var(--zinc-300); border-radius: var(--radius-lg); background: #fff; font: inherit; text-align: left; color: var(--zinc-800); cursor: pointer; }
+  .mode__o:hover { border-color: var(--zinc-500); }
+  .mode__o[aria-pressed='true'] { border-color: var(--zinc-900); box-shadow: inset 0 0 0 1px var(--zinc-900); }
+  .mode__t { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-lg); font-weight: var(--font-bold); color: var(--zinc-900); }
+  .mode__t svg { visibility: hidden; }
+  .mode__o[aria-pressed='true'] .mode__t svg { visibility: visible; }
+  .mode__d { font-size: var(--text-md); line-height: var(--leading-relaxed); }
+  .mode__now { font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--zinc-600); }
+  .save { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-4); font-size: var(--text-md); color: var(--zinc-700); }
+  .save a { color: var(--zinc-900); font-weight: var(--font-semibold); text-underline-offset: 3px; }
+  .kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-4); }
+  .kv label { display: flex; flex-direction: column; gap: 4px; font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--zinc-700); }
+  .kv label small { font-weight: var(--font-normal); color: var(--zinc-600); }
+  .kv .acset__in { width: 100%; height: 40px; }
+  .coll__body .save { margin-top: var(--space-4); }
+  /* 使用者 10/03 09:1x：「用模板建立」被擠成一字一行 —— 原本是 label 裡的裸文字，跟客製下拉擠在同一個 flex 列裡被壓縮。標籤包起來、不准縮、不准折行 */
+  .tpl { display: flex; align-items: center; gap: var(--space-2); }
+  .tpl__l { flex: none; white-space: nowrap; }
+  .per { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.6fr) minmax(0, 1fr) auto; gap: var(--space-2) var(--space-4); align-items: center; padding: var(--space-3) 0; border-bottom: 1px solid var(--zinc-200); font-size: var(--text-md); }
+  .per b { font-size: var(--text-base); }
+
+  /* 列：分校、學校、科目共用 */
+  .row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.6fr) minmax(0, 1fr) 44px; gap: var(--space-1) var(--space-5); align-items: center; min-height: 68px; padding: var(--space-3) 0; border-bottom: 1px solid var(--zinc-200); }
+  .row__n { font-size: var(--text-lg); font-weight: var(--font-bold); }
+  .row__n small { margin-left: var(--space-2); font-size: var(--text-sm); font-weight: var(--font-normal); color: var(--zinc-600); }
+  .row__m { font-size: var(--text-md); color: var(--zinc-800); }
+  .row__m small, .row__why { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--zinc-600); }
+  .row--off .row__n { color: var(--zinc-600); }
+  .row__acts { display: flex; justify-content: flex-end; gap: 4px; }
+  .icobtn { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: var(--radius-md); background: none; color: var(--zinc-800); cursor: pointer; }
+  .icobtn:hover { background: var(--zinc-100); }
+  /* 不能刪的刪除鈕：顏色退後，但仍可按 —— 按了跳出原因與替代做法（產品是只出 toast 或只灰掉） */
+  .icobtn--blocked { color: var(--zinc-400); }
+  .row--sub { grid-template-columns: minmax(0, 1fr) auto; }
+  .row--edit .acset__in { height: 40px; }
+  .addrow { display: flex; gap: var(--space-2); max-width: 520px; margin-top: var(--space-5); }
+  .addrow .acset__in { flex: 1; height: 40px; }
+  .pop--menu .is-danger { color: var(--error-700); }
+  .pop--menu hr { margin: 4px 0; border: 0; border-top: 1px solid var(--zinc-200); }
+  .empty { padding: var(--space-8) 0; font-size: var(--text-base); color: var(--zinc-700); }
+  .loglist { display: grid; gap: var(--space-2); padding: 0 var(--space-6) var(--space-6); list-style: none; margin: 0; }
+  .loglist li { display: grid; grid-template-columns: 96px 1fr; gap: var(--space-3); font-size: var(--text-md); }
+  .loglist time { color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .is-gone { opacity: 0; transform: translateX(8px); transition: opacity 0.14s var(--leave), transform 0.14s var(--leave); }
+  @media (max-width: 860px) {
+    .mode { grid-template-columns: minmax(0, 1fr); }
+    .row { grid-template-columns: minmax(0, 1fr) 44px; gap: var(--space-1) var(--space-3); }
+    .row > .row__m { grid-column: 1; }
+    .row > .row__acts { grid-column: 2; grid-row: 1; }
+    .row--sub { grid-template-columns: minmax(0, 1fr) auto; }
+    .per { grid-template-columns: minmax(0, 1fr) auto; }
+    .per > span:nth-child(2), .per > span:nth-child(3) { grid-column: 1; }
+    .chap { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding: var(--space-6) 0 var(--space-2); }
+    .chap__side { position: static; display: flex; align-items: baseline; gap: var(--space-3); }
+    .chap__big { font-size: 28px; }
+    .chap__tally { margin-top: 0; font-size: var(--text-base); }
+    .find { max-width: none; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>系統設定（#990 批 3）</h2>
+  <h3>規格 vs 現況</h3>
+  <p>依據：<code>kb/wiki/specs/admin/system/settings.md</code>、<code>system/campuses.md</code>、<code>kb/wiki/rules/attendance-rules.md</code>（2026-10-01）、<code>kb/wiki/flows/attendance.md</code>。rules 比 specs 新的地方以 rules 為準。</p>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格</th><th>產品現況</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>頁面形狀</td><td>settings 與 campuses 是兩支規格</td><td>一個殼、四個 tab（一般／分校／學校／科目），各自一條路由</td><td>一支頁面四個分頁，網址 hash 切換（#general／#campuses／#schools／#subjects），直接打開落在對的分頁</td></tr>
+      <tr><td>出勤模式在哪一層</td><td>rules §2、flows §2：<b>分校層級</b>（「取決於分校設定的出勤模式」）</td><td>「一般」tab 一個值，全機構共用</td><td>每個分校各自設定（標新）；「一般」保留產品那個值，改寫成「新分校沿用的預設」並在這裡註記</td></tr>
+      <tr><td>出勤模式的名稱</td><td>日到班模式（預設）／課堂模式</td><td>隨堂點名／日到班</td><td>用產品的詞（隨堂點名、日到班）；日到班標「預設」</td></tr>
+      <tr><td>切換出勤模式</td><td>—</td><td>選了按「儲存」直接寫入，沒有確認</td><td>改選之後「儲存」寫出要改成什麼；按下先跳確認，寫清楚會影響：掃碼是否自動算出席、儀表板的到班看板、老師點名的方式</td></tr>
+      <tr><td>報名流程、繳費、續課、學期週期、學年升級</td><td>settings.md 的 MVP 功能（審核時效、試聽跟進、繳費期限與提醒、月繳／期繳發送日、寬限期、週期定義與模板、自動升級日）</td><td>都沒有</td><td>「一般」分頁裡一區一列收合摘要（標新），展開可改、可儲存</td></tr>
+      <tr><td>分校列表</td><td>名稱、地址、電話、狀態，點進編輯</td><td>名稱、地址、電話（tel: 連結）、狀態、⋮；統計三格；停用分校預設隱藏</td><td>照產品＋規格；電話是純文字（設計稿不撥號）；多一欄出勤模式與教室數</td></tr>
+      <tr><td>分校表單</td><td>名稱*、地址、電話、狀態開關；銀行帳戶（戶名、銀行、帳號）</td><td>名稱*、電話、地址</td><td>照規格加狀態、出勤模式（新）、銀行帳戶（新）</td></tr>
+      <tr><td>教室</td><td>分校子頁籤：教室列表、新增／編輯（名稱、容納人數、設備）</td><td>沒有（schema 沒有教室）</td><td>⋮ › 教室（標新），對話框裡列教室、可新增</td></tr>
+      <tr><td>停用／刪除分校</td><td>—</td><td>停用確認「停用後該分校將無法新增課程」；刪除「此操作無法復原」</td><td>照產品文案；停用可復原</td></tr>
+      <tr><td>學校</td><td>規格沒寫</td><td>名稱、簡稱、學生數、狀態、鉛筆、垃圾桶；有學生時按垃圾桶<b>只出 toast</b></td><td>保留並註記；用最壞情況（上百所）依國小／國中／高中分章；有學生的學校按刪除會跳說明「還有 N 位學生，不能刪，可以改成停用」並給停用鈕（不照抄只出 toast 的做法）</td></tr>
+      <tr><td>科目</td><td>規格沒寫</td><td>共用科目元件：常駐「已被 N 個課程、M 場校內考使用中，無法刪除」、行內改名、新增列</td><td>保留並註記；被用到的科目按刪除跳說明，不是只灰掉</td></tr>
+      <tr><td>操作紀錄</td><td>規格沒寫</td><td>分校 tab 有</td><td>保留</td></tr>
+    </tbody>
+  </table>
+  <h3>標「新」的</h3>
+  <ul><li>各分校自己的出勤模式、教室、銀行帳戶、分校狀態開關</li><li>報名流程／繳費／續課／學期週期／學年升級設定</li></ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(() => {
+  const { C, icon, shell, esc, toast, form } = A2;
+  const TABS = [['general', '一般'], ['campuses', '分校'], ['schools', '學校'], ['subjects', '科目']];
+  const MODE = { daily: ['日到班', '學生抵達分校打卡後，系統自動把當天所有課堂勾成出席。'], session: ['隨堂點名', '老師在每堂課結束後逐一標記學生出席狀態。'] };
+  const pen = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 2.5l3 3L6 13H3v-3z"/></svg>';
+  const bin = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5h11M6 4.5V3h4v1.5M4 4.5l.7 9h6.6l.7-9"/></svg>';
+
+  // ── 資料（最壞情況：12 個分校、上百所學校、十幾個科目） ──
+  const CAMPUS = ['文山旗艦校', '景美分校', '公館分校', '永和分校', '中和分校', '新店分校', '木柵分校', '古亭分校', '大安分校', '信義分校', '板橋分校', '三重分校'];
+  const ROADS = ['木柵路一段', '景文街', '羅斯福路四段', '永和路二段', '中和路', '北新路三段', '木新路二段', '南昌路一段', '復興南路一段', '松仁路', '文化路一段', '重新路三段'];
+  const campuses = CAMPUS.map((n, i) => ({ id: 'cp' + i, name: n, addr: i === 7 ? '' : `台北市${ROADS[i]} ${(i * 37) % 180 + 12} 號 ${(i % 4) + 2} 樓`, tel: i === 9 ? '' : `02-${2930 + i * 7}-${String(1000 + i * 731).slice(-4)}`, on: i !== 9 && i !== 11, mode: i === 4 || i === 10 ? 'session' : 'daily', rooms: i < 9 ? ['A 教室', 'B 教室', '小教室', '自習室'].slice(0, (i % 4) + 1).map((r, k) => ({ name: r, cap: [30, 24, 12, 40][k] })) : [] }));
+  const AREA = ['明湖', '興隆', '景美', '木柵', '實踐', '萬芳', '溪口', '再興', '博嘉', '永建', '指南', '辛亥', '仁愛', '大安', '金華', '古亭', '螢橋', '南門', '龍山', '雙園', '福星', '中正', '光復', '信義', '吳興', '三興', '永春', '松山', '民生', '西松', '敦化', '中山', '長安', '建成', '大同', '重慶', '蘭州', '延平', '永吉', '興雅'];
+  let sid = 0;
+  const schools = [];
+  [['國小', '國民小學'], ['國中', '國民中學'], ['高中', '高級中學']].forEach(([lv, full], li) => AREA.forEach((a, i) => {
+    if (li === 2 && i % 3) return;
+    const cnt = (i * 7 + li * 5) % 23 - 4;
+    schools.push({ id: 'sc' + ++sid, name: `臺北市立${a}${full}`, short: `${a}${lv}`, lv, n: Math.max(0, cnt), on: !(i % 17 === 5) });
+  }));
+  const SUBJ = ['數學', '英文', '國文', '自然', '理化', '生物', '地科', '社會', '歷史', '地理', '公民', '作文', '程式設計', '美術'];
+  const subjects = SUBJ.map((n, i) => ({ id: 'sj' + i, name: n, courses: [11, 9, 8, 6, 5, 2, 0, 3, 1, 1, 0, 2, 0, 0][i], exams: [14, 12, 6, 4, 6, 1, 0, 2, 0, 1, 0, 0, 0, 0][i] }));
+  const periods = [{ name: '115 上學期', from: '2026-09-01', to: '2027-01-31', notify: '2026-12-15', on: true }, { name: '115 下學期', from: '2027-02-01', to: '2027-06-30', notify: '2027-05-15', on: true }];
+  const LOG = [['10/01 17:12', '林主任', '編輯分校「景美分校」：電話'], ['09/30 10:05', '林主任', '停用分校「信義分校」'], ['09/28 14:40', '張教務', '新增分校「三重分校」'], ['09/20 09:12', '林主任', '編輯分校「文山旗艦校」：地址']];
+  const st = { tab: 'general', orgMode: 'daily', pick: 'daily', showOff: false, q: '', sq: '', edit: '' };
+
+  // ── 分頁（hash 就是分頁，直接打開 settings.html#campuses 會落在分校） ──
+  const fromHash = () => { const h = location.hash.slice(1); st.tab = TABS.some(([k]) => k === h) ? h : 'general'; render(); };
+  const tabsHtml = () => TABS.map(([k, l]) => `<a class="tlink" href="#${k}" data-tab="${k}"${st.tab === k ? ' aria-current="true"' : ''}>${l} <span class="tlink__n">${k === 'campuses' ? campuses.length : k === 'schools' ? schools.length : k === 'subjects' ? subjects.length : ''}</span></a>`).join('');
+  const ACT = {
+    general: '',
+    campuses: `<button class="btn" type="button" data-log>操作紀錄</button><button class="btn btn--cta" type="button" data-new-campus>${icon.plus}新增分校</button>`,
+    schools: `<button class="btn btn--cta" type="button" data-new-school>${icon.plus}新增學校</button>`,
+    subjects: '',
+  };
+
+  // ── 一般 ──
+  const kvSec = (title, sum, fields, ok) => `<details class="coll"><summary class="coll__sum"><span class="coll__t">${title}<span class="new">新</span></span><span class="coll__m">${sum}</span></summary>
+    <div class="coll__body"><div class="kv">${fields.map(([l, v, hint]) => `<label>${l}<input class="acset__in" value="${esc(v)}">${hint ? `<small>${hint}</small>` : ''}</label>`).join('')}</div>
+    <div class="save"><button class="btn" type="button" data-busy="儲存中…" data-ok="${ok}">儲存</button></div></div></details>`;
+  const general = () => {
+    const changed = st.pick !== st.orgMode;
+    return `<section class="sec" aria-labelledby="h-mode">
+      <div class="sec__head"><h2 class="sec__title" id="h-mode">出勤紀錄模式</h2></div>
+      <p class="lede">新分校沿用這個設定；各分校也可以自己改（<a href="#campuses">到分校分頁看各分校</a>）。</p>
+      <div class="mode" role="group" aria-label="出勤紀錄模式">${['daily', 'session'].map((k) => `<button class="mode__o" type="button" data-pick="${k}" aria-pressed="${st.pick === k}">
+        <span class="mode__t">${icon.check}${MODE[k][0]}${k === 'daily' ? '<span class="mode__now">預設</span>' : ''}</span><span class="mode__d">${MODE[k][1]}</span>
+        ${st.orgMode === k ? '<span class="mode__now">目前使用中</span>' : ''}</button>`).join('')}</div>
+      <div class="save">${changed ? `<button class="btn btn--cta" type="button" data-save-mode>儲存：改成${MODE[st.pick][0]}</button><button class="btn" type="button" data-pick="${st.orgMode}">不改了</button>` : `<span>現在用的是 ${MODE[st.orgMode][0]}。到班的樣子看 <a href="dashboard.html">儀表板</a>，點名在 <a href="schedule.html">課表</a>。</span>`}</div>
+    </section>
+    <div class="colls">
+      ${kvSec('報名流程', '審核 3 天 · 試聽跟進 1 天', [['報名審核處理時效（天）', '3', '新申請應在幾天內完成審核'], ['試聽跟進啟動天數', '1', '試聽結束後幾天產生跟進任務']], '已儲存報名流程設定')}
+      ${kvSec('繳費', '期限 7 天 · 到期前 3 天提醒', [['預設繳費期限（天）', '7', '建立帳單時的預設天數'], ['繳費到期前提醒（天）', '3', '期限前幾天提醒家長']], '已儲存繳費設定')}
+      ${kvSec('續課', '月繳 20 號發單 · 期繳 1/15、7/15 · 寬限 7 天', [['月繳發送日期（每月幾號）', '20'], ['期繳發送日期', '1/15, 7/15', '用逗號分開'], ['續課寬限期（天）', '7', '繳費截止後幾天內仍保留名額']], '已儲存續課設定')}
+      <details class="coll"><summary class="coll__sum"><span class="coll__t">學期與繳費週期<span class="new">新</span></span><span class="coll__m">${periods.length} 個週期</span></summary>
+        <div class="coll__body">${periods.map((p) => `<div class="per"><b>${esc(p.name)}</b><span>${p.from.replaceAll('-', '/')} – ${p.to.replaceAll('-', '/')}</span><span>續課通知 ${p.notify.slice(5).replace('-', '/')}</span><span>${p.on ? '啟用' : '暫停'}</span></div>`).join('')}
+          <div class="save"><label class="tpl"><span class="tpl__l">用模板建立</span><select class="acset__in" data-tpl style="width:auto"><option value="">選一個模板</option><option>傳統二學期制</option><option>三學期制</option><option>學期+暑期班</option><option>學期+寒暑假</option></select></label><button class="btn" type="button" data-new-period>${icon.plus}新增週期</button></div></div></details>
+      ${kvSec('學年升級', '每年 9/1 · 前 7 天提醒', [['自動升級日', '9/1', '每年這天把學生升一個年級'], ['升級前提醒（天）', '7', '升級前幾天通知管理員確認']], '已儲存學年升級設定')}
+    </div>`;
+  };
+
+  // ── 分校 ──
+  const campusRow = (c) => `<div class="row${c.on ? '' : ' row--off'}" data-id="${c.id}">
+    <div><div class="row__n">${esc(c.name)}${c.on ? '' : '<small>已停用</small>'}</div><span class="row__why">${c.addr ? esc(c.addr) : '地址未填寫'}</span></div>
+    <div class="row__m">${c.tel || '電話未填寫'}<small>${MODE[c.mode][0]}${c.mode !== st.orgMode ? '（跟預設不同）' : ''}</small></div>
+    <div class="row__m">${c.rooms.length ? `${c.rooms.length} 間教室` : '還沒有教室'}<span class="new">新</span></div>
+    <div class="row__acts"><button class="icobtn" type="button" popovertarget="cm" data-cm="${c.id}" aria-label="${esc(c.name)} 的更多動作">${icon.dots}</button></div></div>`;
+  const campusesView = () => {
+    const off = campuses.filter((c) => !c.on).length;
+    const q = st.q.trim();
+    const list = campuses.filter((c) => (st.showOff || c.on) && (!q || c.name.includes(q) || c.addr.includes(q) || c.tel.includes(q)));
+    return `<label class="find">${icon.search}<input type="search" data-q value="${esc(st.q)}" placeholder="找分校名稱、地址或電話" aria-label="找分校"></label>
+      <p class="count"><span><b>${campuses.length}</b> 個分校 · <b>${campuses.length - off}</b> 啟用中 · <b>${off}</b> 已停用</span>${off ? `<button type="button" data-showoff>${st.showOff ? '隱藏停用的' : `顯示停用的 ${off} 個`}</button>` : ''}</p>
+      <div>${list.length ? list.map(campusRow).join('') : `<p class="empty">找不到「${esc(q)}」。可以用分校名、路名或電話找。<button class="btn btn--sm" type="button" data-clearq>清除搜尋</button></p>`}</div>`;
+  };
+
+  // ── 學校 ──
+  const schoolsView = () => {
+    const q = st.sq.trim();
+    const hit = schools.filter((s) => !q || s.name.includes(q) || s.short.includes(q));
+    const groups = ['國小', '國中', '高中'].map((lv) => [lv, hit.filter((s) => s.lv === lv)]).filter(([, a]) => a.length);
+    return `<label class="find">${icon.search}<input type="search" data-sq value="${esc(st.sq)}" placeholder="找學校名稱或簡稱" aria-label="找學校"></label>
+      <p class="count"><span>學生資料填寫時從這裡選。<b>${schools.length}</b> 所 · <b>${schools.filter((s) => !s.on).length}</b> 所停用</span></p>
+      ${groups.length ? groups.map(([lv, a]) => `<section class="chap" aria-label="${lv}"><div class="chap__side"><div class="chap__big">${lv}</div><p class="chap__tally">${a.length} 所</p></div><div>${a.map((s) => `<div class="row row--sub${s.on ? '' : ' row--off'}" data-id="${s.id}">
+        <div><div class="row__n">${esc(s.short)}${s.on ? '' : '<small>已停用</small>'}</div><span class="row__why">${esc(s.name)} · ${s.n ? `${s.n} 位學生` : '沒有學生'}</span></div>
+        <div class="row__acts"><button class="icobtn" type="button" data-edit-school="${s.id}" aria-label="編輯 ${esc(s.short)}">${pen}</button><button class="icobtn${s.n ? ' icobtn--blocked' : ''}" type="button" data-del-school="${s.id}" aria-label="${s.n ? `刪除 ${esc(s.short)}（有 ${s.n} 位學生，不能刪，按了看原因）` : `刪除 ${esc(s.short)}`}">${bin}</button></div></div>`).join('')}</div></section>`).join('')
+        : `<p class="empty">找不到「${esc(q)}」。試試只打地名，例如「明湖」。<button class="btn btn--sm" type="button" data-clearsq>清除搜尋</button></p>`}`;
+  };
+
+  // ── 科目 ──
+  const used = (s) => [s.courses ? `${s.courses} 個課程` : '', s.exams ? `${s.exams} 場校內考` : ''].filter(Boolean).join('、');
+  const subjectsView = () => `<p class="lede">課程設定與老師資格篩選會用到。被課程或考試用到的科目不能刪，可以改名。</p>
+    <div style="margin-top:var(--space-4)">${subjects.map((s) => st.edit === s.id
+      ? `<div class="row row--sub row--edit" data-id="${s.id}"><input class="acset__in" data-rename="${s.id}" value="${esc(s.name)}" aria-label="科目名稱"><div class="row__acts"><button class="btn btn--sm" type="button" data-rename-ok="${s.id}">確定</button><button class="btn btn--sm" type="button" data-rename-x>取消</button></div></div>`
+      : `<div class="row row--sub" data-id="${s.id}"><div><div class="row__n">${esc(s.name)}</div><span class="row__why">${used(s) ? `已被 ${used(s)}使用中，無法刪除` : '還沒被用到'}</span></div>
+        <div class="row__acts"><button class="icobtn" type="button" data-edit-subj="${s.id}" aria-label="改名 ${esc(s.name)}">${pen}</button><button class="icobtn${used(s) ? ' icobtn--blocked' : ''}" type="button" data-del-subj="${s.id}" aria-label="${used(s) ? `刪除 ${esc(s.name)}（使用中，不能刪，按了看原因）` : `刪除 ${esc(s.name)}`}">${bin}</button></div></div>`).join('')}</div>
+    <div class="addrow"><input class="acset__in" data-newsubj placeholder="新增科目名稱" aria-label="新增科目名稱"><button class="btn" type="button" data-add-subj>${icon.plus}新增</button></div>`;
+
+  shell({
+    page: 'settings',
+    title: '',
+    bar: `<nav class="tabs" aria-label="系統設定" id="tabs"></nav><div class="tbar__act only-d" id="act"></div>`,
+    dock: `<button class="btn btn--cta" type="button" data-new-campus data-for="campuses">${icon.plus}新增分校</button><button class="btn btn--cta" type="button" data-new-school data-for="schools">${icon.plus}新增學校</button>`,
+    phase: 4100,
+  }, `<div id="view"></div><div class="pop pop--menu" id="cm" popover></div>`);
+
+  const title = document.querySelector('.open__title');
+  function render() {
+    const daily = campuses.filter((c) => c.on && c.mode === 'daily').length, on = campuses.filter((c) => c.on).length;
+    title.innerHTML = `${on} 個分校在營運，<br>${daily === on ? '全部用日到班' : daily === 0 ? '全部用隨堂點名' : `${daily} 個用日到班`}。`;
+    document.getElementById('tabs').innerHTML = tabsHtml();
+    document.getElementById('act').innerHTML = ACT[st.tab];
+    document.querySelectorAll('.dock [data-for]').forEach((b) => (b.hidden = b.dataset.for !== st.tab));
+    const dock = document.querySelector('.dock'); if (dock) dock.hidden = !['campuses', 'schools'].includes(st.tab);
+    document.getElementById('view').innerHTML = st.tab === 'campuses' ? campusesView() : st.tab === 'schools' ? schoolsView() : st.tab === 'subjects' ? subjectsView() : general();
+  }
+  addEventListener('hashchange', fromHash);
+
+  // ── 寫入（簡單回饋：處理中 → toast → 清單就地更新） ──
+  const cById = (id) => campuses.find((c) => c.id === id);
+  const sById = (id) => schools.find((s) => s.id === id);
+  const jById = (id) => subjects.find((s) => s.id === id);
+  const closeMenu = () => { const p = document.getElementById('cm'); if (p.matches(':popover-open')) p.hidePopover(); };
+  const campusForm = (c) => form({
+    title: c ? `編輯分校：${c.name}` : '新增分校', sub: c ? '' : '建好之後就可以在這個分校開課',
+    fields: [
+      { k: 'name', label: '分校名稱', value: c ? c.name : '', req: true, ph: '例如：台北分校' },
+      { k: 'tel', label: '電話', value: c ? c.tel : '', ph: '02-12345678', half: true },
+      { k: 'on', label: '狀態', type: 'radio', options: ['啟用', '停用'], value: c && !c.on ? '停用' : '啟用', half: true },
+      { k: 'addr', label: '地址', value: c ? c.addr : '', ph: '完整收件地址' },
+      { k: 'mode', label: '出勤紀錄模式（新）', type: 'select', options: [['daily', '日到班'], ['session', '隨堂點名']], value: c ? c.mode : st.orgMode, hint: '預設跟著「一般」的設定' },
+      { k: 'bank', label: '收款銀行（新）', ph: '例如：台灣銀行 景美分行', half: true },
+      { k: 'acct', label: '帳號（新）', ph: '000-000-000000', half: true },
+    ],
+    submit: c ? '儲存' : '建立', busy: c ? '儲存中…' : '建立中…',
+    ok: (v) => (c ? `已儲存「${v.name}」` : `已新增分校「${v.name}」`),
+    apply: (v) => {
+      if (c) Object.assign(c, { name: v.name, tel: v.tel, addr: v.addr, mode: v.mode, on: v.on === '啟用' });
+      else campuses.push({ id: 'cp' + campuses.length, name: v.name, tel: v.tel, addr: v.addr, mode: v.mode, on: v.on === '啟用', rooms: [] });
+      render();
+    },
+  });
+  const schoolForm = (s) => form({
+    title: s ? `編輯學校：${s.short}` : '新增學校',
+    fields: [
+      { k: 'name', label: '學校全名', value: s ? s.name : '', req: true, ph: '例：台北市立明湖國中' },
+      { k: 'short', label: '簡稱（選填）', value: s ? s.short : '', ph: '例：明湖國中', half: true },
+      { k: 'lv', label: '學制', type: 'select', options: ['國小', '國中', '高中'], value: s ? s.lv : '國中', half: true },
+      { k: 'on', label: '狀態', type: 'radio', options: ['啟用', '停用'], value: s && !s.on ? '停用' : '啟用' },
+    ],
+    submit: '儲存', busy: '儲存中…', ok: (v) => (s ? `已儲存「${v.short || v.name}」` : `已新增學校「${v.short || v.name}」`),
+    apply: (v) => {
+      if (s) Object.assign(s, { name: v.name, short: v.short || v.name, lv: v.lv, on: v.on === '啟用' });
+      else schools.unshift({ id: 'sc' + ++sid, name: v.name, short: v.short || v.name, lv: v.lv, n: 0, on: v.on === '啟用' });
+      render();
+    },
+  });
+
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    // 一般
+    const pk = t.closest('[data-pick]'); if (pk) { st.pick = pk.dataset.pick; render(); }
+    if (t.closest('[data-save-mode]')) {
+      const to = st.pick, toDaily = to === 'daily';
+      form({
+        title: `出勤紀錄模式改成${MODE[to][0]}？`, sub: '會影響每天的點名方式，建議在沒有課的時段改',
+        fields: [],
+        submit: `改成${MODE[to][0]}`, busy: '儲存中…', ok: `出勤紀錄模式已改成${MODE[to][0]}`,
+        apply: () => { const from = st.orgMode; campuses.forEach((c) => { if (c.mode === from) c.mode = to; }); st.orgMode = to; render(); },
+      });
+      // ponytail: 影響說明直接寫進剛開的對話框（A2.form 沒有「純文字段落」欄位）
+      const d = [...document.querySelectorAll('dialog.fdlg[open]')].pop();
+      d.querySelector('.fdlg__body').innerHTML = `<ul class="acset__f" style="margin:0;padding-left:1.2em;display:grid;gap:6px;font-size:var(--text-base);line-height:1.6">
+        <li>${toDaily ? '學生掃碼到班後，<b>當天所有的課都會自動算出席</b>，老師不用逐堂點名。' : '學生掃碼<b>只記到班時間</b>，每堂課的出席要老師或管理員逐堂確認。'}</li>
+        <li>儀表板：${toDaily ? '顯示「今天到班」看板（預計幾人、已到、該到沒到）' : '多一張「待點名」卡，列出還沒點名的課'}。</li>
+        <li>用「${MODE[st.orgMode][0]}」的分校會一起改；已經自己改成別的模式的分校不動。</li>
+        <li>已經記下的出缺席不會被改寫。</li></ul>`;
+    }
+    const tpl = t.closest('[data-new-period]'); if (tpl) form({
+      title: '新增週期', fields: [{ k: 'name', label: '週期名稱', req: true, ph: '例如：115 暑期班' }, { k: 'from', label: '開始', type: 'date', half: true, req: true }, { k: 'to', label: '結束', type: 'date', half: true, req: true }, { k: 'notify', label: '續課通知日', type: 'date' }],
+      submit: '新增', busy: '新增中…', ok: (v) => `已新增週期「${v.name}」`,
+      apply: (v) => { periods.push({ name: v.name, from: v.from, to: v.to, notify: v.notify || v.from, on: true }); render(); document.querySelectorAll('.coll')[3].open = true; },
+    });
+    // 分校
+    if (t.closest('[data-new-campus]')) campusForm();
+    if (t.closest('[data-log]')) form({ title: '操作紀錄', sub: '分校的新增、編輯、停用', fields: [], submit: '關閉', busy: '…' }) && (([...document.querySelectorAll('dialog.fdlg[open]')].pop().querySelector('.fdlg__body').outerHTML = `<ul class="loglist">${LOG.map(([at, who, what]) => `<li><time>${at}</time><span><b>${who}</b> ${esc(what)}</span></li>`).join('')}</ul>`));
+    if (t.closest('[data-showoff]')) { st.showOff = !st.showOff; render(); }
+    if (t.closest('[data-clearq]')) { st.q = ''; render(); }
+    const cm = t.closest('[data-cm]');
+    if (cm) {
+      const c = cById(cm.dataset.cm);
+      document.getElementById('cm').innerHTML = `<button type="button" data-edit-campus="${c.id}">${pen}編輯</button><button type="button" data-rooms="${c.id}">教室<span class="new">新</span></button>
+        <button type="button" data-toggle-campus="${c.id}">${c.on ? '停用分校' : '啟用分校'}</button><hr><button type="button" class="is-danger" data-del-campus="${c.id}">刪除分校</button>`;
+    }
+    const ec = t.closest('[data-edit-campus]'); if (ec) { closeMenu(); campusForm(cById(ec.dataset.editCampus)); }
+    const rm = t.closest('[data-rooms]');
+    if (rm) {
+      closeMenu(); const c = cById(rm.dataset.rooms);
+      form({
+        title: `教室：${c.name}`, sub: c.rooms.length ? c.rooms.map((r) => `${r.name}（${r.cap} 人）`).join('、') : '這個分校還沒有教室',
+        fields: [{ k: 'name', label: '新增教室', req: true, ph: '例如：C 教室', half: true }, { k: 'cap', label: '容納人數', type: 'money', value: '20', half: true }, { k: 'gear', label: '設備（選填）', ph: '例如：投影機、白板' }],
+        submit: '新增教室', busy: '新增中…', ok: (v) => `已在${c.name}新增「${v.name}」`, apply: (v) => { c.rooms.push({ name: v.name, cap: +v.cap || 0 }); render(); },
+      });
+    }
+    const tg = t.closest('[data-toggle-campus]');
+    if (tg) {
+      closeMenu(); const c = cById(tg.dataset.toggleCampus);
+      if (c.on) form({ title: '停用分校', sub: `確定要停用「${c.name}」嗎？停用後該分校將無法新增課程。`, fields: [], submit: '停用', busy: '停用中…', ok: `已停用「${c.name}」`, apply: () => { c.on = false; st.showOff = true; render(); return { undo: () => { c.on = true; render(); } }; } });
+      else form({ title: '啟用分校', sub: `確定要啟用「${c.name}」嗎？`, fields: [], submit: '啟用', busy: '啟用中…', ok: `已啟用「${c.name}」`, apply: () => { c.on = true; render(); } });
+    }
+    const dc = t.closest('[data-del-campus]');
+    if (dc) { closeMenu(); const c = cById(dc.dataset.delCampus); form({ title: '確認刪除', sub: `確定要刪除「${c.name}」嗎？此操作無法復原。`, fields: [], submit: '刪除', busy: '刪除中…', ok: `已刪除「${c.name}」`, apply: () => { campuses.splice(campuses.indexOf(c), 1); render(); } }); }
+    // 學校
+    if (t.closest('[data-new-school]')) schoolForm();
+    const es = t.closest('[data-edit-school]'); if (es) schoolForm(sById(es.dataset.editSchool));
+    const ds = t.closest('[data-del-school]');
+    if (ds) {
+      const s = sById(ds.dataset.delSchool);
+      // 產品：有學生時只出 toast、不開對話框。這裡講清楚為什麼不能刪、可以怎麼做
+      if (s.n) form({ title: `「${s.short}」不能刪除`, sub: `還有 ${s.n} 位學生的資料寫著這所學校。可以改成停用：新填的學生資料選不到它，已經寫著它的不受影響。`, fields: [], submit: s.on ? '改成停用' : '它已經停用了', busy: '處理中…', ok: s.on ? `已停用「${s.short}」` : `「${s.short}」維持停用`, apply: () => { s.on = false; render(); } });
+      else form({ title: '確認刪除', sub: `確定刪除「${s.name}」？`, fields: [], submit: '刪除', busy: '刪除中…', ok: `已刪除「${s.short}」`, apply: () => { schools.splice(schools.indexOf(s), 1); render(); } });
+    }
+    if (t.closest('[data-clearsq]')) { st.sq = ''; render(); }
+    // 科目
+    const ej = t.closest('[data-edit-subj]'); if (ej) { st.edit = ej.dataset.editSubj; render(); const i = document.querySelector('[data-rename]'); i.focus(); i.select(); }
+    if (t.closest('[data-rename-x]')) { st.edit = ''; render(); }
+    const ok = t.closest('[data-rename-ok]');
+    if (ok) { const s = jById(ok.dataset.renameOk), v = document.querySelector('[data-rename]').value.trim(); if (v) { const old = s.name; s.name = v; st.edit = ''; render(); toast(old === v ? '名稱沒有改' : `「${old}」改名為「${v}」`); } }
+    const dj = t.closest('[data-del-subj]');
+    if (dj) {
+      const s = jById(dj.dataset.delSubj);
+      if (used(s)) form({ title: `「${s.name}」不能刪除`, sub: `已被 ${used(s)}使用中。要整理名稱可以改名；不再開課的科目留著不影響。`, fields: [], submit: '改名', busy: '…', ok: '改名請直接在列上編輯', apply: () => { st.edit = s.id; render(); } });
+      else form({ title: '確認刪除科目', sub: `確定要刪除「${s.name}」嗎？`, fields: [], submit: '刪除', busy: '刪除中…', ok: `已刪除「${s.name}」`, apply: () => { subjects.splice(subjects.indexOf(s), 1); render(); } });
+    }
+    if (t.closest('[data-add-subj]')) {
+      const i = document.querySelector('[data-newsubj]'), v = i.value.trim();
+      if (!v) { i.focus(); toast('先打科目名稱，再按新增'); return; }
+      if (subjects.some((s) => s.name === v)) { toast(`已經有「${v}」了`); return; }
+      subjects.push({ id: 'sj' + subjects.length + Date.now(), name: v, courses: 0, exams: 0 }); render(); toast(`已新增科目「${v}」`);
+    }
+  });
+  document.addEventListener('input', (e) => {
+    if (e.target.matches('[data-q]')) { st.q = e.target.value; const pos = e.target.selectionStart; render(); const i = document.querySelector('[data-q]'); i.focus(); i.setSelectionRange(pos, pos); }
+    if (e.target.matches('[data-sq]')) { st.sq = e.target.value; const pos = e.target.selectionStart; render(); const i = document.querySelector('[data-sq]'); i.focus(); i.setSelectionRange(pos, pos); }
+  });
+  document.addEventListener('change', (e) => {
+    if (e.target.matches('[data-tpl]') && e.target.value) {
+      const n = { 傳統二學期制: 2, 三學期制: 3, '學期+暑期班': 3, '學期+寒暑假': 4 }[e.target.value];
+      toast(`已用「${e.target.value}」建立 ${n} 個週期，日期可以再改`);
+      e.target.value = '';
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('[data-rename]')) { if (e.key === 'Enter') document.querySelector('[data-rename-ok]').click(); if (e.key === 'Escape') { e.preventDefault(); st.edit = ''; render(); } }
+    if (e.target.matches('[data-newsubj]') && e.key === 'Enter') document.querySelector('[data-add-subj]').click();
+  });
+  fromHash();
+})();
+</script>
+</body>
+</html>
