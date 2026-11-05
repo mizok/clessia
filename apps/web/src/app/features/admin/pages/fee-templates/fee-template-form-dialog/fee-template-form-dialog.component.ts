@@ -7,6 +7,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { MessageService } from 'primeng/api';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import {
@@ -24,6 +25,7 @@ import {
   selector: 'app-fee-template-form-dialog',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     FormsModule,
     ButtonModule,
     InputTextModule,

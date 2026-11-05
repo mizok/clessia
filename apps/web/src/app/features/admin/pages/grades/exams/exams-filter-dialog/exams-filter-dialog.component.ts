@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
@@ -43,7 +44,7 @@ export interface ExamsFilterDialogResult {
 @Component({
   selector: 'app-exams-filter-dialog',
   standalone: true,
-  imports: [FormsModule, ButtonModule, SelectModule, SelectButtonModule],
+  imports: [DialogFrameComponent, FormsModule, ButtonModule, SelectModule, SelectButtonModule],
   templateUrl: './exams-filter-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -71,6 +72,11 @@ export class ExamsFilterDialogComponent {
       status: this.status(),
       timeRange: this.timeRange(),
     } satisfies ExamsFilterDialogResult);
+  }
+
+  /** ✕：不套用、維持原本的篩選 */
+  protected dismiss(): void {
+    this.ref.close();
   }
 
   protected clear(): void {

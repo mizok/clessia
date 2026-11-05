@@ -22,6 +22,7 @@ import { logAudit } from '../utils/audit';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { classWriteScope, studentWriteScope } from '../lib/campus-write-guard';
 import { waitUntilFrom } from '../lib/wait-until';
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
 /**
  * 個人聯絡簿（國小模式）：學生 × 日期，每生每日唯一一則自由文字。
@@ -679,7 +680,7 @@ app.openapi(
         .lte('entry_date', dateTo),
       supabase
         .from('sessions')
-        .select('class_id, status, session_date')
+        .select('class_id, status, session_date, end_time')
         .eq('org_id', orgId)
         .gte('session_date', dateFrom)
         .lte('session_date', dateTo),
@@ -706,9 +707,18 @@ app.openapi(
       writtenByDate.set(date, bucket);
     }
 
+    // 只算**已經上完**的堂（#2315）：還沒上的課沒有東西可寫，算進「N 則未寫」是在問責明天的事。
+    // 沒有結束時間的堂，當天之前的照算、今天的不算（判斷不了上完沒）
+    const now = Date.now();
+    const today = getCurrentTaipeiDateString();
+    const ended = (date: string, endTime: string | null) =>
+      endTime === null
+        ? date < today
+        : new Date(`${date}T${endTime.slice(0, 5)}:00+08:00`).getTime() <= now;
     const sessionsByDate = new Map<string, SessionOnDate[]>();
     for (const row of (sessionRows ?? []) as unknown as Record<string, unknown>[]) {
       const date = row['session_date'] as string;
+      if (!ended(date, (row['end_time'] as string | null | undefined) ?? null)) continue;
       const bucket = sessionsByDate.get(date) ?? [];
       bucket.push({ classId: row['class_id'] as string, status: row['status'] as string });
       sessionsByDate.set(date, bucket);

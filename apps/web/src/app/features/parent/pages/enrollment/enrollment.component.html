@@ -250,27 +250,16 @@
   </div>
 </app-child-scope-gate>
 
-<!-- 申請詳情：A6 的唯讀 sheet（桌機置中、手機底部面板，#1634 overlay-motion） -->
+<!-- 申請詳情：A6 的唯讀 sheet（桌機置中、手機底部面板，#1634 overlay-motion；共用殼 app-dialog-frame，#2290） -->
 <dialog
   #detailDialog
-  class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(480px,calc(100%-32px))] flex-col overflow-y-auto rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-(--sheet-bg) open:flex"
-  aria-labelledby="enroll-detail-title"
+  class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(var(--dlg-w-md),calc(100%-32px))] flex-col overflow-y-auto rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-(--sheet-bg) open:flex"
+  role="dialog"
   (click)="onDetailBackdrop($event)"
   (close)="detail.set(null)"
 >
   @if (detail(); as r) {
-    <div class="flex items-center justify-between pt-4 pr-4 pb-2 pl-6">
-      <h2 id="enroll-detail-title" class="m-0 text-xl font-bold">申請詳情</h2>
-      <button
-        type="button"
-        class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900"
-        aria-label="關閉"
-        (click)="closeDetail()"
-      >
-        <i class="pi pi-times" aria-hidden="true"></i>
-      </button>
-    </div>
-    <div class="grid gap-5 px-6 pt-2 pb-6 max-wide:px-4">
+    <app-dialog-frame title="申請詳情" (closed)="closeDetail()">
       <p class="m-0">
         <span
           [class]="
@@ -357,25 +346,25 @@
           </li>
         }
       </ol>
-    </div>
-    @if (canCancel(r)) {
-      <div class="flex flex-wrap justify-end gap-2 px-6 pb-6 max-wide:px-4">
-        <button
-          type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
-          (click)="closeDetail()"
-        >
-          關閉
-        </button>
-        <button
-          type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
-          [attr.aria-disabled]="cancelling()"
-          (click)="cancel(r)"
-        >
-          {{ cancelling() ? '取消中…' : '取消這筆申請' }}
-        </button>
-      </div>
-    }
+      <ng-container dialogFoot>
+        @if (canCancel(r)) {
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+            (click)="closeDetail()"
+          >
+            關閉
+          </button>
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+            [attr.aria-disabled]="cancelling()"
+            (click)="cancel(r)"
+          >
+            {{ cancelling() ? '取消中…' : '取消這筆申請' }}
+          </button>
+        }
+      </ng-container>
+    </app-dialog-frame>
   }
 </dialog>

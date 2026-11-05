@@ -29,6 +29,7 @@ import { StudentsService, type Student } from '@core/students.service';
 import { SystemClockService } from '@core/system-clock.service';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 import { HeightFollowDirective } from '@shared/directives/height-follow.directive';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 
 /** 結果卡要求儀表板開點名名單時帶的資料 —— 跟 `openAttendance` 開對話框要的同一組 */
 export interface PhoneLeaveRosterRequest {
@@ -57,6 +58,7 @@ const REASON_CHIPS = ['病假', '事假'] as const;
 @Component({
   selector: 'app-phone-leave',
   imports: [
+    DialogFrameComponent,
     NgTemplateOutlet,
     FormsModule,
     ButtonModule,

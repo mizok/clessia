@@ -1,4 +1,5 @@
-<div class="class-picker flex flex-col gap-3">
+<!-- 共用殼（#2290）：標題是開窗端給的 header（「{學生} — 選擇班級」） -->
+<app-dialog-frame [title]="title" (closed)="cancel()">
   <div class="class-picker__toolbar flex gap-2 px-1 py-0 [--p-form-field-padding-y:0.75rem]">
     <p-iconfield iconPosition="left" styleClass="class-picker__iconfield min-w-0 flex-1">
       <p-inputicon styleClass="pi pi-search" />
@@ -84,7 +85,7 @@
     }
   }
 
-  <div class="class-picker__footer flex justify-end border-t border-t-zinc-100 pt-2">
+  <ng-container dialogFoot>
     <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
-  </div>
-</div>
+  </ng-container>
+</app-dialog-frame>

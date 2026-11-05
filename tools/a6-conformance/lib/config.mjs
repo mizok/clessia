@@ -73,6 +73,23 @@ export function rule(id, note = '') {
 }
 
 export const DEVIATIONS = [
+  // #2290 計畫席 11-05 裁定（issuecomment-6660276130）：殼的內距在 .dialog-frame__body，稿在 form 上 ——
+  // form 本身 padding 8/24/24 → 0、子項相對 form Δx −24、Δy −8（幾何結果相同，所有換殼的表單都會碰到）
+  {
+    status: '樣式',
+    a6: '(^|>)landmark:dialog\\[[^\\]]*\\]>landmark:form\\[[^\\]]*\\]$',
+    item: '^padding 8px 24px 24px → 0px$',
+    reason: '殼的內距在內容區外層（.dialog-frame__body），稿在 form 上，幾何相同',
+    source: 'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
+  },
+  {
+    status: '位置',
+    a6: '(^|>)landmark:dialog\\[[^\\]]*\\]>landmark:form\\[[^\\]]*\\]>',
+    detail: '^相對「form」 Δx -24、Δy -(8|9)（',
+    reason:
+      '殼的內距在內容區外層（.dialog-frame__body），稿在 form 上：子項相對 form 位移，畫面位置相同',
+    source: 'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
+  },
   {
     // 使用者 11-05 17:10：手機貼底抽屜改白底（--sheet-bg），稿是 --gray-sheet 灰。只拆底色這一項
     status: '樣式',
@@ -104,11 +121,11 @@ export const DEVIATIONS = [
   })),
   {
     // #2290：手機貼底抽屜沒有底部列時，內容區底留 --sheet-foot-gap 16（稿 `.acset__body` 24）—— 根高 −8。
-    // 細節只寫前後高度，regex 判斷不了「剛好 −8」：這條涵蓋 360 寬對話框根的高度差（根高本來就隨內容變，裡面的部件照樣逐一比）
+    // 用 delta 只放過預期的 −8，其他高度變化照報（#2322 二讀）
     status: '尺寸',
     widths: [360],
     a6: '^pop\\[[^\\]]*\\]>landmark:dialog\\[[^\\]]*\\]$',
-    detail: '^高 \\d+→\\d+',
+    delta: -8,
     reason: '手機貼底抽屜的內容區底留 16＋safe-area（稿 24）',
     source: `${rule('R5')}「貼底抽屜底部留白 16」2026-11-05；#2290`,
   },
@@ -1811,6 +1828,9 @@ export const PAGES = {
   // 「申請紀錄」分頁：稿與 app 都認網址 #records
   'p-enrollment-records': {
     a6: 'p-enrollment.html#records',
+    // 申請詳情（點紀錄列）：兩邊都是原生 dialog（#2290 換殼）
+    a6Open: { detail: { click: 'button.rq', root: 'dialog[open]' } },
+    appOpen: { detail: { click: 'button[data-request]', root: 'dialog[open]' } },
     // 稿的每筆紀錄是一顆獨立的按鈕（button.rq），沒有清單結構；指名成列才跟 app 的清單配得上（#1314 10-30）
     // app 的列也是一顆按鈕（`button[appRequestRow]`，#1314）；筆數少時過不了通則的 ≥3／≥5 門檻，一起指名
     rowSel: { a6: 'button.rq', app: 'button[data-request]' },
@@ -1858,6 +1878,9 @@ export const PAGES = {
   },
   'p-trial-records': {
     a6: 'p-trial.html#records',
+    // 申請詳情（點紀錄列）：兩邊都是原生 dialog（#2290 換殼）
+    a6Open: { detail: { click: 'button.rq', root: 'dialog[open]' } },
+    appOpen: { detail: { click: 'button[data-request]', root: 'dialog[open]' } },
     // 稿的每筆紀錄是一顆獨立的按鈕（button.rq），沒有清單結構；指名成列才跟 app 的清單配得上（#1314 10-30）
     // app 的列也是一顆按鈕（`button[appRequestRow]`，#1314）；筆數少時過不了通則的 ≥3／≥5 門檻，一起指名
     rowSel: { a6: 'button.rq', app: 'button[data-request]' },
@@ -2255,6 +2278,14 @@ export const PAGES = {
   'fee-templates': {
     a6: 'fee-templates.html',
     app: '/admin/fee-templates',
+    // #2290 換殼的對話框：稿 A2.form（原生 dialog）↔ app DynamicDialog
+    a6Open: { 'new-ft': { click: '[data-newft]', root: 'dialog[open]' } },
+    appOpen: {
+      'new-ft': {
+        click: 'button:has-text("新增價目表")',
+        root: '.p-dialog:has(app-fee-template-form-dialog)',
+      },
+    },
     deviations: [
       // 用模板建立：A6 放在系統設定、是一選就建的 select；使用者 11-02 搬到這裡、改成 radio＋預覽＋送出鈕，
       // 11-04 收進彈窗（#2235），頁面上只剩開彈窗的那顆鈕（列表空時在空狀態裡）
@@ -2372,6 +2403,11 @@ export const PAGES = {
   meals: {
     a6: 'meals.html',
     app: '/admin/meals',
+    // #2290 換殼的對話框：稿 A2.form（原生 dialog）↔ app DynamicDialog
+    a6Open: { run: { click: '[data-close]', root: 'dialog[open]' } },
+    appOpen: {
+      run: { click: 'button:has-text("月結")', root: '.p-dialog:has(app-billing-run-dialog)' },
+    },
     deviations: [
       {
         status: '黏住',
@@ -3152,6 +3188,9 @@ export const PAGES = {
   },
   'p-schedule': {
     a6: 'p-schedule.html',
+    // 課堂詳情（點課卡）：兩邊都是原生 dialog（#2290 換殼）
+    a6Open: { detail: { click: '[data-s]', root: 'dialog[open]' } },
+    appOpen: { detail: { click: '[data-part="session"]', root: 'dialog[open]' } },
     app: '/parent/schedule',
     state: PARENT_STATE,
     prep: PARENT_PREP,

@@ -3,23 +3,9 @@
   動態（motion.md）：步驟換場用 animate.enter（同全站彈出物的 overlay-arrive）、卡片高度用 appHeightFollow 滑；
   不用 VT —— 原因 chip 是連點的，VT 期間會吞點擊（#1646）。減少動態時不動。
 -->
-<section
-  appHeightFollow
-  class="rounded-lg border border-surface-border bg-surface-card"
-  aria-labelledby="phone-leave-title"
->
-  <div class="flex flex-col gap-3 p-4">
-    <div class="flex items-center justify-between gap-2">
-      <h2 id="phone-leave-title" class="m-0 text-base font-semibold text-zinc-900">登記請假</h2>
-      <p-button
-        label="收起"
-        [text]="true"
-        severity="secondary"
-        size="small"
-        (onClick)="closed.emit()"
-      />
-    </div>
-
+<!-- 標頭（h2＋✕）、內距、手機貼底的底部留白在共用殼（#2290）；✕ 等同原本的「收起」 -->
+<app-dialog-frame title="登記請假" (closed)="closed.emit()">
+  <div appHeightFollow class="flex flex-col gap-3">
     @if (result(); as done) {
       <!-- ── 結果：伺服器實際寫入的，不是預測的 ─────────────────────── -->
       <div
@@ -222,7 +208,7 @@
       }
     }
   </div>
-</section>
+</app-dialog-frame>
 
 <!-- 課列的骨架：同「這天的課」的 li（py-2、底線、時間＋班名） -->
 <ng-template #sessionRowsSkeleton>

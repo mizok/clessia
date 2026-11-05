@@ -713,8 +713,8 @@ export class ExamsComponent implements OnInit {
   protected openFilterDialog(): void {
     const ref = this.dialogService.open(ExamsFilterDialogComponent, {
       header: '篩選條件',
-      width: '400px',
-      breakpoints: { '640px': '96%' },
+      width: 'var(--dlg-w-sm)',
+      showHeader: false,
       modal: true,
       appendTo: this.overlayContainer || 'body',
       data: {
@@ -864,8 +864,7 @@ export class ExamsComponent implements OnInit {
   private openSchoolDialog(mode: 'create' | 'edit', examId?: string): void {
     const ref = this.dialogService.open(SchoolExamFormDialogComponent, {
       header: mode === 'create' ? '新增學校考試' : '編輯學校考試',
-      width: '480px',
-      breakpoints: { '640px': '96%' },
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',

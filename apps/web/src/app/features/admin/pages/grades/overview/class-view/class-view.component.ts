@@ -276,15 +276,11 @@ export class ClassViewComponent implements OnInit {
 
   protected openClassScores(cls: Class): void {
     this.dialogService.open(ClassScoresDialogComponent, {
-      width: '900px',
-      breakpoints: { '640px': '95%' },
+      // 寬內容用 --dlg-w-lg（760，原本 900）；高度上限與手機貼底走全站 .p-dialog（#2290）
+      width: 'var(--dlg-w-lg)',
       modal: true,
       showHeader: false,
       appendTo: 'body',
-      contentStyle: {
-        'max-height': 'calc(var(--window-height, 800px) * 0.85)',
-        overflow: 'auto',
-      },
       data: {
         class: cls,
         campusId: this.campusId() || null,

@@ -132,14 +132,13 @@ describe('LeaveFormDialogComponent', () => {
     expect(go.getAttribute('aria-disabled')).toBe('false');
   });
 
-  // A6 `.fdlg__foot { position: sticky; bottom: 0; background: inherit }`：表單一長（手機、選了好幾天），
-  // 送出鈕不能跟著內容捲走（#166 的同一個坑，這支沒用 .form-dialog__footer）
-  it('動作列黏在捲動區底、底色不透明', () => {
+  // A6 `.fdlg__foot { position: sticky; bottom: 0 }`：表單一長，送出鈕不能跟著內容捲走。
+  // #2290 起由共用殼的底部列（.form-dialog__footer，sticky、手機 16＋safe-area）負責，不再自刻
+  it('動作列在共用殼的 sticky 底部列裡；標題是開窗端給的 header', () => {
     const el = fixture.nativeElement as HTMLElement;
     const go = [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('送出請假'))!;
-    const bar = go.parentElement!;
-    for (const c of ['sticky', 'bottom-0', 'bg-white', 'pb-(--leave-foot-pb)'])
-      expect(bar.classList).toContain(c);
+    expect(go.closest('.form-dialog__footer')).not.toBeNull();
+    expect(el.querySelector('app-dialog-frame h2')?.textContent?.trim()).toBeTruthy();
   });
 
   it('DialogService 開時的 contentStyle：底部 padding 歸 0、改由動作列撐（--leave-foot-pb）', () => {
@@ -324,6 +323,15 @@ describe('LeaveFormDialogComponent 嵌入（家長端）', () => {
     return { f, c, closed };
   }
 
+  // #2290：嵌在家長端原生 <dialog> 裡 —— 標題「登記請假」、副標寫孩子，✕ 等同取消（closed 送 null）
+  it('嵌入：標題登記請假、副標寫孩子，按關閉＝取消', async () => {
+    const { f, closed } = await setup(vi.fn());
+    const el = f.nativeElement as HTMLElement;
+    expect(el.querySelector('app-dialog-frame h2')?.textContent?.trim()).toBe('登記請假');
+    expect(el.querySelector('.dialog-header-inline__sub')?.textContent).toContain('林子晴');
+    el.querySelector<HTMLButtonElement>('.dialog-header-inline__close')!.click();
+    expect(closed).toHaveBeenCalledWith(null);
+  });
   it('不出學生欄、不載入分校；預設今天 17:00–21:00（A6 forms.leave）', async () => {
     const { f, c } = await setup(vi.fn());
     const el = f.nativeElement as HTMLElement;
