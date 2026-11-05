@@ -5,6 +5,7 @@ import { resolveStudentScope } from './students/teacher-scope';
 import { outOfCampusScope, teacherCannotRead } from './students/read-scope';
 import { taughtClassIds, taughtStudentIds, tenureFromSchedules } from '../lib/teacher-scope';
 import { loadTeacherRosterViaSql } from '../lib/teacher-roster-sql';
+import { loadStudentTodayBase } from '../lib/student-today-sql';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
@@ -18,7 +19,6 @@ import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-d
 import { loadStudentListViaSql, type StudentListParams } from '../lib/student-list-sql';
 import { GRADE_CHAPTERS, loadStudentListViaBuilder } from '../lib/student-list-builder';
 import {
-  TODAY_SESSION_SELECT,
   classifyToday,
   loadDailyAttendance,
   toTodaySession,
@@ -458,40 +458,32 @@ app.openapi(
       const date = getCurrentTaipeiDateString();
       // 模式解析同作業台：單一分校用分校設定、多校用機構預設（同一個 ponytail 上限）
       const singleCampus = campusId ?? (campusIds?.length === 1 ? campusIds[0] : null);
-      const { mode } = await resolveAttendanceMode(supabase, orgId, singleCampus);
-      if ((mode ?? 'per_session') === 'daily_checkin') {
-        let sessionsQuery = supabase
-          .from('sessions')
-          .select(TODAY_SESSION_SELECT)
-          .eq('org_id', orgId)
-          .eq('session_date', date);
-        if (campusIds) sessionsQuery = sessionsQuery.in('classes.campus_id', [...campusIds]);
-        // #1100 #51（使用者 10-23 裁定）：老師只看自己教的班的到班 —— 他的學生今天若只有別班的課，
-        // 狀態是「今天沒他的課」（null），不是別班那堂到了沒（看不到的就是看不到）
-        if (myClassIds !== null) {
-          sessionsQuery = sessionsQuery.in(
-            'class_id',
-            myClassIds.length > 0 ? myClassIds : ['00000000-0000-0000-0000-000000000000'],
-          );
-        }
-        const { data: sessionRows, error: sessionsError } = await sessionsQuery;
-        if (sessionsError) {
-          return {
-            response: c.json({ error: '讀取學生列表失敗', message: sessionsError.message }, 500),
-          };
-        }
-        // 在籍、打卡、請假走 pg（#1595 P2 ①）；沒有池就回 500，不退回 REST
-        const pool = c.get('auth')?.pool;
-        if (!pool) {
+      // 有 pool：模式＋當天課堂一支 pg（刀 2），在籍／打卡／請假也是 pg（#2303）；失敗 500 不退回 REST。
+      // 沒有 pool（只有單元測試）：模式照舊走 REST，日到班模式回 500（同 #2303）
+      if (!pool) {
+        const { mode } = await resolveAttendanceMode(supabase, orgId, singleCampus);
+        if ((mode ?? 'per_session') === 'daily_checkin') {
           return {
             response: c.json({ error: '讀取學生列表失敗', code: 'DB_POOL_UNAVAILABLE' }, 500),
           };
         }
+        return todayFilter !== undefined ? { response: unsupported() } : { statuses: null };
+      }
+      // #1100 #51（使用者 10-23 裁定）：老師只看自己教的班的到班 —— 他的學生今天若只有別班的課，
+      // 狀態是「今天沒他的課」（null），不是別班那堂到了沒（看不到的就是看不到）
+      const base = await loadStudentTodayBase(pool, {
+        orgId,
+        date,
+        campusIds,
+        classIds: myClassIds,
+        singleCampus: singleCampus ?? null,
+      });
+      if (base.mode === 'daily_checkin') {
         const daily = await loadDailyAttendance(
           pool,
           orgId,
           date,
-          ((sessionRows ?? []) as unknown as Array<Record<string, unknown>>).map(toTodaySession),
+          base.sessions.map(toTodaySession),
           { campusIds, classIds: myClassIds },
         );
         const todayStatuses = classifyToday(daily, date);
@@ -501,18 +493,17 @@ app.openapi(
           for (const id of todayStatuses.keys()) if (!taught.has(id)) todayStatuses.delete(id);
         }
         return { statuses: todayStatuses };
-      } else if (todayFilter !== undefined) {
-        // ponytail: 逐堂點名的「到了沒」是每堂出勤紀錄，v1 不支援（計畫席 10-10 記可否決）——
-        // 明講不支援，不默默回空（默默回空會看起來像「今天沒人」）
-        return {
-          response: c.json(
-            { error: '逐堂點名模式不支援今日到班篩選', code: 'TODAY_UNSUPPORTED_MODE' },
-            400,
-          ),
-        };
       }
-      return { statuses: null };
+      return todayFilter !== undefined ? { response: unsupported() } : { statuses: null };
     };
+    // ponytail: 逐堂點名的「到了沒」是每堂出勤紀錄，v1 不支援（計畫席 10-10 記可否決）——
+    // 明講不支援，不默默回空（默默回空會看起來像「今天沒人」）
+    function unsupported() {
+      return c.json(
+        { error: '逐堂點名模式不支援今日到班篩選', code: 'TODAY_UNSUPPORTED_MODE' },
+        400,
+      );
+    }
     // 帶 `today` 篩選時列表要用它的結果，只能先算；沒帶時（開頁預設）跟下面的列表同時跑，
     // 不再排在列表前面多等 3–4 個往返（#1595 P3b-A）
     const todayPromise: Promise<TodayResult> =

@@ -15,6 +15,8 @@ import { SESSION_SUMMARY_SELECT } from '../lib/session-summary';
 import { loadStudentListViaBuilder } from '../lib/student-list-builder';
 import { STUDENT_LIST_SQL, studentListParamsFromArgs } from '../lib/student-list-sql';
 import { TEACHER_ROSTER_SQL } from '../lib/teacher-roster-sql';
+import { STUDENT_TODAY_SQL } from '../lib/student-today-sql';
+import { TODAY_SESSION_SELECT } from '../lib/today-attendance';
 
 type Chain = Record<string, (...args: unknown[]) => Chain> &
   PromiseLike<{ data: unknown; error: unknown }>;
@@ -39,6 +41,52 @@ export function restBackedSummaryPool(client: SupabaseLike) {
     // 就是改寫前的那條 REST 鏈。參數順序見 `STUDENT_LIST_SQL` 的註解
     // 名冊的老師範圍前置（`lib/teacher-roster-sql.ts`，刀 2）：翻回改寫前的三支 REST
     // （本人 staff → 任課時段，同 `loadTenure` → 這些班 active／pending 的報名）
+    // 名冊今日到班的前置（`lib/student-today-sql.ts`，刀 2）：模式＋當天課堂，翻回改寫前的 REST
+    if (sql === STUDENT_TODAY_SQL) {
+      const [orgId, date, campusIds, classIds, singleCampus] = params as [
+        string,
+        string,
+        string[] | null,
+        string[] | null,
+        string | null,
+      ];
+      const single = async (q: Chain) =>
+        ((await (q['maybeSingle']!() as unknown as PromiseLike<{ data: Row | null }>)).data ??
+          null) as Row | null;
+      const org = await single(
+        from('organizations')['select']!('attendance_mode')['eq']!('id', orgId),
+      );
+      const campus = singleCampus
+        ? await single(
+            from('campuses')['select']!('attendance_mode')['eq']!('id', singleCampus)['eq']!(
+              'org_id',
+              orgId,
+            ),
+          )
+        : null;
+      let q = from('sessions')['select']!(TODAY_SESSION_SELECT)['eq']!('org_id', orgId)['eq']!(
+        'session_date',
+        date,
+      );
+      if (campusIds) q = q['in']!('classes.campus_id', campusIds);
+      if (classIds)
+        q = q['in']!(
+          'class_id',
+          classIds.length > 0 ? classIds : ['00000000-0000-0000-0000-000000000000'],
+        );
+      const sessions = await settle(q);
+      return {
+        rows: [
+          {
+            result: {
+              orgMode: org?.['attendance_mode'] ?? null,
+              campusMode: campus?.['attendance_mode'] ?? null,
+              sessions,
+            },
+          },
+        ],
+      };
+    }
     if (sql === TEACHER_ROSTER_SQL) {
       const [orgId, userId] = params as [string, string];
       const { data: me, error } = await (from('staff')['select']!('id')['eq']!('user_id', userId)[

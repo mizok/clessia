@@ -5,6 +5,7 @@ import { createAuth } from '../auth';
 import { createChildDb } from '../lib/child-db';
 import { STUDENT_LIST_SQL } from '../lib/student-list-sql';
 import { TEACHER_ROSTER_SQL } from '../lib/teacher-roster-sql';
+import { STUDENT_TODAY_SQL } from '../lib/student-today-sql';
 import { restBackedSummaryPool } from '../test-utils/rest-backed-summary-pool';
 import { PERMISSIONS } from '../lib/permissions';
 import { createServiceClientFromEnv } from '../lib/supabase';
@@ -82,7 +83,7 @@ vi.mock('../middleware/auth', async (importOriginal) => {
             ? real
             : async (sql: string, v: unknown[]) =>
                 // 老師範圍（刀 2）與列表（刀 1a／1b）兩句翻回改寫前的 REST 鏈（同單元測試的替身），其餘打真 DB
-                sql === STUDENT_LIST_SQL || sql === TEACHER_ROSTER_SQL
+                sql === STUDENT_LIST_SQL || sql === TEACHER_ROSTER_SQL || sql === STUDENT_TODAY_SQL
                   ? restBackedSummaryPool(supabase as never).query(sql, v)
                   : real(sql, v),
           // authPoolCleanup 每個請求都會呼叫 end，而這裡所有請求共用同一個 pool
@@ -581,6 +582,48 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
       expect(seen).toEqual([[], ['乙']]);
     } finally {
       ctx.teacherUser = main;
+      ctx.teacher = false;
+    }
+  });
+
+  it('今日到班只算老師自己任課班的課（#1100 #51）：老師 3 的學生今天只在別人的班有課 → null', async () => {
+    const main = ctx.teacherUser;
+    ctx.teacher = true;
+    ctx.teacherUser = ctx.edgeTeachers[1]!;
+    try {
+      const { body } = await hit('/api/students', true);
+      const rows = body['data'] as Array<{ name: string; todayStatus?: unknown }>;
+      expect(rows.map((r) => r.name)).toEqual(['乙']);
+      expect(rows[0]!.todayStatus).toBeNull();
+      // 對照：管理員看乙，今天一校那班有課 → 有狀態（不是 null），上一條才不是無腦通過
+      ctx.teacher = false;
+      const admin = (await hit(`/api/students?search=${encodeURIComponent('乙')}`, true)).body;
+      expect((admin['data'] as Array<{ todayStatus?: unknown }>)[0]!.todayStatus).not.toBeNull();
+    } finally {
+      ctx.teacherUser = main;
+      ctx.teacher = false;
+    }
+  });
+
+  it('第一頁（含今日到班）也不碰 REST：受限管理員、老師（舊碼：模式＋課堂 2–3 支）', async () => {
+    const realFetch = globalThis.fetch;
+    let rest = 0;
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      if (String(input instanceof Request ? input.url : input).includes('/rest/v1/')) rest += 1;
+      return realFetch(input, init);
+    });
+    try {
+      ctx.campusScope = [campus.c1];
+      const a = await hit('/api/students', true);
+      ctx.campusScope = null;
+      ctx.teacher = true;
+      const t = await hit('/api/students', true);
+      expect([a.status, t.status]).toEqual([200, 200]);
+      expect((a.body['summary'] as { today: unknown }).today).not.toBeNull();
+      expect(rest).toBe(0);
+    } finally {
+      spy.mockRestore();
+      ctx.campusScope = null;
       ctx.teacher = false;
     }
   });

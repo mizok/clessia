@@ -253,9 +253,18 @@ async function list(
   });
   app.route('/', studentsRoute as unknown as Hono);
   const res = await app.request(`/?${query}`);
+  // 查詢拋錯時裸 Hono 回純文字 500（正式 app 由 index.ts 的 onError 回 JSON）
+  const text = await res.text();
+  const parsed: unknown = (() => {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return {};
+    }
+  })();
   return {
     status: res.status,
-    body: (await res.json()) as {
+    body: parsed as {
       code?: string;
       data: Array<{ id: string; todayStatus?: { state: string } | null }>;
       summary: {
