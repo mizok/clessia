@@ -28,7 +28,7 @@ import { Course } from '@core/courses.service';
 import { CampusesService } from '@core/campuses.service';
 import { Staff } from '@core/staff.service';
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
-import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { ConflictWarningDialogComponent } from './conflict-warning-dialog/conflict-warning-dialog.component';
 import {
   ScheduleSplitDialogComponent,
@@ -57,7 +57,7 @@ export interface ScheduleFormEntry {
 @Component({
   selector: 'app-class-form-dialog',
   standalone: true,
-  imports: [CommonModule, FormsModule, SelectFieldComponent, DialogTitleDirective],
+  imports: [CommonModule, FormsModule, SelectFieldComponent, DialogFrameComponent],
   // **自己 provide 一份 `DialogService`。** 這支元件本身是被 DynamicDialog 開起來的，
   // 而它又要再開一層（排課衝突警告）。父層 `courses.page` 雖然有 provide，
   // 但「dialog 內的元件解不解析得到父元件層的 provider」取決於 PrimeNG 的

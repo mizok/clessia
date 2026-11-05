@@ -78,14 +78,15 @@ export const DEVIATIONS = [
   {
     status: '樣式',
     a6: '(^|>)landmark:dialog\\[[^\\]]*\\]>landmark:form\\[[^\\]]*\\]$',
-    item: '^padding 8px 24px 24px → 0px$',
+    // 手機稿 8/16/24（A6 .acset__body 手機左右 16）
+    item: '^padding 8px (24|16)px 24px → 0px$',
     reason: '殼的內距在內容區外層（.dialog-frame__body），稿在 form 上，幾何相同',
     source: 'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
   },
   {
     status: '位置',
     a6: '(^|>)landmark:dialog\\[[^\\]]*\\]>landmark:form\\[[^\\]]*\\]>',
-    detail: '^相對「form」 Δx -24、Δy -(8|9)（',
+    detail: '^相對「form」 Δx -(24|16)、Δy -(8|9)（',
     reason:
       '殼的內距在內容區外層（.dialog-frame__body），稿在 form 上：子項相對 form 位移，畫面位置相同',
     source: 'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
