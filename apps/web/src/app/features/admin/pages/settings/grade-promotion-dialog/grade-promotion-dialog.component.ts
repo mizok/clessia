@@ -1,6 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { ButtonModule } from 'primeng/button';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
 import type { HttpErrorResponse } from '@angular/common/http';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
@@ -10,6 +9,7 @@ import {
   type GradePromotionPreview,
   type GradePromotionResult,
 } from '@core/grade-promotions.service';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 
 /**
@@ -19,7 +19,7 @@ import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.
  */
 @Component({
   selector: 'app-grade-promotion-dialog',
-  imports: [ButtonModule, RouterLink, LoadFailedComponent],
+  imports: [DialogFrameComponent, RouterLink, LoadFailedComponent],
   templateUrl: './grade-promotion-dialog.component.html',
 })
 export class GradePromotionDialogComponent {
@@ -74,6 +74,8 @@ export class GradePromotionDialogComponent {
   }
 
   protected execute(): void {
+    // 鈕是 aria-disabled（不鎖死），連按要在這裡擋
+    if (this.executing()) return;
     this.executing.set(true);
     this.executeError.set(null);
     this.service.execute().subscribe({

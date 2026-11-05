@@ -69,6 +69,8 @@ describe('GradePromotionDialogComponent', () => {
     await setup();
 
     const confirm = button('把 13 位學生升一個年級；2 位高三改成停用（畢業）');
+    // 共用殼（#2290）：@if 裡的動作鈕真的投影進底部列（不是掉在內容區）
+    expect(confirm!.closest('.form-dialog__footer')).not.toBeNull();
     expect(confirm).toBeTruthy();
     expect(service.execute).not.toHaveBeenCalled();
   });

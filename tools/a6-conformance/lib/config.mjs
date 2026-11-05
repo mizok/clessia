@@ -690,6 +690,9 @@ const FORM_DIALOGS = {
     ),
   },
   parents: { 'new-parent': formOpen('[data-new]', 'button:has-text("新增家長")') },
+  // #2290 換共用殼的對話框（0950-a 家族）
+  leave: { batch: formOpen('[data-batch-leave]', 'button:has-text("批次請假")') },
+  schools: { 'new-school': formOpen('[data-new-school]', 'button:has-text("新增學校")') },
   exams: {
     'new-exam': formOpen('[data-new]', [
       'button:has-text("新增考試")',
@@ -1756,6 +1759,8 @@ export const PAGES = {
   leave: {
     a6: 'leave.html',
     app: '/admin/leave',
+    a6Open: opensOf('leave', 'a6Open'),
+    appOpen: opensOf('leave', 'appOpen'),
     deviations: [
       {
         // 稿的請假用今天起算的相對日期（leave.html D(n)），所以永遠有今天、明天的章；
@@ -2060,6 +2065,8 @@ export const PAGES = {
   schools: {
     a6: 'settings.html#schools',
     app: '/admin/settings/schools',
+    a6Open: opensOf('schools', 'a6Open'),
+    appOpen: opensOf('schools', 'appOpen'),
     deviations: [
       noCampusSwitch('學校名單整個補習班共用'),
       // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 courses／students 那條

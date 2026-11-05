@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ButtonModule } from 'primeng/button';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { RadioButtonModule } from 'primeng/radiobutton';
 import { SelectModule } from 'primeng/select';
 import { InputTextModule } from 'primeng/inputtext';
@@ -29,7 +29,7 @@ export interface SchoolFormDialogData {
 @Component({
   selector: 'app-school-form-dialog',
   standalone: true,
-  imports: [FormsModule, InputTextModule, ButtonModule, RadioButtonModule, SelectModule],
+  imports: [DialogFrameComponent, FormsModule, InputTextModule, RadioButtonModule, SelectModule],
   templateUrl: './school-form-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -55,6 +55,12 @@ export class SchoolFormDialogComponent {
 
   protected readonly editing = computed(() => this.config.data?.editing ?? null);
   protected readonly mode = computed(() => (this.editing() ? 'update' : 'create'));
+  protected readonly title = computed(() => {
+    const s = this.editing();
+    return s ? `編輯學校：${s.shortName || s.name}` : '新增學校';
+  });
+  /** A6 `.fdlg__why`：送出鈕不鎖死，左邊寫還差什麼 */
+  protected readonly missingHint = computed(() => (this.name().trim() ? null : '還沒填：學校全名'));
   protected readonly canSubmit = computed(
     () => this.name().trim().length > 0 && !this.submitting(),
   );

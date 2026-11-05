@@ -106,6 +106,15 @@ describe('CampusFormDialogComponent —— A6 campusForm（#1314 SE3）', () => 
     expect(el.textContent).toContain('建好之後就可以在這個分校開課');
   });
 
+  it('共用殼（#2290）：原生 dialog 的可及名稱指到殼的 h2', async () => {
+    const { el, fixture } = setup([]);
+    await fixture.whenStable();
+    const dialog = el.querySelector('dialog')!;
+    const h2 = el.querySelector('h2')!;
+    expect(h2.id).toBeTruthy();
+    expect(dialog.getAttribute('aria-labelledby')).toBe(h2.id);
+  });
+
   it('有 manage_org_settings：出現選單；「沿用機構預設」送 null，選日到班送 daily_checkin', () => {
     const { el, cmp, update, save } = setup(['manage_org_settings']);
     expect(el.textContent).toContain('出勤紀錄模式');
