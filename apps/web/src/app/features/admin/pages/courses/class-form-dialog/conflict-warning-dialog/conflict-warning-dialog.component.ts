@@ -1,4 +1,5 @@
 import { Component, inject } from '@angular/core';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { ButtonModule } from 'primeng/button';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 
@@ -27,7 +28,7 @@ export interface ConflictWarningDialogData {
 @Component({
   selector: 'app-conflict-warning-dialog',
   standalone: true,
-  imports: [ButtonModule],
+  imports: [DialogFrameComponent, ButtonModule],
   templateUrl: './conflict-warning-dialog.component.html',
 })
 export class ConflictWarningDialogComponent {

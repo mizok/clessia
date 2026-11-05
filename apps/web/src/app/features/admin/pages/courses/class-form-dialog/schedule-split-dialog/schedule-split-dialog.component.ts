@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
@@ -42,7 +43,7 @@ const REASON_LABEL: Record<SplitKeptReason, string> = {
 @Component({
   selector: 'app-schedule-split-dialog',
   standalone: true,
-  imports: [FormsModule, ButtonModule, SelectModule, InlineNoticeComponent],
+  imports: [DialogFrameComponent, FormsModule, ButtonModule, SelectModule, InlineNoticeComponent],
   templateUrl: './schedule-split-dialog.component.html',
 })
 export class ScheduleSplitDialogComponent {
