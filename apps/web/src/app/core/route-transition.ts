@@ -26,6 +26,23 @@ export function urlDepth(snapshot: ActivatedRouteSnapshot | null | undefined): n
   return depth;
 }
 
+/** 路徑＋query 一模一樣（只差 hash）：不是換頁，是頁內的面板開關（`#changes` 這類） */
+export function samePage(
+  from: ActivatedRouteSnapshot | null | undefined,
+  to: ActivatedRouteSnapshot | null | undefined,
+): boolean {
+  if (!from || !to) return false;
+  const path = (s: ActivatedRouteSnapshot | null) => {
+    const segs: string[] = [];
+    for (let r = s; r; r = r.firstChild) segs.push(...r.url.map((u) => u.path));
+    return segs.join('/');
+  };
+  return (
+    path(from) === path(to) &&
+    JSON.stringify(from.queryParams ?? {}) === JSON.stringify(to.queryParams ?? {})
+  );
+}
+
 export function routeDirection(fromDepth: number, toDepth: number): RouteDirection {
   if (toDepth > fromDepth) return 'forward';
   if (toDepth < fromDepth) return 'back';
@@ -36,13 +53,16 @@ export function routeDirection(fromDepth: number, toDepth: number): RouteDirecti
  * `withViewTransitions({ onViewTransitionCreated })` 的 callback。
  *
  * - **減少動態**：直接 `skipTransition()` —— 畫面照樣換，只是不走過程（設計稿 Q3，照 A6 全關）。
+ * - **只改 hash**（課表「全部異動」的 `#changes`）：也 `skipTransition()`。面板自己有進退場（#1634）；
+ *   換頁 VT 會在面板動到一半時把整頁凍成快照、再把內容區淡進來 —— 看起來是外框瞬間出現、
+ *   內容慢慢變實（#2292，使用者 11-05 錄影）。
  * - 其餘情況：把方向寫到 `<html>`，transition 結束後拿掉。
  *
  * 用 data 屬性而不是 VT types（`:active-view-transition-type()`）：Safari 18.0–18.1
  * 有 VT 但沒有 types；屬性在所有支援 VT 的瀏覽器上都成立。
  */
 export function onRouteViewTransition({ transition, from, to }: ViewTransitionInfo): void {
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (samePage(from, to) || matchMedia('(prefers-reduced-motion: reduce)').matches) {
     transition.skipTransition();
     return;
   }
