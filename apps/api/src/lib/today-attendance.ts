@@ -1,9 +1,5 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-
-import { fetchAllPages } from './fetch-all-pages';
-import { LEAVE_WINDOW_COLUMNS, leaveCoversSession, toLeaveWindow } from './leave-covers-session';
-
-const errorMessage = (e: unknown) => (e as { message?: string } | null)?.message ?? String(e);
+import type { Queryable } from './identity-sql';
+import { leaveCoversSession, toLeaveWindow } from './leave-covers-session';
 
 /**
  * **日到班模式「今天該有誰、誰到了、誰請假」的判準只有一份，住在這裡**（#1314 SL1）。
@@ -92,10 +88,63 @@ export interface DailyAttendanceScope {
 }
 
 /**
+ * `loadDailyAttendance` 的原料，一支 SQL（#1595 P2 ①）。$1 org、$2 日期、$3 分校（null＝不篩、空陣列＝零筆）、
+ * $4 班（只給老師；null＝不篩）。每張表都帶 `org_id = $1`（c1）。
+ * 形狀照原本三支 REST 的 select：在籍 `students(name, grade)`、請假帶 `leave_request_sessions(session_id, sessions(session_date))`。
+ */
+export const DAILY_ATTENDANCE_SQL = `
+select json_build_object(
+  'enrollments', coalesce((
+    select json_agg(json_build_object(
+      'id', en.id, 'student_id', en.student_id, 'class_id', en.class_id,
+      'students', json_build_object('name', st.name, 'grade', st.grade)
+    ) order by en.id)
+    from public.enrollments en
+    join public.students st on st.id = en.student_id and st.org_id = $1
+    join public.classes c on c.id = en.class_id and c.org_id = $1
+    where en.org_id = $1
+      and en.status = 'active'
+      and en.effective_from <= $2::date
+      and (en.effective_to is null or en.effective_to >= $2::date)
+      and exists (
+        select 1 from public.sessions s
+        where s.class_id = en.class_id and s.org_id = $1
+          and s.session_date = $2::date and s.status <> 'cancelled'
+      )
+      and ($3::uuid[] is null or c.campus_id = any($3::uuid[]))
+      and ($4::uuid[] is null or en.class_id = any($4::uuid[]))
+  ), '[]'::json),
+  'checkins', coalesce((
+    select json_agg(json_build_object(
+      'id', dc.id, 'student_id', dc.student_id, 'checked_in_at', dc.checked_in_at
+    ) order by dc.id)
+    from public.daily_checkins dc
+    where dc.org_id = $1 and dc.checkin_date = $2::date
+  ), '[]'::json),
+  'leaves', coalesce((
+    select json_agg(json_build_object(
+      'student_id', lr.student_id, 'submitted_by_role', lr.submitted_by_role, 'reason', lr.reason,
+      'start_date', lr.start_date, 'end_date', lr.end_date,
+      'start_time', lr.start_time, 'end_time', lr.end_time,
+      'leave_request_sessions', coalesce((
+        select json_agg(json_build_object(
+          'session_id', lrs.session_id,
+          'sessions', (select json_build_object('session_date', s.session_date)
+                       from public.sessions s where s.id = lrs.session_id and s.org_id = $1)
+        ))
+        from public.leave_request_sessions lrs where lrs.leave_request_id = lr.id
+      ), '[]'::json)
+    ) order by lr.id)
+    from public.leave_requests lr
+    where lr.org_id = $1 and lr.start_date <= $2::date and lr.end_date >= $2::date
+  ), '[]'::json)
+) as result`;
+
+/**
  * 今天有課的班的在籍學生、打卡、請假。`sessions` 由呼叫端撈（已套 `scope`），用來帶出第一堂課與分校。
  */
 export async function loadDailyAttendance(
-  supabase: SupabaseClient,
+  db: Queryable,
   orgId: string,
   date: string,
   sessions: readonly TodaySession[],
@@ -109,55 +158,34 @@ export async function loadDailyAttendance(
   // 在籍條件**與點名名單同源**（`status = 'active'` + 生效區間涵蓋當天）——
   // #178 已經在 daily-checkins.ts 建立這個先例，照抄不另立一份。
   // 兩邊條件不一致會生出「有出勤紀錄但名單上沒這個人」的鬼影。
-  // **翻到底**（#1928）：今天應到的人、今天的打卡都可能超過 PostgREST 的 max_rows（1000）——
-  // 一次撈會被靜默截斷，被截掉的人不在應到名單、或顯示成「該到沒到」。翻頁每頁一個 subrequest，
-  // 應到 3000 人也只要 3 頁。
-  // **「今天有課（沒停課）的班」放在 embed 的 `!inner` 裡、在 DB 端篩**（#2227，#1928 A#7）：原本把今天有課的班 id
-  // `.in()` 回 enrollments，大機構一天上百班就 414（整頁 500）。範圍條件跟呼叫端撈 `sessions` 的同一組
-  const [enrollments, checkins] = await Promise.all([
-    fetchAllPages((from, to) => {
-      let query = supabase
-        .from('enrollments')
-        .select(
-          'id, student_id, class_id, students(name, grade), classes!inner(sessions!inner(session_date, status))',
-        )
-        .eq('org_id', orgId)
-        .eq('status', 'active')
-        .eq('classes.sessions.session_date', date)
-        .neq('classes.sessions.status', 'cancelled')
-        .lte('effective_from', date)
-        .or(`effective_to.is.null,effective_to.gte.${date}`);
-      if (scope.campusIds) query = query.in('classes.campus_id', [...scope.campusIds]);
-      if (scope.classIds) {
-        query = query.in(
-          'class_id',
-          scope.classIds.length > 0 ? [...scope.classIds] : ['00000000-0000-0000-0000-000000000000'],
-        );
-      }
-      return query.order('id').range(from, to);
-    }),
-    fetchAllPages((from, to) =>
-      supabase
-        .from('daily_checkins')
-        .select('id, student_id, checked_in_at')
-        .eq('org_id', orgId)
-        .eq('checkin_date', date)
-        .order('id')
-        .range(from, to),
-    ),
+  // **一支 pg SQL 回原料**（#1595 P2 ①）：在籍、打卡、請假原本是三支 PostgREST（在籍與打卡還要翻頁，
+  // 避開 max_rows 1000 的靜默截斷，#1928）。判準（誰算應到、誰請假）照舊在下面的 JS。
+  // 「今天有課（沒停課）的班」與分校範圍都在 DB 端篩，條件跟呼叫端撈 `sessions` 的同一組（#2227）
+  const { rows } = await db.query(DAILY_ATTENDANCE_SQL, [
+    orgId,
+    date,
+    scope.campusIds ? [...scope.campusIds] : null,
+    scope.classIds ? [...scope.classIds] : null,
   ]);
+  const raw = (rows[0] as { result?: Record<string, unknown> } | undefined)?.result;
   // 讀取失敗不能當成空的（#1928）：在籍空＝今天沒人該來、打卡空＝全部「該到沒到」。呼叫端由全域 onError 回 500
-  if (enrollments.error)
-    throw new Error(`讀取今天的在籍名單失敗：${errorMessage(enrollments.error)}`);
-  if (checkins.error) throw new Error(`讀取今天的打卡失敗：${errorMessage(checkins.error)}`);
-  const enrollmentRows = enrollments.rows;
-  const checkinRows = checkins.rows;
+  if (
+    !raw ||
+    !Array.isArray(raw['enrollments']) ||
+    !Array.isArray(raw['checkins']) ||
+    !Array.isArray(raw['leaves'])
+  ) {
+    throw new Error('讀取今天的在籍、打卡、請假失敗：結果形狀不對');
+  }
+  const enrollmentRows = raw['enrollments'] as Row[];
+  const checkinRows = raw['checkins'] as Row[];
+  const leaveRows = raw['leaves'] as Row[];
 
   // 一個學生可能在今天的兩個班都有課 —— 只列一次，`firstSession` 取最早那堂
   const sessionByClass = new Map(held.map((session) => [session.classId, session]));
   const byStudent = new Map<string, ExpectedStudent>();
 
-  for (const row of (enrollmentRows ?? []) as Row[]) {
+  for (const row of enrollmentRows) {
     const studentId = row['student_id'] as string;
     const student = row['students'] as { name?: string; grade?: string | null } | null;
     const session = sessionByClass.get(row['class_id'] as string);
@@ -193,7 +221,7 @@ export async function loadDailyAttendance(
     a.studentName.localeCompare(b.studentName, 'zh-Hant'),
   );
 
-  const arrived = ((checkinRows ?? []) as Row[]).map((row) => ({
+  const arrived = checkinRows.map((row) => ({
     studentId: row['student_id'] as string,
     checkedInAt: row['checked_in_at'] as string,
     checkinId: row['id'] as string,
@@ -201,21 +229,11 @@ export async function loadDailyAttendance(
 
   let onLeave: DailyLeave[] = [];
   if (expected.length > 0) {
-    // **不把今天應到的學生 id 塞進 `.in`**（#1928）：大機構一天幾百到上千人，網址太長 → 414。
-    // 改撈這個 org 當天有效的假（一天通常幾十張），下面只留應到名單裡的人 —— 名單已套過分校範圍，
-    // 名單外的假不會出現在結果裡
-    const { data: leaveRows, error: leaveError } = await supabase
-      .from('leave_requests')
-      .select(`student_id, submitted_by_role, reason, ${LEAVE_WINDOW_COLUMNS}`)
-      .eq('org_id', orgId)
-      .lte('start_date', date)
-      .gte('end_date', date);
-    // 請假讀失敗 → 請假的學生會顯示成「該到沒到」（#1928）
-    if (leaveError) throw new Error(`讀取今天的請假失敗：${leaveError.message}`);
-
+    // 撈的是這個 org 當天有效的假（一天通常幾十張），下面只留應到名單裡的人 ——
+    // 名單已套過分校範圍，名單外的假不會出現在結果裡（不把應到的 id 帶進查詢，#1928）
     const nameById = new Map(expected.map((student) => [student.studentId, student.studentName]));
 
-    onLeave = ((leaveRows ?? []) as Row[])
+    onLeave = leaveRows
       .filter((row) => nameById.has(row['student_id'] as string))
       .filter((row) =>
         // 半天假只蓋到部分時段 —— 用跟 roster 同一支判斷（#153），
