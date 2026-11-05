@@ -4,7 +4,7 @@ summary: 建立組織與第一個管理員的唯一路徑。零 demo 資料，�
 category: architecture
 tags: [architecture, deployment, bootstrap, onboarding]
 status: active
-updated: 2026-11-04
+updated: 2026-11-05
 ---
 
 # 開一個新站
@@ -77,6 +77,11 @@ social login only user」。給了會做一次 scrypt，那正是撞爆 Workers 
 ### 冪等：slug already exists 就中止
 
 不覆寫任何東西。重跑一次不會把客戶的組織名稱改掉，也不會多建一個管理員。
+
+### 開站後要開公開頁，`PUBLIC_ORG_SLUG` 填這裡給的 slug
+
+公開頁（試聽、報名、課程目錄）靠 `PUBLIC_ORG_SLUG` 對 `organizations.slug` 找 org，對不到就 404（關著）。
+要開就把開站時給的 slug 寫進 `wrangler.toml` 的 `[env.production.vars]`（#2311），細節見 [[architecture/deploying]]。
 
 ## 刻意不做
 

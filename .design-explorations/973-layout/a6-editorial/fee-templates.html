@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 費用方案管理</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); flex: 1 1 auto; min-width: 0; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 var(--space-3); border: 1px solid var(--zinc-300); border-radius: var(--radius-full); background: #fff; font: inherit; font-size: var(--text-md); font-weight: var(--font-semibold); color: var(--zinc-800); cursor: pointer; white-space: nowrap; }
+  .chip[aria-pressed='true'] { border-color: var(--zinc-900); box-shadow: inset 0 0 0 1px var(--zinc-900); color: var(--zinc-900); }
+  .sec__lede a { color: inherit; }
+  .ft { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.1fr) 44px; gap: var(--space-1) var(--space-6); align-items: center; min-height: 64px; padding: var(--space-3) 0; border-bottom: 1px solid var(--surface-border); }
+  .ft__name { font-size: var(--text-lg); font-weight: var(--font-bold); background: none; border: 0; padding: 0; font-family: inherit; text-align: left; cursor: pointer; color: var(--zinc-900); }
+  .ft__name:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .ft--off .ft__name { color: var(--zinc-600); }
+  .ft__amt { font-size: var(--text-xl); font-weight: var(--font-bold); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .ft__amt small { font-size: var(--text-sm); font-weight: var(--font-medium); color: var(--zinc-600); letter-spacing: 0; }
+  .ft__st { font-size: var(--text-md); color: var(--zinc-800); }
+  .ft--off .ft__st { color: var(--zinc-600); }
+  .ft__use { font-size: var(--text-md); color: var(--zinc-700); }
+  .ft__use a { color: var(--zinc-900); font-weight: var(--font-semibold); text-decoration: underline; text-decoration-color: var(--zinc-300); text-underline-offset: 3px; }
+  .more-btn { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: var(--radius-md); background: none; color: var(--zinc-800); cursor: pointer; }
+  .more-btn:hover { background: var(--zinc-100); }
+  .pop--menu .is-danger { color: var(--error-700); }
+  .pop--menu hr { margin: 4px 0; border: 0; border-top: 1px solid var(--zinc-200); }
+  .bp { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.4fr) minmax(0, 1.2fr) 44px; gap: var(--space-1) var(--space-6); align-items: center; min-height: 60px; padding: var(--space-3) 0; border-bottom: 1px solid var(--surface-border); }
+  .bp__name { font-weight: var(--font-bold); font-size: var(--text-lg); }
+  .bp__range { font-size: var(--text-md); font-variant-numeric: tabular-nums; color: var(--zinc-800); }
+  .bp__range small { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--zinc-600); }
+  .bp__use { font-size: var(--text-md); color: var(--zinc-700); }
+  .bp__use a { color: var(--zinc-900); font-weight: var(--font-semibold); text-decoration: underline; text-decoration-color: var(--zinc-300); text-underline-offset: 3px; }
+  .empty { padding: var(--space-6) 0; font-size: var(--text-base); color: var(--zinc-700); }
+  .empty .btn { margin-left: var(--space-2); }
+  .is-gone { opacity: 0; transform: translateX(8px); transition: opacity 0.14s var(--leave), transform 0.14s var(--leave); }
+  .loglist { list-style: none; margin: 0; padding: 0 var(--space-6) var(--space-6); display: grid; gap: var(--space-3); }
+  .loglist li { display: grid; grid-template-columns: 92px 1fr; gap: var(--space-3); font-size: var(--text-md); }
+  .loglist time { color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  @media (max-width: 860px) {
+    .ft { grid-template-columns: minmax(0, 1fr) auto 44px; gap: var(--space-1) var(--space-3); }
+    .ft__name { grid-column: 1; }
+    .ft__amt { grid-column: 2; grid-row: 1; text-align: right; }
+    .ft .more-btn { grid-column: 3; grid-row: 1; }
+    .ft__st, .ft__use { grid-column: 1 / -1; font-size: var(--text-sm); }
+    .bp { grid-template-columns: minmax(0, 1fr) 44px; gap: var(--space-1) var(--space-3); }
+    .bp__range, .bp__use { grid-column: 1; }
+    .bp .more-btn { grid-column: 2; grid-row: 1; }
+    .chap { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding: var(--space-6) 0 var(--space-2); }
+    .chap__side { position: static; display: flex; align-items: baseline; gap: var(--space-3); }
+    .chap__big { font-size: 28px; }
+    .chap__tally { margin-top: 0; font-size: var(--text-base); }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>費用方案管理 · A6（#990 批 3）</h2>
+  <h3>規格 vs 現況</h3>
+  <p>依據：<code>specs/admin/finance/fee-templates.md</code>（2026-08-29 依 <code>rules/billing-rules.md</code> 重寫）；現況：<code>specs/sitemap/admin/fee-templates.md</code>。</p>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格</th><th>產品現況（sitemap 實測）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>一頁兩個實體</td><td>價目表＋收費期間同頁管理</td><td>同頁兩個區塊，各自取數各自失敗</td><td>照做：兩段，各自有自己的新增與空狀態</td></tr>
+      <tr><td>價目表篩選</td><td>名稱搜尋、計費模式、是否啟用</td><td>搜尋＋「顯示停用方案」一顆 chip；沒有計費模式篩選</td><td>搜尋＋顯示停用方案（照產品）；計費模式改成「依模式分章」（月繳／期繳／堂數制），不另做下拉</td></tr>
+      <tr><td>每列</td><td>名稱、計費模式、金額、啟用狀態</td><td>同（狀態用圓點）</td><td>照做；狀態寫字（啟用中／已停用），另加「N 筆報名在用」連到報名進出（<span class="new">新</span>：產品沒顯示引用數）</td></tr>
+      <tr><td>停用／啟用</td><td>停用是常態，不出現在報名選單</td><td>⋮ 直接 PATCH，沒有回饋說明</td><td>⋮ 停用／啟用 → toast（可復原）</td></tr>
+      <tr><td>刪除</td><td>被任何報名引用過就刪不掉（FK RESTRICT），UI 要顯示後端錯誤、不能樂觀更新</td><td>兩段式：確認 → 409 時再問「改為停用」</td><td>有人在用的方案，選單上直接寫「N 筆報名在用，無法刪除」並提供「改為停用」；沒人用的才進刪除確認</td></tr>
+      <tr><td>表單</td><td>方案名稱（1–100 字）、計費模式、金額（整數）、啟用</td><td>同；新增預設月繳</td><td>照做；啟用用兩個選項（啟用／停用）</td></tr>
+      <tr><td>收費期間</td><td>名稱、起始日、結束日；結束不得早於開始；<b>期間可重疊，不要擋</b></td><td>同；起訖日用 PrimeNG datepicker</td><td>照做；重疊的期間只寫一行「跟『X』重疊」說明，不擋；另顯示「N 筆期繳報名在用」（<span class="new">新</span>）</td></tr>
+      <tr><td>操作紀錄</td><td>規格沒寫</td><td>頁首有「操作紀錄」</td><td>保留（註記）</td></tr>
+      <tr><td>權限</td><td>manage_finance，沒有的人看不到選單</td><td>permissionGuard＋選單隱藏</td><td>設計稿以有權限的管理員畫</td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>價目表依計費模式分三章；名字可以直接點開編輯。</li>
+    <li>收費期間依起始日由新到舊；重疊的期間只是提醒，不擋。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, money, esc } = A2;
+  const MODE = { monthly: '月繳', period: '期繳', session_pack: '堂數制' };
+  const UNIT = { monthly: '／月', period: '／期', session_pack: '' };
+
+  // ── 資料：最壞情況，價目表 28 種（含停用、有人在用與沒人用），收費期間 9 段（有重疊）──
+  let seq = 0;
+  const F = [];
+  const add = (name, mode, amount, active, refs) => F.push({ id: 'ft' + ++seq, name, mode, amount, active, refs });
+  ['國小', '國一', '國二', '國三', '高一', '高二'].forEach((g, i) => {
+    add(`${g}主科月繳`, 'monthly', 3600 + i * 400, true, 20 + i * 7);
+    add(`${g}單科月繳`, 'monthly', 2400 + i * 300, true, 8 + i * 3);
+    if (i >= 3) add(`${g}主科期繳`, 'period', 19800 + i * 1500, true, 6 + i);
+  });
+  add('國中會考衝刺班期繳', 'period', 28800, true, 30);
+  add('暑期先修班期繳', 'period', 16800, true, 0);
+  add('國三主科月繳（舊價）', 'monthly', 4500, false, 41);
+  add('寒假營（2025）', 'period', 9800, false, 18);
+  add('才藝班 10 堂', 'session_pack', 4500, true, 12);
+  add('才藝班 20 堂', 'session_pack', 8400, true, 7);
+  add('英檢加強 12 堂', 'session_pack', 6000, true, 0);
+  add('自然實驗課 8 堂', 'session_pack', 3600, false, 3);
+  add('作文個別指導 6 堂', 'session_pack', 5400, true, 2);
+  add('一對一數學 10 堂', 'session_pack', 12000, true, 5);
+
+  const P = [
+    ['2026 上學期 + 暑假', '2026-07-01', '2027-01-31', 22], ['2026 上學期', '2026-09-01', '2027-01-31', 64], ['2026 暑假', '2026-07-01', '2026-08-31', 31],
+    ['2026 下學期', '2026-02-01', '2026-06-30', 0], ['2026 寒假', '2026-01-20', '2026-02-15', 12], ['2025 上學期', '2025-09-01', '2026-01-31', 58],
+    ['2025 暑假', '2025-07-01', '2025-08-31', 27], ['2025 下學期', '2025-02-01', '2025-06-30', 49], ['2025 寒假', '2025-01-20', '2025-02-15', 15],
+  ].map(([name, from, to, refs], i) => ({ id: 'bp' + i, name, from, to, refs }));
+
+  const LOGS = [
+    ['10/01 16:22', '林主任', '停用「國三主科月繳（舊價）」'], ['09/30 11:05', '陳會計', '新增「一對一數學 10 堂」 NT$ 12,000'],
+    ['09/28 09:40', '陳會計', '修改「國二主科月繳」 NT$ 4,200 → 4,400'], ['09/02 10:12', '林主任', '新增收費期間「2026 上學期 + 暑假」'],
+    ['08/29 17:30', '林主任', '新增收費期間「2026 上學期」'],
+  ];
+
+  const st = { q: '', off: false };
+  const fmtRange = (p) => `${p.from.replaceAll('-', '/')} — ${p.to.replaceAll('-', '/')}`;
+  const overlaps = (p) => P.filter((o) => o !== p && o.from <= p.to && p.from <= o.to).map((o) => o.name);
+
+  const ftRow = (f) => `<div class="ft${f.active ? '' : ' ft--off'}" data-id="${f.id}">
+      <button class="ft__name" type="button" data-edit="${f.id}">${esc(f.name)}</button>
+      <span class="ft__amt"><small>NT$ </small>${money(f.amount)}<small>${UNIT[f.mode]}</small></span>
+      <span class="ft__st">${f.active ? '啟用中' : '已停用 · 不出現在報名選單'}</span>
+      <span class="ft__use">${f.refs ? `<a href="enrollments.html">${f.refs} 筆報名在用</a>` : '還沒有報名用它'}</span>
+      <button class="more-btn" type="button" popovertarget="fm" data-fm="${f.id}" aria-label="${esc(f.name)} 的更多動作">${icon.dots}</button>
+    </div>`;
+  const bpRow = (p) => { const ov = overlaps(p); return `<div class="bp" data-id="${p.id}">
+      <span class="bp__name">${esc(p.name)}</span>
+      <span class="bp__range">${fmtRange(p)}${ov.length ? `<small>跟「${ov.map(esc).join('」「')}」重疊（新舊制交接時本來就會，不影響）</small>` : ''}</span>
+      <span class="bp__use">${p.refs ? `<a href="enrollments.html">${p.refs} 筆期繳報名在用</a>` : '還沒有報名用它'}</span>
+      <button class="more-btn" type="button" popovertarget="pm" data-pm="${p.id}" aria-label="${esc(p.name)} 的更多動作">${icon.dots}</button>
+    </div>`; };
+
+  function render() {
+    const q = st.q.trim();
+    const list = F.filter((f) => (st.off || f.active) && (!q || f.name.includes(q)));
+    const on = F.filter((f) => f.active).length;
+    document.querySelector('.open__title').innerHTML = `${F.length} 種價目，<br>${on} 種開放報名。`;
+    document.querySelector('[data-off]').setAttribute('aria-pressed', st.off);
+    document.querySelector('[data-off]').lastChild.textContent = st.off ? '隱藏停用方案' : `顯示停用方案（${F.length - on}）`;
+    const chaps = Object.keys(MODE).map((m) => [m, list.filter((f) => f.mode === m)]).filter(([, a]) => a.length);
+    document.getElementById('ft').innerHTML = chaps.length
+      ? chaps.map(([m, a]) => `<section class="chap" aria-label="${MODE[m]}"><div class="chap__side"><div class="chap__big">${MODE[m]}</div><p class="chap__tally">${a.length} 種</p></div><div>${a.sort((x, y) => y.active - x.active || x.amount - y.amount).map(ftRow).join('')}</div></section>`).join('')
+      : q ? `<p class="empty">沒有找到符合「${esc(q)}」的方案。<button class="btn btn--sm" type="button" data-clear>清除搜尋</button></p>`
+        : `<p class="empty">尚未建立價目表。建立第一個收費方案，報名時就能挑選它。<button class="btn btn--sm btn--cta" type="button" data-newft>${icon.plus}新增價目表</button></p>`;
+    document.getElementById('bp').innerHTML = P.length ? [...P].sort((a, b) => b.from.localeCompare(a.from)).map(bpRow).join('')
+      : `<p class="empty">尚未建立收費期間。一年兩期或照學期制都可以 —— 期間由你自己定義。<button class="btn btn--sm" type="button" data-newbp>${icon.plus}新增期間</button></p>`;
+  }
+
+  shell({
+    page: 'fee-templates',
+    title: '',
+    sub: '這裡只給定價，實際談定的金額寫在每筆報名上。',
+    bar: `<div class="tools"><label class="tsearch">${icon.search}<input type="search" id="q" placeholder="搜尋方案名稱" aria-label="搜尋方案名稱" autocomplete="off"></label>
+        <button class="chip" type="button" data-off aria-pressed="false">${icon.filter}<span>顯示停用方案</span></button></div>
+      <div class="tbar__act"><button class="btn tbar__icon" type="button" data-log aria-label="操作紀錄" title="操作紀錄">${icon.clock}</button><button class="btn btn--cta only-d" type="button" data-newft>${icon.plus}新增價目表</button></div>`,
+    dock: `<button class="btn" type="button" data-newbp>${icon.plus}新增期間</button><button class="btn btn--cta" type="button" data-newft>${icon.plus}新增價目表</button>`,
+    phase: 4100,
+  }, `<section class="sec" aria-labelledby="h-ft">
+      <div class="sec__head"><h2 class="sec__title" id="h-ft">價目表</h2><span class="sec__count">停用的方案不會出現在報名選單，但歷史報名仍看得懂它</span></div>
+      <div id="ft"></div>
+    </section>
+    <section class="sec" aria-labelledby="h-bp">
+      <div class="sec__head"><h2 class="sec__title" id="h-bp">收費期間</h2><span class="sec__count">期繳用的具名日期區間</span><button class="btn btn--sm sec__link only-d" type="button" data-newbp>${icon.plus}新增期間</button></div>
+      <div id="bp"></div>
+    </section>
+    <div class="pop pop--menu" id="fm" popover></div>
+    <div class="pop pop--menu" id="pm" popover></div>
+    <dialog class="acset fdlg" id="log" aria-labelledby="log-t"><div class="acset__head"><h2 class="acset__t" id="log-t">操作紀錄</h2><button class="acset__x" type="button" aria-label="關閉" data-logx>${icon.x}</button></div>
+      <ul class="loglist">${LOGS.map(([t, w, x]) => `<li><time>${t}</time><span><b>${w}</b> ${esc(x)}</span></li>`).join('')}</ul></dialog>`);
+  render();
+
+  const fById = (id) => F.find((f) => f.id === id), pById = (id) => P.find((p) => p.id === id);
+  const hide = (id) => { const p = document.getElementById(id); if (p.matches(':popover-open')) p.hidePopover(); };
+  // ⋯ 選單依那一列的狀態重畫（同一份 popover，a6.js 貼著實際被按的那顆）
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('[data-fm]');
+    if (a) { const f = fById(a.dataset.fm); document.getElementById('fm').innerHTML = `<button type="button" data-edit="${f.id}">${icon.edit}編輯</button>
+      ${f.active ? `<button type="button" data-toggle="${f.id}">停用</button>` : `<button type="button" data-toggle="${f.id}">啟用</button>`}<hr>
+      ${f.refs ? `<button type="button" disabled>${f.refs} 筆報名在用，無法刪除</button>` : `<button type="button" class="is-danger" data-del="${f.id}">刪除</button>`}`; }
+    const b = e.target.closest('[data-pm]');
+    if (b) { const p = pById(b.dataset.pm); document.getElementById('pm').innerHTML = `<button type="button" data-pedit="${p.id}">${icon.edit}編輯</button><hr>
+      ${p.refs ? `<button type="button" disabled>${p.refs} 筆報名在用，無法刪除</button>` : `<button type="button" class="is-danger" data-pdel="${p.id}">刪除</button>`}`; }
+  }, true);
+
+  const ftFields = (f = {}) => [
+    { k: 'name', label: '方案名稱', value: f.name || '', req: true, ph: '如：國中主科月繳' },
+    { k: 'mode', label: '計費模式', type: 'select', options: Object.entries(MODE), value: f.mode || 'monthly', half: true },
+    { k: 'amt', label: '定價', type: 'money', value: f.amount ? String(f.amount) : '', req: true, half: true, hint: '整數，台幣沒有小數。這是定價，實際收多少在報名時可以另外議定。' },
+    { k: 'on', label: '狀態', type: 'radio', options: ['啟用', '停用'], value: f.active === false ? '停用' : '啟用', hint: '停用後不會出現在報名選單，歷史報名不受影響。' },
+  ];
+  const bpFields = (p = {}) => [
+    { k: 'name', label: '期間名稱', value: p.name || '', req: true, ph: '如：2026 上學期 + 暑假' },
+    { k: 'from', label: '起始日', type: 'date', value: p.from || '', req: true, half: true },
+    { k: 'to', label: '結束日', type: 'date', value: p.to || '', req: true, half: true, hint: '期間之間可以重疊 —— 新舊制交接時本來就會。' },
+  ];
+  const num = (s) => +String(s).replace(/\D/g, '') || 0;
+
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (t.closest('[data-off]')) { st.off = !st.off; render(); }
+    if (t.closest('[data-clear]')) { st.q = ''; document.getElementById('q').value = ''; render(); }
+    if (t.closest('[data-log]')) document.getElementById('log').showModal();
+    if (t.closest('[data-logx]') || t.id === 'log') document.getElementById('log').close();
+    if (t.closest('[data-newft]')) A2.form({ title: '新增價目表', sub: '這裡填的是定價。實際收多少在報名時可以另外議定。', fields: ftFields(), submit: '儲存', busy: '儲存中…',
+      ok: (v) => `已新增「${v.name}」 NT$ ${money(num(v.amt))}`, apply: (v) => { F.push({ id: 'ft' + ++seq, name: v.name, mode: v.mode, amount: num(v.amt), active: v.on === '啟用', refs: 0 }); render(); } });
+    const ed = t.closest('[data-edit]');
+    if (ed) { hide('fm'); const f = fById(ed.dataset.edit); A2.form({ title: '編輯價目表', sub: f.refs ? `${f.refs} 筆報名在用 —— 改定價不影響已經談定的金額` : '還沒有報名用它', fields: ftFields(f), submit: '儲存', busy: '儲存中…',
+      ok: (v) => `已更新「${v.name}」`, apply: (v) => { Object.assign(f, { name: v.name, mode: v.mode, amount: num(v.amt), active: v.on === '啟用' }); render(); } }); }
+    const tg = t.closest('[data-toggle]');
+    if (tg) { hide('fm'); const f = fById(tg.dataset.toggle); f.active = !f.active; render(); A2.toast(f.active ? `「${f.name}」已啟用，報名選單會出現它` : `「${f.name}」已停用，報名選單不再出現`, { undo: () => { f.active = !f.active; render(); } }); }
+    const dl = t.closest('[data-del]');
+    if (dl) { hide('fm'); const f = fById(dl.dataset.del); A2.form({ title: `刪除「${f.name}」`, sub: '還沒有報名用它，可以刪除。刪除後無法復原（操作紀錄會保留）。', fields: [], submit: '刪除', busy: '刪除中…',
+      ok: `已刪除「${f.name}」`, apply: () => { F.splice(F.indexOf(f), 1); render(); } }); }
+    if (t.closest('[data-newbp]')) A2.form({ title: '新增收費期間', sub: '一年兩期、一年一期、照學期制都可以 —— 期間由機構自己定義。', fields: bpFields(), submit: '儲存', busy: '儲存中…',
+      ok: (v) => `已新增收費期間「${v.name}」`, apply: (v) => { P.push({ id: 'bp' + P.length + 'n', name: v.name, from: v.from, to: v.to, refs: 0 }); render(); } });
+    const pe = t.closest('[data-pedit]');
+    if (pe) { hide('pm'); const p = pById(pe.dataset.pedit); A2.form({ title: '編輯收費期間', sub: p.name, fields: bpFields(p), submit: '儲存', busy: '儲存中…',
+      ok: (v) => `已更新「${v.name}」`, apply: (v) => { Object.assign(p, { name: v.name, from: v.from, to: v.to }); render(); } }); }
+    const pd = t.closest('[data-pdel]');
+    if (pd) { hide('pm'); const p = pById(pd.dataset.pdel); A2.form({ title: `刪除「${p.name}」`, sub: '還沒有報名用它，可以刪除。刪除後無法復原（操作紀錄會保留）。', fields: [], submit: '刪除', busy: '刪除中…',
+      ok: `已刪除收費期間「${p.name}」`, apply: () => { P.splice(P.indexOf(p), 1); render(); } }); }
+  });
+  // 結束日不得早於開始日：開著的期間表單裡，即時檢查（唯一一條驗證）
+  const checkRange = (e) => {
+    const d = e.target.closest('dialog.fdlg'); if (!d) return;
+    const f = d.querySelector('[data-k="from"]'), to = d.querySelector('[data-k="to"]'); if (!f || !to) return;
+    const bad = f.value && to.value && to.value < f.value;
+    const go = d.querySelector('[data-go]'), why = d.querySelector('.fdlg__why');
+    if (bad) { go.setAttribute('aria-disabled', 'true'); why.textContent = '結束日不能早於起始日'; }
+  };
+  document.addEventListener('input', checkRange); document.addEventListener('change', checkRange);
+  document.getElementById('q').addEventListener('input', (e) => { st.q = e.target.value; render(); });
+})();
+</script>
+</body>
+</html>

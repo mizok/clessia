@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 成績總覽 · 學生視角</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  .srow { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.6fr) 96px 96px; align-items: center; gap: var(--space-2) var(--space-6); width: 100%; padding: var(--space-4) 0; border: 0; border-bottom: 1px solid var(--surface-border); background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .srow:hover .srow__name { text-decoration: underline; text-underline-offset: 4px; }
+  .srow:focus-visible { outline: 2px solid var(--zinc-900); outline-offset: 2px; border-radius: var(--radius-sm); }
+  .srow__name { display: block; font-size: var(--text-lg); font-weight: var(--font-semibold); }
+  .srow__meta, .srow__last { font-size: var(--text-sm); color: var(--zinc-600); }
+  .srow__last b { color: var(--zinc-900); font-weight: var(--font-semibold); }
+  .srow__n { text-align: right; font-size: var(--text-xl); font-weight: var(--font-bold); font-variant-numeric: tabular-nums; }
+  .srow__n small { display: block; font-size: var(--text-xs); font-weight: var(--font-medium); color: var(--zinc-600); }
+  .srow__n--fail { color: var(--error-700); }
+  .pager { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-6); font-size: var(--text-md); color: var(--zinc-700); font-variant-numeric: tabular-nums; }
+  .ff { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); width: 440px; max-width: 100%; }
+  .ff label { display: grid; gap: var(--space-1); font-size: var(--text-md); font-weight: var(--font-semibold); color: var(--zinc-700); min-width: 0; }
+  .ff .dd { width: 100%; height: 40px; }
+  .ff__foot .btn { margin-left: auto; }
+  .ff__foot { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; }
+  /* 明細對話框 */
+  .gdlg { width: min(760px, calc(100% - 32px)); overflow: auto; }
+  .gdlg__bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: 0 var(--space-6) var(--space-3); }
+  .gdlg__bar .dd { height: 36px; min-width: 140px; }
+  .seg { display: inline-flex; border: 1px solid var(--zinc-300); border-radius: var(--radius-md); overflow: hidden; }
+  .seg button { height: 34px; padding: 0 var(--space-3); border: 0; background: #fff; font: inherit; font-size: var(--text-md); cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--zinc-300); }
+  .seg button[aria-pressed='true'] { background: var(--zinc-900); color: #fff; font-weight: var(--font-semibold); }
+  .gdlg__sum { padding: 0 var(--space-6) var(--space-2); font-size: var(--text-md); color: var(--zinc-700); }
+  .gdlg__list { padding: 0 var(--space-6) var(--space-4); }
+  .rec { display: grid; grid-template-columns: 64px minmax(0, 1fr) 120px auto; align-items: center; gap: var(--space-1) var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--surface-border); }
+  .rec__d { font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .rec__t { font-weight: var(--font-semibold); }
+  .rec__c { display: block; font-size: var(--text-sm); color: var(--zinc-600); }
+  .rec__v { text-align: right; font-size: var(--text-xl); font-weight: var(--font-bold); font-variant-numeric: tabular-nums; }
+  .rec__v small { display: block; font-size: var(--text-xs); font-weight: var(--font-medium); color: var(--zinc-600); }
+  .rec .tag { justify-self: end; }
+  .gdlg__foot { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: var(--space-2); padding: var(--space-3) var(--space-6) var(--space-6); background: inherit; }
+  @media (max-width: 860px) {
+    .srow { grid-template-columns: minmax(0, 1fr) 64px 64px; }
+    .srow__last { grid-column: 1 / -1; grid-row: 2; }
+    .gdlg { width: 100%; }
+    .gdlg__bar, .gdlg__sum, .gdlg__list { padding-left: var(--space-4); padding-right: var(--space-4); }
+    .rec { grid-template-columns: 48px minmax(0, 1fr) 64px; }
+    .rec .tag, .rec__go { grid-column: 2 / -1; justify-self: start; }
+    .gdlg__foot { padding: var(--space-3) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px)); }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>成績總覽 · 學生視角 · A6（#990 批 2）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（grades.md）</th><th>產品現況（sitemap grades-overview-student）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>篩選</td><td>學生姓名、課程、開課班、日期範圍</td><td>分校、年級、學校、啟用四個下拉＋搜尋姓名</td><td>搜尋姓名在工具列；其餘收進「篩選」：照規格的課程、開課班、期間（標「新」），保留產品的分校、年級、學校、狀態</td></tr>
+      <tr><td>清單每列</td><td>學生、考試、課程、日期、分數、狀態（正常／缺考／補考）</td><td>姓名、年級、學校、分校（沒有分數）</td><td>一位學生一列：最近一次分數（不及格寫字＋紅）、這段期間平均、和上一次比（+／− 分）、缺考次數；點開明細才逐場列</td></tr>
+      <tr><td>及格／不及格</td><td>依該考試的及格線用顏色區分</td><td>沒有</td><td>紅字＋「不及格」字樣＋圖示，不只靠顏色；及格線寫在每一場旁邊</td></tr>
+      <tr><td>明細</td><td>—</td><td>對話框：考試型態、科目、期間（近1月／近3月／近半年／全部），只有「關閉」</td><td>保留；每場多寫班平均、及格線、缺考／補考，加「這場全班的成績」到成績登錄頁、「學生檔案」到學生頁</td></tr>
+      <tr><td>匯出</td><td>依篩選條件匯出 CSV</td><td>沒有</td><td>工具列下載圖示＋面板（照帳單的匯出），標「新」</td></tr>
+      <tr><td>分頁</td><td>—</td><td>每頁 20 位</td><td>保留，每頁 20 位、依年級分章</td></tr>
+    </tbody>
+  </table>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+// 成績資料（grades.html／grades-student.html／grades-class.html 三頁同一份產生器，改一份要三份一起改）
+// ponytail: 三頁各貼一份，避免為了 demo 多一支共用檔；要改就 grep「gradesData」
+function gradesData(C) {
+  let seed = 990;
+  const r = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  const exams = C.exams.map((e) => ({ id: e.id, classId: e.classId, name: e.name, date: e.date, type: 'academy', pass: e.classId === 'c14' ? 70 : 60, rows: {} }));
+  exams.forEach((e, k) => Object.entries(C.exams[k].scores).forEach(([sid, v]) => {
+    const x = r();
+    e.rows[sid] = x < 0.04 ? { st: 'absent' } : x < 0.07 ? { st: 'makeup', v } : { st: 'ok', v };
+  }));
+  ['c4', 'c9', 'c12'].forEach((cid, k) => {
+    const e = { id: `${cid}-e4`, classId: cid, name: '第四次小考', date: C.addDays(C.TODAY, -1 - (k % 2)), type: 'academy', pass: 60, rows: {} };
+    C.classById[cid].studentIds.forEach((sid, i) => (e.rows[sid] = i % 3 === 0 ? { st: 'pending' } : { st: 'ok', v: Math.round(58 + r() * 40) }));
+    exams.push(e);
+  });
+  const school = C.students.filter((s) => s.grade.startsWith('J')).flatMap((s) => ['數學', '英文', '國文'].map((sub) => ({ sid: s.id, sub, name: `第一次段考 · ${sub}`, date: C.addDays(C.TODAY, -14), v: Math.round(42 + r() * 58), pass: 60 })));
+  const stat = (e) => {
+    const rows = Object.values(e.rows), vs = rows.filter((x) => 'v' in x).map((x) => x.v);
+    return { n: rows.length, done: vs.length, absent: rows.filter((x) => x.st === 'absent').length, pending: rows.filter((x) => x.st === 'pending').length,
+      avg: vs.length ? Math.round(vs.reduce((a, b) => a + b, 0) / vs.length) : 0, max: Math.max(...vs), min: Math.min(...vs), fail: vs.filter((v) => v < e.pass).length };
+  };
+  return { exams, school, stat };
+}
+
+(function () {
+  const { C, icon, shell, md, esc } = A2;
+  const { exams, school, stat } = gradesData(C);
+  const cls = (id) => C.classById[id];
+  const label = { P5: '小五', P6: '小六', J1: '國一', J2: '國二', J3: '國三' };
+  const order = ['J3', 'J2', 'J1', 'P6', 'P5'];
+  const PERIOD = { m1: ['近 1 個月', 30], m3: ['近 3 個月', 92], h: ['近半年', 183], all: ['全部', 9999] };
+  const SHORT = { m1: '近1月', m3: '近3月', h: '近半年', all: '全部' };
+  const since = (k) => C.addDays(C.TODAY, -PERIOD[k][1]);
+
+  // 一位學生在一段期間內的所有成績（補習班考試＋學校段考）
+  const recsOf = (sid, f = {}) => [
+    ...exams.filter((e) => e.rows[sid] && e.rows[sid].st !== 'pending').map((e) => ({ type: 'academy', date: e.date, name: e.name, sub: cls(e.classId).subject, cls: cls(e.classId).name, ...e.rows[sid], pass: e.pass, avg: stat(e).avg })),
+    ...school.filter((x) => x.sid === sid).map((x) => ({ type: 'school', date: x.date, name: x.name, sub: x.sub, cls: '學校段考', st: 'ok', v: x.v, pass: x.pass })),
+  ].filter((x) => (!f.type || x.type === f.type) && (!f.sub || x.sub === f.sub) && x.date >= since(f.period || 'all')).sort((a, b) => b.date.localeCompare(a.date));
+
+  const st = { q: '', grade: '', sub: '', cls: '', period: 'm3', campus: '', school: '', status: 'active', page: 0 };
+  const schools = [...new Set(C.students.map((s) => s.school))].sort();
+  const opt = (pairs, v) => pairs.map(([k, l]) => `<option value="${esc(k)}"${k === v ? ' selected' : ''}>${esc(l)}</option>`).join('');
+  const filters = `<button class="btn" type="button" popovertarget="filt">${icon.filter}<span id="fmeta">篩選</span></button>
+    <div class="pop" id="filt" popover><div class="ff">
+      <label>年級<select class="acset__in" data-f="grade">${opt([['', '全部年級'], ...order.map((g) => [g, label[g]])], '')}</select></label>
+      <label>課程 <span class="new">新</span><select class="acset__in" data-f="sub">${opt([['', '全部課程'], ...['數學', '英文', '國文', '自然'].map((s) => [s, s])], '')}</select></label>
+      <label>開課班 <span class="new">新</span><select class="acset__in" data-f="cls">${opt([['', '全部班級'], ...C.classes.map((c) => [c.id, c.name])], '')}</select></label>
+      <label>期間 <span class="new">新</span><select class="acset__in" data-f="period">${opt(Object.entries(PERIOD).map(([k, [l]]) => [k, l]), 'm3')}</select></label>
+      <label>分校<select class="acset__in" data-f="campus">${opt([['', '全部分校'], ...C.campuses.map((c) => [c, c])], '')}</select></label>
+      <label>學校<select class="acset__in" data-f="school">${opt([['', '全部學校'], ...schools.map((s) => [s, s])], '')}</select></label>
+      <label>狀態<select class="acset__in" data-f="status">${opt([['active', '在學'], ['', '全部（含退班）']], 'active')}</select></label>
+      <div class="ff__foot"><button class="tlink" type="button" data-clear>清除篩選</button><button class="btn btn--sm" type="button" popovertarget="filt" popovertargetaction="hide">完成</button></div>
+    </div></div>`;
+  const exp = `<button class="btn tbar__icon" type="button" popovertarget="gexp" aria-label="匯出" title="匯出"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v7.5M4.8 7l3.2 3.2L11.2 7M2.5 11.5v1.5a.5.5 0 00.5.5h10a.5.5 0 00.5-.5v-1.5"/></svg></button>
+    <div class="xp" id="gexp" popover aria-labelledby="gexp-h">
+      <div class="xp__head"><h2 class="xp__h" id="gexp-h">匯出成績</h2><span class="new">新</span><button class="xp__x" type="button" popovertarget="gexp" popovertargetaction="hide" aria-label="關閉">${icon.x}</button></div>
+      <form class="xp__body" id="gexp-f">
+        <fieldset class="xp__f"><legend class="xp__l">範圍</legend>
+          <label class="xp__r"><input type="radio" name="gexp-r" value="f" checked> 照目前的篩選<span class="xp__n" id="gexp-n"></span></label>
+          <label class="xp__r"><input type="radio" name="gexp-r" value="all"> 全部學生<span class="xp__n">${C.students.length} 位</span></label>
+        </fieldset>
+        <div class="xp__f"><span class="xp__l">欄位</span><span class="xp__fixed">學生姓名、開課班、考試名稱、課程、日期、分數、狀態</span></div>
+        <div class="xp__f"><span class="xp__l">格式</span><span class="xp__fixed">CSV</span></div>
+        <div class="xp__foot"><button class="btn" type="button" popovertarget="gexp" popovertargetaction="hide">取消</button><button class="btn btn--cta" type="submit">匯出</button></div>
+      </form>
+    </div>`;
+
+  shell({
+    page: 'grades',
+    back: `<a class="open__back" href="grades.html">${icon.left}成績總覽</a>`,
+    title: '學生的成績',
+    sub: '點一位學生看每一場考試；不及格的分數會寫出來。',
+    bar: `<label class="tsearch">${icon.search}<input type="search" placeholder="找學生姓名" aria-label="搜尋學生姓名"></label>
+      <div class="tbar__act">${filters}${exp}</div>`,
+    phase: 3300,
+  }, `<p class="count" id="count" hidden></p><div id="list"></div><nav class="pager" aria-label="分頁" id="pager"></nav>`);
+
+  // ponytail: 示範資料沒有學生分校，依學號單雙數分到兩個分校
+  const campusOf = (s) => C.campuses[Number(s.id.slice(1)) % 2];
+  const hit = () => C.students.filter((s) => {
+    const q = st.q.trim();
+    return (!q || s.name.includes(q)) && (!st.grade || s.grade === st.grade) && (!st.school || s.school === st.school)
+      && (!st.campus || campusOf(s) === st.campus)
+      && (!st.cls || cls(st.cls).studentIds.includes(s.id))
+      && (!st.status || s.enrollments.some((e) => e.status !== 'withdrawal'))
+      && (!st.sub || recsOf(s.id, { sub: st.sub, period: st.period }).length);
+  });
+  const PER = 20;
+  function render() {
+    const all = hit(), pages = Math.max(1, Math.ceil(all.length / PER));
+    st.page = Math.min(st.page, pages - 1);
+    const slice = all.sort((a, b) => order.indexOf(a.grade) - order.indexOf(b.grade) || a.name.localeCompare(b.name, 'zh-Hant')).slice(st.page * PER, st.page * PER + PER);
+    const narrowed = st.q || st.grade || st.sub || st.cls || st.campus || st.school || !st.status || st.period !== 'm3';
+    const cEl = document.getElementById('count');
+    cEl.hidden = !narrowed;
+    cEl.innerHTML = `<span>符合 <strong>${all.length}</strong> 位（共 ${C.students.length}） · 期間：${PERIOD[st.period][0]}</span><button type="button" data-clear>清除篩選</button>`;
+    document.getElementById('gexp-n').textContent = `${all.length} 位`;
+    const groups = order.map((g) => [g, slice.filter((s) => s.grade === g)]).filter(([, a]) => a.length);
+    document.getElementById('list').innerHTML = groups.length ? groups.map(([g, a]) => `<section class="chap" aria-label="${label[g]}">
+      <div class="chap__side"><div class="chap__big">${label[g]}</div><p class="chap__tally">${a.length} 位<span> · 這一頁</span></p></div>
+      <div>${a.map((s) => {
+        const rs = recsOf(s.id, { sub: st.sub, period: st.period }).filter((x) => 'v' in x);
+        const last = rs[0], prev = rs[1], absent = recsOf(s.id, { period: st.period }).filter((x) => x.st === 'absent').length;
+        const avg = rs.length ? Math.round(rs.reduce((t, x) => t + x.v, 0) / rs.length) : null;
+        const diff = last && prev ? last.v - prev.v : null;
+        return `<button class="srow" type="button" data-sid="${s.id}" aria-haspopup="dialog">
+          <span><span class="srow__name">${s.name}</span><span class="srow__meta">${s.school} · ${s.enrollments.map((e) => cls(e.classId).name).join('、')}</span></span>
+          <span class="srow__last">${last ? `最近：<b>${last.name}</b>（${md(last.date)}）${diff != null ? ` · 比上一次 ${diff > 0 ? '+' : diff < 0 ? '−' : '±'}${Math.abs(diff)} 分` : ''}${absent ? ` · 缺考 ${absent} 次` : ''}` : '這段期間沒有成績'}</span>
+          <span class="srow__n${last && last.v < last.pass ? ' srow__n--fail' : ''}">${last ? last.v : '—'}<small>${last ? (last.v < last.pass ? '不及格' : '最近一次') : ''}</small></span>
+          <span class="srow__n">${avg ?? '—'}<small>平均</small></span></button>`;
+      }).join('')}</div></section>`).join('') : `<p class="empty">沒有符合的學生。試試只打姓氏，或按「清除篩選」。</p>`;
+    document.getElementById('pager').innerHTML = pages > 1 ? `<span>第 ${st.page + 1}／${pages} 頁 · 每頁 ${PER} 位</span>
+      <button class="btn btn--sm" type="button" data-page="-1"${st.page ? '' : ' disabled'} aria-label="上一頁">${icon.left}上一頁</button>
+      <button class="btn btn--sm" type="button" data-page="1"${st.page < pages - 1 ? '' : ' disabled'} aria-label="下一頁">下一頁${icon.right}</button>` : '';
+    const parts = [st.grade && label[st.grade], st.sub, st.cls && cls(st.cls).name, st.campus, st.school, !st.status && '含退班'].filter(Boolean);
+    document.getElementById('fmeta').textContent = `篩選：${parts.length ? parts.join(' · ') : '全部'}`;
+    // 只有真的有篩選時才出現「清除篩選」
+    document.querySelector('.ff__foot [data-clear]').hidden = !narrowed;
+  }
+
+  // ── 學生成績明細（對話框）──
+  const dlg = document.createElement('dialog');
+  dlg.className = 'acset gdlg';
+  dlg.setAttribute('aria-labelledby', 'gd-t');
+  document.body.append(dlg);
+  const df = { sid: '', type: '', sub: '', period: 'all' };
+  function detail() {
+    const s = C.studentById[df.sid];
+    const rs = recsOf(s.id, df);
+    const vs = rs.filter((x) => 'v' in x);
+    const fails = vs.filter((x) => x.v < x.pass).length, absent = rs.filter((x) => x.st === 'absent').length;
+    const subs = [...new Set(recsOf(s.id).map((x) => x.sub))];
+    dlg.innerHTML = `<div class="acset__head"><div><h2 class="acset__t" id="gd-t">${s.name} 的成績</h2><p class="fdlg__sub">${s.gradeLabel} · ${s.school}</p></div><button class="acset__x" type="button" aria-label="關閉" data-x>${icon.x}</button></div>
+      <div class="gdlg__bar">
+        <select class="acset__in" aria-label="考試型態" data-df="type">${opt([['', '全部考試'], ['academy', '補習班考試'], ['school', '學校段考']], df.type)}</select>
+        <select class="acset__in" aria-label="科目" data-df="sub">${opt([['', '全部科目'], ...subs.map((x) => [x, x])], df.sub)}</select>
+        <div class="seg" role="group" aria-label="期間">${Object.entries(PERIOD).map(([k, [l]]) => `<button type="button" data-dp="${k}" aria-pressed="${df.period === k}">${SHORT[k]}</button>`).join('')}</div>
+      </div>
+      <p class="gdlg__sum">${rs.length ? `${rs.length} 場 · 平均 ${vs.length ? Math.round(vs.reduce((t, x) => t + x.v, 0) / vs.length) : '—'} 分 · 不及格 ${fails} 場${absent ? ` · 缺考 ${absent} 場` : ''}` : ''}</p>
+      <div class="gdlg__list">${rs.length ? rs.map((x) => `<div class="rec">
+          <span class="rec__d">${md(x.date)}</span>
+          <span><span class="rec__t">${x.name}</span><span class="rec__c">${x.cls} · ${x.sub} · 及格線 ${x.pass}${x.avg ? ` · 班平均 ${x.avg}` : ''}</span></span>
+          <span class="rec__v">${'v' in x ? x.v : '—'}<small>${x.st === 'absent' ? '缺考' : x.st === 'makeup' ? '補考' : 'v' in x && x.v < x.pass ? '不及格' : '分'}</small></span>
+          ${x.st === 'absent' ? `<span class="tag tag--quiet">${icon.x}缺考</span>` : 'v' in x && x.v < x.pass ? `<span class="tag tag--error">${icon.alert}不及格</span>` : x.st === 'makeup' ? '<span class="tag tag--quiet">補考</span>' : '<span></span>'}
+          ${x.type === 'academy' ? `<a class="tlink rec__go" href="scores.html">這場全班的成績</a>` : ''}
+        </div>`).join('') : `<p class="empty"><strong>尚無成績紀錄</strong><br>這位學生在「${PERIOD[df.period][0]}${df.sub ? ' · ' + df.sub : ''}」沒有成績。換一個期間或科目試試。</p>`}</div>
+      <div class="gdlg__foot"><a class="btn" href="student.html">學生檔案</a><button class="btn" type="button" data-x>關閉</button></div>`;
+  }
+  dlg.addEventListener('click', (e) => {
+    if (e.target === dlg || e.target.closest('[data-x]')) dlg.close();
+    const p = e.target.closest('[data-dp]'); if (p) { df.period = p.dataset.dp; detail(); }
+  });
+  dlg.addEventListener('change', (e) => { const k = e.target.dataset.df; if (k) { df[k] = e.target.value; detail(); } });
+
+  document.addEventListener('click', (e) => {
+    const r = e.target.closest('[data-sid]');
+    if (r) { Object.assign(df, { sid: r.dataset.sid, type: '', sub: st.sub, period: st.period }); detail(); dlg.showModal(); }
+    if (e.target.closest('[data-clear]')) { Object.assign(st, { q: '', grade: '', sub: '', cls: '', period: 'm3', campus: '', school: '', status: 'active', page: 0 }); document.querySelector('.tsearch input').value = ''; document.querySelectorAll('[data-f]').forEach((s) => (s.value = st[s.dataset.f])); render(); }
+    const pg = e.target.closest('[data-page]'); if (pg) { st.page += +pg.dataset.page; render(); scrollTo({ top: 0 }); }
+  });
+  document.addEventListener('change', (e) => { const k = e.target.dataset.f; if (k) { st[k] = e.target.value; st.page = 0; render(); } });
+  document.querySelector('.tsearch input').addEventListener('input', (e) => { st.q = e.target.value; st.page = 0; render(); });
+  // 匯出：處理中 → 收起面板 → 訊息（示範，沒有真的下載）
+  document.getElementById('gexp-f').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const n = document.querySelector('[name="gexp-r"]:checked').value === 'all' ? C.students.length : hit().length;
+    A2.act(e.submitter || e.target.querySelector('[type=submit]'), { busy: '匯出中…', ok: `已匯出 ${n} 位學生的成績（CSV）`, run: () => document.getElementById('gexp').hidePopover() });
+  });
+  // 匯出面板貼著圖示（手機是底部面板，由 a6.css 的 .xp 處理）
+  const xp = document.getElementById('gexp'), xb = document.querySelector('[popovertarget="gexp"].tbar__icon');
+  xp.addEventListener('toggle', (e) => {
+    if (e.newState !== 'open') return;
+    if (matchMedia('(max-width: 860px)').matches) { xp.removeAttribute('style'); return; }
+    const b = xb.getBoundingClientRect();
+    Object.assign(xp.style, { position: 'fixed', left: Math.max(16, b.right - xp.offsetWidth) + 'px', top: b.bottom + 8 + 'px' });
+  });
+  render();
+})();
+</script>
+</body>
+</html>

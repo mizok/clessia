@@ -1,21 +1,10 @@
-<div class="form-dialog form-dialog--a6">
-  <!-- A6 `staff.html:240`：sheet 標題「○○ 的權限」＋副句 -->
-  <div class="dialog-header-inline">
-    <div class="dialog-header-inline__content">
-      <h2 appDialogTitle class="dialog-header-inline__title">{{ staff.displayName }} 的權限</h2>
-      <p class="dialog-header-inline__sub">勾了才看得到、做得到；選單會跟著隱藏沒權限的頁</p>
-    </div>
-    <button
-      type="button"
-      class="dialog-header-inline__close size-11 wide:size-10"
-      (click)="close()"
-      aria-label="關閉"
-    >
-      <i class="pi pi-times" aria-hidden="true"></i>
-    </button>
-  </div>
-
-  <div class="flex flex-col gap-3 px-6 pt-2 pb-6 max-wide:px-4">
+<!-- 共用殼（#2290）：標題「○○ 的權限」＋副句照 A6 `staff.html:240` 的 sheet -->
+<app-dialog-frame
+  [title]="staff.displayName + ' 的權限'"
+  sub="勾了才看得到、做得到；選單會跟著隱藏沒權限的頁"
+  (closed)="close()"
+>
+  <div class="flex flex-col gap-3">
     @if (lock) {
       <!-- A6 `.perm__why` -->
       <p
@@ -48,8 +37,7 @@
   </div>
 
   <!-- A6 sheet 的 .fdlg__foot：能改時先「儲存權限」，最後一定有「關閉」（staff.html:197-201） -->
-  <div class="form-dialog__footer">
-    <p class="form-dialog__why"></p>
+  <ng-container dialogFoot>
     @if (!lock) {
       <button
         type="button"
@@ -68,5 +56,5 @@
     >
       關閉
     </button>
-  </div>
-</div>
+  </ng-container>
+</app-dialog-frame>

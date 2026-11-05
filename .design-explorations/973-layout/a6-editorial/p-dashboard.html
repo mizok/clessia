@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 首頁（家長端）</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* 一列一件事：時間／名稱／標籤，整列是按鈕或連結（跟名冊 .who 同一種讀法：字＋數字，不靠圖例） */
+  .pd-list { list-style: none; margin: 0; padding: 0; }
+  .pd-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-4); align-items: baseline; width: 100%; min-height: 56px; padding: var(--space-3) 0; border: 0; border-bottom: 1px solid var(--surface-border); background: none; font: inherit; color: inherit; text-align: left; text-decoration: none; cursor: pointer; }
+  .pd-row:hover .pd-row__t { text-decoration: underline; text-underline-offset: 3px; }
+  .pd-row:focus-visible { outline: 2px solid var(--zinc-900); outline-offset: 2px; border-radius: var(--radius-sm); }
+  .pd-row__when { font-size: var(--text-base); font-weight: var(--font-semibold); font-variant-numeric: tabular-nums; }
+  .pd-row__when small { display: block; font-size: var(--text-sm); font-weight: var(--font-medium); color: var(--zinc-600); }
+  .pd-row__t { font-size: var(--text-lg); font-weight: var(--font-bold); }
+  .pd-row__m { display: block; margin-top: 2px; font-size: var(--text-md); color: var(--zinc-700); }
+  .pd-row__tags { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; }
+  /* 課堂列：時間在上、課名在下（使用者 10/03 08:4x「卡片內部一欄」，跟家長課表同一種）；考試列仍是日期在左 */
+  .pd-row--ses { grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
+  .pd-row--ses .pd-row__when { grid-column: 1 / -1; }
+  .pd-row--ses .pd-row__when small { display: inline; margin-left: 6px; }
+  .pd-row--off .pd-row__t { color: var(--zinc-600); text-decoration: line-through; text-decoration-thickness: 1px; }
+  .pd-row__score { font-size: var(--text-2xl); font-weight: var(--font-bold); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .pd-row__score small { font-size: var(--text-md); font-weight: var(--font-medium); color: var(--zinc-600); }
+  .pd-cheer { display: block; margin-top: 2px; font-size: var(--text-md); color: var(--zinc-700); }
+
+  /* 待繳：灰面一條（第四種面：收起來的東西），不用紅底 —— 紅只給逾期的字 */
+  .pd-pay { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-top: var(--space-8); padding: var(--space-4) var(--space-5); border-radius: var(--radius-lg); background: var(--zinc-100); }
+  .pd-pay__n { font-size: var(--text-2xl); font-weight: var(--font-bold); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .pd-pay__n small { font-size: var(--text-md); font-weight: var(--font-medium); color: var(--zinc-700); margin-left: 4px; }
+  .pd-pay__m { font-size: var(--text-base); color: var(--zinc-800); }
+  .pd-pay .btn { margin-left: auto; }
+  .pd-renew { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-top: var(--space-8); padding: var(--space-4) var(--space-5); border-radius: var(--radius-lg); box-shadow: inset 0 0 0 1px var(--zinc-300); }
+  .pd-pay + .pd-renew { margin-top: var(--space-3); }
+  .pd-renew__t { font-size: var(--text-lg); font-weight: var(--font-bold); }
+  .pd-renew__m { font-size: var(--text-md); color: var(--zinc-700); }
+  .pd-renew .btn { margin-left: auto; }
+
+  /* 聯絡簿：橫向輪播（scroll-snap，不自動播 —— 會動的東西家長讀不完） */
+  .pd-cb { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(260px, 340px); gap: var(--space-3); overflow-x: auto; scroll-snap-type: x mandatory; padding: var(--space-4) 0 var(--space-2); }
+  .pd-cb__card { scroll-snap-align: start; display: grid; align-content: start; gap: var(--space-2); min-height: 148px; padding: var(--space-4); border: 1px solid var(--zinc-300); border-radius: var(--radius-lg); background: #fff; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .pd-cb__card:hover { border-color: var(--zinc-900); }
+  .pd-cb__c { font-size: var(--text-base); font-weight: var(--font-bold); }
+  .pd-cb__d { font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; }
+  .pd-cb__s { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: var(--text-md); color: var(--zinc-800); line-height: var(--leading-relaxed); }
+
+  /* 推薦加選：三張小卡（桌機三欄、手機一欄），不是大面積色塊 */
+  .pd-rec { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); padding-top: var(--space-4); }
+  .pd-rec__card { display: grid; gap: var(--space-1); padding: var(--space-4); border: 1px solid var(--zinc-300); border-radius: var(--radius-lg); background: #fff; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .pd-rec__card:hover { border-color: var(--zinc-900); }
+  .pd-rec__t { font-size: var(--text-base); font-weight: var(--font-bold); }
+  .pd-rec__m { font-size: var(--text-md); color: var(--zinc-700); }
+  .pd-rec__fee { margin-top: var(--space-2); font-size: var(--text-lg); font-weight: var(--font-bold); font-variant-numeric: tabular-nums; }
+  .pd-more { margin-top: var(--space-4); }
+
+  /* 唯讀詳情（課堂／聯絡簿／課程）：沿用帳號設定那一型對話框 */
+  .pd-dl { display: grid; grid-template-columns: 6em minmax(0, 1fr); gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-6) var(--space-4); font-size: var(--text-base); }
+  .pd-dl dt { color: var(--zinc-600); }
+  .pd-dl dd { margin: 0; font-weight: var(--font-medium); }
+  .pd-txt { padding: var(--space-2) var(--space-6) var(--space-4); font-size: var(--text-base); line-height: var(--leading-relaxed); color: var(--zinc-800); white-space: pre-line; }
+  .pd-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); padding: 0 var(--space-6) var(--space-6); }
+
+  @media (max-width: 860px) {
+    .pd-row { grid-template-columns: 64px minmax(0, 1fr); }
+    .pd-row--ses { grid-template-columns: minmax(0, 1fr) auto; }
+    .pd-row__tags { grid-column: 2; justify-content: flex-start; }
+    .pd-rec { grid-template-columns: 1fr; }
+    .pd-pay .btn, .pd-renew .btn { width: 100%; height: 44px; margin-left: 0; }
+    .pd-cb { grid-auto-columns: 82%; }
+    .pd-more, .pd-foot .btn { min-height: 44px; }
+    .pd-dl, .pd-txt { padding-left: var(--space-4); padding-right: var(--space-4); }
+    .pd-foot { padding: 0 var(--space-4) var(--space-8); }
+    .pd-foot .btn { flex: 1; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+
+<template id="notes">
+  <h2>首頁 · 家長端（#990 批 5）</h2>
+  <h3>規格 vs 現況</h3>
+  <table>
+    <thead><tr><th>項目</th><th>應然規格（specs/parent/dashboard.md）</th><th>產品現況（sitemap/parent/dashboard.md）</th><th>設計稿怎麼畫</th></tr></thead>
+    <tbody>
+      <tr><td>整頁</td><td>今日到班、課表、推薦課程、聯絡簿、考試與成績、待繳、續課預告</td><td><b>半個殼</b>：頁首＋孩子切換器是真的，本文是「更多內容還在準備中」佔位</td><td>照規格畫完整（計畫席已裁 A）。本文每一節都是產品沒有的，節標題標「新」</td></tr>
+      <tr><td>孩子切換器</td><td>多個孩子可切換、預設第一個</td><td>有，三種形態（可切換／靜態／讀取失敗）</td><td>用共用件（a6.js <code>A2.kids</code>）。hash <code>#kids-1</code>／<code>#kids-0</code>／<code>#kids-failed</code> 看其餘形態</td></tr>
+      <tr><td>今日到班</td><td>今天是否已到班；沒課寫「今日無課」</td><td>沒有</td><td>放在開場色面的標題（手機首屏只回答「孩子今天到了嗎」）：「16:41 到班了」／「還沒到，17:00 有課」／「今天沒有課」。日到班沒有遲到、沒有離班，所以不寫</td></tr>
+      <tr><td>課表</td><td>卡片 Grid；今天有課顯示今天，否則最近 3 天；異動標記、小考標籤；點了 Popup 詳情</td><td>沒有</td><td>改成一列一堂的清單（使用者反感「三欄卡片」）；異動用系統既有的詞（代課、停課、調課）；點了開唯讀詳情對話框，可去課表／到班紀錄</td></tr>
+      <tr><td>考試與成績</td><td>未來 7 天＋過去 7 天；今天考試暖銅橘底、滿分淡金、及格淡綠、不及格淡紫＋鼓勵語、NEW</td><td>沒有</td><td><b>不用色塊分類</b>（色相只編碼嚴重度、A6 不做大面積色塊）：分數用字級，標籤「滿分」「不及格」「今天考」「新成績」，不及格與滿分照規格附鼓勵語</td></tr>
+      <tr><td>待繳提醒</td><td>3 天內到期紅框、逾期淡紅底</td><td>沒有</td><td>灰面一條（金額＋到期日）。3 天內到期用琥珀「快到期」，<b>紅只給逾期</b>（紅留給錯誤與逾期，10/02 裁定），也不貼橘</td></tr>
+      <tr><td>續課預告</td><td>T-5～T-0 顯示「[期間] 續課預告」＋申請異動</td><td>沒有</td><td>細框一條，「申請異動」連續課資訊頁。T 的單位是<b>天</b>：<code>kb/wiki/flows/renewal.md:21-31</code> 定義 T-5＝自動開單前 5 天的續課預告日、T-0＝自動開單日（使用者 10/03 08:2x 確認）。所以這條只在開單前 5 天內出現；示範為了看得到固定顯示</td></tr>
+      <tr><td>推薦加選</td><td>2–3 張卡：課名、時間摘要、費用；查看更多；點了 Popup</td><td>沒有</td><td>同孩子年級、還沒報的班取 3 個；點了開詳情，「申請加選」與「查看更多課程」都到加選課程頁</td></tr>
+      <tr><td>聯絡簿</td><td>輪播卡片，點了展開全文</td><td>沒有</td><td>橫向捲動（不自動播）；點了開全文。示範資料假設孩子的班都有用聯絡簿</td></tr>
+      <tr><td>沒有孩子／讀取失敗</td><td>規格沒寫</td><td>#749：四頁共用 <code>app-child-scope-gate</code> 寫「這個帳號還沒有綁定任何學生」</td><td>保留，用 <code>A2.kids.gate()</code></td></tr>
+    </tbody>
+  </table>
+  <h3>這一頁</h3>
+  <ul>
+    <li>示範孩子：林子晴（今天 16:41 已到、數學上課中、英文今天代課、下週三自然有小考）、張宇軒（已到、上週請假一次）、王柏翰（今天沒課、週六停課、帳單 3 天內到期）。切換看得到三種開場句。</li>
+    <li>節的順序照「需要家長做事」排：待繳 → 今天的課 → 考試成績 → 聯絡簿 → 推薦課程。</li>
+  </ul>
+</template>
+
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, md, wd, days, money, esc, kids } = A2;
+  const T = C.TODAY;
+  const k = kids.active;
+  const cls = k ? k.enrollments.filter((e) => e.status === 'active').map((e) => e.classId) : [];
+  const campus = C.campuses[0];
+  const CHG = { substitute: '代課', cancellation: '停課', reschedule: '調課' };
+  const ses = C.sessions.filter((s) => cls.includes(s.classId)).sort((a, b) => (a.date + a.start < b.date + b.start ? -1 : 1));
+  const today = ses.filter((s) => s.date === T);
+  // 今天沒課就顯示接下來 3 天有課的日子（規格「最近 3 天」）
+  const shown = today.length ? today : ses.filter((s) => s.date > T && s.date <= C.addDays(T, 3)).length ? ses.filter((s) => s.date > T && s.date <= C.addDays(T, 3)) : ses.filter((s) => s.date > T).slice(0, 3);
+  const next = ses.find((s) => s.date > T && s.status !== 'cancelled');
+
+  // 考試：過去 7 天有成績的＋未來 7 天要考的。示範資料沒有未來考試 → 在孩子下一堂課合成一場小考
+  const PASS = 60, FULL = 100;
+  const exams = C.exams.filter((e) => cls.includes(e.classId) && e.date >= C.addDays(T, -7) && e.date <= T).map((e) => ({ ...e, v: e.scores[k.id] }));
+  const upcoming = next && next.date <= C.addDays(T, 7) ? [{ id: 'up', classId: next.classId, name: '第四次小考', date: next.date, v: undefined }] : [];
+  const examList = [...upcoming, ...exams];
+  const examOn = (s) => upcoming.some((e) => e.classId === s.classId && e.date === s.date);
+
+  const inv = k && C.invoices.find((i) => i.studentId === k.id && i.balance > 0);
+  const e = k && C.todayExpected.find((x) => x.studentId === k.id);
+  const first = today.find((s) => s.status !== 'cancelled');
+
+  // 開場句：只回答「孩子今天到了嗎」（日到班：沒有遲到、沒有離班）
+  let title = '首頁', sub = '';
+  if (k) {
+    if (e && e.state === 'arrived') title = `${k.name}<br>${e.arrivedAt} 到班了。`;
+    else if (e && e.state === 'on_leave') title = `${k.name}<br>今天請假。`;
+    else if (e && e.state === 'missing') title = `${k.name}<br>還沒到班。`;
+    else if (e) title = `${k.name}<br>還沒到，${e.dueAt} 有課。`;
+    else title = `${k.name}<br>今天沒有課。`;
+    sub = today.length ? `今天 ${today.length} 堂：${today.map((s) => `${s.start} ${s.className}`).join('、')}`
+      : next ? `下一堂 ${md(next.date)}（${wd(next.date)}）${next.start} ${next.className}` : '';
+    if (e && e.state === 'missing') sub = `${e.dueAt} 的課已經開始，還沒有到班紀錄。可以打給櫃台 ${A2.phone('0229381234')}`;
+  }
+
+  const tagsOf = (s) => [
+    s.change ? `<span class="tag ${s.change.type === 'cancellation' ? 'tag--warn' : 'tag--quiet'}">${CHG[s.change.type] || '異動'}${s.change.substitute ? ` · ${s.change.substitute}` : ''}</span>` : '',
+    examOn(s) ? '<span class="tag tag--quiet">有小考</span>' : '',
+    s.status === 'in_progress' ? '<span class="tag tag--live">上課中</span>' : '',
+  ].join('');
+
+  const payDays = inv ? days(T, inv.due) : 0;
+  const payTag = !inv ? '' : payDays < 0 ? `<span class="tag tag--error">${icon.alert}逾期 ${-payDays} 天</span>` : payDays <= 3 ? `<span class="tag tag--warn">${icon.clock}${payDays ? `${payDays} 天後到期` : '今天到期'}</span>` : '';
+
+  const recs = k ? C.classes.filter((c) => c.grades.includes(k.grade) && !cls.includes(c.id)).slice(0, 3) : [];
+  const recsFallback = recs.length ? recs : C.classes.filter((c) => !cls.includes(c.id)).slice(0, 3);
+  const CB = ['今天講完二次函數的圖形，回家作業：講義 p.34–36 單數題。下週二小考範圍到配方法。', '課堂練習表現穩定，計算題偶爾粗心，建議回家把錯題訂正在錯題本上。', '下週起改用新講義，請在週日前到櫃台領取（已含在本期講義費）。'];
+  const cbs = cls.map((cid, i) => ({ c: C.classById[cid], date: C.addDays(T, -i - 1), body: CB[i % CB.length], by: C.classById[cid].teacher }));
+
+  const N = () => '<span class="new">新</span>';
+  const body = k ? `
+    ${inv ? `<div class="pd-pay"><span class="pd-pay__n">${money(inv.balance)}<small>元待繳</small></span><span class="pd-pay__m">${md(inv.due)}（${wd(inv.due)}）到期 · ${inv.items.length} 個項目</span>${payTag}<a class="btn btn--cta" href="p-payments.html">看帳單${icon.right}</a></div>` : ''}
+    <div class="pd-renew"><span class="pd-renew__t">2026 冬季 續課預告${N()}</span><span class="pd-renew__m">${cls.length} 個班將自動續課，有要調整請在 ${md(C.TERM_END)} 前申請</span><a class="btn" href="p-renewal.html">申請異動</a></div>
+
+    <section class="sec" aria-labelledby="h-today">
+      <div class="sec__head"><h2 class="sec__title" id="h-today">${today.length ? '今天的課' : '接下來的課'}${N()}</h2><span class="sec__count">${shown.length} 堂</span><a class="sec__link" href="p-schedule.html">看課表${icon.right}</a></div>
+      <ul class="pd-list">${shown.map((s) => `<li><button class="pd-row pd-row--ses${s.status === 'cancelled' ? ' pd-row--off' : ''}" type="button" data-ses="${s.id}">
+        <span class="pd-row__when">${s.date === T ? s.start : `${md(s.date)}（${wd(s.date)}）`}<small>${s.date === T ? `到 ${s.end}` : s.start}</small></span>
+        <span><span class="pd-row__t">${s.className}</span><span class="pd-row__m">${s.change && s.change.substitute ? `${s.change.substitute} 老師代課` : `${s.teacher} 老師`} · ${campus}${s.change && s.change.reason ? ` · ${s.change.reason}` : ''}</span></span>
+        <span class="pd-row__tags">${tagsOf(s)}</span></button></li>`).join('')}</ul>
+    </section>
+
+    <section class="sec" aria-labelledby="h-exam">
+      <div class="sec__head"><h2 class="sec__title" id="h-exam">考試與成績${N()}</h2><span class="sec__count">前後 7 天 · ${examList.length} 場</span><a class="sec__link" href="p-grades.html">看全部成績${icon.right}</a></div>
+      <ul class="pd-list">${examList.length ? examList.map((x) => {
+        const c = C.classById[x.classId], has = x.v !== undefined, fresh = has && days(x.date, T) <= 7;
+        const tag = !has ? `<span class="tag tag--quiet">${x.date === T ? '今天考' : `${days(T, x.date)} 天後考`}</span>`
+          : x.v === FULL ? '<span class="tag tag--ok">滿分</span>' : x.v < PASS ? `<span class="tag tag--error">${icon.alert}不及格</span>` : '';
+        const cheer = has && x.v === FULL ? '太厲害了，繼續保持！' : has && x.v < PASS ? '這次差一點，下次會更好。' : '';
+        return `<li><a class="pd-row" href="p-grades.html">
+          <span class="pd-row__when">${md(x.date)}<small>（${wd(x.date)}）</small></span>
+          <span><span class="pd-row__t">${c.name} · ${x.name}</span><span class="pd-row__m">${has ? `及格 ${PASS} 分` : '還沒考'}${cheer ? `<span class="pd-cheer">${cheer}</span>` : ''}</span></span>
+          <span class="pd-row__tags">${has ? `<span class="pd-row__score">${x.v}<small> 分</small></span>` : ''}${tag}${fresh ? '<span class="tag tag--quiet">新成績</span>' : ''}</span></a></li>`;
+      }).join('') : '<li class="empty">前後 7 天沒有考試。</li>'}</ul>
+    </section>
+
+    <section class="sec" aria-labelledby="h-cb">
+      <div class="sec__head"><h2 class="sec__title" id="h-cb">最新聯絡簿${N()}</h2><span class="sec__count">${cbs.length} 個班</span></div>
+      <div class="pd-cb" role="list">${cbs.map((x, i) => `<button class="pd-cb__card" type="button" role="listitem" data-cb="${i}"><span class="pd-cb__c">${x.c.name}</span><span class="pd-cb__d">${md(x.date)}（${wd(x.date)}）· ${x.by} 老師</span><span class="pd-cb__s">${esc(x.body)}</span></button>`).join('')}</div>
+    </section>
+
+    <section class="sec" aria-labelledby="h-rec">
+      <div class="sec__head"><h2 class="sec__title" id="h-rec">可以加選的課${N()}</h2><span class="sec__count">${k.gradeLabel}適合</span></div>
+      <div class="pd-rec">${recsFallback.map((c) => `<button class="pd-rec__card" type="button" data-rec="${c.id}"><span class="pd-rec__t">${c.name}</span><span class="pd-rec__m">${C.weekdayLabel[c.weekday]} ${c.start}–${c.end} · ${c.teacher} 老師</span><span class="pd-rec__fee">${money(c.fee)} 元<small style="font-size:var(--text-md);font-weight:500;color:var(--zinc-600)"> / ${c.billingMode === 'session_pack' ? '12 堂' : '月'}</small></span></button>`).join('')}</div>
+      <a class="btn pd-more" href="p-add-course.html">查看更多課程${icon.right}</a>
+    </section>` : '';
+
+  shell({ role: 'parent', page: 'p-dashboard', child: true, title, sub, phase: 5100 }, kids.gate(body));
+
+  // ── 唯讀詳情對話框（課堂／聯絡簿／推薦課程）──
+  const dlg = document.createElement('dialog');
+  dlg.className = 'acset';
+  dlg.setAttribute('aria-labelledby', 'pd-t');
+  document.body.append(dlg);
+  const open = (t, sub, inner, foot) => {
+    dlg.innerHTML = `<div class="acset__head"><div><h2 class="acset__t" id="pd-t">${t}</h2>${sub ? `<p class="fdlg__sub">${sub}</p>` : ''}</div><button class="acset__x" type="button" aria-label="關閉" data-close>${icon.x}</button></div>${inner}<div class="pd-foot">${foot}<button class="btn" type="button" data-close>關閉</button></div>`;
+    dlg.showModal();
+  };
+  dlg.addEventListener('click', (ev) => { if (ev.target === dlg || ev.target.closest('[data-close]')) dlg.close(); });
+  document.addEventListener('click', (ev) => {
+    const s = ev.target.closest('[data-ses]');
+    if (s) {
+      const x = C.sessions.find((y) => y.id === s.dataset.ses);
+      open(x.className, `${md(x.date)}（${wd(x.date)}）${x.start}–${x.end}`,
+        `<dl class="pd-dl"><dt>老師</dt><dd>${x.change && x.change.substitute ? `${x.change.substitute}（代課，原任 ${x.teacher}）` : x.teacher}</dd><dt>地點</dt><dd>${campus} · ${x.room}</dd><dt>狀態</dt><dd>${C.statusLabel.session[x.status]}${x.change ? ` · ${CHG[x.change.type] || '異動'}：${x.change.reason}` : ''}</dd>${examOn(x) ? '<dt>考試</dt><dd>這堂有小考（第四次小考）</dd>' : ''}</dl>`,
+        `<a class="btn" href="p-attendance.html">到班紀錄</a><a class="btn" href="p-schedule.html">看課表</a>`);
+      return;
+    }
+    const c = ev.target.closest('[data-cb]');
+    if (c) { const x = cbs[+c.dataset.cb]; open(`${x.c.name} 聯絡簿`, `${md(x.date)}（${wd(x.date)}）· ${x.by} 老師`, `<p class="pd-txt">${esc(x.body)}\n\n今日作業：講義 p.34–36\n明日攜帶：計算機、量角器</p>`, ''); return; }
+    const r = ev.target.closest('[data-rec]');
+    if (r) {
+      const x = C.classById[r.dataset.rec];
+      open(x.name, `${C.weekdayLabel[x.weekday]} ${x.start}–${x.end}`,
+        `<dl class="pd-dl"><dt>老師</dt><dd>${x.teacher}</dd><dt>地點</dt><dd>${campus} · ${x.room}</dd><dt>費用</dt><dd>${money(x.fee)} 元 / ${x.billingMode === 'session_pack' ? '12 堂' : '月'}</dd><dt>名額</dt><dd>上限 ${x.capacity} 人，還有 ${Math.max(0, x.capacity - x.studentIds.length)} 個位子</dd></dl>`,
+        `<a class="btn btn--cta" href="p-add-course.html">申請加選</a>`);
+    }
+  });
+})();
+</script>
+</body>
+</html>

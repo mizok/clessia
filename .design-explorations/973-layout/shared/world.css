@@ -1,0 +1,111 @@
+/*
+ * #973 設計稿的共同世界：方向 D 的 tokens（值從 apps/web/src/styles.scss 原樣複製）
+ * ＋瀏覽器表面（selection、focus、scrollbar、數字）＋設計說明抽屜。
+ * 各方向只決定構圖，不改這裡的色值 —— 錨點是「入口頁的語言延伸進內頁」，不是另起爐灶。
+ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+
+:root {
+  --zinc-50: #faf9f8; --zinc-100: #f5f3f1; --zinc-200: #ebe7e4; --zinc-300: #ddd8d4;
+  --zinc-400: #a89f99; --zinc-500: #786f69; --zinc-600: #57504b; --zinc-700: #3d3733;
+  --zinc-800: #2a2523; --zinc-900: #1a1614;
+
+  --accent-50: #fff0ea; --accent-100: #ffdcce; --accent-200: #ffc9b3; --accent-400: #ff8557;
+  --accent-500: #c93f14; --accent-600: #a8340f; --accent-700: #8c2a0b;
+  --accent-vivid: #ff6a3d; --accent-vivid-2: #ff8557;
+
+  /* 語意色只活在白工作面（styles.scss 的橘帶註解）。逾期 = error，不是橘 */
+  --success-100: #dcfce7; --success-600: #15803d;
+  --warning-50: #fffbeb; --warning-100: #fef3c7; --warning-200: #fde68a; --warning-600: #b45309; --warning-800: #92400e;
+  --error-100: #fee2e2; --error-200: #fecaca; --error-600: #dc2626; --error-700: #b91c1c;
+
+  --band-surface: linear-gradient(140deg, var(--accent-vivid) 0%, var(--accent-vivid) 46%, var(--accent-vivid-2) 100%);
+  --band-ink: #1a1614;
+  --band-ink-muted: rgb(26 22 20 / 80%); /* 橘面次要字地板 0.78 */
+  --band-rule: rgb(26 22 20 / 60%);      /* 橘面非文字描邊地板 0.58 */
+  --band-seam: 28px;
+
+  --text-muted: #786f69; --surface-border: #ebe7e4; --surface-card: #fff;
+
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px;
+  --space-6: 24px; --space-8: 32px; --space-9: 36px; --space-10: 40px; --space-12: 48px;
+  --radius-sm: 4px; --radius-md: 6px; --radius-lg: 8px; --radius-xl: 10px; --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+
+  --font-sans: 'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+  --text-xxs: 9px; --text-xs: 11px; --text-sm: 12px; --text-md: 13px; --text-base: 14px;
+  --text-lg: 16px; --text-xl: 18px; --text-2xl: 22px; --text-3xl: 28px;
+  --font-normal: 400; --font-medium: 500; --font-semibold: 600; --font-bold: 700;
+  --leading-tight: 1.2; --leading-normal: 1.5; --leading-relaxed: 1.6;
+  --transition-fast: 0.12s ease;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--zinc-900);
+  background: #fff;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+}
+h1, h2, h3, h4, p { margin: 0; }
+button { font: inherit; color: inherit; }
+a { color: inherit; }
+
+/* 瀏覽器表面也是設計的一部分 */
+::selection { background: var(--accent-100); color: var(--zinc-900); }
+:focus-visible { outline: 2px solid var(--zinc-900); outline-offset: 2px; border-radius: 2px; }
+* { scrollbar-width: thin; scrollbar-color: var(--zinc-300) transparent; }
+.num, td.num, .tabular { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+
+/* ── 設計稿外框：右下角的導覽膠囊＋設計說明抽屜（proto.js 產生）──────────── */
+.proto-pill {
+  position: fixed; right: 16px; bottom: 16px; z-index: 1000;
+  display: flex; align-items: center; gap: 2px; padding: 4px;
+  background: var(--zinc-900); color: #fff; border-radius: var(--radius-full);
+  box-shadow: 0 8px 24px -6px rgb(26 22 20 / 40%);
+  font-size: var(--text-sm); max-width: calc(100% - 32px); overflow-x: auto;
+}
+.proto-pill a, .proto-pill button {
+  flex: none; border: 0; background: none; color: rgb(255 255 255 / 78%);
+  padding: 6px 10px; border-radius: var(--radius-full); text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.proto-pill a:hover, .proto-pill button:hover { color: #fff; background: rgb(255 255 255 / 10%); }
+.proto-pill a[aria-current='page'] { color: var(--zinc-900); background: #fff; font-weight: var(--font-semibold); }
+.proto-pill__tag { padding: 6px 10px; color: var(--accent-vivid-2); font-weight: var(--font-semibold); flex: none; }
+.proto-pill__note { color: var(--zinc-900) !important; background: var(--accent-vivid) !important; font-weight: var(--font-semibold); }
+
+.proto-notes {
+  border: 0; padding: 0; margin: 0 0 0 auto; height: 100%; max-height: none;
+  width: min(460px, 100%); background: #fff; color: var(--zinc-900);
+  box-shadow: -12px 0 40px -12px rgb(26 22 20 / 30%);
+}
+.proto-notes::backdrop { background: rgb(26 22 20 / 28%); }
+.proto-notes[open] { animation: notes-in 0.32s var(--ease-out); }
+@keyframes notes-in { from { transform: translateX(24px); opacity: 0; } }
+.proto-notes__body { padding: 28px 28px 96px; overflow-y: auto; height: 100%; }
+.proto-notes__close { position: absolute; top: 16px; right: 16px; border: 1px solid var(--zinc-200); background: #fff; border-radius: var(--radius-full); width: 32px; height: 32px; cursor: pointer; }
+.proto-notes h2 { font-size: var(--text-2xl); letter-spacing: -0.02em; margin-bottom: 4px; }
+.proto-notes h3 { font-size: var(--text-md); font-weight: var(--font-bold); margin: 24px 0 6px; }
+.proto-notes p, .proto-notes li { font-size: var(--text-base); line-height: var(--leading-relaxed); color: var(--zinc-700); }
+.proto-notes ul { padding-left: 18px; margin: 0; }
+.proto-notes .lede { color: var(--zinc-500); font-size: var(--text-md); }
+@media (prefers-reduced-motion: reduce) { .proto-notes[open] { animation: none; } }
+
+/* #990：A6 膠囊的「全部頁面」清單（從膠囊往上彈） */
+.proto-pill__here { font-weight: var(--font-semibold); }
+.proto-all { max-height: 70%; overflow: auto; padding: var(--space-3); border: 0; border-radius: var(--radius-lg); background: var(--zinc-900); color: #fff; box-shadow: 0 16px 40px -12px rgb(0 0 0 / 50%); display: none; gap: var(--space-4); }
+.proto-all:popover-open { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); width: min(520px, calc(100% - 32px)); }
+.proto-all__h { padding: 4px 8px; font-size: var(--text-sm); color: var(--accent-vivid-2); font-weight: var(--font-semibold); }
+.proto-all a { display: block; padding: 6px 8px; border-radius: var(--radius-sm); color: rgb(255 255 255 / 80%); text-decoration: none; font-size: var(--text-md); }
+.proto-all a:hover { background: rgb(255 255 255 / 10%); color: #fff; }
+.proto-all a[aria-current='page'] { background: #fff; color: var(--zinc-900); font-weight: var(--font-semibold); }
+
+/* 桌機的底部是儲存列、批次動作列、toast 的位置，審稿膠囊不能擋住它們（#990 批 2：蓋住了成績登錄的「儲存」）→ 移到頁首下方 */
+@media (min-width: 861px) { .proto-pill--top { top: 68px; bottom: auto; } }
