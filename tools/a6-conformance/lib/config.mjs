@@ -691,7 +691,11 @@ const FORM_DIALOGS = {
   },
   parents: { 'new-parent': formOpen('[data-new]', 'button:has-text("新增家長")') },
   // #2290 換共用殼的對話框（0950-a 家族）
-  leave: { batch: formOpen('[data-batch-leave]', 'button:has-text("批次請假")') },
+  leave: {
+    batch: formOpen('[data-batch-leave]', 'button:has-text("批次請假")'),
+    // 登記請假（#2318 勾當天的課）
+    'new-leave': dlgOpen('[data-new]', 'button:has-text("登記請假")', 'app-leave-form-dialog'),
+  },
   schools: { 'new-school': formOpen('[data-new-school]', 'button:has-text("新增學校")') },
   exams: {
     'new-exam': formOpen('[data-new]', [

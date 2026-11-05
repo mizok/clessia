@@ -694,7 +694,7 @@ export class StudentDetailPage implements OnInit {
       modal: true,
       showHeader: false, // 標題由請假表單裡的共用殼畫（#2290）
       appendTo: this.overlayContainer || 'body',
-      data: { student: { id: s.id, name: s.name } },
+      data: { student: { id: s.id, name: s.name }, pickSessions: true },
       contentStyle: LEAVE_DIALOG_CONTENT_STYLE,
     });
     ref?.onClose

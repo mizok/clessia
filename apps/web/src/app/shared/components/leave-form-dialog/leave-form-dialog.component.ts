@@ -24,6 +24,13 @@ import {
 } from '@core/students.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { LeaveService, type CreateLeaveInput, type LeaveRequest } from '@core/leave.service';
+import {
+  AttendanceService,
+  type StudentDay,
+  type StudentDaySession,
+} from '@core/attendance.service';
+import { CampusContextService } from '@core/campus-context.service';
+import { SystemClockService } from '@core/system-clock.service';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 
 interface SelectOption<T> {
@@ -105,59 +112,142 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
           <label class="text-sm font-medium text-zinc-700"
             >學生 <span class="text-error-600">*</span></label
           >
+          <!-- 跟儀表板「登記請假」同一組（#2318）：建議列寫分校 · 家長，家長名也找得到 -->
           <app-student-autocomplete
             [value]="selectedStudent"
-            (valueChange)="selectedStudent = $event"
+            (valueChange)="onStudent($event)"
             [suggestions]="studentSuggestions()"
+            [showContact]="true"
             (queryChange)="searchStudents($event)"
           />
         </div>
       }
 
-      <!-- A6 forms.leave：四個欄各自有標籤，桌機兩兩並排、手機一欄一列 -->
-      <!-- ngNoForm：A6 的欄位包在 <form> 裡，但這裡的 ngModel 是 standalone，不要 NgForm -->
-      <form
-        ngNoForm
-        class="grid grid-cols-1 gap-x-3 gap-y-4 wide:grid-cols-2"
-        (submit)="$event.preventDefault()"
-      >
-        @for (f of dateFields; track f.key) {
-          <!-- A6 .acset__f／.acset__l：標籤是 block＋下距 4，欄位是一般的 inline-block（不包 flex） -->
+      @if (mode() === 'sessions') {
+        <!-- A6 leave.html newLeave（#2318）：請假日期 → 那天的課（勾選，預設全勾）→ 原因 -->
+        <form ngNoForm class="flex flex-col gap-4" (submit)="$event.preventDefault()">
           <div class="min-w-0">
-            <label
-              class="mb-1 block text-md font-semibold text-zinc-700"
-              [attr.for]="'leave-' + f.key"
-              >{{ f.label }}
-              @if (f.required) {
-                <span class="text-error-700" aria-hidden="true">*</span>
-              }
-            </label>
-            <!-- A6 forms.leave：原生 date／time 欄（.acset__in），手機 44 高、字 16 -->
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="leave-day"
+              >請假日期 <span class="text-error-700" aria-hidden="true">*</span></label
+            >
             <input
-              [id]="'leave-' + f.key"
-              [type]="f.time ? 'time' : 'date'"
+              id="leave-day"
+              type="date"
               class="h-10 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
-              [value]="toInput(this[f.key], f.time)"
-              [min]="f.key === 'endDate' ? toInput(startDate, false) : ''"
-              (input)="this[f.key] = fromInput($any($event.target).value, f.time)"
+              [value]="day()"
+              (input)="onDay($any($event.target).value)"
             />
           </div>
-        }
-        <div class="min-w-0 wide:col-span-2">
-          <label class="mb-1 block text-md font-semibold text-zinc-700" for="leave-reason"
-            >原因（選填）</label
-          >
-          <!-- A6 是單行文字欄 -->
-          <input
-            id="leave-reason"
-            type="text"
-            [(ngModel)]="reason"
-            placeholder="請假原因"
-            autocomplete="off"
-            class="h-10 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
-          />
-        </div>
-      </form>
+          <div class="min-w-0" data-testid="leave-pick">
+            <p class="m-0 mb-1 text-md font-semibold text-zinc-700" id="leave-pick-label">
+              要請假的課
+            </p>
+            @if (!studentId()) {
+              <p class="m-0 text-md text-zinc-600">先選學生，這裡會列出他那天的課。</p>
+            } @else if (dayState() === 'loading') {
+              <p class="m-0 text-md text-zinc-600" role="status">載入這天的課…</p>
+            } @else if (dayState() === 'error') {
+              <p class="m-0 text-md text-error-700">讀不到這天的課，請換個日期或稍後再試。</p>
+            } @else if (daySessions().length === 0) {
+              <p class="m-0 text-md text-zinc-600">
+                該日無排課。{{ studentLabel() }}在 {{ dayLabel() }} 沒有課，換一天試試。
+              </p>
+            } @else {
+              <div class="flex flex-col gap-2" role="group" aria-labelledby="leave-pick-label">
+                @for (s of daySessions(); track s.sessionId) {
+                  <label
+                    class="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-3 has-checked:border-zinc-900 has-disabled:cursor-not-allowed has-disabled:text-zinc-500"
+                  >
+                    <input
+                      type="checkbox"
+                      class="m-0 accent-zinc-900"
+                      [checked]="picked().has(s.sessionId)"
+                      [disabled]="!!blockedReason(s)"
+                      (change)="toggle(s.sessionId)"
+                    />
+                    <span class="font-semibold">{{ s.className }}</span>
+                    <small class="text-sm text-zinc-600 tabular-nums"
+                      >{{ s.startTime?.slice(0, 5) }}–{{ s.endTime?.slice(0, 5) }}</small
+                    >
+                    @if (blockedReason(s); as why) {
+                      <span class="ml-auto text-sm text-zinc-600">{{ why }}</span>
+                    }
+                  </label>
+                }
+              </div>
+            }
+          </div>
+          <div class="min-w-0">
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="leave-reason"
+              >原因（選填）</label
+            >
+            <input
+              id="leave-reason"
+              type="text"
+              [(ngModel)]="reason"
+              placeholder="請假原因"
+              autocomplete="off"
+              class="h-10 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+            />
+          </div>
+        </form>
+      } @else {
+        <!-- A6 forms.leave：四個欄各自有標籤，桌機兩兩並排、手機一欄一列 -->
+        <!-- ngNoForm：A6 的欄位包在 <form> 裡，但這裡的 ngModel 是 standalone，不要 NgForm -->
+        <form
+          ngNoForm
+          class="grid grid-cols-1 gap-x-3 gap-y-4 wide:grid-cols-2"
+          (submit)="$event.preventDefault()"
+        >
+          @for (f of dateFields; track f.key) {
+            <!-- A6 .acset__f／.acset__l：標籤是 block＋下距 4，欄位是一般的 inline-block（不包 flex） -->
+            <div class="min-w-0">
+              <label
+                class="mb-1 block text-md font-semibold text-zinc-700"
+                [attr.for]="'leave-' + f.key"
+                >{{ f.label }}
+                @if (f.required) {
+                  <span class="text-error-700" aria-hidden="true">*</span>
+                }
+              </label>
+              <!-- A6 forms.leave：原生 date／time 欄（.acset__in），手機 44 高、字 16 -->
+              <input
+                [id]="'leave-' + f.key"
+                [type]="f.time ? 'time' : 'date'"
+                class="h-10 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+                [value]="toInput(this[f.key], f.time)"
+                [min]="f.key === 'endDate' ? toInput(startDate, false) : ''"
+                (input)="setField(f.key, fromInput($any($event.target).value, f.time))"
+              />
+            </div>
+          }
+          <div class="min-w-0 wide:col-span-2">
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="leave-reason"
+              >原因（選填）</label
+            >
+            <!-- A6 是單行文字欄 -->
+            <input
+              id="leave-reason"
+              type="text"
+              [(ngModel)]="reason"
+              placeholder="請假原因"
+              autocomplete="off"
+              class="h-10 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+            />
+          </div>
+        </form>
+      }
+      <!-- 跨日、指定時段（現況有、A6 沒畫，R2 不刪）：收成一個連結。編輯時維持原本的模式 -->
+      @if (pickSessions && !editing) {
+        <button
+          type="button"
+          class="mt-1 inline-flex min-h-11 cursor-pointer items-center self-start border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-[3px]"
+          data-testid="leave-mode-toggle"
+          (click)="switchMode()"
+        >
+          {{ mode() === 'sessions' ? '改用日期區間（跨日、指定時段）' : '改回勾選當天的課' }}
+        </button>
+      }
 
       <!--
         A6 form() 的底部：必填沒填時送出鈕不鎖死，旁邊一行寫還差什麼（#723：disabled 會把「為什麼不行」藏起來）；
@@ -199,6 +289,9 @@ export class LeaveFormDialogComponent implements OnInit {
   private readonly studentsService = inject(StudentsService);
   private readonly refData = inject(ReferenceDataService);
   private readonly leaveService = inject(LeaveService);
+  private readonly attendanceService = inject(AttendanceService);
+  private readonly campusCtx = inject(CampusContextService);
+  private readonly todayTaipei = inject(SystemClockService).todayTaipei;
   // 編輯模式：`data.leave` 有值。換學生等於撤掉再開一張（PATCH 沒有 studentId），所以學生唯讀。
   protected readonly editing: LeaveRequest | null = this.config?.data?.leave ?? null;
 
@@ -217,7 +310,8 @@ export class LeaveFormDialogComponent implements OnInit {
   /** 嵌入（家長端）時學生不出欄位，寫在副標（A6 forms.leave） */
   protected readonly sub = computed(() => {
     const s = this.student();
-    return s ? `${s.name} · 這段時間的課都會標成請假` : '';
+    if (s) return `${s.name} · 這段時間的課都會標成請假`;
+    return this.mode() === 'sessions' ? '送出後，勾的課出缺席會標成請假' : '';
   });
 
   // 預帶學生（學生檔案的「登記請假」）：`data.student` 有值就跟編輯一樣學生唯讀，不給選
@@ -246,6 +340,35 @@ export class LeaveFormDialogComponent implements OnInit {
     { key: 'endTime', label: '結束時間', time: true, required: false },
   ] as const;
 
+  /**
+   * 勾選當天的課（#2318，A6 leave.html newLeave）：只有管理端開窗端給 `data.pickSessions`。
+   * 家長端不勾堂次（specs/parent/leave.md Q6），維持日期區間。
+   */
+  protected readonly pickSessions: boolean = !!this.config?.data?.pickSessions;
+  /** 編輯時照原本的假：有綁堂＝勾選，沒綁堂（區間、整天）＝區間 */
+  protected readonly mode = signal<'sessions' | 'range'>(
+    this.pickSessions && (!this.editing || (this.editing.sessionIds?.length ?? 0) > 0)
+      ? 'sessions'
+      : 'range',
+  );
+  // 只有勾堂模式用得到；家長端不讀伺服器時鐘
+  protected readonly day = signal<string>(
+    this.editing?.startDate ?? (this.pickSessions ? this.todayTaipei() : ''),
+  );
+  protected readonly studentId = signal<string | null>(
+    this.editing?.studentId ?? this.config?.data?.student?.id ?? null,
+  );
+  private readonly dayResult = signal<StudentDay | 'loading' | 'error' | null>(null);
+  protected readonly dayState = computed(() => {
+    const r = this.dayResult();
+    return r === 'loading' || r === 'error' ? r : 'ready';
+  });
+  protected readonly daySessions = computed<StudentDaySession[]>(() => {
+    const r = this.dayResult();
+    return r && typeof r === 'object' ? r.sessions : [];
+  });
+  protected readonly picked = signal<ReadonlySet<string>>(new Set());
+
   protected readonly saving = signal(false);
   protected readonly studentSuggestions = signal<Student[]>([]);
   protected readonly errorMessage = signal<string | null>(null);
@@ -273,6 +396,7 @@ export class LeaveFormDialogComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    if (this.mode() === 'sessions') this.loadDay();
     const leave = this.editing;
     if (leave) {
       this.startDate = parseISO(leave.startDate);
@@ -289,6 +413,89 @@ export class LeaveFormDialogComponent implements OnInit {
     }
     if (this.presetStudent()) return;
     this.refData.loadCampuses();
+    // 分校預設帶頂列（#2318）；頂列是全部分校時維持全部
+    if (this.pickSessions) this.selectedCampusId = this.campusCtx.id();
+  }
+
+  protected onStudent(value: Student | string | null): void {
+    this.selectedStudent = value;
+    const id = isStudentSelection(value) ? value.id : null;
+    if (id === this.studentId()) return;
+    this.studentId.set(id);
+    if (this.mode() === 'sessions') this.loadDay();
+  }
+
+  protected onDay(value: string): void {
+    if (!value || value === this.day()) return;
+    this.day.set(value);
+    this.loadDay();
+  }
+
+  protected switchMode(): void {
+    this.mode.set(this.mode() === 'sessions' ? 'range' : 'sessions');
+    this.errorMessage.set(null);
+    if (this.mode() === 'sessions') this.loadDay();
+  }
+
+  /** 區間模式：結束日跟開始日（#2318）—— 結束日空的或早於開始日就帶同一天，單日假不用填兩次 */
+  protected setField(key: 'startDate' | 'endDate' | 'startTime' | 'endTime', value: Date | null) {
+    this[key] = value;
+    if (key === 'startDate' && value && (!this.endDate || this.endDate < value))
+      this.endDate = value;
+  }
+
+  /** 停課的、已經被別張假蓋到的不能勾（後者送出會 409 重疊）；編輯時自己這張綁的堂不算 */
+  protected blockedReason(s: StudentDaySession): string | null {
+    if (s.cancelled) return '停課';
+    if (s.existingLeave && !this.editing?.sessionIds?.includes(s.sessionId)) return '已請假';
+    return null;
+  }
+
+  protected toggle(id: string): void {
+    const next = new Set(this.picked());
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    this.picked.set(next);
+  }
+
+  protected studentLabel(): string {
+    const s = this.selectedStudent;
+    return this.fixedStudentName() ?? (isStudentSelection(s) ? s.name : '');
+  }
+
+  protected dayLabel(): string {
+    const d = parseISO(this.day());
+    return `${format(d, 'M/d')}（${'日一二三四五六'[d.getDay()]}）`;
+  }
+
+  /** 那天的課：管理端儀表板「登記請假」同一支 `GET /attendance/student-day` */
+  private loadDay(): void {
+    const id = this.studentId();
+    if (!id) {
+      this.dayResult.set(null);
+      return;
+    }
+    const day = this.day();
+    this.dayResult.set('loading');
+    this.attendanceService.studentDay(id, day).subscribe({
+      next: (res) => {
+        if (id !== this.studentId() || day !== this.day()) return; // 換得快，舊回應不蓋新的
+        this.dayResult.set(res.data);
+        // 預設全勾能勾的（A6）；編輯時帶回原本綁的那幾堂
+        const own = this.editing?.sessionIds;
+        this.picked.set(
+          new Set(
+            res.data.sessions
+              .filter((x) => !this.blockedReason(x))
+              .filter((x) => !own?.length || own.includes(x.sessionId))
+              .map((x) => x.sessionId),
+          ),
+        );
+      },
+      error: () => {
+        if (id === this.studentId() && day === this.day()) this.dayResult.set('error');
+      },
+    });
   }
 
   /** 原生 date／time 欄的字串（`yyyy-MM-dd`／`HH:mm`）↔ 表單裡的 Date */
@@ -307,6 +514,7 @@ export class LeaveFormDialogComponent implements OnInit {
   }
 
   protected canSubmit(): boolean {
+    if (this.mode() === 'sessions') return !this.sessionsHint();
     return (
       (this.fixedStudentName() !== null || isStudentSelection(this.selectedStudent)) &&
       !!this.startDate &&
@@ -315,8 +523,19 @@ export class LeaveFormDialogComponent implements OnInit {
     );
   }
 
+  /** A6 newLeave 的 why()：還沒選學生／這天沒有他的課／至少勾一堂課 */
+  private sessionsHint(): string {
+    if (this.fixedStudentName() === null && !isStudentSelection(this.selectedStudent))
+      return '還沒選學生';
+    if (this.dayState() !== 'ready') return '';
+    if (this.daySessions().length === 0) return '這天沒有他的課';
+    if (this.picked().size === 0) return '至少勾一堂課';
+    return '';
+  }
+
   /** A6「還沒填：…」：必填沒填的欄名 */
   protected missingHint(): string {
+    if (this.mode() === 'sessions') return this.sessionsHint();
     const missing = [
       ...(this.fixedStudentName() === null && !isStudentSelection(this.selectedStudent)
         ? ['學生']
@@ -330,8 +549,8 @@ export class LeaveFormDialogComponent implements OnInit {
   protected searchStudents(query: string): void {
     this.studentsService
       .list({
+        // 不帶 searchScope：家長名也比對（同儀表板「登記請假」，#2318）—— 打電話來的常是家長
         search: query,
-        searchScope: 'student_name',
         campusId: this.selectedCampusId ?? undefined,
         grade: this.selectedGrade ?? undefined,
         isActive: true,
@@ -344,6 +563,10 @@ export class LeaveFormDialogComponent implements OnInit {
 
   protected submit(): void {
     if (this.saving()) return;
+    if (this.mode() === 'sessions') {
+      this.submitSessions();
+      return;
+    }
     const student = this.selectedStudent;
     if (!this.editing && !this.presetStudent() && !isStudentSelection(student)) {
       this.errorMessage.set('請從建議清單選擇一位學生');
@@ -383,6 +606,39 @@ export class LeaveFormDialogComponent implements OnInit {
       ? this.leaveService.update(this.editing.id, fields)
       : create({ studentId: this.presetStudent()?.id ?? (student as Student).id, ...fields });
 
+    this.send(request$);
+  }
+
+  /** 勾選模式：送 `sessionIds`，日期由 server 從堂次算；時間不能一起給（API 互斥） */
+  private submitSessions(): void {
+    const hint = this.sessionsHint();
+    if (hint || this.dayState() !== 'ready' || this.picked().size === 0) {
+      this.errorMessage.set(hint || '還在載入這天的課');
+      return;
+    }
+    this.saving.set(true);
+    this.errorMessage.set(null);
+    const sessionIds = [...this.picked()];
+    const reason = this.reason || null;
+    const student = this.selectedStudent;
+    const studentId =
+      this.editing?.studentId ??
+      this.presetStudent()?.id ??
+      (isStudentSelection(student) ? student.id : '');
+    this.send(
+      this.editing
+        ? this.leaveService.update(this.editing.id, { reason, sessionIds })
+        : this.leaveService.create({
+            studentId,
+            startDate: this.day(),
+            endDate: this.day(),
+            reason,
+            sessionIds,
+          }),
+    );
+  }
+
+  private send(request$: Observable<unknown>): void {
     request$.subscribe({
       next: (leave) => {
         this.saving.set(false);
