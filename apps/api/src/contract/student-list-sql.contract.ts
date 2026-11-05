@@ -276,6 +276,37 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     for (const id of parentUsers) await authCtx.internalAdapter.deleteUser(id);
   }, 60_000);
 
+  /**
+   * **範圍的絕對斷言**（#1928 那套：跨校、跨老師不可見）。兩側吃同一份參數，所以 route 把範圍參數算錯
+   * （例：老師的任課班沒傳）時兩側一起錯、逐欄比對抓不到 —— 這條直接對名單
+   */
+  it('範圍：受限一校看得到一校退班的、看不到只在二校的；老師只看得到任課班 active／pending 的', async () => {
+    const names = async () =>
+      (
+        (await hit('/api/students?withToday=false&pageSize=100', true)).body['data'] as Array<{
+          name: string;
+        }>
+      )
+        .map((r) => r.name)
+        .sort();
+    try {
+      ctx.campusScope = [campus.c1];
+      const c1 = await names();
+      expect(c1).toContain('一校退班');
+      expect(c1).not.toContain('只在二校');
+      ctx.campusScope = [];
+      expect(await names()).toEqual([]);
+      ctx.campusScope = null;
+      ctx.teacher = true;
+      expect(await names()).toEqual(
+        ['甲', '甲', '乙', '學制不合', '別 org 學校', '未分類學校', '停用', '待繳費'].sort(),
+      );
+    } finally {
+      ctx.teacher = false;
+      ctx.campusScope = null;
+    }
+  });
+
   const sqlFailures = (log: { mock: { calls: unknown[][] } }) =>
     log.mock.calls.filter((c) => String(c[0]).includes('[students-sql]')).length;
 
