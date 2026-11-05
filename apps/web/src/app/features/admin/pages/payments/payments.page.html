@@ -253,7 +253,7 @@
             <p class="m-0 text-sm text-zinc-600">目前沒有過期又還沒繳清的帳單</p>
           } @else {
             <ul class="m-0 flex list-none flex-col p-0">
-              @for (invoice of invoices(); track invoice.id) {
+              @for (invoice of overdueRows(); track invoice.id) {
                 <ng-container
                   [ngTemplateOutlet]="chapterRow"
                   [ngTemplateOutletContext]="{ $implicit: invoice, vt: 'inv-main-' }"
@@ -312,6 +312,10 @@
             }
           </div>
           <div class="col-start-1 row-start-2 min-w-0 wide:col-start-2 wide:row-start-1">
+            <!-- #2316：同一位學生好幾張帳單，靠期別分 -->
+            <span class="block text-sm text-zinc-600" data-testid="invoice-period">{{
+              periodLabel(invoice)
+            }}</span>
             <span
               class="inline-flex items-center gap-1 text-md tabular-nums"
               [class.font-semibold]="isOverdue(invoice) || invoice.status === 'overrefunded'"
@@ -516,6 +520,13 @@
                 class="inline-flex min-h-11 items-center font-medium text-zinc-900 no-underline underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent-500 group-data-void/row:text-zinc-500"
                 [routerLink]="['/admin/students', invoice.studentId]"
                 >{{ invoice.studentName ?? '未知學生' }}</a
+              >
+              <!-- #2316：手機只剩學生與動作兩欄，期別、尚欠、到期寫在名字下 -->
+              <span
+                class="block text-sm text-zinc-600 tabular-nums wide:hidden"
+                data-testid="invoice-period-m"
+                >{{ periodLabel(invoice) }} · 尚欠 {{ outstanding(invoice) | number }} · 到期
+                {{ invoice.dueDate ?? '未設定' }}</span
               >
               @if (streakDays().get(invoice.studentId); as days) {
                 <a

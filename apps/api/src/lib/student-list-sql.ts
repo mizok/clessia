@@ -14,7 +14,9 @@ import type { Queryable } from './identity-sql';
  * 經學生的 FK 收，**刻意不另加 org 條件** —— 跟 builder 的 embed 一致，兩條路才逐欄相同。
  * 學制不合的學校照 builder 限本 org（`schools.org_id = $1`）。
  *
- * **這刀不收** `search`／`today`：帶了的請求仍走 builder（刀 1b 再收）。
+ * **搜尋與今日到班**（刀 1b）：都是條件、不是 id 清單 —— 家長姓名／電話、學校名在 SQL 裡 `exists`，
+ * 今日到班的 id 以 `= any($17)` 傳（不進 URL，不會 414）。**家長姓名、電話一律限本 org 的家長**
+ * （`parents.org_id = $1`）：builder 的家長姓名原本沒有 org 條件（授權面缺口，#1595 P2 ② 裁定 (c)）。
  *
  * **不退回**：任何失敗丟例外 → 500（#2230 (c)）。builder 只留給沒有 pool 的單元測試，
  * 兩份條件由 `contract/student-list-sql.contract.ts` 逐欄比對。
@@ -41,16 +43,13 @@ export interface StudentListParams {
   readonly offset: number;
   /** 主要家長電話：只有管理員（老師一律不帶） */
   readonly withPhone: boolean;
-  /**
-   * 以下四個只有 builder（`lib/student-list-builder.ts`）吃：**這刀的 SQL 不收搜尋與今日到班**，
-   * route 保證帶了它們就不走 SQL（刀 1b 收進 SQL）
-   */
+  /** 搜尋字（沒有就 null）。`*` 跟 PostgREST 的 ilike 一樣當萬用字元 */
   readonly search: string | null;
   /** `searchScope=default`：也比家長姓名、家長電話、學校名；`student_name` 只比學生姓名 */
   readonly searchRelated: boolean;
-  /** 3 碼以上純數字：也比家長電話 */
+  /** 3 碼以上純數字：也比家長電話（判準留在 JS，同 builder） */
   readonly searchPhone: boolean;
-  /** 今日到班篩選命中的學生；沒帶 `today` 時 null */
+  /** 今日到班篩選命中的學生（JS 依 `classifyToday` 算好）；沒帶 `today` 時 null */
   readonly todayIds: readonly string[] | null;
 }
 
@@ -64,7 +63,8 @@ export interface StudentListResult {
 
 /**
  * `$1` org、`$2` 分校、`$3` 任課班、`$4` grade、`$5` isActive、`$6` 學制不合、`$7` 沒有有效卡、
- * `$8` 今天發的卡、`$9`／`$10` 卡片日界、`$11` limit、`$12` offset、`$13` 帶電話。
+ * `$8` 今天發的卡、`$9`／`$10` 卡片日界、`$11` limit、`$12` offset、`$13` 帶電話、`$14` 搜尋字、
+ * `$15` 搜尋也比家長／學校、`$16` 搜尋也比家長電話、`$17` 今日到班 id。
  *
  * - 學制不合照 `schoolMismatchClause`：本 org 的學校、學制非 null 且跟年級推出的學制不同
  * - 卡片照 builder：`active_card` 只留沒作廢的（今天發的再限發卡時間）；沒有有效卡＝反連接
@@ -89,6 +89,25 @@ with base as (
 chapter as (
   select b.* from base b
   where ($5::boolean is null or b.is_active = $5::boolean)
+    and ($17::uuid[] is null or b.id = any($17::uuid[]))
+    and ($14::text is null or b.name ilike '%' || replace($14::text, '*', '%') || '%' or ($15::boolean and (
+      exists (
+        select 1 from public.parent_student_relations r
+        join public.parents pa on pa.id = r.parent_id
+        where r.student_id = b.id and pa.org_id = $1::uuid
+          and (pa.name ilike '%' || replace($14::text, '*', '%') || '%'
+            or ($16::boolean and exists (
+              select 1 from public.ba_user u
+              where u.id = pa.user_id and u.phone ilike '%' || $14::text || '%'
+            )))
+      )
+      or exists (
+        select 1 from public.schools sc
+        where sc.id = b.school_id and sc.org_id = $1::uuid
+          and (sc.name ilike '%' || replace($14::text, '*', '%') || '%'
+            or sc.short_name ilike '%' || replace($14::text, '*', '%') || '%')
+      )
+    )))
     and (not $6::boolean or exists (
       select 1 from public.schools sc
       where sc.id = b.school_id and sc.org_id = $1::uuid and sc.level is not null
@@ -180,7 +199,10 @@ export const studentListArgs = (p: StudentListParams): unknown[] => [
   p.limit,
   p.offset,
   p.withPhone,
-  // 刀 1a 的 SQL 不收搜尋與今日到班（route 帶了就不走 SQL）；刀 1b 接成 $14–$17
+  p.search,
+  p.searchRelated,
+  p.searchPhone,
+  p.todayIds,
 ];
 
 /** 反過來：測試替身把 `STUDENT_LIST_SQL` 的參數交給 builder 版用 */
@@ -198,11 +220,10 @@ export const studentListParamsFromArgs = (v: readonly unknown[]): StudentListPar
   limit: v[10] as number,
   offset: v[11] as number,
   withPhone: v[12] as boolean,
-  // 刀 1a 的 SQL 沒有這四個參數：走 SQL 的請求本來就沒帶
-  search: (v[13] as string | null | undefined) ?? null,
-  searchRelated: (v[14] as boolean | undefined) ?? false,
-  searchPhone: (v[15] as boolean | undefined) ?? false,
-  todayIds: (v[16] as string[] | null | undefined) ?? null,
+  search: v[13] as string | null,
+  searchRelated: v[14] as boolean,
+  searchPhone: v[15] as boolean,
+  todayIds: v[16] as string[] | null,
 });
 
 const isCount = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= 0;

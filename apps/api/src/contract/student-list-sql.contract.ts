@@ -101,7 +101,7 @@ vi.mock('../middleware/auth', async (importOriginal) => {
   };
 });
 
-run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② 刀 1a）', () => {
+run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② 刀 1a／1b）', () => {
   let app: { request: (path: string, init?: RequestInit, env?: unknown) => Promise<Response> };
   const env = { ENVIRONMENT: 'contract', WEB_URL: 'http://localhost:4200', ALLOWED_ORIGINS: '' };
   const auth = createAuth(
@@ -173,6 +173,8 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
       ]);
     const elementary = await school(ctx.orgId, '名冊國小', 'elementary');
     const junior = await school(ctx.orgId, '名冊國中', 'junior');
+    // 簡稱也要比得到（只有簡稱命中：全名裡沒有「冊中」）
+    await q("update schools set short_name = '冊中' where id = $1", [junior]);
     const unknown = await school(ctx.orgId, '名冊未分類', null);
     const elementaryB = await school(otherOrg, '別 org 國小', 'elementary');
     // 別 org 的學校**會**出現在 misB 那列的 `schools`（學生自己的 FK，兩條路都一樣），所以不列進 otherIds
@@ -245,6 +247,36 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
       );
     }
 
+    // 今日到班（刀 1b）：日到班模式、一校那班今天 00:00 有課（時間已過，到／沒到都定了）、甲打了卡
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+    await q("update organizations set attendance_mode = 'daily_checkin' where id = $1", [
+      ctx.orgId,
+    ]);
+    await q(
+      `insert into sessions (org_id, class_id, session_date, start_time, end_time, status, assignment_status)
+       values ($1, $2, $3, '00:00', '00:30', 'scheduled', 'unassigned')`,
+      [ctx.orgId, klass['c1'], today],
+    );
+    await q(
+      'insert into daily_checkins (org_id, student_id, checkin_date, checked_in_at) values ($1, $2, $3, now())',
+      [ctx.orgId, s.a, today],
+    );
+
+    // 授權面缺口（#1595 P2 ② 裁定 (c)）：別 org 的家長掛在本 org 的乙身上（FK 不擋）。
+    // 用他的名字搜，本 org 不能因此命中乙
+    const { user: userB } = (await auth.api.createUser({
+      body: { email: `c1595-${crypto.randomUUID()}@phone.internal`, name: '跨org家長' } as never,
+    })) as { user: { id: string } };
+    parentUsers.push(userB.id);
+    const parentB = await one(
+      "insert into parents (org_id, name, user_id) values ($1, '跨org家長', $2)",
+      [otherOrg, userB.id],
+    );
+    await q(
+      "insert into parent_student_relations (parent_id, student_id, relation, is_primary) values ($1, $2, '其他', false)",
+      [parentB, s.b],
+    );
+
     // 別 org：同名同年級
     otherIds.push(
       await one("insert into students (org_id, name, grade) values ($1, '甲', 'J2')", [otherOrg]),
@@ -259,6 +291,8 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
         'delete from parent_student_relations where student_id in (select id from students where org_id = $1)',
         'delete from parents where org_id = $1',
         'delete from checkin_cards where org_id = $1',
+        'delete from daily_checkins where org_id = $1',
+        'delete from sessions where org_id = $1',
         'delete from enrollments where org_id = $1',
         'delete from students where org_id = $1',
         'delete from schools where org_id = $1',
@@ -338,6 +372,21 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
       'withoutCard=true&cardIssuedToday=true',
       'pageSize=2&page=2',
       'page=99',
+      `search=${encodeURIComponent('甲')}`,
+      `search=${encodeURIComponent('媽')}`,
+      `search=${encodeURIComponent('國中')}`,
+      `search=${encodeURIComponent('名*小')}`,
+      `search=${PHONE}03`,
+      `search=${encodeURIComponent('冊中')}`,
+      // 別 org 的學校（misB 掛著）：學校名搜尋要限本 org，同 builder
+      `search=${encodeURIComponent('別 org 國小')}`,
+      `search=${PHONE}`, // 三位家長都中（前綴）
+      `search=${encodeURIComponent('媽')}&searchScope=student_name`,
+      // 別 org 家長的名字（#1595 P2 ② 裁定 (c)）：兩條路都要是空 —— builder 少了 parents.org_id 會命中乙
+      `search=${encodeURIComponent('跨org家長')}`,
+      'today=any',
+      'today=arrived',
+      'today=missing',
     ];
     const diffs: string[] = [];
     let compared = 0;
@@ -362,10 +411,11 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
         }
     ctx.teacher = false;
     ctx.campusScope = null;
-    expect(compared).toBe(150);
+    expect(compared).toBe(345);
     expect(diffs).toEqual([]);
     expect(nonEmpty).toBeGreaterThan(50); // 不是兩邊都空
-  });
+    // 近 700 支請求：負載高時會撞預設 30 秒，逾時後 ctx 停在迴圈中途、後面幾條連鎖紅
+  }, 120_000);
 
   it('第一頁（含今日到班）也逐欄相同', async () => {
     for (const who of Object.values(WHO)) {
@@ -388,12 +438,84 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     const mis = (await hit('/api/students?withToday=false&schoolMismatch=true', true)).body;
     expect((mis['data'] as Array<{ name: string }>).map((r) => r.name)).toEqual(['學制不合']);
 
+    // 刀 1b 的篩選真的有命中（不是兩邊都空）
+    const names = async (qs: string) =>
+      (
+        (await hit(`/api/students?withToday=false&${qs}`, true)).body['data'] as Array<{
+          name: string;
+        }>
+      )
+        .map((r) => r.name)
+        .sort();
+    expect(await names('today=arrived')).toEqual(['甲']);
+    expect((await names('today=missing')).length).toBeGreaterThan(3);
+    expect(await names(`search=${PHONE}03`)).toEqual(['乙']);
+    expect(await names(`search=${encodeURIComponent('甲媽')}`)).toEqual(['甲']);
+    expect(await names(`search=${encodeURIComponent('名冊國中')}`)).toEqual(['甲', '甲']);
+    // `*` 是萬用字元；別 org 的國小（misB 的學校）不算
+    expect(await names(`search=${encodeURIComponent('名*小')}`)).toEqual(['乙', '學制不合'].sort());
+
     ctx.teacher = true;
     const t = (await hit('/api/students?withToday=false', true)).body;
     ctx.teacher = false;
     const tRows = t['data'] as Array<Record<string, unknown>>;
     expect(tRows.length).toBeGreaterThan(0);
     expect(tRows.every((r) => r['primaryParentPhone'] === null)).toBe(true);
+  });
+
+  it('家長姓名搜尋只比本 org 的家長：別 org 家長的名字搜不到本 org 的學生（舊碼命中）', async () => {
+    const body = (
+      await hit(`/api/students?withToday=false&search=${encodeURIComponent('跨org家長')}`, true)
+    ).body;
+    expect(body['data']).toEqual([]);
+    expect((body['summary'] as { total: number }).total).toBe(0);
+    // builder（契約的對照組、無 pool 的單元測試）也要守同一條：直接打，不經 route
+    const supabase = createServiceClientFromEnv({
+      SUPABASE_URL: URL!,
+      SUPABASE_SECRET_KEY: KEY!,
+    } as never);
+    const viaBuilder = await loadStudentListViaBuilder(supabase as never, {
+      orgId: ctx.orgId,
+      campusIds: null,
+      classIds: null,
+      grade: null,
+      isActive: null,
+      schoolMismatch: false,
+      withoutCard: false,
+      cardIssuedToday: false,
+      cardDayStart: '2026-01-01T00:00:00+08:00',
+      cardDayEnd: '2026-01-02T00:00:00+08:00',
+      limit: 20,
+      offset: 0,
+      withPhone: false,
+      search: '跨org家長',
+      searchRelated: true,
+      searchPhone: false,
+      todayIds: null,
+    });
+    expect([viaBuilder.rows, viaBuilder.total]).toEqual([[], 0]);
+  });
+
+  it('受限管理員帶搜尋也不碰 REST（舊碼：家長、學校前置查詢＋列表＋計數）', async () => {
+    const realFetch = globalThis.fetch;
+    let rest = 0;
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      if (String(input instanceof Request ? input.url : input).includes('/rest/v1/')) rest += 1;
+      return realFetch(input, init);
+    });
+    try {
+      ctx.campusScope = [campus.c1];
+      const res = await hit(
+        `/api/students?withToday=false&search=${encodeURIComponent('媽')}`,
+        true,
+      );
+      expect(res.status).toBe(200);
+      expect((res.body['data'] as unknown[]).length).toBeGreaterThan(0);
+      expect(rest).toBe(0);
+    } finally {
+      spy.mockRestore();
+      ctx.campusScope = null;
+    }
   });
 
   it('受限管理員的列表不碰 REST（舊碼：列表＋在籍數＋12 支章節）', async () => {

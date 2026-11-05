@@ -1,20 +1,5 @@
-<div class="form-dialog">
-  <div class="dialog-header-inline">
-    <div class="dialog-header-inline__content">
-      <span class="dialog-header-inline__title">{{
-        result() ? '學年升級完成' : '學年升級預覽'
-      }}</span>
-    </div>
-    <button
-      type="button"
-      class="dialog-header-inline__close size-11"
-      (click)="close()"
-      aria-label="關閉"
-    >
-      <i class="pi pi-times"></i>
-    </button>
-  </div>
-
+<!-- 共用殼（#2290）；底部只在預覽讀到之後才有（@if 只有一個根，照樣投影到 dialogFoot） -->
+<app-dialog-frame [title]="result() ? '學年升級完成' : '學年升級預覽'" (closed)="close()">
   @if (loadFailed()) {
     <app-load-failed description="沒有讀到升級預覽，可能是連線問題" (retry)="load()" />
   } @else if (preview(); as p) {
@@ -104,32 +89,39 @@
         <p class="m-0 text-sm font-semibold text-error-700" role="alert">{{ message }}</p>
       }
     </div>
-
-    <div class="form-dialog__footer">
-      @if (result() || p.alreadyPromoted || p.promotedCount + p.graduatedCount === 0) {
-        <button pButton class="min-h-11" label="關閉" size="small" (click)="close()"></button>
-      } @else {
-        <button
-          pButton
-          class="min-h-11"
-          class="shrink-0 whitespace-nowrap"
-          label="取消"
-          severity="secondary"
-          size="small"
-          text
-          (click)="close()"
-        ></button>
-        <button
-          pButton
-          class="min-h-11"
-          size="small"
-          [label]="consequence(p.promotedCount, p.graduatedCount)"
-          [loading]="executing()"
-          (click)="execute()"
-        ></button>
-      }
-    </div>
   } @else {
     <p class="m-0 py-6 text-md text-zinc-600" role="status">讀取升級預覽…</p>
   }
-</div>
+
+  @if (preview(); as p) {
+    <ng-container dialogFoot>
+      @if (result() || p.alreadyPromoted || p.promotedCount + p.graduatedCount === 0) {
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
+          data-testid="gp-close"
+          (click)="close()"
+        >
+          關閉
+        </button>
+      } @else {
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
+          (click)="close()"
+        >
+          取消
+        </button>
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+          data-testid="gp-execute"
+          [attr.aria-disabled]="executing()"
+          (click)="execute()"
+        >
+          {{ executing() ? '升級中…' : consequence(p.promotedCount, p.graduatedCount) }}
+        </button>
+      }
+    </ng-container>
+  }
+</app-dialog-frame>

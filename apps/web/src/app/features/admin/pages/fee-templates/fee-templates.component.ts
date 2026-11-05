@@ -369,7 +369,7 @@ export class FeeTemplatesComponent implements OnInit {
   protected openTemplateDialog(target?: FeeTemplate): void {
     const ref = this.dialogService.open(FeeTemplateFormDialogComponent, {
       header: target ? '編輯價目表' : '新增價目表',
-      width: '460px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
@@ -548,7 +548,7 @@ export class FeeTemplatesComponent implements OnInit {
   protected openPeriodDialog(target?: BillingPeriod): void {
     const ref = this.dialogService.open(BillingPeriodFormDialogComponent, {
       header: target ? '編輯收費期間' : '新增收費期間',
-      width: '460px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',

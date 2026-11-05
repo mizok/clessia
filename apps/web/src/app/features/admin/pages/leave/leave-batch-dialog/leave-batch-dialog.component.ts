@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 
 import { EnrollmentsService } from '@core/enrollments.service';
 import { LeaveService } from '@core/leave.service';
@@ -29,94 +30,96 @@ interface Pick {
 @Component({
   selector: 'app-leave-batch-dialog',
   standalone: true,
-  imports: [FormsModule, InputTextModule, SelectModule],
+  imports: [DialogFrameComponent, FormsModule, InputTextModule, SelectModule],
   template: `
-    <div class="flex flex-col gap-4 py-2">
-      <p class="m-0 text-md text-zinc-600">
-        同一堂課，一次幫好幾位學生請假。例如全班校外教學、颱風停課補假。
-      </p>
+    <!-- 共用殼（#2290）：標題、副標照 A6 leave.html batchLeave -->
+    <app-dialog-frame title="批次請假" sub="同一堂課，一次幫好幾位學生請假" (closed)="close()">
+      <div class="flex flex-col gap-4">
+        <label class="flex flex-col gap-1 text-md font-semibold text-zinc-700">
+          <span>課堂 <span class="text-error-700" aria-hidden="true">*</span></span>
+          <p-select
+            styleClass="w-full"
+            [options]="sessionOptions()"
+            optionLabel="label"
+            optionValue="value"
+            [filter]="true"
+            filterBy="label"
+            placeholder="選一堂課"
+            [ngModel]="sessionId()"
+            (ngModelChange)="onSessionChange($event)"
+            [appendTo]="'body'"
+            ariaLabel="課堂"
+          />
+          <!-- A6 .acset__hint -->
+          <span class="text-sm font-normal text-zinc-600">例如全班校外教學、颱風停課補假</span>
+        </label>
 
-      <label class="flex flex-col gap-1 text-md font-semibold text-zinc-700">
-        <span>課堂 <span class="text-error-700" aria-hidden="true">*</span></span>
-        <p-select
-          styleClass="w-full"
-          [options]="sessionOptions()"
-          optionLabel="label"
-          optionValue="value"
-          [filter]="true"
-          filterBy="label"
-          placeholder="選一堂課"
-          [ngModel]="sessionId()"
-          (ngModelChange)="onSessionChange($event)"
-          [appendTo]="'body'"
-          ariaLabel="課堂"
-        />
-      </label>
+        <fieldset class="m-0 flex flex-col gap-1 border-0 p-0" data-testid="batch-students">
+          <legend class="flex w-full items-center gap-3 p-0 text-md font-semibold text-zinc-700">
+            學生
+            <button
+              type="button"
+              class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-[3px]"
+              (click)="toggleAll()"
+            >
+              全選
+            </button>
+          </legend>
+          @if (!sessionId()) {
+            <p
+              class="m-0 text-md"
+              [class.text-warning-800]="nudged()"
+              [class.text-zinc-600]="!nudged()"
+            >
+              {{
+                nudged() ? '先選一堂課，才能全選這班的學生。' : '先選一堂課，這裡會列出這班的學生。'
+              }}
+            </p>
+          } @else if (loadingStudents()) {
+            <p class="m-0 text-md text-zinc-600">讀取名單中…</p>
+          } @else if (students().length === 0) {
+            <p class="m-0 text-md text-zinc-600">這班目前沒有在學的學生。</p>
+          } @else {
+            <div class="grid grid-cols-2 gap-x-3">
+              @for (s of students(); track s.id) {
+                <label
+                  class="flex min-h-11 cursor-pointer items-center gap-2 text-md text-zinc-900"
+                >
+                  <input type="checkbox" [checked]="selected().has(s.id)" (change)="toggle(s.id)" />
+                  {{ s.name }}
+                </label>
+              }
+            </div>
+          }
+        </fieldset>
 
-      <fieldset class="m-0 flex flex-col gap-1 border-0 p-0" data-testid="batch-students">
-        <legend class="flex w-full items-center gap-3 p-0 text-md font-semibold text-zinc-700">
-          學生
-          <button
-            type="button"
-            class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-[3px]"
-            (click)="toggleAll()"
-          >
-            全選
-          </button>
-        </legend>
-        @if (!sessionId()) {
-          <p
-            class="m-0 text-md"
-            [class.text-warning-800]="nudged()"
-            [class.text-zinc-600]="!nudged()"
-          >
-            {{
-              nudged() ? '先選一堂課，才能全選這班的學生。' : '先選一堂課，這裡會列出這班的學生。'
-            }}
-          </p>
-        } @else if (loadingStudents()) {
-          <p class="m-0 text-md text-zinc-600">讀取名單中…</p>
-        } @else if (students().length === 0) {
-          <p class="m-0 text-md text-zinc-600">這班目前沒有在學的學生。</p>
-        } @else {
-          <div class="grid grid-cols-2 gap-x-3">
-            @for (s of students(); track s.id) {
-              <label class="flex min-h-11 cursor-pointer items-center gap-2 text-md text-zinc-900">
-                <input type="checkbox" [checked]="selected().has(s.id)" (change)="toggle(s.id)" />
-                {{ s.name }}
-              </label>
-            }
+        <label class="flex flex-col gap-1 text-md font-semibold text-zinc-700">
+          原因（選填）
+          <input
+            pInputText
+            class="w-full"
+            placeholder="例如：校外教學"
+            [ngModel]="reason()"
+            (ngModelChange)="reason.set($event)"
+          />
+        </label>
+
+        @if (failures().length > 0) {
+          <div class="rounded-md bg-error-100 p-3" role="alert" data-testid="batch-failures">
+            <p class="m-0 mb-1 text-md font-semibold text-error-700">
+              {{ lastCreated() > 0 ? '已幫 ' + lastCreated() + ' 位請假；' : '' }}以下
+              {{ failures().length }} 位沒有成功：
+            </p>
+            <ul class="m-0 flex list-none flex-col gap-0.5 p-0">
+              @for (f of failures(); track f.studentId) {
+                <li class="text-md text-zinc-900">{{ nameOf(f.studentId) }}：{{ f.error }}</li>
+              }
+            </ul>
           </div>
         }
-      </fieldset>
-
-      <label class="flex flex-col gap-1 text-md font-semibold text-zinc-700">
-        原因（選填）
-        <input
-          pInputText
-          class="w-full"
-          placeholder="例如：校外教學"
-          [ngModel]="reason()"
-          (ngModelChange)="reason.set($event)"
-        />
-      </label>
-
-      @if (failures().length > 0) {
-        <div class="rounded-md bg-error-100 p-3" role="alert" data-testid="batch-failures">
-          <p class="m-0 mb-1 text-md font-semibold text-error-700">
-            {{ lastCreated() > 0 ? '已幫 ' + lastCreated() + ' 位請假；' : '' }}以下
-            {{ failures().length }} 位沒有成功：
-          </p>
-          <ul class="m-0 flex list-none flex-col gap-0.5 p-0">
-            @for (f of failures(); track f.studentId) {
-              <li class="text-md text-zinc-900">{{ nameOf(f.studentId) }}：{{ f.error }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      <div class="flex flex-wrap items-center justify-end gap-2 pt-2">
-        <p class="m-0 mr-auto text-md text-zinc-600 max-wide:basis-full" aria-live="polite">
+      </div>
+      <ng-container dialogFoot>
+        <p class="form-dialog__why" aria-live="polite">
           {{ errorMessage() ?? missingHint() }}
         </p>
         <button
@@ -142,8 +145,8 @@ interface Pick {
                 : '送出請假'
           }}
         </button>
-      </div>
-    </div>
+      </ng-container>
+    </app-dialog-frame>
   `,
 })
 export class LeaveBatchDialogComponent implements OnInit {

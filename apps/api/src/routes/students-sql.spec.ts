@@ -7,7 +7,7 @@ import studentsRoute from './students';
 
 /**
  * `GET /api/students` 有 pool 就走 SQL、失敗回 500 不退回（#1595 P2 ② 刀 1a、#2230 (c)）；沒有 pool、
- * 或帶 search／today（刀 1b 才收）走 builder。這裡守**接線**；兩條路逐欄相同由
+ * 才走 builder。這裡守**接線**；兩條路逐欄相同由
  * `contract/student-list-sql.contract.ts` 對真 DB 驗。
  */
 
@@ -129,13 +129,14 @@ describe('GET /api/students 先走 SQL（#1595 P2 ② 刀 1a）', () => {
     expect(names((await list('/?withToday=false', {})).body)).toEqual(['builder 回的學生']);
   });
 
-  it('帶 search 的請求這刀還走 builder（刀 1b 收），不碰 pool', async () => {
-    const pool = okPool();
-    const { body } = await list(`/?withToday=false&search=${encodeURIComponent('builder')}`, {
-      pool,
-    });
-    expect(pool.query).not.toHaveBeenCalled();
-    expect(names(body)).toEqual(['builder 回的學生']);
+  it('搜尋與今日 id 也走 SQL（刀 1b）：預設範圍比家長／學校、3 碼以上數字比電話，不碰 builder 的前置查詢', async () => {
+    const p = await params(`/?withToday=false&search=${encodeURIComponent('王')}`, null);
+    expect(p.slice(13, 17)).toEqual(['王', true, false, null]);
+    const q = await params('/?withToday=false&search=0912&searchScope=student_name', null);
+    expect(p.length).toBe(17);
+    expect(q.slice(13, 16)).toEqual(['0912', false, true]);
+    // 空字串當成沒有（同 builder 的 `if (search)`）
+    expect((await params('/?withToday=false&search=', null))[13]).toBeNull();
   });
 
   /** 參數順序見 STUDENT_LIST_SQL 的註解 */

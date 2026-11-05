@@ -10,6 +10,7 @@ import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { MessageService } from 'primeng/api';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import {
@@ -46,6 +47,7 @@ interface DraftItem {
   selector: 'app-invoice-form-dialog',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     DecimalPipe,
     FormsModule,
     ButtonModule,
