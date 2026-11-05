@@ -225,6 +225,16 @@ describe('StudentScoreDetailDialogComponent', () => {
     ).toContain('國一');
   });
 
+  // #2291：手機標頭上方的綠色格狀圖示是舊版的 jdenticon 頭像（稿沒有）；標頭只留 h2、副標、關閉鈕
+  it('標頭只有 h2、副標與關閉鈕 —— 沒有頭像', () => {
+    fixture.detectChanges();
+    const head = (fixture.nativeElement as HTMLElement).querySelector('.dialog-header-inline')!;
+    expect(head.querySelector('app-jdenticon-avatar, svg, img, canvas')).toBeNull();
+    const parts = [...head.querySelectorAll('h2, p, button')].map((e) => e.tagName);
+    expect(parts).toEqual(['H2', 'P', 'BUTTON']);
+    expect(head.querySelector('button')?.getAttribute('aria-label')).toBe('關閉');
+  });
+
   // #2079(c)／#2166：預設期間跟成績總覽一樣是近 3 個月
   it('預設只列近 3 個月，按「全部」才列出更早的', () => {
     const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
