@@ -298,6 +298,19 @@ describe('AddCourseComponent（家長端加選課程）', () => {
       expect(d).toContain('跟林子晴的 國三英文 A 班 撞時間');
     });
 
+    it('對話框：共用殼的 h2 是可及名稱、隨步驟換；詳情的動作在 sticky 底部，申請表單的送出鈕留在表單裡（A6 .apf__foot，#2290）', async () => {
+      await setup({ classes: [cls()] });
+      await openCard('c-math');
+      const h2 = () => dialog().querySelector('h2')!;
+      const foot = () => dialog().querySelector('.form-dialog__footer')!;
+      expect(dialog().getAttribute('aria-labelledby')).toBe(h2().id);
+      expect(foot().textContent).toContain('加選此課程');
+      tap(btn(/加選此課程/, dialog()));
+      expect(h2().textContent).toMatch(/^\s*加選 /);
+      expect(foot().querySelector('button')).toBeNull();
+      expect(dialog().querySelector('form')!.textContent).toContain('送出加選申請');
+    });
+
     it('加選：預選班的繳費週期（期繳）、可改；送出帶 billingMode／日期／備註 → 完成畫面「繼續瀏覽／查看申請狀態」', async () => {
       await setup({ classes: [cls({ fee: { amount: 18000, billingMode: 'period' } })] });
       await openCard('c-math');
