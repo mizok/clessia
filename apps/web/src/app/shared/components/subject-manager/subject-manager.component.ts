@@ -166,7 +166,7 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
     if (subject.academyExamCount > 0) parts.push(`${subject.academyExamCount} 場校內考`);
     const dialogRef = this.dialogService.open(ConfirmDialogComponent, {
       header: `「${subject.name}」不能刪除`,
-      width: 'var(--dlg-w-sm)',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: 'body',
@@ -189,7 +189,7 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
     }
     const dialogRef = this.dialogService.open(ConfirmDialogComponent, {
       header: '確認刪除科目',
-      width: 'var(--dlg-w-sm)',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: 'body',

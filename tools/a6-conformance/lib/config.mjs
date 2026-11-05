@@ -2250,6 +2250,33 @@ export const PAGES = {
         '>landmark:main[]>landmark:region[已停用]>heading:h2[已停用]',
     },
     deviations: [
+      // ── 停用確認（ConfirmDialog，#2290）──
+      // 稿的確認是 fields: [] 的 A2.form（空 <form>）；app 的確認沒有欄位，不包 form（R7）。取消／主鈕的位置連帶
+      {
+        status: '缺',
+        pop: 'off',
+        a6: '>landmark:dialog\\[確認停用\\]>landmark:form\\[\\]$',
+        reason: '確認對話框沒有欄位，不包空的 form（稿是 A2.form fields: []）',
+        source: `${rule('R7')}`,
+      },
+      ...['取消', '停用'].map((name) => ({
+        status: '位置',
+        pop: 'off',
+        a6: `>landmark:dialog\\[確認停用\\]>control:button\\[${name}\\]$`,
+        reason: '連帶：稿的空 form 有上下內距，app 沒有 form',
+        source: `${rule('R7')}`,
+      })),
+      // 關閉鈕：手機 44×44（稿 29 寬）
+      ...[
+        { status: '尺寸', widths: [360], detail: '^寬 29→44$' },
+        { status: '位置', widths: [360] },
+      ].map((d) => ({
+        ...d,
+        pop: 'off',
+        a6: '>landmark:dialog\\[確認停用\\]>control:button\\[關閉\\]$',
+        reason: '可點元素基底 ≥44px',
+        source: `${rule('R3')}`,
+      })),
       // 權限設定（#1314 ST2）。稿量第二筆「張教務」，app 量第一位管理員：人名、權限項數、頁長都是資料
       ...[
         { status: '文案', a6: '\\[張教務的權限\\]$' },

@@ -515,7 +515,7 @@ export class SettingsPage implements OnInit {
     };
     const ref = this.dialogService.open(ConfirmDialogComponent, {
       header: '復原學年升級',
-      width: 'var(--dlg-w-sm)',
+      width: 'var(--dlg-w-md)',
       showHeader: false,
       modal: true,
       appendTo: 'body',

@@ -514,7 +514,7 @@ export class EnrollmentsPage {
     this.dialogService
       .open(ConfirmDialogComponent, {
         header: '終止報名',
-        width: 'var(--dlg-w-sm)',
+        width: 'var(--dlg-w-md)',
         showHeader: false,
         modal: true,
         appendTo: this.overlayContainer.getContainer() || 'body',

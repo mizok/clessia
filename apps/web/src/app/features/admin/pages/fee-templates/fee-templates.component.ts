@@ -601,7 +601,7 @@ export class FeeTemplatesComponent implements OnInit {
   private confirm(header: string, data: ConfirmDialogData, onAccept: () => void): void {
     const ref = this.dialogService.open(ConfirmDialogComponent, {
       header,
-      width: 'var(--dlg-w-sm)',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
