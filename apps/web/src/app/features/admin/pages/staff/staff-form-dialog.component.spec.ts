@@ -5,7 +5,8 @@ import { of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
-import { PERMISSIONS, StaffService } from '@core/staff.service';
+import { StaffService } from '@core/staff.service';
+import { AuthService } from '@core/auth.service';
 import { SubjectManagerComponent } from '@shared/components/subject-manager/subject-manager.component';
 import { StaffFormDialogComponent } from './staff-form-dialog.component';
 
@@ -30,6 +31,10 @@ describe('StaffFormDialogComponent', () => {
         { provide: StaffService, useValue: staffServiceMock },
         { provide: MessageService, useValue: { add: vi.fn() } },
         { provide: DynamicDialogRef, useValue: { close: closeMock } },
+        {
+          provide: AuthService,
+          useValue: { user: () => ({ id: 'me' }), hasPermission: () => true },
+        },
         { provide: DialogService, useValue: { open: dialogOpenMock } },
         {
           provide: OverlayContainerService,
@@ -83,7 +88,6 @@ describe('StaffFormDialogComponent', () => {
       notes: '',
       campusIds: ['campus-1'],
       roles: ['admin'],
-      permissions: [],
       subjectIds: [],
       status: 'active',
     });
@@ -93,6 +97,10 @@ describe('StaffFormDialogComponent', () => {
     expect(staffServiceMock.create).toHaveBeenCalled();
     // #1665 Q6：對外暱稱去頭尾空白後送出
     expect((staffServiceMock.create as any).mock.calls[0][0].nickname).toBe('小王老師');
+    // 新增管理員預設只給「日常行政」，其餘建完到權限設定改（#1314 ST2，計畫席 11-05 裁 (a)）
+    expect((staffServiceMock.create as any).mock.calls[0][0].permissions).toEqual([
+      'basic_operations',
+    ]);
     expect(closeMock).toHaveBeenCalledWith({
       data: { id: 'staff-1' },
       loginUrl: 'https://x/verify?token=t',
@@ -189,67 +197,28 @@ describe('StaffFormDialogComponent', () => {
       expect(staffServiceMock.create).not.toHaveBeenCalled();
     });
   });
-
-  /**
-   * **#772：`manage_org_settings` 擋得住 API 的寫入，但畫面上沒有那個勾選框。**
-   *
-   * 詞彙表的家是 `apps/api/src/lib/permissions.ts`（9 個），而前端手抄了三份
-   * 且都少了它 —— 於是除了 `["*"]` 的超級管理員，**沒有任何人拿得到它，
-   * 也沒有任何人給得出來**。使用者看到的是：設定頁進得去、改得動、按儲存才吃 403。
-   *
-   * 這裡**對畫面上真的渲染出來的勾選框斷言**，不是對某個匯出的常數 ——
-   * 「授不授得出一個權限」取決於那個框在不在，不取決於某支陣列的內容。
-   */
-  describe('權限勾選清單要涵蓋整個詞彙表（#772）', () => {
-    const renderedPermissionIds = (): string[] =>
-      Array.from(
-        fixture.nativeElement.querySelectorAll(
-          '.permission-item label[for^="perm_"]',
-        ) as NodeListOf<HTMLLabelElement>,
-      ).map((el) => el.getAttribute('for')!.replace(/^perm_/, ''));
-
-    const asAdmin = () =>
-      fixture.componentInstance as unknown as {
-        toggleRole: (r: string, checked: boolean) => void;
-      };
-
-    beforeEach(() => {
-      asAdmin().toggleRole('admin', true);
-      fixture.detectChanges();
-    });
-
-    it('manage_org_settings 授得出來', () => {
-      expect(renderedPermissionIds()).toContain('manage_org_settings');
-    });
-
-    it('每一個框都有中文標籤與說明，不是裸露的 key', () => {
-      const items = Array.from(
-        fixture.nativeElement.querySelectorAll('.permission-item') as NodeListOf<HTMLElement>,
-      );
-      expect(items.length).toBeGreaterThan(0);
-      for (const item of items) {
-        expect(item.querySelector('.permission-item__label')?.textContent?.trim()).toBeTruthy();
-        expect(item.querySelector('.permission-item__desc')?.textContent?.trim()).toBeTruthy();
-      }
-    });
-  });
 });
 
-/**
- * #1829：帳號是 `["*"]`（全部權限）時，原本每一框都沒勾 —— 有人打開直接存檔，
- * 就把 `*` 蓋成 `[]`。現在要全勾、沒動過就原樣送回 `*`。
- */
-describe('StaffFormDialogComponent —— `*` 全部權限（#1829）', () => {
+/** 編輯表單不再帶權限（#1314 ST2 搬到權限設定）；角色勾選框依 API 規則提早停用（ST3／ST8） */
+describe('StaffFormDialogComponent —— 編輯', () => {
   const update = vi.fn((_id: string, _input: unknown) => of({ data: { id: 'staff-1' } }));
 
-  function setup() {
+  function setup(me: { id?: string; perms?: string[] } = {}) {
     update.mockClear();
+    const perms = me.perms ?? ['*'];
     TestBed.configureTestingModule({
       imports: [StaffFormDialogComponent],
       providers: [
         { provide: StaffService, useValue: { update } },
         { provide: MessageService, useValue: { add: vi.fn() } },
         { provide: DynamicDialogRef, useValue: { close: vi.fn() } },
+        {
+          provide: AuthService,
+          useValue: {
+            user: () => ({ id: me.id ?? 'me' }),
+            hasPermission: (p: string) => perms.includes(p) || perms.includes('*'),
+          },
+        },
         { provide: DialogService, useValue: { open: vi.fn() } },
         { provide: OverlayContainerService, useValue: { getContainer: () => 'body' } },
         {
@@ -258,6 +227,7 @@ describe('StaffFormDialogComponent —— `*` 全部權限（#1829）', () => {
             data: {
               staff: {
                 id: 'staff-1',
+                userId: 'user-boss',
                 displayName: '老闆',
                 email: 'boss@example.com',
                 campusIds: ['campus-1'],
@@ -278,23 +248,10 @@ describe('StaffFormDialogComponent —— `*` 全部權限（#1829）', () => {
       fixture,
       c: fixture.componentInstance as unknown as {
         save: () => void;
-        togglePermission: (p: string, checked: boolean) => void;
+        toggleRole: (r: string, checked: boolean) => void;
       },
     };
   }
-
-  it('每一框都顯示勾選，並標示「全部權限」', async () => {
-    const { fixture } = setup();
-    // ngModel 寫值是非同步的：等一輪再畫一次，checkbox 才會反映 model
-    await fixture.whenStable();
-    fixture.detectChanges();
-    const el = fixture.nativeElement as HTMLElement;
-    const boxes = Array.from(el.querySelectorAll<HTMLInputElement>('input[id^="perm_"]'));
-
-    expect(boxes.length).toBe(PERMISSIONS.length);
-    expect(boxes.every((box) => box.checked)).toBe(true);
-    expect(el.querySelector('[data-testid="all-permissions-note"]')).not.toBeNull();
-  });
 
   it('編輯沒有電話的人員：照樣存得了，電話欄下面提示補上', () => {
     const { fixture } = setup();
@@ -310,19 +267,66 @@ describe('StaffFormDialogComponent —— `*` 全部權限（#1829）', () => {
     expect(fixture.nativeElement.textContent).toContain('還沒有電話，建議補上');
   });
 
-  it('開了不改直接存，permissions 仍是 ["*"]', () => {
+  it('存檔不帶 permissions（API 不動）；角色沒變也不帶 roles', () => {
     const { c } = setup();
     c.save();
 
-    expect(update).toHaveBeenCalledWith('staff-1', expect.objectContaining({ permissions: ['*'] }));
+    const sent = update.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(sent).not.toHaveProperty('permissions');
+    expect(sent).not.toHaveProperty('roles');
   });
 
-  it('取消其中一項 → 展開成逐項清單、拿掉那一項', () => {
+  it('角色有變才帶 roles', () => {
     const { c } = setup();
-    c.togglePermission('manage_finance', false);
+    c.toggleRole('teacher', true);
+    // 老師要選科目，不然驗證擋下
+    (c as unknown as { updateForm: (f: string, v: unknown) => void }).updateForm('subjectIds', [
+      'subject-1',
+    ]);
     c.save();
 
-    const sent = (update.mock.calls[0]?.[1] as { permissions: string[] }).permissions;
-    expect(sent).toEqual(PERMISSIONS.filter((p) => p !== 'manage_finance'));
+    expect(update.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({ roles: ['admin', 'teacher'] }),
+    );
+  });
+
+  const roleBox = (el: HTMLElement, role: string) =>
+    el.querySelector<HTMLInputElement>(`#role_${role}`)!;
+  const note = (el: HTMLElement) => el.querySelector('[data-testid="role-note"]')?.textContent;
+
+  it('改自己（沒有 *）：兩個角色都停用並寫原因', async () => {
+    const { fixture } = setup({ id: 'user-boss', perms: ['manage_roles'] });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(roleBox(el, 'admin').disabled).toBe(true);
+    expect(roleBox(el, 'teacher').disabled).toBe(true);
+    expect(note(el)).toContain('不能加上或拿掉自己的管理員角色');
+  });
+
+  it('改自己（持 *）：只有管理員停用，老師可以改', async () => {
+    const { fixture } = setup({ id: 'user-boss', perms: ['*'] });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(roleBox(el, 'admin').disabled).toBe(true);
+    expect(roleBox(el, 'teacher').disabled).toBe(false);
+  });
+
+  it('沒有 manage_roles：別人的角色只能看', async () => {
+    const { fixture } = setup({ perms: ['manage_staff'] });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(roleBox(el, 'admin').disabled).toBe(true);
+    expect(note(el)).toContain('你沒有「角色管理」權限');
+  });
+
+  it('沒有權限勾選區塊（搬到權限設定）', () => {
+    const { fixture } = setup();
+    expect((fixture.nativeElement as HTMLElement).querySelector('[id^="perm_"]')).toBeNull();
   });
 });

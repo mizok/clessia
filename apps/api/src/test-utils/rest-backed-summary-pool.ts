@@ -4,12 +4,16 @@
  * `summariseSessions` 的三支補充讀取改走 pg（`lib/session-list-sql.ts`）。這個替身把那三句 SQL
  * **翻成改寫前的同一條 REST 呼叫鏈**、打在同一個 supabase 替身上，所以既有 spec 對資料與過濾的斷言照樣有意義。
  *
+ * 學生名冊那句不逐支翻，直接交給 `loadStudentListViaBuilder`（route 沒有 pool 時用的同一份）。
+ *
  * **SQL 本身的語意（org 條件、group by、日期區間）這裡驗不出來**，由
  * `contract/session-summary-2227.contract.ts` 對真 Postgres 驗。認不得的語句直接丟錯。
  */
 
 import { LEAVE_WINDOW_COLUMNS } from '../lib/leave-covers-session';
 import { SESSION_SUMMARY_SELECT } from '../lib/session-summary';
+import { loadStudentListViaBuilder } from '../lib/student-list-builder';
+import { STUDENT_LIST_SQL, studentListParamsFromArgs } from '../lib/student-list-sql';
 
 type Chain = Record<string, (...args: unknown[]) => Chain> &
   PromiseLike<{ data: unknown; error: unknown }>;
@@ -30,6 +34,15 @@ export function restBackedSummaryPool(client: SupabaseLike) {
   const result = (rows: unknown[]) => ({ rows: [{ result: rows }] });
 
   const query = async (sql: string, params: unknown[] = []) => {
+    // 學生名冊（`lib/student-list-sql.ts`，#1595 P2 ②）：同一組參數交給 builder 版（`lib/student-list-builder.ts`），
+    // 就是改寫前的那條 REST 鏈。參數順序見 `STUDENT_LIST_SQL` 的註解
+    if (sql === STUDENT_LIST_SQL) {
+      const result = await loadStudentListViaBuilder(
+        client as never,
+        studentListParamsFromArgs(params),
+      );
+      return { rows: [{ result }] };
+    }
     // 新的兩支放最前面：日到班的 SQL 含 `from public.enrollments en`，會被下面摘要的 `enrollments e` 分支誤認
     // 作業台第一波（`lib/workbench-today-sql.ts`，#1595 P2 ①）：點名模式＋當天課堂。翻成改寫前的三支 REST
     if (sql.includes("'orgMode'")) {
@@ -104,9 +117,9 @@ export function restBackedSummaryPool(client: SupabaseLike) {
         ]!('checkin_date', date)['order']!('id'),
       );
       const leaves = await settle(
-        from('leave_requests')['select']!(`student_id, submitted_by_role, reason, ${LEAVE_WINDOW_COLUMNS}`)[
-          'eq'
-        ]!('org_id', orgId)['lte']!('start_date', date)['gte']!('end_date', date),
+        from('leave_requests')['select']!(
+          `student_id, submitted_by_role, reason, ${LEAVE_WINDOW_COLUMNS}`,
+        )['eq']!('org_id', orgId)['lte']!('start_date', date)['gte']!('end_date', date),
       );
       return {
         rows: [{ result: { enrollments: await settle(en['order']!('id')), checkins, leaves } }],

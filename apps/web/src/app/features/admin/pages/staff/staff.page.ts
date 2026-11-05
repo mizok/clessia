@@ -668,8 +668,8 @@ export class StaffPage implements OnInit {
   protected openPermissions(staff: Staff): void {
     this.dialogService
       .open(PermissionDialogComponent, {
-        // A6 sheet 是 `.acset.fdlg`：寬 520（staff.html:199）
-        width: '520px',
+        // A6 sheet 是 `.acset.fdlg`：寬 520（staff.html:199）＝ --dlg-w-md
+        width: 'var(--dlg-w-md)',
         modal: true,
         showHeader: false,
         appendTo: this.overlayContainer || 'body',
