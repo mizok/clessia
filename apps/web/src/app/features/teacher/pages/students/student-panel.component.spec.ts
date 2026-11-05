@@ -98,6 +98,15 @@ describe('StudentPanelComponent（老師的學生面板，TST1）', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
+  it('共用殼：h2 是學生名、有副標；「關閉」與「到課表點名」在 sticky 底部（#2290）', () => {
+    const host = setup();
+    expect(host.querySelector('h2')!.textContent?.trim()).toBe(STUDENT.name);
+    expect(host.querySelector('.dialog-header-inline__sub')!.textContent?.trim()).not.toBe('');
+    const foot = host.querySelector('.form-dialog__footer')!;
+    expect(foot.textContent).toContain('關閉');
+    expect(foot.textContent).toContain('到課表點名');
+  });
+
   it('三份資料都走既有的老師範圍端點；成績帶這班的 id、校內考、3 筆', () => {
     setup();
     expect(get).toHaveBeenCalledWith('s1');
