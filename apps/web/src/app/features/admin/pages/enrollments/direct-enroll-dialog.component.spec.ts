@@ -70,7 +70,7 @@ describe('DirectEnrollDialogComponent（#1314 EN2）', () => {
     expect(hint()).toBe('還沒填：學生');
   });
 
-  it('送出建 active（計畫席 11-05 裁 (a)），生效起預設台北今天，迄留白＝null', () => {
+  it('送出建 active（計畫席 11-05 裁 (a)），模式預設月繳（稿選第一個），生效起預設台北今天，迄留白＝null', () => {
     const { cmp, create, add, closed, fill } = setup();
     fill();
     cmp.save();
@@ -78,6 +78,7 @@ describe('DirectEnrollDialogComponent（#1314 EN2）', () => {
       classId: 'class-1',
       studentId: 'stu-1',
       status: 'active',
+      billingMode: 'monthly',
       effectiveFrom: '2027-03-15',
       effectiveTo: null,
       skipConflictCheck: false,
