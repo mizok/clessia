@@ -383,7 +383,8 @@ describe('GET /api/students?search= —— 家長電話比對（#1138）', () =>
       students: [],
       staff: [{ id: 'st-1' }],
       schedules: [{ class_id: 'c-1' }],
-      enrollments: [{ student_id: 's-1' }],
+      // class_id 要有：老師範圍走 SQL 時（刀 2）是依「現任班」濾報名，替身的資料要像真的
+      enrollments: [{ student_id: 's-1', class_id: 'c-1' }],
       ...extra,
     };
     const client = {

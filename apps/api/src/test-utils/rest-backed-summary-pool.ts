@@ -14,6 +14,9 @@ import { LEAVE_WINDOW_COLUMNS } from '../lib/leave-covers-session';
 import { SESSION_SUMMARY_SELECT } from '../lib/session-summary';
 import { loadStudentListViaBuilder } from '../lib/student-list-builder';
 import { STUDENT_LIST_SQL, studentListParamsFromArgs } from '../lib/student-list-sql';
+import { TEACHER_ROSTER_SQL } from '../lib/teacher-roster-sql';
+import { STUDENT_TODAY_SQL } from '../lib/student-today-sql';
+import { TODAY_SESSION_SELECT } from '../lib/today-attendance';
 
 type Chain = Record<string, (...args: unknown[]) => Chain> &
   PromiseLike<{ data: unknown; error: unknown }>;
@@ -36,6 +39,82 @@ export function restBackedSummaryPool(client: SupabaseLike) {
   const query = async (sql: string, params: unknown[] = []) => {
     // 學生名冊（`lib/student-list-sql.ts`，#1595 P2 ②）：同一組參數交給 builder 版（`lib/student-list-builder.ts`），
     // 就是改寫前的那條 REST 鏈。參數順序見 `STUDENT_LIST_SQL` 的註解
+    // 名冊的老師範圍前置（`lib/teacher-roster-sql.ts`，刀 2）：翻回改寫前的三支 REST
+    // （本人 staff → 任課時段，同 `loadTenure` → 這些班 active／pending 的報名）
+    // 名冊今日到班的前置（`lib/student-today-sql.ts`，刀 2）：模式＋當天課堂，翻回改寫前的 REST
+    if (sql === STUDENT_TODAY_SQL) {
+      const [orgId, date, campusIds, classIds, singleCampus] = params as [
+        string,
+        string,
+        string[] | null,
+        string[] | null,
+        string | null,
+      ];
+      const single = async (q: Chain) =>
+        ((await (q['maybeSingle']!() as unknown as PromiseLike<{ data: Row | null }>)).data ??
+          null) as Row | null;
+      const org = await single(
+        from('organizations')['select']!('attendance_mode')['eq']!('id', orgId),
+      );
+      const campus = singleCampus
+        ? await single(
+            from('campuses')['select']!('attendance_mode')['eq']!('id', singleCampus)['eq']!(
+              'org_id',
+              orgId,
+            ),
+          )
+        : null;
+      let q = from('sessions')['select']!(TODAY_SESSION_SELECT)['eq']!('org_id', orgId)['eq']!(
+        'session_date',
+        date,
+      );
+      if (campusIds) q = q['in']!('classes.campus_id', campusIds);
+      if (classIds)
+        q = q['in']!(
+          'class_id',
+          classIds.length > 0 ? classIds : ['00000000-0000-0000-0000-000000000000'],
+        );
+      const sessions = await settle(q);
+      return {
+        rows: [
+          {
+            result: {
+              orgMode: org?.['attendance_mode'] ?? null,
+              campusMode: campus?.['attendance_mode'] ?? null,
+              sessions,
+            },
+          },
+        ],
+      };
+    }
+    if (sql === TEACHER_ROSTER_SQL) {
+      const [orgId, userId] = params as [string, string];
+      const { data: me, error } = await (from('staff')['select']!('id')['eq']!('user_id', userId)[
+        'eq'
+      ]!('org_id', orgId)['maybeSingle']!() as unknown as PromiseLike<{
+        data: Row | null;
+        error: unknown;
+      }>);
+      if (error) throw Object.assign(new Error('fake pool：REST 替身回錯'), { cause: error });
+      const staffId = (me?.['id'] as string | undefined) ?? null;
+      const schedules = staffId
+        ? await settle(
+            from('schedules')['select']!(
+              'class_id, effective_from, effective_to, classes!inner(org_id)',
+            )['eq']!('classes.org_id', orgId)['eq']!('teacher_id', staffId),
+          )
+        : [];
+      const classIds = [...new Set(schedules.map((r) => r['class_id'] as string))];
+      const enrollments = classIds.length
+        ? await settle(
+            from('enrollments')['select']!('student_id, class_id')['eq']!('org_id', orgId)['in']!(
+              'class_id',
+              classIds,
+            )['in']!('status', ['active', 'pending_payment']),
+          )
+        : [];
+      return { rows: [{ result: { staffId, schedules, enrollments } }] };
+    }
     if (sql === STUDENT_LIST_SQL) {
       const result = await loadStudentListViaBuilder(
         client as never,
