@@ -2868,6 +2868,15 @@ export const PAGES = {
     a6: 'scores.html',
     // seed 的考試（跟 scores-dirty 同一場）；原本的 id 是某一席本機 DB 的，seed 裡沒有（#1314 10-30）
     app: '/admin/grades/exams/academy/70000000-0000-0000-0000-000000000003/scores',
+    // 加入其他學生、標記完成（#2290 grades）：稿是 A2.form（dialog.fdlg）；app 是 p-dialog／原生 dialog＋共用殼
+    a6Open: {
+      add: { click: '[data-add]', root: 'dialog[open]' },
+      complete: { click: '[data-complete]', root: 'dialog[open]' },
+    },
+    appOpen: {
+      add: { click: 'button:has-text("加入其他學生")', root: '.p-dialog:has(app-dialog-frame)' },
+      complete: { click: 'button:has-text("標記完成")', root: 'dialog[open]' },
+    },
     deviations: [noCampusSwitch('看的是一場考試；班可能跨分校，誰能看由後端權限擋')],
   },
   grades: {

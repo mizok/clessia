@@ -316,17 +316,8 @@
   role="dialog"
   (cancel)="$event.preventDefault(); resolveComplete(false)"
 >
-  <app-dialog-frame title="標記完成" (closed)="resolveComplete(false)">
-    <p class="m-0 text-base text-zinc-700" data-part="complete-summary">
-      @if (academyEditor(); as editor) {
-        {{ editor.tally().logged }}／{{ editor.tally().total }} 已登錄
-        @if (editor.dirtyCount(); as n) {
-          · {{ n }} 位的變更會一起儲存
-        }
-        。
-      }
-      完成後仍可修改。
-    </p>
+  <!-- A6 data-complete：統計句是副標（A2.form sub），沒有內容區 -->
+  <app-dialog-frame title="標記完成" [sub]="completeSummary()" (closed)="resolveComplete(false)">
     <ng-container dialogFoot>
       <button
         type="button"
