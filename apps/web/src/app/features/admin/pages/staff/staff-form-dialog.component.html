@@ -144,12 +144,15 @@
               [value]="role.value"
               [ngModel]="formData().roles"
               (onChange)="toggleRole(role.value, $event.checked)"
-              [disabled]="loading()"
+              [disabled]="loading() || !!roleBlock(role.value)"
             />
             <label [for]="'role_' + role.value" class="ml-2">{{ role.label }}</label>
           </div>
         }
       </div>
+      @if (roleNote(); as note) {
+        <p class="m-0 mt-1 text-sm text-zinc-600" data-testid="role-note">{{ note }}</p>
+      }
       @if (errors()['roles']; as msg) {
         <span class="mt-1 block text-xs text-error-600">{{ msg }}</span>
       }
@@ -207,42 +210,7 @@
       </div>
     }
 
-    <!-- Permissions (if admin) -->
-    <!-- 管理權限：稿放在另一個面板（ST2，保留類），這次不動 -->
-    @if (isAdminRole()) {
-      <div class="form-dialog__field col-span-full min-w-0">
-        <label class="mb-1 block text-md font-semibold text-zinc-700">管理權限</label>
-        @if (hasAllPermissions()) {
-          <p class="m-0 mb-2 text-xs text-zinc-600" data-testid="all-permissions-note">
-            這個帳號擁有全部權限（含日後新增的）。取消任一項會改成逐項指定。
-          </p>
-        }
-        <div class="grid grid-cols-1 gap-3 rounded-md bg-zinc-50 p-3 min-[641px]:grid-cols-2">
-          @for (opt of permissionOptions; track opt.value) {
-            <div
-              class="permission-item flex cursor-pointer items-start gap-3 pointer-coarse:min-h-11"
-            >
-              <p-checkbox
-                [binary]="true"
-                [inputId]="'perm_' + opt.value"
-                [ngModel]="hasPermission(opt.value)"
-                (onChange)="togglePermission(opt.value, $event.checked)"
-                [disabled]="loading()"
-              />
-              <div class="flex flex-col gap-0.5">
-                <label
-                  [for]="'perm_' + opt.value"
-                  class="permission-item__label cursor-pointer text-sm font-medium text-zinc-800 pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
-                >
-                  {{ opt.label }}
-                </label>
-                <p class="permission-item__desc m-0 text-xs text-zinc-500">{{ opt.description }}</p>
-              </div>
-            </div>
-          }
-        </div>
-      </div>
-    }
+    <!-- 管理權限搬到獨立的「權限設定」（A6 `staff.html:81`，#1314 ST2） -->
 
     <div class="col-span-full min-w-0">
       <label class="mb-1 block text-md font-semibold text-zinc-700" for="staff-notes">備註</label>
