@@ -309,6 +309,7 @@ app.openapi(
       },
       400: { description: '驗證錯誤', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: '報名不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -348,7 +349,7 @@ app.openapi(
       .single();
 
     if (error || !data) {
-      return c.json({ error: error?.message ?? '建立失敗', code: 'DB_ERROR' }, 400);
+      return c.json({ error: error?.message ?? '建立失敗', code: 'DB_ERROR' }, 500);
     }
 
     logAudit(

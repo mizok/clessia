@@ -74,6 +74,7 @@ const listRoute = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -89,7 +90,7 @@ app.openapi(listRoute, async (c) => {
     .order('name', { ascending: true });
 
   if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
   const subjectIds = (data ?? []).map((row) => row.id);
@@ -301,7 +302,7 @@ app.openapi(deleteRoute, async (c) => {
   const { error } = await inOrg(supabase.from('subjects').delete().eq('id', id), orgId);
 
   if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
   logAudit(
@@ -343,6 +344,7 @@ const createSubjectRoute = createRoute({
     },
     400: { description: '驗證錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     409: { description: '科目名稱重複', content: { 'application/json': { schema: ErrorSchema } } },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -367,7 +369,7 @@ app.openapi(createSubjectRoute, async (c) => {
     if (error.code === '23505') {
       return c.json({ error: '科目名稱已存在', code: 'DUPLICATE' }, 409);
     }
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
   logAudit(

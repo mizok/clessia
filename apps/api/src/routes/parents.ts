@@ -1034,6 +1034,7 @@ app.openapi(
       },
       400: { description: '啟用失敗', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: '家長不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -1065,7 +1066,7 @@ app.openapi(
     );
 
     if (updateError) {
-      return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: updateError.message, code: 'DB_ERROR' }, 500);
     }
 
     logAudit(
@@ -1104,6 +1105,7 @@ app.openapi(
       },
       400: { description: '停用失敗', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: '家長不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -1135,7 +1137,7 @@ app.openapi(
     );
 
     if (updateError) {
-      return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: updateError.message, code: 'DB_ERROR' }, 500);
     }
 
     logAudit(
@@ -1174,6 +1176,7 @@ app.openapi(
       },
       400: { description: '封存失敗', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: '家長不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -1210,7 +1213,7 @@ app.openapi(
     );
 
     if (updateError) {
-      return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
+      return c.json({ error: updateError.message, code: 'DB_ERROR' }, 500);
     }
 
     logAudit(
