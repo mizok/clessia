@@ -611,7 +611,7 @@ export class StaffPage implements OnInit {
   /** 新增（沒帶 staff）或編輯掃碼機台（#1127） */
   openKioskDialog(staff?: Staff): void {
     const ref = this.dialogService.open(KioskFormDialogComponent, {
-      width: 'min(480px, 90%)',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',

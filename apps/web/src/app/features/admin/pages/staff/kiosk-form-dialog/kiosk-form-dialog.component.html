@@ -1,28 +1,14 @@
-<div>
-  <div class="dialog-header-inline">
-    <div class="dialog-header-inline__content">
-      <span class="dialog-header-inline__title">{{
-        isEditing ? '編輯掃碼機台' : '新增掃碼機台'
-      }}</span>
-    </div>
-    <button
-      type="button"
-      class="dialog-header-inline__close size-11"
-      (click)="cancel()"
-      aria-label="關閉"
-    >
-      <i class="pi pi-times"></i>
-    </button>
-  </div>
-
-  <div class="flex flex-col gap-4 p-6">
-    @if (!isEditing) {
-      <p class="text-sm text-zinc-600">
-        放在分校門口給學生打卡的平板。它只能打卡，看不到任何學生或家長資料。建立後會給一個
-        QR，用平板掃它登入。
-      </p>
-    }
-
+<!-- 共用殼（#2290）。A6 沒畫掃碼機台（#1127，舊有新無 R2），外框照全站表單 -->
+<app-dialog-frame
+  [title]="isEditing ? '編輯掃碼機台' : '新增掃碼機台'"
+  [sub]="
+    isEditing
+      ? ''
+      : '放在分校門口給學生打卡的平板。它只能打卡，看不到任何學生或家長資料。建立後會給一個 QR，用平板掃它登入。'
+  "
+  (closed)="cancel()"
+>
+  <div class="flex flex-col gap-4">
     <div class="flex flex-col gap-2">
       <label for="kiosk-name" class="text-sm font-medium text-zinc-700">名稱</label>
       <input
@@ -56,23 +42,26 @@
     @if (error(); as message) {
       <app-inline-notice severity="error" [detail]="message" [dismissible]="false" />
     }
-
-    <div class="flex justify-end gap-2 pt-2">
-      <p-button
-        label="取消"
-        [text]="true"
-        severity="secondary"
-        [disabled]="loading()"
-        (onClick)="cancel()"
-      />
-      <p-button
-        [label]="isEditing ? '儲存' : '建立'"
-        icon="pi pi-check"
-        [loading]="loading()"
-        [disabled]="!canSave()"
-        (onClick)="save()"
-        data-testid="kiosk-save"
-      />
-    </div>
   </div>
-</div>
+
+  <ng-container dialogFoot>
+    <p class="form-dialog__why" aria-live="polite">{{ missingHint() }}</p>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
+      [disabled]="loading()"
+      (click)="cancel()"
+    >
+      取消
+    </button>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+      data-testid="kiosk-save"
+      [attr.aria-disabled]="!canSave()"
+      (click)="save()"
+    >
+      {{ loading() ? (isEditing ? '儲存中…' : '建立中…') : isEditing ? '儲存' : '建立' }}
+    </button>
+  </ng-container>
+</app-dialog-frame>
