@@ -2986,6 +2986,23 @@ export const PAGES = {
   },
   't-schedule': {
     a6: 't-schedule.html',
+    // 老師端三支 sheet（#2290 換殼）：稿是 JS 開的 dialog.acset.fdlg，app 是 DynamicDialog（roster-sheet）
+    a6Open: {
+      arrivals: { click: 'button[data-roster]:has-text("到班名單")', root: 'dialog[open]' },
+      log: { click: '[data-log]', root: 'dialog[open]' },
+      book: { click: '[data-book]', root: 'dialog[open]' },
+    },
+    appOpen: {
+      arrivals: {
+        click: 'button:has-text("到班名單")',
+        root: '.p-dialog:has(app-arrival-roster-sheet)',
+      },
+      log: { click: 'button:has-text("寫日誌")', root: '.p-dialog:has(app-class-log-sheet)' },
+      book: {
+        click: 'button:has-text("寫聯絡簿")',
+        root: '.p-dialog:has(app-contact-book-roster)',
+      },
+    },
     app: '/teacher/schedule',
     state: path.join(cache, 'state-teacher.json'),
     deviations: [
@@ -3326,6 +3343,9 @@ export const PAGES = {
   },
   't-students': {
     a6: 't-students.html',
+    // 學生面板（點學生名）：兩邊都是原生 dialog（#2290 換殼）
+    a6Open: { panel: { click: '[data-sid]', root: 'dialog[open]' } },
+    appOpen: { panel: { click: 'li > button.group', root: 'dialog[open]' } },
     app: '/teacher/students',
     state: path.join(cache, 'state-teacher.json'),
     // 篩選換成 A6 下拉（app-select-field），結構不同、外觀對齊 —— 同 p-grades
