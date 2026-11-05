@@ -1811,6 +1811,9 @@ export const PAGES = {
   // 「申請紀錄」分頁：稿與 app 都認網址 #records
   'p-enrollment-records': {
     a6: 'p-enrollment.html#records',
+    // 申請詳情（點紀錄列）：兩邊都是原生 dialog（#2290 換殼）
+    a6Open: { detail: { click: 'button.rq', root: 'dialog[open]' } },
+    appOpen: { detail: { click: 'button[data-request]', root: 'dialog[open]' } },
     // 稿的每筆紀錄是一顆獨立的按鈕（button.rq），沒有清單結構；指名成列才跟 app 的清單配得上（#1314 10-30）
     // app 的列也是一顆按鈕（`button[appRequestRow]`，#1314）；筆數少時過不了通則的 ≥3／≥5 門檻，一起指名
     rowSel: { a6: 'button.rq', app: 'button[data-request]' },
@@ -1858,6 +1861,9 @@ export const PAGES = {
   },
   'p-trial-records': {
     a6: 'p-trial.html#records',
+    // 申請詳情（點紀錄列）：兩邊都是原生 dialog（#2290 換殼）
+    a6Open: { detail: { click: 'button.rq', root: 'dialog[open]' } },
+    appOpen: { detail: { click: 'button[data-request]', root: 'dialog[open]' } },
     // 稿的每筆紀錄是一顆獨立的按鈕（button.rq），沒有清單結構；指名成列才跟 app 的清單配得上（#1314 10-30）
     // app 的列也是一顆按鈕（`button[appRequestRow]`，#1314）；筆數少時過不了通則的 ≥3／≥5 門檻，一起指名
     rowSel: { a6: 'button.rq', app: 'button[data-request]' },
@@ -3152,6 +3158,9 @@ export const PAGES = {
   },
   'p-schedule': {
     a6: 'p-schedule.html',
+    // 課堂詳情（點課卡）：兩邊都是原生 dialog（#2290 換殼）
+    a6Open: { detail: { click: '[data-s]', root: 'dialog[open]' } },
+    appOpen: { detail: { click: '[data-part="session"]', root: 'dialog[open]' } },
     app: '/parent/schedule',
     state: PARENT_STATE,
     prep: PARENT_PREP,

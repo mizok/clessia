@@ -58,7 +58,8 @@ describe('ParentNotificationsComponent', () => {
 
   const el = () => fixture.nativeElement as HTMLElement;
   const hint = () => el().querySelector('[data-testid="push-hint-enable"]');
-  const settingsBtn = () => el().querySelector<HTMLButtonElement>('[data-testid="push-settings-open"]')!;
+  const settingsBtn = () =>
+    el().querySelector<HTMLButtonElement>('[data-testid="push-settings-open"]')!;
 
   beforeEach(async () => {
     announcementsServiceMock.inbox.mockClear();
@@ -137,6 +138,17 @@ describe('ParentNotificationsComponent', () => {
       dialog.close();
       fixture.detectChanges();
       expect(el().querySelector('app-push-settings')).toBeNull();
+    });
+
+    it('共用殼：h2「繳費提醒通知」是彈窗的可及名稱，✕ 關掉（#2290）', async () => {
+      settingsBtn().click();
+      fixture.detectChanges();
+      const dialog = el().querySelector<HTMLDialogElement>('[data-testid="push-settings-dialog"]')!;
+      const h2 = dialog.querySelector('h2')!;
+      expect(h2.textContent?.trim()).toBe('繳費提醒通知');
+      expect(dialog.getAttribute('aria-labelledby')).toBe(h2.id);
+      dialog.querySelector<HTMLButtonElement>('button[aria-label="關閉"]')!.click();
+      expect(dialog.open).toBe(false);
     });
 
     it('點彈窗裡的內容不會關，點背景（dialog 本身）才關', async () => {

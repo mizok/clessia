@@ -16,6 +16,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, catchError, forkJoin, map, of, switchMap, tap, type Observable } from 'rxjs';
 import { RouterLink } from '@angular/router';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { MessageService } from 'primeng/api';
 
 import { ChildScopeService } from '@core/child-scope.service';
@@ -70,6 +71,7 @@ const CHANGE_KIND_LABEL = { reschedule: '調課', substitute: '代課', cancella
   standalone: true,
   imports: [
     TextSwapDirective,
+    DialogFrameComponent,
     SkeletonComponent,
     RouterLink,
     PageOpenComponent,
