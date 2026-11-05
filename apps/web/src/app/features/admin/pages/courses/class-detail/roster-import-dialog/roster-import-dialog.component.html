@@ -1,5 +1,9 @@
 <!-- 共用殼（#2290）：標題原本是開窗端的 PrimeNG header；各步驟的動作列收成一個 dialogFoot（投影只吃最上層節點） -->
-<app-dialog-frame title="Excel 匯入名冊" (closed)="close()">
+<app-dialog-frame
+  title="Excel 匯入名冊"
+  [sub]="(className ? className + ' · ' : '') + '每列一位學生：姓名、就讀學校'"
+  (closed)="close()"
+>
   @switch (step()) {
     <!-- ── 步驟一：上傳 ────────────────────────────────────────────── -->
     @case ('upload') {

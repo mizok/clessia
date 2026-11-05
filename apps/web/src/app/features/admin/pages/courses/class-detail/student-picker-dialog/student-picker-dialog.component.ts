@@ -231,6 +231,8 @@ export class StudentPickerDialogComponent implements OnInit {
   private readonly maxStudents: number = this.config.data?.maxStudents ?? 9999;
   private readonly currentActiveCount: number = this.config.data?.currentActiveCount ?? 0;
   private readonly classId: string = this.config.data?.classId ?? '';
+  /** 副標的班名（A6 class.html「加入學生」：`{班名} · …`） */
+  protected readonly className: string = this.config.data?.className ?? '';
   protected readonly remainingSlots = this.maxStudents - this.currentActiveCount;
 
   protected readonly gradeOptions = [

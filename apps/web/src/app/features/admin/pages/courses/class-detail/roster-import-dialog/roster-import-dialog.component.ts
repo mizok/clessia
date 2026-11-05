@@ -64,6 +64,8 @@ export class RosterImportDialogComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly classId: string = this.config.data?.classId ?? '';
+  /** 副標的班名（A6 class.html「Excel 匯入名冊」：`{班名} · …`） */
+  protected readonly className: string = this.config.data?.className ?? '';
 
   protected readonly maxRows = MAX_ROSTER_ROWS;
   protected readonly step = signal<Step>('upload');

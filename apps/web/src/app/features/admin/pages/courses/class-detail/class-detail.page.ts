@@ -420,6 +420,7 @@ export class ClassDetailPage implements OnInit {
         maxStudents: this.cls()?.maxStudents ?? 9999,
         currentActiveCount,
         classId: this.resolvedClassId(),
+        className: this.cls()?.name ?? '',
       },
     });
 
@@ -469,11 +470,11 @@ export class ClassDetailPage implements OnInit {
 
     const ref = this.dialogService.open(RosterImportDialogComponent, {
       header: 'Excel 匯入名冊',
-      width: 'var(--dlg-w-lg)',
+      width: 'var(--dlg-w-md)',
       showHeader: false,
       modal: true,
       appendTo: this.overlayContainer || 'body',
-      data: { classId: cls.id },
+      data: { classId: cls.id, className: cls.name },
     });
 
     ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
