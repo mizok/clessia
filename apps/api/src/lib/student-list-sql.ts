@@ -41,6 +41,17 @@ export interface StudentListParams {
   readonly offset: number;
   /** 主要家長電話：只有管理員（老師一律不帶） */
   readonly withPhone: boolean;
+  /**
+   * 以下四個只有 builder（`lib/student-list-builder.ts`）吃：**這刀的 SQL 不收搜尋與今日到班**，
+   * route 保證帶了它們就不走 SQL（刀 1b 收進 SQL）
+   */
+  readonly search: string | null;
+  /** `searchScope=default`：也比家長姓名、家長電話、學校名；`student_name` 只比學生姓名 */
+  readonly searchRelated: boolean;
+  /** 3 碼以上純數字：也比家長電話 */
+  readonly searchPhone: boolean;
+  /** 今日到班篩選命中的學生；沒帶 `today` 時 null */
+  readonly todayIds: readonly string[] | null;
 }
 
 export interface StudentListResult {
@@ -154,6 +165,46 @@ select json_build_object(
 ) as result
 `;
 
+/** `STUDENT_LIST_SQL` 的參數陣列（順序見上面的註解） */
+export const studentListArgs = (p: StudentListParams): unknown[] => [
+  p.orgId,
+  p.campusIds,
+  p.classIds,
+  p.grade,
+  p.isActive,
+  p.schoolMismatch,
+  p.withoutCard,
+  p.cardIssuedToday,
+  p.cardDayStart,
+  p.cardDayEnd,
+  p.limit,
+  p.offset,
+  p.withPhone,
+  // 刀 1a 的 SQL 不收搜尋與今日到班（route 帶了就不走 SQL）；刀 1b 接成 $14–$17
+];
+
+/** 反過來：測試替身把 `STUDENT_LIST_SQL` 的參數交給 builder 版用 */
+export const studentListParamsFromArgs = (v: readonly unknown[]): StudentListParams => ({
+  orgId: v[0] as string,
+  campusIds: v[1] as string[] | null,
+  classIds: v[2] as string[] | null,
+  grade: v[3] as string | null,
+  isActive: v[4] as boolean | null,
+  schoolMismatch: v[5] as boolean,
+  withoutCard: v[6] as boolean,
+  cardIssuedToday: v[7] as boolean,
+  cardDayStart: v[8] as string,
+  cardDayEnd: v[9] as string,
+  limit: v[10] as number,
+  offset: v[11] as number,
+  withPhone: v[12] as boolean,
+  // 刀 1a 的 SQL 沒有這四個參數：走 SQL 的請求本來就沒帶
+  search: (v[13] as string | null | undefined) ?? null,
+  searchRelated: (v[14] as boolean | undefined) ?? false,
+  searchPhone: (v[15] as boolean | undefined) ?? false,
+  todayIds: (v[16] as string[] | null | undefined) ?? null,
+});
+
 const isCount = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= 0;
 
 /** 一次往返拿完列表、總數、在籍數、章節計數、本頁主要家長電話。失敗或形狀不對**丟例外**（→ 500） */
@@ -162,21 +213,7 @@ export async function loadStudentListViaSql(
   p: StudentListParams,
 ): Promise<StudentListResult> {
   try {
-    const { rows } = await db.query(STUDENT_LIST_SQL, [
-      p.orgId,
-      p.campusIds,
-      p.classIds,
-      p.grade,
-      p.isActive,
-      p.schoolMismatch,
-      p.withoutCard,
-      p.cardIssuedToday,
-      p.cardDayStart,
-      p.cardDayEnd,
-      p.limit,
-      p.offset,
-      p.withPhone,
-    ]);
+    const { rows } = await db.query(STUDENT_LIST_SQL, studentListArgs(p));
     const result = (rows[0] as { result?: unknown } | undefined)?.result as
       Record<string, unknown> | undefined;
     const byGrade = result?.['byGrade'] as Record<string, unknown> | undefined;
