@@ -1559,7 +1559,37 @@ export const PAGES = {
     app: '/admin/dashboard',
     // 稿的今天（shared/data.js：2026-10-01 17:40，週四），同 p-schedule（#1314 10-30）
     clock: '2026-10-01T17:40:00+08:00',
+    // 櫃台代刷到班（#2314）：兩邊都是原生 showModal；桌機工具列鈕、手機托盤／dock 鈕都帶這幾個字
+    a6Open: { checkin: { click: '[data-checkin]', root: 'dialog[open]' } },
+    appOpen: { checkin: { click: 'button:has-text("櫃台代刷")', root: 'dialog[open]' } },
     deviations: [
+      // ── 櫃台代刷到班（#2314）──
+      // 學生：app-select-field（p-select）對稿的 .dd；稿的按鈕名「選擇：…」跟 app 的 trigger 錯配
+      ...selectFieldDeviations('選擇|學生（今天還沒到的）\\*').map((d) => ({ ...d, pop: 'checkin' })),
+      ...[
+        { status: '角色', a6: '>landmark:form\\[\\]>text:label\\[學生（今天還沒到的）\\]$' },
+        ...['文案', '位置', '樣式'].map((status) => ({
+          status,
+          a6: '>landmark:form\\[\\]>control:button\\[選擇：[^\\]]*\\]$',
+        })),
+      ].map((d) => ({ ...d, pop: 'checkin', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
+      // 稿的「到班時間」欄不畫：API 用伺服器時間記到班
+      ...['text:label\\[到班時間\\]', 'control:textbox\\[到班時間\\*\\]'].map((part) => ({
+        status: '缺',
+        pop: 'checkin',
+        a6: `>landmark:form\\[\\]>${part}$`,
+        reason: '到班時間一律是伺服器收到的時間，不畫可填的欄',
+        source: `${rule('R5')}「櫃台代刷到班對話框不畫「到班時間」」2026-11-05；#2314`,
+      })),
+      {
+        status: '尺寸',
+        pop: 'checkin',
+        widths: [360],
+        a6: '>landmark:dialog\\[櫃台代刷到班\\]>control:button\\[關閉\\]$',
+        detail: '^寬 39→44$',
+        reason: '可點元素基底 ≥44px（同直接報名的關閉鈕）',
+        source: `${rule('R3')}`,
+      },
       {
         // #2057（保留類，已合）：改時段改成「從某天起」，不再是整期一起改（#2246 放回捷徑時照用）
         status: '文案',
