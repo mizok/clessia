@@ -10,7 +10,7 @@ import {
   type Permission,
   type Staff,
 } from '@core/staff.service';
-import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { PERMISSION_OPTIONS } from '../staff-form-dialog.component';
 import { cannotGrant, permissionLock, type Requester } from '../permission-rules';
 
@@ -22,12 +22,12 @@ export interface PermissionDialogData {
  * 「權限設定」（#1314 ST2／ST3／ST8，A6 `staff.html:240-244`）：列上的「權限 N 項」與列尾「⋯ → 權限設定」開這支。
  * 寫入走既有的 `PUT /api/staff/:id`、**只帶 `permissions`**（API「只改權限」那條路，`checkRoleAssignment` 照擋）。
  * 改自己、沒有 `manage_roles` 時整張停用並寫原因、沒有儲存鈕；規則見 `permission-rules.ts`。
- * 開新對話框沿用 form-dialog 寫法，#2290 共用殼合了再換。
+ * 外框是共用殼 `app-dialog-frame`（#2290，kb/wiki/architecture/dialog-frame.md）。
  */
 @Component({
   selector: 'app-permission-dialog',
   standalone: true,
-  imports: [DialogTitleDirective],
+  imports: [DialogFrameComponent],
   templateUrl: './permission-dialog.component.html',
 })
 export class PermissionDialogComponent {
