@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { inChunks } from '../lib/in-chunks';
 import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
@@ -263,7 +264,9 @@ const BatchUpsertScoresSchema = z
           notes: z.string().max(5000).nullable().optional(),
         }),
       )
-      .min(1),
+      .min(1)
+      // 上限（#2232）：一張名冊（學生×科目）實務上幾百列；沒上限的話異常輸入整串進 DB
+      .max(2000),
   })
   .openapi('BatchUpsertScores');
 
@@ -1793,12 +1796,20 @@ app.openapi(upsertScoresRoute, async (c) => {
   // 老師只能登錄自己任課班的學生。這場考試可能跨班，其中有他不任課的班 ——
   // 「看得到這場考試」不等於「可以碰這場考試的每一個學生」
   if (!scope.isAdmin) {
-    const { data: allowedRows } = await supabase
-      .from('enrollments')
-      .select('student_id')
-      .eq('org_id', orgId)
-      .in('class_id', scope.taught)
-      .in('student_id', studentIds);
+    // 學生 id 分段送（#2232）；讀不到就回錯，不吞成「全部不在範圍」
+    const { data: allowedRows, error: allowedError } = await inChunks<{ student_id: string }>(
+      studentIds,
+      (part) =>
+        supabase
+          .from('enrollments')
+          .select('student_id')
+          .eq('org_id', orgId)
+          .in('class_id', scope.taught)
+          .in('student_id', part),
+    );
+    if (allowedError) {
+      return c.json({ error: allowedError.message, code: 'DB_ERROR' }, 400);
+    }
     const allowed = new Set(
       (allowedRows ?? []).map((row: { student_id: string }) => row.student_id),
     );
@@ -1808,11 +1819,9 @@ app.openapi(upsertScoresRoute, async (c) => {
     }
   }
 
-  const { data: students, error: studentsError } = await supabase
-    .from('students')
-    .select('id')
-    .eq('org_id', orgId)
-    .in('id', studentIds);
+  const { data: students, error: studentsError } = await inChunks(studentIds, (part) =>
+    supabase.from('students').select('id').eq('org_id', orgId).in('id', part),
+  );
 
   if (studentsError) {
     return c.json({ error: studentsError.message, code: 'DB_ERROR' }, 400);

@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
 import type { AppEnv } from '../index';
-import { loadTenure, tenureOrFilter } from '../lib/teacher-scope';
+import { loadTenure } from '../lib/teacher-scope';
 import { describeChange, type ChangeLogRow } from './sessions/change-log';
 
 /**
@@ -14,9 +14,59 @@ import { describeChange, type ChangeLogRow } from './sessions/change-log';
  * 管理員要看全部走 `/api/sessions/changes`。
  *
  * 可見課堂 ＝ 區間內，任課班（`schedules.teacher_id`，#1098 判準）的課堂，加上 `sessions.teacher_id`
- * 是本人的課堂（代課）。先查課堂 id 再查異動（兩步），避開 embedded `or` 的行為差異。
- * 操作者姓名不給老師（`createdByName` 一律 null）。
+ * 是本人的課堂（代課）。操作者姓名不給老師（`createdByName` 一律 null）。
+ *
+ * **一支 pg SQL，不把 id 清單放進 URL**（#1928 A#11，計畫席 11-05 裁定）：舊寫法先撈課堂 id 再
+ * `.in('session_id', ids)`，31 天內 >200 堂就 414。任期判準**不在 SQL 重寫**：照舊由 `loadTenure` 算出
+ * 現任班與前任段，SQL 只用 `= any` 接清單（判準只有 lib/teacher-scope.ts 一份）。
+ * 沒有 pool → 500，不留 builder 退路（同 workbench #2227、#2230 (c)）。
  */
+
+/**
+ * $1 org、$2..$3 區間、$4 本人 staff.id、$5 現任班、$6/$7/$8 前任段（班、起、迄，平行陣列）、$9 limit、$10 offset。
+ * 回一列 `{ total, rows }`；rows 的形狀同 `ChangeLogRow`（時間欄位在 Postgres 組成 JSON，格式同 PostgREST）。
+ * 末鍵 `id`：批次異動的 `created_at` 相同，沒有末鍵時跨頁會重複或漏。
+ */
+export const TEACHER_CHANGES_SQL = `
+with visible as (
+  select s.id, s.class_id, s.session_date
+  from public.sessions s
+  where s.org_id = $1
+    and s.session_date between $2::date and $3::date
+    and (
+      s.teacher_id = $4::uuid
+      or s.class_id = any($5::uuid[])
+      or exists (
+        select 1 from unnest($6::uuid[], $7::date[], $8::date[]) as p(class_id, term_from, term_to)
+        where p.class_id = s.class_id and s.session_date between p.term_from and p.term_to
+      )
+    )
+), hit as (
+  select sc.*, v.class_id as v_class_id, v.session_date as v_session_date
+  from public.schedule_changes sc
+  join visible v on v.id = sc.session_id
+  where sc.org_id = $1
+), page as (
+  select * from hit order by created_at desc, id limit $9 offset $10
+)
+select json_build_object(
+  'total', (select count(*) from hit),
+  'rows', coalesce((
+    select json_agg(json_build_object(
+      'id', p.id, 'session_id', p.session_id, 'change_type', p.change_type,
+      'operation_source', p.operation_source, 'batch_id', p.batch_id, 'reason', p.reason,
+      'created_by_name', p.created_by_name, 'created_at', p.created_at,
+      'original_session_date', p.original_session_date, 'original_start_time', p.original_start_time,
+      'original_end_time', p.original_end_time, 'new_session_date', p.new_session_date,
+      'new_start_time', p.new_start_time, 'new_end_time', p.new_end_time,
+      'original_teacher_name', p.original_teacher_name,
+      'sessions', json_build_object('session_date', p.v_session_date, 'classes', json_build_object('name', c.name)),
+      'staff', (select json_build_object('display_name', st.display_name)
+                from public.staff st where st.id = p.substitute_teacher_id and st.org_id = $1)
+    ) order by p.created_at desc, p.id)
+    from page p join public.classes c on c.id = p.v_class_id and c.org_id = $1
+  ), '[]'::json)
+) as result`;
 
 const MAX_RANGE_DAYS = 31;
 
@@ -66,6 +116,7 @@ const route = createRoute({
     },
     400: { description: '區間不合法', content: { 'application/json': { schema: ErrorSchema } } },
     403: { description: '不是教職員', content: { 'application/json': { schema: ErrorSchema } } },
+    500: { description: '沒有 DB 池', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -104,47 +155,35 @@ app.openapi(route, async (c) => {
   if (!staff) return c.json({ error: '不是教職員', code: 'NOT_STAFF' }, 403);
   const staffId = staff['id'] as string;
 
+  const pool = c.get('auth')?.pool;
+  if (!pool) return c.json({ error: '查詢課務異動失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
+
   // 任課班：現任＝全期、前任＝只限任期內的課堂（#2049 R2）；自己上的課（含代課）照舊都算
   const tenure = await loadTenure(supabase, orgId, staffId);
-  const taught = tenureOrFilter('class_id', 'session_date', tenure.current, tenure.past);
-  const mine = [`teacher_id.eq.${staffId}`, ...(taught ? [taught] : [])];
-  const sessions = await supabase
-    .from('sessions')
-    .select('id')
-    .eq('org_id', orgId)
-    .gte('session_date', from)
-    .lte('session_date', to)
-    .or(mine.join(','));
-  if (sessions.error) throw new Error(`查詢可見課堂失敗：${sessions.error.message}`);
-  const sessionIds = (sessions.data ?? []).map((r) => r['id'] as string);
-  if (sessionIds.length === 0) return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
-
-  const changes = await supabase
-    .from('schedule_changes')
-    .select(
-      `
-      id, session_id, change_type, operation_source, batch_id, reason, created_by_name, created_at,
-      original_session_date, original_start_time, original_end_time,
-      new_session_date, new_start_time, new_end_time,
-      original_teacher_name,
-      sessions!inner ( session_date, classes!inner ( name ) ),
-      staff!substitute_teacher_id ( display_name )
-    `,
-      { count: 'exact' },
-    )
-    .eq('org_id', orgId)
-    .in('session_id', sessionIds)
-    .order('created_at', { ascending: false })
-    .range((page - 1) * pageSize, page * pageSize - 1);
-  if (changes.error) throw new Error(`查詢課務異動失敗：${changes.error.message}`);
+  const terms = [...tenure.past].flatMap(([classId, ts]) => ts.map((t) => ({ classId, ...t })));
+  const { rows } = await pool.query(TEACHER_CHANGES_SQL, [
+    orgId,
+    from,
+    to,
+    staffId,
+    tenure.current,
+    terms.map((t) => t.classId),
+    terms.map((t) => t.from),
+    terms.map((t) => t.to),
+    pageSize,
+    (page - 1) * pageSize,
+  ]);
+  const result = (rows[0] as { result?: { total: number; rows: ChangeLogRow[] } } | undefined)
+    ?.result;
+  if (!result) throw new Error('查詢課務異動失敗：SQL 沒有回結果');
 
   return c.json(
     {
-      data: ((changes.data ?? []) as unknown as ChangeLogRow[]).map((row) => ({
+      data: result.rows.map((row) => ({
         ...describeChange(row),
         createdByName: null,
       })),
-      meta: { total: changes.count ?? 0, page, pageSize },
+      meta: { total: result.total, page, pageSize },
     },
     200,
   );
