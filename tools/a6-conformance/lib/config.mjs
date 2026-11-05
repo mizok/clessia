@@ -688,6 +688,15 @@ const FORM_DIALOGS = {
       '[data-testid^="permission-count-"]',
       'app-permission-dialog',
     ),
+    // 授課紀錄（#2290 B 批）：老師章第一列的「⋯」→「授課紀錄」
+    'teaching-log': dlgOpen(
+      ['[aria-label="老師"] .pp__more', '[data-log-t]'],
+      [
+        '[aria-label="老師"] button[aria-label$="的更多動作"]',
+        '[role=menuitem]:has-text("授課紀錄")',
+      ],
+      'app-teaching-log-dialog',
+    ),
   },
   parents: { 'new-parent': formOpen('[data-new]', 'button:has-text("新增家長")') },
   // #2290 換共用殼的對話框（0950-a 家族）
@@ -2265,6 +2274,14 @@ export const PAGES = {
         source:
           'staff.html:82（權限項目「照產品」）、:239（稿示範的第一筆是本人）；#1314 issuecomment-6647755506',
       })),
+      // 授課紀錄（#2290 B 批）：量的是 seed 的老師，稿是假人名 —— 標題文案是資料
+      {
+        status: '文案',
+        pop: 'teaching-log',
+        a6: 'heading:h2\\[授課紀錄· \\{名\\}\\]$',
+        reason: '資料：標題帶量測那位老師的本名（稿是示範人名）',
+        source: 'staff.html:251（sheet 標題「授課紀錄 · 姓名」）；#2290',
+      },
       // 手機關閉鈕 44（稿 38）—— 同新增家長那條
       ...[
         { status: '尺寸', detail: '^寬 38→44$' },
