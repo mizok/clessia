@@ -73,6 +73,23 @@ export function rule(id, note = '') {
 }
 
 export const DEVIATIONS = [
+  // #2290 計畫席 11-05 裁定（issuecomment-6660276130）：殼的內距在 .dialog-frame__body，稿在 form 上 ——
+  // form 本身 padding 8/24/24 → 0、子項相對 form Δx −24、Δy −8（幾何結果相同，所有換殼的表單都會碰到）
+  {
+    status: '樣式',
+    a6: '(^|>)landmark:dialog\\[[^\\]]*\\]>landmark:form\\[[^\\]]*\\]$',
+    item: '^padding 8px 24px 24px → 0px$',
+    reason: '殼的內距在內容區外層（.dialog-frame__body），稿在 form 上，幾何相同',
+    source: 'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
+  },
+  {
+    status: '位置',
+    a6: '(^|>)landmark:dialog\\[[^\\]]*\\]>landmark:form\\[[^\\]]*\\]>',
+    detail: '^相對「form」 Δx -24、Δy -(8|9)（',
+    reason:
+      '殼的內距在內容區外層（.dialog-frame__body），稿在 form 上：子項相對 form 位移，畫面位置相同',
+    source: 'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
+  },
   {
     // 使用者 11-05 17:10：手機貼底抽屜改白底（--sheet-bg），稿是 --gray-sheet 灰。只拆底色這一項
     status: '樣式',
@@ -104,11 +121,11 @@ export const DEVIATIONS = [
   })),
   {
     // #2290：手機貼底抽屜沒有底部列時，內容區底留 --sheet-foot-gap 16（稿 `.acset__body` 24）—— 根高 −8。
-    // 細節只寫前後高度，regex 判斷不了「剛好 −8」：這條涵蓋 360 寬對話框根的高度差（根高本來就隨內容變，裡面的部件照樣逐一比）
+    // 用 delta 只放過預期的 −8，其他高度變化照報（#2322 二讀）
     status: '尺寸',
     widths: [360],
     a6: '^pop\\[[^\\]]*\\]>landmark:dialog\\[[^\\]]*\\]$',
-    detail: '^高 \\d+→\\d+',
+    delta: -8,
     reason: '手機貼底抽屜的內容區底留 16＋safe-area（稿 24）',
     source: `${rule('R5')}「貼底抽屜底部留白 16」2026-11-05；#2290`,
   },
