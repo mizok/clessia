@@ -791,6 +791,24 @@ describe('SchedulePage', () => {
         expect(labels(rowEl('簿班'))).toEqual(['開始點名', '寫聯絡簿']);
       });
 
+      it('行政負責點名＋班開了聯絡簿：照樣有「寫聯絡簿」（聯絡簿不是點名動作，#2315）；沒開的班沒有', async () => {
+        await setup({
+          attendanceResponsible: 'admin',
+          sessions: [
+            row({ sessionId: '1', className: '日誌班', startTime: '09:00', endTime: '10:00' }),
+            row({
+              sessionId: '2',
+              className: '簿班',
+              usesContactBook: true,
+              startTime: '10:30',
+              endTime: '11:30',
+            }),
+          ],
+        });
+        expect(labels(rowEl('簿班'))).toEqual(['看名單', '寫聯絡簿']);
+        expect(labels(rowEl('日誌班'))).toEqual(['看名單']);
+      });
+
       it('今天的定義看假時鐘、不看瀏覽器：台北 23:59 仍是 3/5，00:00 翻成 3/6（日界線）', async () => {
         await setup({ nowMs: Date.parse('2027-03-05T15:59:00Z') });
         const todayBtn = () =>

@@ -3,27 +3,8 @@
   #1314 G7：名單篩選加「待登錄」（只在那場還有人沒登錄時出現）—— #1280 起 API 把沒成績的人回成 status:'pending'。
 -->
 @if (classData; as classInfo) {
-  <div class="dialog-header-inline">
-    <div class="dialog-header-inline__content flex min-w-0 flex-col gap-0.5">
-      <span class="dialog-header-inline__title">{{ classInfo.name }}</span>
-      <span class="text-sm text-zinc-600">
-        @if (classGradeLabels()) {
-          {{ classGradeLabels() }} ·
-        }
-        上限 {{ classInfo.maxStudents }} 人
-      </span>
-    </div>
-    <button
-      type="button"
-      class="dialog-header-inline__close size-11"
-      (click)="close()"
-      aria-label="關閉"
-    >
-      <i class="pi pi-times"></i>
-    </button>
-  </div>
-
-  <div class="flex flex-col gap-4 px-4 pb-4 wide:px-6 wide:pb-6">
+  <!-- 共用殼（#2290）：班名當 h2（可及名稱）、年級與上限當副標 -->
+  <app-dialog-frame [title]="classInfo.name" [sub]="subtitle(classInfo)" (closed)="close()">
     <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
       <span
         class="inline-flex overflow-hidden rounded-md border border-zinc-300"
@@ -271,7 +252,7 @@
       }
     }
 
-    <div class="flex flex-wrap justify-end gap-2 pt-2">
+    <ng-container dialogFoot>
       <button
         type="button"
         class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
@@ -292,6 +273,6 @@
           }
         </button>
       }
-    </div>
-  </div>
+    </ng-container>
+  </app-dialog-frame>
 }

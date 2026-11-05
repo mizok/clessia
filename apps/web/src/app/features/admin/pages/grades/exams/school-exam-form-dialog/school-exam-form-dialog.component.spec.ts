@@ -85,6 +85,17 @@ describe('SchoolExamFormDialogComponent', () => {
     expect(component['form'].controls.academicYear.value).toBeGreaterThan(100);
   });
 
+  // #2290：共用殼 —— h2 標題（可及名稱）、麵包屑拿掉；底部的「建立」在殼的 sticky 底部列
+  it('共用殼：h2「新增學校考試」、底部列有建立鈕', async () => {
+    await createComponent({ data: { mode: 'create' } });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('app-dialog-frame h2')?.textContent?.trim()).toBe('新增學校考試');
+    expect(el.querySelector('.dialog-header-inline__breadcrumb')).toBeNull();
+    expect(el.querySelector('.form-dialog__footer')?.textContent).toContain('建立');
+  });
+
   it('shows subject field only when examType is other', async () => {
     await createComponent({ data: { mode: 'create' } });
     expect(component['isOtherExamType']()).toBe(false);

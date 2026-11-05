@@ -58,6 +58,15 @@ describe('ScoreEditDialogComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  // #2290：共用殼 —— 學生名當 h2（可及名稱）、年級當副標；載完後底部列有「儲存」
+  it('共用殼：學生名 h2＋年級副標，底部列有儲存', () => {
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('app-dialog-frame h2')?.textContent?.trim()).toBe('王小明');
+    expect(el.querySelector('.dialog-header-inline__sub')?.textContent?.trim()).toBe('國一');
+    expect(el.querySelector('.form-dialog__footer')?.textContent).toContain('儲存');
+  });
+
   // 這張表跟 academy-score-editor 是同一種東西，手感必須一樣（#161 只修了那一份）
   describe('鍵盤動線', () => {
     function keydown(key: string) {
