@@ -1801,6 +1801,16 @@ export const PAGES = {
     a6Open: opensOf('leave', 'a6Open'),
     appOpen: opensOf('leave', 'appOpen'),
     deviations: [
+      // 登記請假（#2318）：手機內容左右 16（殼的規格，稿 24），欄位寬 +16
+      {
+        status: '尺寸',
+        widths: [360],
+        pop: 'new-leave',
+        a6: '>landmark:dialog\\[登記請假\\]>(text:label|control:textbox)\\[[^\\]]*\\]$',
+        detail: '^寬 312→328$',
+        reason: '對話框手機內容左右 16（共用殼），稿 24',
+        source: `${rule('R5', '「對話框手機內容左右 16」2026-11-05')}`,
+      },
       // 登記請假（#2318）：分校、年級兩個篩選（縮小學生搜尋）現況有、稿沒有，不刪；下面的欄位跟著往下
       ...[
         {

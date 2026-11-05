@@ -437,7 +437,7 @@ export class LeavePage implements OnInit {
   protected openCreateDialog(): void {
     const ref = this.dialogService.open(LeaveFormDialogComponent, {
       header: '登記請假',
-      width: '480px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false, // 標題由請假表單裡的共用殼畫（#2290）
       appendTo: this.overlayContainerService.getContainer() || 'body',
@@ -491,7 +491,7 @@ export class LeavePage implements OnInit {
   protected openEditDialog(record: LeaveRequest): void {
     const ref = this.dialogService.open(LeaveFormDialogComponent, {
       header: '編輯請假',
-      width: '480px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false, // 標題由請假表單裡的共用殼畫（#2290）
       appendTo: this.overlayContainerService.getContainer() || 'body',
