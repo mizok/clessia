@@ -1183,9 +1183,8 @@ describe('SessionsPage', () => {
     expect(dialogOpenSpy).toHaveBeenCalledWith(
       SessionDetailDialogComponent,
       expect.objectContaining({
-        // 這支的 header **會渲染**（沒有 showHeader: false），所以斷言它是有意義的。
-        // 刻意不叫「操作紀錄」—— 那是頁面層那顆按鈕，開的是全部課堂（#448）
-        header: '課堂異動紀錄',
+        // 標題在共用殼裡（#2290）；「課堂異動紀錄」這個名字（不叫操作紀錄，#448）改由對話框 spec 守
+        showHeader: false,
         data: expect.objectContaining({ session }),
       }),
     );

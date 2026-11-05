@@ -9,7 +9,6 @@ import {
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ButtonModule } from 'primeng/button';
 import { SkeletonModule } from 'primeng/skeleton';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { type Session, type SessionHistoryEntry, SessionsService } from '@core/sessions.service';
@@ -19,9 +18,10 @@ import {
   type StatusTone,
 } from '@shared/components/status/status-dot/status-dot.component';
 
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 @Component({
   selector: 'app-session-detail-dialog',
-  imports: [StatusDotComponent, DataChipComponent, DatePipe, ButtonModule, SkeletonModule],
+  imports: [DialogFrameComponent, StatusDotComponent, DataChipComponent, DatePipe, SkeletonModule],
   templateUrl: './session-detail-dialog.component.html',
   host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
