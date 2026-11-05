@@ -1,4 +1,9 @@
-import { INVOICE_STATUS_LABELS, isOpenInvoice, type Invoice } from '@core/invoices.service';
+import {
+  INVOICE_ITEM_TYPE_LABELS,
+  INVOICE_STATUS_LABELS,
+  isOpenInvoice,
+  type Invoice,
+} from '@core/invoices.service';
 
 /**
  * 帳單顯示的邊界計算。狀態本身由後端推導（`@core/invoices.service`），
@@ -119,4 +124,23 @@ export function invoiceExportRow(invoice: Invoice, today: string): Record<string
     狀態: INVOICE_STATUS_LABELS[invoice.status],
     逾期: isOverdue(invoice, today) ? '是' : '',
   };
+}
+
+/**
+ * 這張帳單收的是哪一期（#2316）：同一位學生好幾張帳單長得一樣、收錯張的根源就是看不出期別。
+ * 月結的明細帶 `periodMonth` → 「11 月學費」；其他用類型＋備註（「學費（展示用）」）。
+ * 多筆明細去重後用「、」接，超過兩種寫「等 N 項」—— 列上只有一行的空間。
+ */
+export function invoicePeriodLabel(invoice: Pick<Invoice, 'items'>): string {
+  const labels = [
+    ...new Set(
+      invoice.items.map((item) => {
+        const type = INVOICE_ITEM_TYPE_LABELS[item.type];
+        if (item.periodMonth) return `${Number(item.periodMonth.slice(5, 7))} 月${type}`;
+        return item.note ? `${type}（${item.note}）` : type;
+      }),
+    ),
+  ];
+  if (labels.length <= 2) return labels.join('、');
+  return `${labels[0]} 等 ${labels.length} 項`;
 }

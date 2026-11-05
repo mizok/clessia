@@ -894,7 +894,42 @@ export const PAGES = {
   billing: {
     a6: 'billing.html',
     app: '/admin/payments',
+    // 收款彈窗（#2316 寫期別、#2290 換殼）：稿列上的「收款」↔ app 列上的「收款」（DynamicDialog）
+    // 稿的「收款」鈕在收合的章節裡（逾期列是「提醒」），先展開第一個章節再點
+    a6Open: { pay: { click: ['details.coll > summary', '[data-pay]'], root: 'dialog[open]' } },
+    appOpen: {
+      pay: {
+        click: 'button[aria-label^="記錄 "]',
+        root: '.p-dialog:has(app-payment-form-dialog)',
+      },
+    },
     deviations: [
+      // #2316：收款彈窗標題寫期別、副標加到期日 —— 標題文字變了，工具把稿的 h2 配到別的字上
+      ...[
+        { status: '文案', a6: '^pop\\[pay\\]>landmark:dialog\\[記錄收款\\]$' },
+        {
+          status: '文案',
+          a6: '>landmark:dialog\\[記錄收款\\]>text:p\\[\\{名\\} ·應繳#元·已收#元·尚欠#元\\]$',
+        },
+        ...['角色', '位置', '尺寸', '樣式'].map((status) => ({
+          status,
+          a6: '>landmark:dialog\\[記錄收款\\]>heading:h2\\[記錄收款\\]$',
+        })),
+      ].map((d) => ({
+        ...d,
+        pop: 'pay',
+        reason: '收款彈窗標題寫期別（「記錄收款 · 11 月學費」）、副標加到期日',
+        source: `${rule('R5', '「帳單列寫期別」2026-11-05')}；#2316`,
+      })),
+      // #2316：逾期章每列多一行期別（稿沒有），列內 span 序號跟著錯開
+      ...[
+        { status: '樣式', a6: '>landmark:region\\[逾期\\]>row>text:span~2$' },
+        { status: '多', app: '>landmark:region\\[逾期\\]>list>row>text:span~3$' },
+      ].map((d) => ({
+        ...d,
+        reason: '每列多一行期別（同一位學生好幾張帳單要分得出來），列內 span 序號錯開',
+        source: `${rule('R5', '「帳單列寫期別」2026-11-05')}；#2316`,
+      })),
       {
         status: '多',
         app: 'control:button\\[有#筆生效中的報名還沒開過帳單\\]$',
