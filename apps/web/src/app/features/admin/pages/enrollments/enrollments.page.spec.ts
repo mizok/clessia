@@ -5,6 +5,8 @@ import { ActivatedRoute, Router, provideRouter } from '@angular/router';
 import { FeeTemplatesService } from '@core/fee-templates.service';
 import { NEVER, Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
+import { MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
 
 import { CampusContextService } from '@core/campus-context.service';
 import { SystemClockService } from '@core/system-clock.service';
@@ -19,6 +21,8 @@ import { StudentsService } from '@core/students.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
 import { EnrollmentsPage } from './enrollments.page';
+import { EnrollmentBillingDialogComponent } from '../courses/class-detail/enrollment-billing-dialog/enrollment-billing-dialog.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 
 function enrollment(overrides: Partial<Enrollment> = {}): Enrollment {
   return {
@@ -58,6 +62,8 @@ describe('EnrollmentsPage', () => {
   let component: EnrollmentsPage;
 
   const listMock = vi.fn();
+  const updateStatusMock = vi.fn();
+  const messageAdd = vi.fn();
   /**
    * 列的事件歸類與「已結束」看伺服器時鐘的台北今天。刻意釘在離真實日期很遠的一天：
    * 改回讀 `new Date()` 的話，下面用 TODAY 推出的日期就會分錯類。
@@ -112,7 +118,11 @@ describe('EnrollmentsPage', () => {
     await TestBed.configureTestingModule({
       imports: [EnrollmentsPage],
       providers: [
-        { provide: EnrollmentsService, useValue: { list: listMock, getEventCounts: countsMock } },
+        {
+          provide: EnrollmentsService,
+          useValue: { list: listMock, getEventCounts: countsMock, updateStatus: updateStatusMock },
+        },
+        { provide: MessageService, useValue: { add: messageAdd } },
         { provide: StudentsService, useValue: { list: studentsListMock } },
         { provide: ClassesService, useValue: { list: classesListMock } },
         { provide: ReferenceDataService, useValue: refDataMock },
@@ -160,6 +170,7 @@ describe('EnrollmentsPage', () => {
       imports: [EnrollmentsPage],
       providers: [
         { provide: EnrollmentsService, useValue: { list: listMock, getEventCounts: countsMock } },
+        { provide: MessageService, useValue: { add: messageAdd } },
         { provide: StudentsService, useValue: { list: studentsListMock } },
         { provide: ClassesService, useValue: { list: classesListMock } },
         { provide: ReferenceDataService, useValue: refDataMock },
@@ -349,6 +360,7 @@ describe('EnrollmentsPage', () => {
       imports: [EnrollmentsPage],
       providers: [
         { provide: EnrollmentsService, useValue: { list: listMock, getEventCounts: countsMock } },
+        { provide: MessageService, useValue: { add: messageAdd } },
         { provide: StudentsService, useValue: { list: studentsListMock } },
         { provide: ClassesService, useValue: { list: classesListMock } },
         { provide: ReferenceDataService, useValue: refDataMock },
@@ -866,6 +878,66 @@ describe('EnrollmentsPage', () => {
       expect(params.feeTemplateId).toBeUndefined();
       expect(params.from).toBeDefined();
       expect(feeTemplatesListMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('列尾 ⋯（#1314 EN1）：只是入口，開班級頁同一支對話框', () => {
+    type Item = { label?: string; command?: () => void };
+    const items = () => (component as unknown as { rowMenuItems: () => Item[] }).rowMenuItems();
+    const openMenu = () => {
+      q('row-menu')!.click();
+      fixture.detectChanges();
+    };
+    // 元件自己 provide DialogService（遮蔽 TestBed），spy 要掛在元件的 injector 上
+    const dialogOpen = () => vi.spyOn(fixture.debugElement.injector.get(DialogService), 'open');
+
+    it('進行中的報名：計費設定／終止報名／到班級詳情；點 ⋯ 不會觸發整列導頁', async () => {
+      await setup();
+      openMenu();
+      expect(items().map((i) => i.label)).toEqual(['計費設定', '終止報名', '到班級詳情']);
+      expect(navigateMock).not.toHaveBeenCalled();
+    });
+
+    it('退班／作廢是終態：只剩到班級詳情', async () => {
+      await setup([enrollment({ status: 'withdrawal', effectiveTo: ago(3) })]);
+      openMenu();
+      expect(items().map((i) => i.label)).toEqual(['到班級詳情']);
+    });
+
+    it('計費設定開的是班級頁那支 EnrollmentBillingDialog，存了就重抓', async () => {
+      await setup();
+      const open = dialogOpen().mockReturnValue({ onClose: of(enrollment()) } as never);
+      openMenu();
+      listMock.mockClear();
+      items()[0].command!();
+      expect(open).toHaveBeenCalledWith(
+        EnrollmentBillingDialogComponent,
+        expect.objectContaining({ data: { enrollment: expect.objectContaining({ id: 'enr-1' }) } }),
+      );
+      expect(listMock).toHaveBeenCalled();
+    });
+
+    it('終止報名：填了原因才寫 withdrawal，走既有的 PATCH status', async () => {
+      await setup();
+      const open = dialogOpen().mockReturnValue({ onClose: of({ notes: '搬家' }) } as never);
+      updateStatusMock.mockReturnValue(of({ data: enrollment({ status: 'withdrawal' }) }));
+      openMenu();
+      items()[1].command!();
+      expect(open).toHaveBeenCalledWith(
+        ConfirmDialogComponent,
+        expect.objectContaining({ data: expect.objectContaining({ requireNotes: true }) }),
+      );
+      expect(updateStatusMock).toHaveBeenCalledWith('enr-1', 'withdrawal', '搬家');
+      expect(messageAdd).toHaveBeenCalledWith(expect.objectContaining({ severity: 'success' }));
+    });
+
+    it('終止報名按取消：不寫', async () => {
+      await setup();
+      dialogOpen().mockReturnValue({ onClose: of(false) } as never);
+      updateStatusMock.mockClear();
+      openMenu();
+      items()[1].command!();
+      expect(updateStatusMock).not.toHaveBeenCalled();
     });
   });
 });

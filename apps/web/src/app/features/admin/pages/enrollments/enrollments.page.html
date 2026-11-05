@@ -1,8 +1,8 @@
 <!--
   A6 版（#1314 EN3／EN4）：色面 → 灰工具列（期間、學生、篩選）→ 列表（五格）。
   每列：學生（連學生檔案）｜班名＋生效期間·計費模式｜事件｜狀態＋原因｜日期·分校（＋經手人與時間）。
-  整列仍點開班級（狀態變更的唯一入口是班級詳情頁，EN1／EN2 的「⋯」「直接報名」是保留類，不在這裡）。
-  現況有、A6 沒畫的：此頁唯讀的副行（保留）。
+  整列仍點開班級；列尾 ⋯（EN1）開班級詳情頁同一支計費對話框與終止報名，不另開寫入路徑。
+  副標「此頁唯讀」拿掉：有了列尾 ⋯ 就不再唯讀（A6 沒有副標）。
 -->
 <app-page-open>
   <!-- Hero 數字句（A6、#1507）：計數還沒到或失敗時是頁名，不寫 0 —— 載入中不能說成「沒有」 -->
@@ -19,7 +19,6 @@
       }
     </span>
   </ng-container>
-  <ng-container openSub>這段期間的報名進出。此頁唯讀，要調整報名狀態請點進班級。</ng-container>
 </app-page-open>
 
 <!-- 工具列：只有「期間」（A6）；篩選條在它下面，桌機常開、手機收成「篩選　全部 ∨」一列 -->
@@ -190,7 +189,7 @@
         <div
           role="listitem"
           data-testid="enrollment-row"
-          class="grid min-h-11 cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 border-b border-surface-border py-4 hover:bg-zinc-50 focus-visible:bg-zinc-50 wide:grid-cols-[minmax(0,1.1fr)_minmax(0,1.3fr)_92px_minmax(0,1fr)_minmax(0,1fr)] wide:gap-x-5 wide:gap-y-1 wide:py-3"
+          class="grid min-h-11 cursor-pointer grid-cols-[minmax(0,1fr)_auto_44px] items-center gap-x-3 gap-y-0.5 border-b border-surface-border py-4 hover:bg-zinc-50 focus-visible:bg-zinc-50 wide:grid-cols-[minmax(0,1.1fr)_minmax(0,1.3fr)_92px_minmax(0,1fr)_minmax(0,1fr)_40px] wide:gap-x-5 wide:gap-y-1 wide:py-3"
           tabindex="0"
           (click)="openClass(row)"
           (keydown.enter)="openClass(row)"
@@ -212,7 +211,7 @@
             <a
               class="inline-flex min-h-11 items-center text-md font-semibold text-zinc-900 no-underline hover:underline hover:underline-offset-[3px] wide:inline wide:min-h-0"
               data-testid="class-link"
-              [routerLink]="classRoute(row)"
+              [routerLink]="classRoute(row.enrollment)"
               (click)="$event.stopPropagation()"
               >{{ row.enrollment.className }}</a
             >
@@ -263,9 +262,22 @@
               }}</span
             >
           </div>
+          <!-- A6 `.ev__more`：手機在右上跨兩行，桌機是最後一欄 -->
+          <button
+            type="button"
+            class="col-start-3 row-span-2 row-start-1 grid size-11 cursor-pointer place-items-center justify-self-end rounded-md border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 wide:col-start-auto wide:row-span-1 wide:row-start-auto wide:size-9"
+            data-testid="row-menu"
+            aria-haspopup="menu"
+            [attr.aria-label]="row.enrollment.studentName + ' ' + row.enrollment.className + ' 的更多動作'"
+            (click)="openRowMenu($event, row.enrollment)"
+            (keydown.enter)="$event.stopPropagation()"
+          >
+            <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+          </button>
         </div>
       }
     </div>
+    <app-popup-menu #rowMenu [model]="rowMenuItems()" />
 
     @if (totalPages() > 1) {
       <nav
