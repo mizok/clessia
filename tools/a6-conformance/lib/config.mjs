@@ -74,6 +74,15 @@ export function rule(id, note = '') {
 
 export const DEVIATIONS = [
   {
+    // 使用者 11-05 17:10：手機貼底抽屜改白底（--sheet-bg），稿是 --gray-sheet 灰。只拆底色這一項
+    status: '樣式',
+    widths: [360],
+    a6: '^pop\\[[^\\]]*\\]>landmark:(dialog|popover)\\[[^\\]]*\\]$',
+    item: '^backgroundColor rgb\\(235, 231, 228\\) → rgb\\(255, 255, 255\\)$',
+    reason: '手機貼底抽屜白底（稿灰底）',
+    source: `${rule('R5')}「手機貼底抽屜白底」2026-11-05；使用者 11-05 截圖`,
+  },
+  {
     // #2290：對話框手機的左右內距 16（標頭與內容一致），稿 `.acset__head`／`.acset__body` 手機仍是 24 —— 對話框裡的部件 Δx −8
     status: '位置',
     widths: [360],
