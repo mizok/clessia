@@ -1506,6 +1506,19 @@ export const PAGES = {
       import: { click: 'button:has-text("Excel 匯入")', root: '.p-dialog:has(app-roster-import-dialog)' },
     },
     deviations: [
+      // 加入學生、Excel 匯入的關閉鈕：手機 44×44（稿 34／35 寬）
+      ...['add', 'import'].flatMap((pop) =>
+        [
+          { status: '尺寸', widths: [360], detail: '^寬 3\\d→44$' },
+          { status: '位置', widths: [360] },
+        ].map((d) => ({
+          ...d,
+          pop,
+          a6: '>landmark:dialog\\[[^\\]]*\\]>control:button\\[關閉\\]$',
+          reason: '可點元素基底 ≥44px',
+          source: `${rule('R3')}`,
+        })),
+      ),
       noCampusSwitch('一個班只屬於一間分校，頂欄切到別的分校會跟頁面矛盾'),
       // 量的是 seed.sql 的「數學班 A」，稿是「國三數學A班」：班名不同，狀態標跟著位移
       {

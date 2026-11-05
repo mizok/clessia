@@ -410,7 +410,7 @@ export class ClassDetailPage implements OnInit {
     ).length;
 
     const ref = this.dialogService.open(StudentPickerDialogComponent, {
-      header: '選擇學生',
+      header: '加入學生',
       width: 'var(--dlg-w-md)',
       showHeader: false,
       modal: true,
@@ -468,7 +468,7 @@ export class ClassDetailPage implements OnInit {
     if (!cls) return;
 
     const ref = this.dialogService.open(RosterImportDialogComponent, {
-      header: '從 Excel 匯入名單',
+      header: 'Excel 匯入名冊',
       width: 'var(--dlg-w-lg)',
       showHeader: false,
       modal: true,
