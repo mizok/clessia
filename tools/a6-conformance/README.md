@@ -164,6 +164,7 @@ node tools/a6-conformance/run.mjs compare billing schedule --base main --head <P
 
 硬性規則（constitution-enforcement.md 的 A 條）用 `hardRule('A28')` 當 `source`：條號手寫、行號執行時查，查不到就報錯。
 `item`（regex）：只拆樣式列裡的那一項（A28 的對比色），同列其他樣式差照算。
+`delta`（數字）：尺寸列「寬／高 前→後」只在 後−前＝delta（±1）時命中 —— regex 算不出差值，用它只放過預期的那個差、其他變化照報（#2322 二讀：貼底抽屜根高 −8）。
 
 欄位：`status`（必填）、`detail`／`a6`／`app`／`host`（regex；host＝元件宿主，例如 `app-pager`）、`kind`、`pop`（哪個彈出物）、`widths`（只在這些寬度生效）。
 包裝層本身是偏離時（R7 的 search landmark），裡面真正多出／缺少的最上層東西各自拆列、各自歸欄。
