@@ -1483,6 +1483,9 @@ export const PAGES = {
   enrollments: {
     a6: 'enrollments.html',
     app: '/admin/enrollments',
+    // 直接報名（#1314 EN2）：兩邊都是原生 showModal 的表單對話框
+    a6Open: { direct: { click: '[data-direct]', root: 'dialog[open]' } },
+    appOpen: { direct: { click: '[data-testid="direct-enroll"]', root: 'dialog[open]' } },
     deviations: [
       // 期間、開課班、事件、狀態：稿是原生 select（a6.js 換成 .dd 按鈕），app 是 p-select（combobox＋箭頭鈕）
       ...selectFieldDeviations('期間|開課班|事件|狀態'),

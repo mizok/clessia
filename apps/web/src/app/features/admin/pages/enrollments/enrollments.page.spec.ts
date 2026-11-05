@@ -940,4 +940,21 @@ describe('EnrollmentsPage', () => {
       expect(updateStatusMock).not.toHaveBeenCalled();
     });
   });
+
+  it('直接報名（#1314 EN2）：工具列的按鈕打開對話框，報名成功回第一頁重抓', async () => {
+    await setup();
+    const proto = HTMLDialogElement.prototype as any;
+    proto.showModal ??= function (this: HTMLDialogElement) {
+      this.setAttribute('open', '');
+    };
+    q('direct-enroll')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(q('direct-enroll-dialog')?.hasAttribute('open')).toBe(true);
+    listMock.mockClear();
+    (component as unknown as { onDirectEnrolled: (e: unknown) => void }).onDirectEnrolled(
+      enrollment(),
+    );
+    expect(listMock).toHaveBeenCalledWith(expect.objectContaining({ page: 1 }));
+  });
 });
