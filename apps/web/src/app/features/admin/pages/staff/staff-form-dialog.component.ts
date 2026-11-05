@@ -21,8 +21,6 @@ import {
   StaffRole,
   PERMISSIONS,
   Permission,
-  HeldPermission,
-  WILDCARD_PERMISSION,
   CreateStaffInput,
   UpdateStaffInput,
 } from '@core/staff.service';
@@ -30,6 +28,8 @@ import { Campus } from '@core/campuses.service';
 import { Subject } from '@core/subjects.service';
 import { SubjectManagerComponent } from '@shared/components/subject-manager/subject-manager.component';
 import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
+import { AuthService } from '@core/auth.service';
+import { roleLock } from './permission-rules';
 
 /**
  * 中文標籤與說明。**只有這張表是手寫的，值的集合不是** ——
@@ -84,12 +84,12 @@ export class StaffFormDialogComponent {
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly ref = inject(DynamicDialogRef);
   private readonly config = inject(DynamicDialogConfig);
+  private readonly auth = inject(AuthService);
 
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
   }
 
-  protected readonly permissionOptions = PERMISSION_OPTIONS;
   protected readonly roleOptions = ROLE_OPTIONS;
 
   protected readonly loading = signal(false);
@@ -111,16 +111,29 @@ export class StaffFormDialogComponent {
     // 靜默地記成老師 —— 建立者只是沒去取消一個預先勾好的框，而那個人會出現在
     // 排課、代課、鐘點費的候選名單裡。省一次點擊，換一筆要人工才發現的髒資料。
     roles: this.staff()?.roles ?? ([] as StaffRole[]),
-    permissions: this.staff()?.permissions ?? ([] as HeldPermission[]),
   });
 
   protected readonly isEditing = computed(() => this.staff() !== null);
   protected readonly isAdminRole = computed(() => this.formData().roles.includes('admin'));
   protected readonly isTeacherRole = computed(() => this.formData().roles.includes('teacher'));
-  /** 帳號持有 `*`（全部權限）—— 每一項都顯示勾選，沒動過就原樣送回 `*`（#1829） */
-  protected readonly hasAllPermissions = computed(() =>
-    this.formData().permissions.includes(WILDCARD_PERMISSION),
-  );
+  /**
+   * 角色勾選框為什麼不能改（#1314 ST3／ST8，判準同 API `checkSelfAssignment`、`manage_roles`）。
+   * 只管編輯 —— 新增本來就要 `manage_roles`（API 擋），沒有的人存檔會收到那句錯誤。
+   */
+  protected roleBlock(role: StaffRole): string | null {
+    const staff = this.staff();
+    if (!staff) return null;
+    return roleLock(
+      { isSelf: this.auth.user()?.id === staff.userId, has: (p) => this.auth.hasPermission(p) },
+      role as 'admin' | 'teacher',
+    );
+  }
+
+  /** 角色旁那一行：停用的原因（同一個原因只寫一次） */
+  protected readonly roleNote = computed(() => {
+    const notes = ROLE_OPTIONS.map((r) => this.roleBlock(r.value)).filter(Boolean);
+    return [...new Set(notes)].join('；') || null;
+  });
 
   protected readonly campusOptions = computed(() =>
     this.campuses().map((c) => ({ label: c.name, value: c.id })),
@@ -229,12 +242,18 @@ export class StaffFormDialogComponent {
       notes: form.notes.trim() || null,
       subjectIds: form.subjectIds,
       campusIds: form.campusIds,
-      roles: form.roles,
-      permissions: form.roles.includes('admin') ? form.permissions : [],
     };
 
     if (this.isEditing()) {
-      const input: UpdateStaffInput = commonInput;
+      // 權限改在「權限設定」（ST2），這裡不帶 → API 不動；角色沒變也不帶，
+      // 沒有 manage_roles 的人才改得了別人的姓名、分校（API 只要動到角色就要 manage_roles）
+      const before = this.staff()!.roles;
+      const rolesChanged =
+        before.length !== form.roles.length || form.roles.some((r) => !before.includes(r));
+      const input: UpdateStaffInput = {
+        ...commonInput,
+        ...(rolesChanged && { roles: form.roles }),
+      };
 
       this.staffService.update(this.staff()!.id, input).subscribe({
         next: (res) => {
@@ -255,8 +274,11 @@ export class StaffFormDialogComponent {
         },
       });
     } else {
+      // 新增管理員預設只給「日常行政」，要多的建完再開權限設定（A6 `staff.html:232`，計畫席 11-05 裁 (a)）
       const input: CreateStaffInput = {
         ...commonInput,
+        roles: form.roles,
+        permissions: form.roles.includes('admin') ? ['basic_operations'] : [],
         email: form.email.trim(),
       };
 
@@ -313,31 +335,8 @@ export class StaffFormDialogComponent {
       } else {
         newRoles = f.roles.filter((r) => r !== role);
       }
-      return {
-        ...f,
-        roles: newRoles,
-        permissions: newRoles.includes('admin') ? f.permissions : [],
-      };
+      return { ...f, roles: newRoles };
     });
-  }
-
-  protected hasPermission(permission: Permission): boolean {
-    return this.hasAllPermissions() || this.formData().permissions.includes(permission);
-  }
-
-  protected togglePermission(permission: Permission, checked: boolean): void {
-    // 從 `*` 取消一項：展開成逐項清單再拿掉它。勾選在 `*` 下本來就是勾著的，不用動。
-    const current: HeldPermission[] = this.hasAllPermissions()
-      ? [...PERMISSIONS]
-      : this.formData().permissions;
-    if (checked) {
-      this.updateForm('permissions', [...current, permission]);
-    } else {
-      this.updateForm(
-        'permissions',
-        current.filter((p) => p !== permission),
-      );
-    }
   }
 
   protected openSubjectManager(): void {
