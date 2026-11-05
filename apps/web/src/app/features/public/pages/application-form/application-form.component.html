@@ -705,12 +705,12 @@
   }
 }
 
-<!-- 個資使用聲明（A6 `.acset`，共用殼 app-dialog-frame，#2290）：手機是貼底抽屜（灰底、由下滑入）、桌機置中。點背景或 ✕ 關掉。
+<!-- 個資使用聲明（A6 `.acset`，共用殼 app-dialog-frame，#2290）：手機是貼底抽屜（白底 --sheet-bg、由下滑入）、桌機置中。點背景或 ✕ 關掉。
      role="dialog" 讓殼的 appDialogTitle 找得到外框、把可及名稱指到 h2（原生 dialog 本來就是這個 role） -->
 <dialog
   #privacy
   role="dialog"
-  class="overlay-motion--from-bottom-narrow m-0 mt-auto min-h-11 max-h-[calc(100%-24px)] w-full max-w-none rounded-t-xl border-0 bg-zinc-200 p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-[rgb(26_22_20/40%)] wide:m-auto wide:max-h-[calc(100%-48px)] wide:w-[min(var(--dlg-w-md),calc(100%-32px))] wide:rounded-lg wide:bg-white"
+  class="overlay-motion--from-bottom-narrow m-0 mt-auto min-h-11 max-h-[calc(100%-24px)] w-full max-w-none rounded-t-xl border-0 bg-(--sheet-bg) p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-[rgb(26_22_20/40%)] wide:m-auto wide:max-h-[calc(100%-48px)] wide:w-[min(var(--dlg-w-md),calc(100%-32px))] wide:rounded-lg wide:bg-white"
   (click)="closePrivacy($event)"
 >
   <app-dialog-frame title="個資使用聲明" (closed)="closePrivacy()">
