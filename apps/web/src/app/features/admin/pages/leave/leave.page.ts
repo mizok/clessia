@@ -462,8 +462,8 @@ export class LeavePage implements OnInit {
   /** 批次請假（#1100 #32，A6）：建了幾張就重抓；沒成功的那幾位留在窗裡處理 */
   protected openBatchDialog(): void {
     const ref = this.dialogService.open(LeaveBatchDialogComponent, {
-      header: '批次請假',
-      width: '560px',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       modal: true,
       appendTo: this.overlayContainerService.getContainer() || 'body',
       data: { campusId: this.campusCtx.id() },
