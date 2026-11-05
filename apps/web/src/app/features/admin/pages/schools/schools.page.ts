@@ -269,8 +269,7 @@ export class SchoolsPage implements OnInit {
 
   private openSchoolDialog(editing: School | null): void {
     const ref = this.dialogService.open(SchoolFormDialogComponent, {
-      width: '480px',
-      breakpoints: { '640px': '96%' },
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: 'body',

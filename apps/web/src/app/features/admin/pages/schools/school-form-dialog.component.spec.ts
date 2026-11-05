@@ -11,6 +11,7 @@ import { SchoolFormDialogComponent } from './school-form-dialog.component';
 describe('SchoolFormDialogComponent', () => {
   const create = vi.fn(() => of({ data: {} }));
   const update = vi.fn(() => of({ success: true }));
+  let el: HTMLElement;
 
   async function render(editing: School | null) {
     create.mockClear();
@@ -26,12 +27,35 @@ describe('SchoolFormDialogComponent', () => {
     }).compileComponents();
     const fixture = TestBed.createComponent(SchoolFormDialogComponent);
     fixture.detectChanges();
+    el = fixture.nativeElement as HTMLElement;
     return fixture.componentInstance as unknown as {
       name: { set(v: string): void };
       level: { (): string | null; set(v: string | null): void };
       submit(): void;
     };
   }
+
+  it('共用殼（#2290）：新增寫「新增學校」；沒填全名時按儲存不送、左邊寫還差什麼', async () => {
+    const c = await render(null);
+    expect(el.querySelector('h2')?.textContent?.trim()).toBe('新增學校');
+    expect(el.querySelector('.form-dialog__why')?.textContent).toContain('還沒填：學校全名');
+    c.submit();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('編輯的標題寫簡稱（A6「編輯學校：明湖國中」）', async () => {
+    await render({
+      id: 's1',
+      name: '台北市立明湖國中',
+      shortName: '明湖國中',
+      level: 'junior',
+      isActive: true,
+      studentCount: 0,
+      createdAt: '',
+      updatedAt: '',
+    });
+    expect(el.querySelector('h2')?.textContent?.trim()).toBe('編輯學校：明湖國中');
+  });
 
   it('新增預設學制是國中（A6），送出帶 level', async () => {
     const c = await render(null);
