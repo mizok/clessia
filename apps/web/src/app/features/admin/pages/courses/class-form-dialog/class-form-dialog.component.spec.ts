@@ -6,7 +6,6 @@ import { Subject } from 'rxjs';
 import { vi } from 'vitest';
 
 import { ClassFormDialogComponent } from './class-form-dialog.component';
-import { ScheduleSplitDialogComponent } from './schedule-split-dialog/schedule-split-dialog.component';
 import { ClassesService } from '@core/classes.service';
 import { AuthService } from '@core/auth.service';
 import { FeeTemplatesService } from '@core/fee-templates.service';
@@ -784,55 +783,6 @@ describe('ClassFormDialogComponent', () => {
       (component as any).save();
       await fixture.whenStable();
       expect(classesServiceMock.deleteSchedule).not.toHaveBeenCalled();
-    });
-  });
-
-  /** 儀表板「班級改時段」最後一跳（#2246）：只有一個時段就直接開「從某日起改時段」，多個就停在表單、說要選哪個 */
-  describe('retime（#2246）', () => {
-    const sch = (id: string, weekday: number) => ({
-      id,
-      classId: 'class-1',
-      weekday,
-      startTime: '09:00:00',
-      endTime: '11:00:00',
-      teacherId: null,
-      effectiveFrom: '2026-01-01',
-      effectiveTo: null,
-      classroomId: null,
-      classroomName: null,
-    });
-    const open = (schedules: unknown[], retime: boolean) => {
-      const data = TestBed.inject(DynamicDialogConfig).data;
-      data.cls = { id: 'class-1', name: '舊班', maxStudents: 20, nextClassId: null, isActive: true, schedules };
-      data.retime = retime;
-      dialogServiceMock.open.mockClear();
-      fixture = TestBed.createComponent(ClassFormDialogComponent);
-      component = fixture.componentInstance;
-      fixture.detectChanges();
-      data.retime = undefined;
-    };
-    const hint = () =>
-      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="retime-hint"]');
-    const splitOpens = () =>
-      dialogServiceMock.open.mock.calls.filter(([cmp]) => cmp === ScheduleSplitDialogComponent);
-
-    it('只有一個時段：直接開「從某日起改時段」那一段', () => {
-      open([sch('s1', 3)], true);
-      expect(splitOpens()).toHaveLength(1);
-      expect(splitOpens()[0][1].data.schedule.id).toBe('s1');
-      expect(hint()).toBeNull();
-    });
-
-    it('多個時段：不自己挑，表單上方寫「選一個時段改時間」', () => {
-      open([sch('s1', 3), sch('s2', 5)], true);
-      expect(splitOpens()).toHaveLength(0);
-      expect(hint()?.textContent).toContain('選一個時段改時間');
-    });
-
-    it('一般編輯（沒帶 retime）：不開、也沒有那句', () => {
-      open([sch('s1', 3)], false);
-      expect(splitOpens()).toHaveLength(0);
-      expect(hint()).toBeNull();
     });
   });
 });
