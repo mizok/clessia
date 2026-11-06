@@ -1697,7 +1697,10 @@ export const PAGES = {
       ...noSubDeviations('gen', '產生課堂', '\\{分校\\} ›[^\\]]*'),
       ...noSubDeviations('add', '加入學生', '[^\\]]*加入後狀態[^\\]]*'),
       ...noSubDeviations('import', 'Excel匯入名冊', '[^\\]]*每列一位學生[^\\]]*'),
-      ...noSubDeviations('off', '停用「[^」\\]]*」', '目前#位學生在籍'),
+      ...noSubDeviations('off', '停用「[^」\\]]*」', '目前#位學生在籍', {
+        // 稿的 form 帶內距、副標又搬進內容區：form 同時左右與上下位移（同教室）
+        extra: [{ status: '位置', a6: '>landmark:dialog\\[停用「[^」\\]]*」\\]>landmark:form\\[\\]$' }],
+      }),
       // 加入學生、Excel 匯入的關閉鈕：手機 44×44（稿 34／35 寬）
       ...['add', 'import'].flatMap((pop) =>
         [
