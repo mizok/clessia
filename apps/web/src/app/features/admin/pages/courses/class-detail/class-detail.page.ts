@@ -157,15 +157,6 @@ export class ClassDetailPage implements OnInit {
   });
 
   ngOnInit(): void {
-    // 儀表板「班級改時段」（#2246）：課表選班 → 這裡 ?retime=1 → 班級載完自動開編輯。消費一次就從網址拿掉
-    this.retimeOnLoad = this.route.snapshot.queryParams?.['retime'] === '1';
-    if (this.retimeOnLoad)
-      void this.router.navigate([], {
-        relativeTo: this.route,
-        queryParams: { retime: null },
-        queryParamsHandling: 'merge',
-        replaceUrl: true,
-      });
     this.loadClass();
     this.loadEnrollments();
   }
@@ -189,9 +180,7 @@ export class ClassDetailPage implements OnInit {
   });
 
   /** 編輯班級：表單要課程、老師、分校、其他班（下一階班級）—— 點了才抓，不拖慢進頁 */
-  private retimeOnLoad = false;
-
-  protected openEditClass(retime = false): void {
+  protected openEditClass(): void {
     const cls = this.cls();
     if (!cls) return;
     this.refData.loadCampuses();
@@ -213,7 +202,6 @@ export class ClassDetailPage implements OnInit {
               staff: this.refData.teachers(),
               campuses: this.refData.campuses(),
               classes: classes.data,
-              retime,
             },
           });
           ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
@@ -335,10 +323,6 @@ export class ClassDetailPage implements OnInit {
         next: (res) => {
           this.cls.set(res.data);
           this.loading.set(false);
-          if (this.retimeOnLoad) {
-            this.retimeOnLoad = false;
-            this.openEditClass(true);
-          }
         },
         error: () => {
           this.messageService.add({

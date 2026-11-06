@@ -1,5 +1,6 @@
 <!--
-  A6 版（#991、#1314 D）：色面（機構名＋一句話）→ 灰工具列 → 待處理 → 主段 → 灰摺疊列 → 臨時狀況。
+  A6 版（#991、#1314 D）：色面（機構名＋一句話）→ 灰工具列 → 待處理 → 主段 → 灰摺疊列。
+  稿最後的「臨時狀況？」（A6 .quick）三個入口不放（使用者 11-06，#2396；#2242 拿掉、#2246 放回過）。
   主段：日到班＝「該到沒到，先打給家長」；逐堂點名＝今日課表（A6 只畫了日到班的形狀）。
 -->
 <!-- 標題是補習班名稱：使用者 10-23 說這一行不要文字替換動畫；副行（今日摘要）照舊播 -->
@@ -639,26 +640,6 @@
       }
     }
   </div>
-
-  <!-- 臨時狀況（A6 .quick）：#2242 拿掉、#2246 放回 —— 每顆帶 ?quick= 直達課表頁的對應工具 -->
-  <nav
-    class="flex flex-col gap-0 border-t border-surface-border pt-4 wide:flex-row wide:flex-wrap wide:items-baseline wide:gap-x-6 wide:gap-y-2"
-    aria-label="臨時狀況"
-  >
-    <span class="pb-1 text-md font-semibold text-zinc-700 wide:pb-0">臨時狀況？</span>
-    @for (item of emergencyLinks; track item.quick) {
-      <a
-        class="flex min-h-12 w-full items-center gap-1.5 border-0 border-b border-solid border-surface-border text-base font-semibold text-zinc-900 no-underline wide:inline-flex wide:min-h-0 wide:w-auto wide:border-b-[1.5px] wide:border-zinc-300 wide:pb-px wide:hover:border-zinc-900"
-        data-testid="emergency-link"
-        [routerLink]="[sessionsRoute]"
-        [queryParams]="{ quick: item.quick }"
-      >
-        {{ item.title }}
-        <span class="font-normal text-zinc-600">{{ item.hint }}</span>
-        <i class="pi pi-arrow-right ml-auto text-sm wide:ml-0" aria-hidden="true"></i>
-      </a>
-    }
-  </nav>
 </div>
 
 <ng-template #valueError>
