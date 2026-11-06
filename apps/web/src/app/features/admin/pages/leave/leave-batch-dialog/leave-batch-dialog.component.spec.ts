@@ -43,9 +43,9 @@ describe('LeaveBatchDialogComponent', () => {
     list: vi.fn((_p?: unknown) =>
       of({
         data: [
-          { studentId: 's1', studentName: '王小明' },
-          { studentId: 's2', studentName: '林子晴' },
-          { studentId: 's1', studentName: '王小明' }, // 換方案的第二筆在學報名
+          { studentId: 's1', studentName: '王小明', studentGrade: 'J2' },
+          { studentId: 's2', studentName: '林子晴', studentGrade: 'J3' },
+          { studentId: 's1', studentName: '王小明', studentGrade: 'J2' }, // 換方案的第二筆在學報名
         ],
         meta: {},
       }),
@@ -110,6 +110,29 @@ describe('LeaveBatchDialogComponent', () => {
     expect(c.students().map((s: { id: string }) => s.id)).toEqual(['s1', 's2']);
     c.toggleAll();
     expect([...c.selected()]).toEqual(['s1', 's2']);
+  });
+
+  it('內容照 A6 batchLeave（#2325）：說明是段落、學生清單是有名稱的群組、選項帶年級、催促是錯誤色', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    expect(
+      [...el.querySelectorAll('p')].some((p) => p.textContent?.includes('例如全班校外教學')),
+    ).toBe(true);
+    expect(el.querySelector('fieldset')).toBeNull();
+    const group = el.querySelector('[data-testid="batch-students"] [role="group"]')!;
+    expect(el.querySelector(`#${group.getAttribute('aria-labelledby')}`)?.textContent).toContain(
+      '學生',
+    );
+    c.toggleAll();
+    fixture.detectChanges();
+    expect(group.querySelector('p')?.className).toContain('text-error-700');
+
+    c.onSessionChange('ses-1');
+    fixture.detectChanges();
+    const rows = [...group.querySelectorAll('label')];
+    expect(rows.map((r) => r.querySelector('small')?.textContent?.trim())).toEqual([
+      '國二',
+      '國三',
+    ]);
   });
 
   it('全部成功：每位一筆單筆 POST（綁這一堂、日期取堂次、原因去空白）；關窗回傳建了幾張', () => {

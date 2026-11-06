@@ -938,6 +938,8 @@ export const PAGES = {
     // 收款彈窗（#2316 寫期別、#2290 換殼）：稿列上的「收款」↔ app 列上的「收款」（DynamicDialog）
     // 稿的「收款」鈕在收合的章節裡（逾期列是「提醒」），先展開第一個章節再點
     a6Open: { pay: { click: ['details.coll > summary', '[data-pay]'], root: 'dialog[open]' } },
+    // 匯出帳單（稿 `bexp`、app 原生 popover `payments-export`，#2371 起）—— 沒對照時兩邊配不上、從沒量過（#2373）
+    popovers: { bexp: 'payments-export' },
     appOpen: {
       pay: {
         click: 'button[aria-label^="記錄 "]',
@@ -1647,6 +1649,13 @@ export const PAGES = {
     appOpen: { checkin: { click: 'button:has-text("櫃台代刷")', root: 'dialog[open]' } },
     deviations: [
       // ── 櫃台代刷到班（#2314）──
+      // 稿的時間點（10-01 17:40）seed 沒有還沒到、沒請假的人：鈕照 #2387 停用，對話框開不起來
+      {
+        status: '缺',
+        a6: '^pop\\[checkin\\]$',
+        reason: '資料＋裁定：稿的時間點沒有可代刷的人，「櫃台代刷到班」停用、不開空對話框',
+        source: `${rule('R5')}「櫃台代刷到班：沒有可代刷的人時鈕停用」2026-11-06；#2387`,
+      },
       // 學生：app-select-field（p-select）對稿的 .dd；稿的按鈕名「選擇：…」跟 app 的 trigger 錯配
       ...selectFieldDeviations('選擇|學生（今天還沒到的）\\*').map((d) => ({
         ...d,
@@ -1986,6 +1995,16 @@ export const PAGES = {
     deviations: [
       // 批次請假的課堂：app-select-field 對稿的 .dd（#2325，全站同一套）
       ...selectFieldInDialog('batch', '課堂', '選擇'),
+      // 批次請假（#2325）：手機內容左右 16（共用殼的規格，稿 24），內容區的段落與欄位寬 +16
+      {
+        status: '尺寸',
+        widths: [360],
+        pop: 'batch',
+        a6: '>landmark:dialog\\[批次請假\\]>(text:p|text:label|control:textbox)\\[[^\\]]*\\]$',
+        detail: '^寬 312→328$',
+        reason: '對話框手機內容左右 16（共用殼），稿 24',
+        source: `${rule('R5', '「對話框手機內容左右 16」2026-11-05')}`,
+      },
       // 登記請假（#2318）：app 的日期、要請假的課、原因三格同層同子元素數，被工具合成一列（README「列是資料」的 div 格線規則）；
       // 稿同樣的三格沒觸發，於是「要請假的課」與空狀態那句報缺、app 報多一列 —— 內容與樣式照稿（.pick、.pick__none）
       ...[
@@ -3079,6 +3098,8 @@ export const PAGES = {
   'grades-student': {
     a6: 'grades-student.html',
     app: '/admin/grades/overview/student',
+    // 匯出成績（稿 `gexp`、app 原生 popover `sv-export`，#2372 起）—— 沒對照時從沒量過（#2373）
+    popovers: { gexp: 'sv-export' },
     a6Open: opensOf('grades-student', 'a6Open'),
     // app 的篩選是 app-filter-panel：桌機 PrimeNG Popover、≤860 貼底抽屜 p-dialog（#2206）；#2079(c) 開課班／期間要打開才量得到
     appOpen: {
