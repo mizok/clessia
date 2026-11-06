@@ -465,6 +465,29 @@ const SELECT_FIELD = 'app-select-field（p-select＋pt）對 A6 .dd：結構不�
 const SELECT_FIELD_SOURCE =
   'apps/web/src/app/shared/components/select-field/select-field.component.ts（#991 P1 選項 A）';
 /** 工具列的 A6 下拉（app-select-field）換掉 p-select 之後：稿的 .dd 按鈕 ↔ app 的 combobox＋PrimeNG 箭頭鈕 */
+/**
+ * #2396（使用者 11-06）：彈窗與抽屜不放副標。稿的 `.fdlg__sub` 搬進內容區（C／D 類）或刪掉（A 類）之後，
+ * 同一個彈出物會一起出現的差：標頭變矮（h2、✕ 上下位移）、h2 不再被副標撐寬、原本的副標段落換成內容區的字級與位置。
+ * `title`＝h2 名稱的 regex 片段；`sub`＝稿副標段落 `text:p[…]` 名稱的 regex 片段（A 類刪掉的不給）
+ */
+const NO_SUB_SOURCE = `${rule('R5')}「彈窗與抽屜不放副標」2026-11-06；#2396`;
+const noSubDeviations = (pop, title, sub, extra = []) =>
+  [
+    { status: '位置', a6: `>landmark:dialog\\[${title}\\]>(heading:h2\\[${title}\\]|control:button\\[關閉\\])$` },
+    { status: '尺寸', a6: `>landmark:dialog\\[${title}\\]>heading:h2\\[${title}\\]$`, detail: '^寬 ' },
+    ...(sub
+      ? ['位置', '尺寸', '樣式'].map((status) => ({
+          status,
+          a6: `>landmark:dialog\\[${title}\\]>text:p\\[${sub}\\]$`,
+        }))
+      : []),
+    ...extra,
+  ].map((d) => ({
+    ...d,
+    pop,
+    reason: '彈窗不放副標：稿的副標搬進內容區或刪掉，標頭變矮、h2 不再被撐寬',
+    source: NO_SUB_SOURCE,
+  }));
 const selectFieldDeviations = (names) =>
   [
     { status: '缺', a6: `control:button\\[(${names})：[^\\]]*\\](>text:span\\[[^\\]]*\\])?$` },
@@ -761,6 +784,8 @@ export const PAGES = {
     // 第三層：年級名單隨資料（稿是國一～小五，demo 是高一～國三）
     behaveIgnore: ['^[高國小][一二三四五六]#?$'],
     deviations: [
+      // 停用確認：確認訊息從副標搬進內容區（#2396 C 類）
+      ...noSubDeviations('off', '確認停用', '確定要停用[^\\]]*'),
       // ── 帳號設定內容（#2390）──
       // 寬 520（稿 .acset 480，寬三種）／手機內容左右 16（稿 24）：整欄寬的部件變寬，靠右的儲存鈕跟著位移
       ...[
@@ -2446,6 +2471,10 @@ export const PAGES = {
       'campus-form': { click: 'button:has-text("新增分校")', root: 'dialog[open]' },
     },
     deviations: [
+      // 教室：清單從副標搬進內容區第一行（#2396 D 類），下面的新增教室表單跟著下移
+      ...noSubDeviations('rooms', '教室：\\{分校\\}', '[^\\]]*教室[^\\]]*', [
+        { status: '位置', a6: '>landmark:dialog\\[教室：\\{分校\\}\\]>landmark:form\\[\\]$' },
+      ]),
       noCampusSwitch('這頁就是分校清單本身'),
       ...[
         { status: '位置', detail: '^相對' },
@@ -3085,6 +3114,8 @@ export const PAGES = {
       complete: { click: 'button:has-text("標記完成")', root: 'dialog[open]' },
     },
     deviations: [
+      // 標記完成：「X／Y 已登錄」從副標搬進內容區（#2396 C 類）
+      ...noSubDeviations('complete', '標記完成', '#／#已登錄[^\\]]*'),
       noCampusSwitch('看的是一場考試；班可能跨分校，誰能看由後端權限擋'),
       // 標記完成：稿是 fields: [] 的 A2.form（空 <form> 有上下內距），app 的確認沒有欄位、不包 form（同 staff 停用確認）
       {
