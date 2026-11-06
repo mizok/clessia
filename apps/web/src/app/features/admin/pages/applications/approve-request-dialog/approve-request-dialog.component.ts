@@ -1,6 +1,8 @@
 import {
   Component,
+  Injector,
   OnInit,
+  afterNextRender,
   computed,
   effect,
   inject,
@@ -33,6 +35,11 @@ import {
   type ParentRequest,
 } from '@core/parent-requests.service';
 import { SystemClockService } from '@core/system-clock.service';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
+import {
+  DialogStepsComponent,
+  dialogStepsActive,
+} from '@shared/components/dialog-steps/dialog-steps.component';
 
 const MODES: BillingMode[] = ['monthly', 'period', 'session_pack'];
 
@@ -58,256 +65,307 @@ const ERROR_MESSAGES: Record<string, string> = {
  */
 @Component({
   selector: 'app-approve-request-dialog',
-  imports: [FormsModule, InputTextModule, SelectModule],
+  imports: [FormsModule, InputTextModule, SelectModule, DialogFrameComponent, DialogStepsComponent],
   template: `
-    @if (loading()) {
-      <p class="m-0 py-4 text-md text-zinc-600">載入價目表…</p>
-    } @else {
-      <form
-        ngNoForm
-        class="flex flex-col gap-4 py-2"
-        (submit)="$event.preventDefault()"
-        aria-label="核准報名"
-      >
-        <fieldset class="m-0 flex flex-col gap-1 border-0 p-0">
-          <legend class="mb-1 p-0 text-md font-semibold text-zinc-700">
-            計費模式 <span class="text-error-700" aria-hidden="true">*</span>
-          </legend>
-          <div class="flex flex-wrap gap-x-4">
-            @for (m of modes; track m) {
-              <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-md">
-                <input
-                  type="radio"
-                  name="approve-mode"
-                  class="size-4"
-                  [value]="m"
-                  [checked]="mode() === m"
-                  (change)="setMode(m)"
-                />
-                {{ modeLabels[m] }}
-              </label>
-            }
-          </div>
-          @if (modeMismatch(); as parentMode) {
-            <p class="m-0 text-sm font-semibold text-warning-800" data-testid="mode-mismatch">
-              家長選的是{{ modeLabels[parentMode] }}
-            </p>
-          }
-        </fieldset>
-
-        <div class="flex min-w-0 flex-col gap-1">
-          <label class="text-md font-semibold text-zinc-700" for="approve-template"
-            >價目表 <span class="text-error-700" aria-hidden="true">*</span></label
-          >
-          <p-select
-            inputId="approve-template"
-            [options]="templateOptions()"
-            optionLabel="label"
-            optionValue="value"
-            [ngModel]="templateId()"
-            (ngModelChange)="templateId.set($event)"
-            [placeholder]="mode() ? '選價目表' : '先選計費模式'"
-            [emptyMessage]="'沒有啟用中的' + (mode() ? modeLabels[mode()!] : '') + '價目表'"
-            styleClass="w-full"
-            [appendTo]="appendTo()"
+    <app-dialog-frame title="核准報名" [sub]="subtitle()" (closed)="closed.emit(null)">
+      @if (loading()) {
+        <p class="m-0 py-4 text-md text-zinc-600">載入價目表…</p>
+      } @else {
+        <!-- 手機分兩步（#2396 L3，dialog-frame.md「操作量分級」）：①計費 ②首期帳單；桌機單頁。
+           送出鈕在殼的底部列、在 form 外 → type=submit form="approve-form"，只走這裡的 submit（#2362） -->
+        <form
+          ngNoForm
+          id="approve-form"
+          class="flex flex-col gap-4 py-2"
+          (submit)="$event.preventDefault(); onSubmit()"
+          aria-label="核准報名"
+        >
+          <app-dialog-steps
+            [current]="step()"
+            [total]="2"
+            [label]="step() === 1 ? '計費' : '首期帳單'"
           />
-        </div>
-
-        <div class="grid grid-cols-1 gap-x-3 gap-y-4 wide:grid-cols-2">
-          <div class="flex min-w-0 flex-col gap-1">
-            <label class="text-md font-semibold text-zinc-700" for="approve-agreed"
-              >議定金額（選填）</label
-            >
-            <input
-              id="approve-agreed"
-              type="number"
-              min="0"
-              step="1"
-              inputmode="numeric"
-              pInputText
-              class="w-full"
-              placeholder="不填照價目表"
-              [ngModel]="agreedAmount()"
-              (ngModelChange)="agreedAmount.set($event)"
-            />
-          </div>
-          @if (agreedAmount() !== null) {
-            <div class="flex min-w-0 flex-col gap-1">
-              <label class="text-md font-semibold text-zinc-700" for="approve-adjust-note"
-                >調整原因 <span class="text-error-700" aria-hidden="true">*</span></label
-              >
-              <input
-                id="approve-adjust-note"
-                type="text"
-                pInputText
-                class="w-full"
-                autocomplete="off"
-                placeholder="例如：手足優惠"
-                [ngModel]="adjustmentNote()"
-                (ngModelChange)="adjustmentNote.set($event)"
-              />
-            </div>
-          }
-
-          <div class="flex min-w-0 flex-col gap-1">
-            <label class="text-md font-semibold text-zinc-700" for="approve-from"
-              >生效起 <span class="text-error-700" aria-hidden="true">*</span></label
-            >
-            <input
-              id="approve-from"
-              type="date"
-              pInputText
-              class="w-full"
-              [ngModel]="effectiveFrom()"
-              (ngModelChange)="effectiveFrom.set($event ?? '')"
-            />
-          </div>
-          @if (mode() === 'session_pack') {
-            <div class="flex min-w-0 flex-col gap-1">
-              <label class="text-md font-semibold text-zinc-700" for="approve-sessions"
-                >堂數 <span class="text-error-700" aria-hidden="true">*</span></label
-              >
-              <input
-                id="approve-sessions"
-                type="number"
-                min="1"
-                step="1"
-                inputmode="numeric"
-                pInputText
-                class="w-full"
-                [ngModel]="sessionCount()"
-                (ngModelChange)="sessionCount.set($event)"
-              />
-            </div>
-          }
-        </div>
-
-        @if (noPeriod()) {
-          <p class="m-0 text-md text-error-700" role="alert" data-testid="no-period">
-            沒有涵蓋這天的繳費期，請先到設定建立
-          </p>
-        }
-
-        <div class="grid grid-cols-1 gap-x-3 gap-y-4 wide:grid-cols-2">
-          <div class="flex min-w-0 flex-col gap-1">
-            <label class="text-md font-semibold text-zinc-700" for="approve-amount">首期金額</label>
-            <input
-              id="approve-amount"
-              type="number"
-              min="1"
-              step="1"
-              inputmode="numeric"
-              pInputText
-              class="w-full"
-              [ngModel]="finalAmount()"
-              (ngModelChange)="amountInput.set($event)"
-            />
-            @if (suggested() !== null) {
-              <p class="m-0 text-sm text-zinc-600" data-testid="suggested">
-                試算 {{ suggested() }} 元
-                @if (preview()?.note; as note) {
-                  · {{ note }}
+          <div class="flex flex-col gap-4" [class.max-wide:hidden]="step() !== 1" data-step="1">
+            <fieldset class="m-0 flex flex-col gap-1 border-0 p-0">
+              <legend class="mb-1 p-0 text-md font-semibold text-zinc-700">
+                計費模式 <span class="text-error-700" aria-hidden="true">*</span>
+              </legend>
+              <div class="flex flex-wrap gap-x-4">
+                @for (m of modes; track m) {
+                  <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-md">
+                    <input
+                      type="radio"
+                      name="approve-mode"
+                      class="size-4"
+                      [value]="m"
+                      [checked]="mode() === m"
+                      (change)="setMode(m)"
+                    />
+                    {{ modeLabels[m] }}
+                  </label>
                 }
+              </div>
+              @if (modeMismatch(); as parentMode) {
+                <p class="m-0 text-sm font-semibold text-warning-800" data-testid="mode-mismatch">
+                  家長選的是{{ modeLabels[parentMode] }}
+                </p>
+              }
+            </fieldset>
+
+            <div class="flex min-w-0 flex-col gap-1">
+              <label class="text-md font-semibold text-zinc-700" for="approve-template"
+                >價目表 <span class="text-error-700" aria-hidden="true">*</span></label
+              >
+              <p-select
+                inputId="approve-template"
+                [options]="templateOptions()"
+                optionLabel="label"
+                optionValue="value"
+                [ngModel]="templateId()"
+                (ngModelChange)="templateId.set($event)"
+                [placeholder]="mode() ? '選價目表' : '先選計費模式'"
+                [emptyMessage]="'沒有啟用中的' + (mode() ? modeLabels[mode()!] : '') + '價目表'"
+                styleClass="w-full"
+                [appendTo]="appendTo()"
+              />
+            </div>
+
+            <div class="grid grid-cols-1 gap-x-3 gap-y-4 wide:grid-cols-2">
+              <div class="flex min-w-0 flex-col gap-1">
+                <label class="text-md font-semibold text-zinc-700" for="approve-agreed"
+                  >議定金額（選填）</label
+                >
+                <input
+                  id="approve-agreed"
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputmode="numeric"
+                  pInputText
+                  class="w-full"
+                  placeholder="不填照價目表"
+                  [ngModel]="agreedAmount()"
+                  (ngModelChange)="agreedAmount.set($event)"
+                />
+              </div>
+              @if (agreedAmount() !== null) {
+                <div class="flex min-w-0 flex-col gap-1">
+                  <label class="text-md font-semibold text-zinc-700" for="approve-adjust-note"
+                    >調整原因 <span class="text-error-700" aria-hidden="true">*</span></label
+                  >
+                  <input
+                    id="approve-adjust-note"
+                    type="text"
+                    pInputText
+                    class="w-full"
+                    autocomplete="off"
+                    placeholder="例如：手足優惠"
+                    [ngModel]="adjustmentNote()"
+                    (ngModelChange)="adjustmentNote.set($event)"
+                  />
+                </div>
+              }
+
+              <div class="flex min-w-0 flex-col gap-1">
+                <label class="text-md font-semibold text-zinc-700" for="approve-from"
+                  >生效起 <span class="text-error-700" aria-hidden="true">*</span></label
+                >
+                <input
+                  id="approve-from"
+                  type="date"
+                  pInputText
+                  class="w-full"
+                  [ngModel]="effectiveFrom()"
+                  (ngModelChange)="effectiveFrom.set($event ?? '')"
+                />
+              </div>
+              @if (mode() === 'session_pack') {
+                <div class="flex min-w-0 flex-col gap-1">
+                  <label class="text-md font-semibold text-zinc-700" for="approve-sessions"
+                    >堂數 <span class="text-error-700" aria-hidden="true">*</span></label
+                  >
+                  <input
+                    id="approve-sessions"
+                    type="number"
+                    min="1"
+                    step="1"
+                    inputmode="numeric"
+                    pInputText
+                    class="w-full"
+                    [ngModel]="sessionCount()"
+                    (ngModelChange)="sessionCount.set($event)"
+                  />
+                </div>
+              }
+            </div>
+
+            @if (noPeriod()) {
+              <p class="m-0 text-md text-error-700" role="alert" data-testid="no-period">
+                沒有涵蓋這天的繳費期，請先到設定建立
               </p>
             }
           </div>
-          @if (amountEdited()) {
-            <div class="flex min-w-0 flex-col gap-1">
-              <label class="text-md font-semibold text-zinc-700" for="approve-amount-note"
-                >修改原因 <span class="text-error-700" aria-hidden="true">*</span></label
-              >
-              <input
-                id="approve-amount-note"
-                type="text"
-                pInputText
-                class="w-full"
-                autocomplete="off"
-                placeholder="會寫在帳單明細上"
-                [ngModel]="amountNote()"
-                (ngModelChange)="amountNote.set($event)"
-              />
-            </div>
-          }
 
-          <div class="flex min-w-0 flex-col gap-1">
-            <label class="text-md font-semibold text-zinc-700" for="approve-due"
-              >繳費期限（選填）</label
-            >
-            <input
-              id="approve-due"
-              type="date"
-              pInputText
-              class="w-full"
-              [min]="today()"
-              [ngModel]="dueDate()"
-              (ngModelChange)="dueDate.set($event ?? '')"
-            />
-            <p class="m-0 text-sm text-zinc-600">不填照機構設定的繳費天數</p>
-          </div>
-        </div>
-
-        @if (conflicts().length > 0) {
-          <div
-            class="rounded-md border border-solid border-warning-200 bg-warning-50 px-3 py-2"
-            data-testid="conflicts"
-          >
-            <p class="m-0 text-md font-semibold text-warning-800">跟孩子的其他班撞時間：</p>
-            <ul class="m-0 mt-1 pl-5 text-md text-zinc-800">
-              @for (c of conflicts(); track c.conflictingClassId + c.weekday + c.startTime) {
-                <li>
-                  {{ c.conflictingCourseName }} · {{ c.conflictingClassName }}（週{{
-                    weekdayLabel(c.weekday)
-                  }}
-                  {{ c.startTime.substring(0, 5) }}–{{ c.endTime.substring(0, 5) }}）
-                </li>
+          <div class="flex flex-col gap-4" [class.max-wide:hidden]="step() !== 2" data-step="2">
+            <div class="grid grid-cols-1 gap-x-3 gap-y-4 wide:grid-cols-2">
+              <div class="flex min-w-0 flex-col gap-1">
+                <label class="text-md font-semibold text-zinc-700" for="approve-amount"
+                  >首期金額</label
+                >
+                <input
+                  id="approve-amount"
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputmode="numeric"
+                  pInputText
+                  class="w-full"
+                  [ngModel]="finalAmount()"
+                  (ngModelChange)="amountInput.set($event)"
+                />
+                @if (suggested() !== null) {
+                  <p class="m-0 text-sm text-zinc-600" data-testid="suggested">
+                    試算 {{ suggested() }} 元
+                    @if (preview()?.note; as note) {
+                      · {{ note }}
+                    }
+                  </p>
+                }
+              </div>
+              @if (amountEdited()) {
+                <div class="flex min-w-0 flex-col gap-1">
+                  <label class="text-md font-semibold text-zinc-700" for="approve-amount-note"
+                    >修改原因 <span class="text-error-700" aria-hidden="true">*</span></label
+                  >
+                  <input
+                    id="approve-amount-note"
+                    type="text"
+                    pInputText
+                    class="w-full"
+                    autocomplete="off"
+                    placeholder="會寫在帳單明細上"
+                    [ngModel]="amountNote()"
+                    (ngModelChange)="amountNote.set($event)"
+                  />
+                </div>
               }
-            </ul>
-          </div>
-        }
-      </form>
-    }
 
-    <!-- A6 form() 底部：送出鈕不鎖死，旁邊寫還差什麼（#723）；錯誤也寫在這一行 -->
-    <div class="flex flex-wrap items-center justify-end gap-2 pt-4">
-      <p
-        class="m-0 mr-auto text-md max-wide:basis-full"
-        [class.text-error-700]="!!errorMessage()"
-        [class.text-zinc-600]="!errorMessage()"
-        aria-live="polite"
-        data-testid="hint"
-      >
-        {{ errorMessage() ?? missingHint() }}
-      </p>
-      <button
-        type="button"
-        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
-        [disabled]="saving()"
-        (click)="closed.emit(null)"
-      >
-        取消
-      </button>
-      @if (conflicts().length > 0) {
-        <button
-          type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-warning-600 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-warning-800 hover:bg-warning-50 aria-disabled:opacity-55 wide:h-9"
-          [attr.aria-disabled]="!canSubmit() || saving()"
-          data-testid="force-approve"
-          (click)="submit(true)"
-        >
-          {{ saving() ? '核准中…' : '仍要核准' }}
-        </button>
-      } @else {
-        <button
-          type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
-          [attr.aria-disabled]="!canSubmit() || saving()"
-          data-testid="submit"
-          (click)="submit()"
-        >
-          {{ saving() ? '核准中…' : '核准並開帳單' }}
-        </button>
+              <div class="flex min-w-0 flex-col gap-1">
+                <label class="text-md font-semibold text-zinc-700" for="approve-due"
+                  >繳費期限（選填）</label
+                >
+                <input
+                  id="approve-due"
+                  type="date"
+                  pInputText
+                  class="w-full"
+                  [min]="today()"
+                  [ngModel]="dueDate()"
+                  (ngModelChange)="dueDate.set($event ?? '')"
+                />
+                <p class="m-0 text-sm text-zinc-600">不填照機構設定的繳費天數</p>
+              </div>
+            </div>
+
+            @if (conflicts().length > 0) {
+              <div
+                class="rounded-md border border-solid border-warning-200 bg-warning-50 px-3 py-2"
+                data-testid="conflicts"
+              >
+                <p class="m-0 text-md font-semibold text-warning-800">跟孩子的其他班撞時間：</p>
+                <ul class="m-0 mt-1 pl-5 text-md text-zinc-800">
+                  @for (c of conflicts(); track c.conflictingClassId + c.weekday + c.startTime) {
+                    <li>
+                      {{ c.conflictingCourseName }} · {{ c.conflictingClassName }}（週{{
+                        weekdayLabel(c.weekday)
+                      }}
+                      {{ c.startTime.substring(0, 5) }}–{{ c.endTime.substring(0, 5) }}）
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
+          </div>
+        </form>
       }
-    </div>
+
+      <!-- A6 form() 底部：送出鈕不鎖死，旁邊寫還差什麼（#723）；錯誤也寫在這一行。
+         手機分步：第一步「取消／下一步」、第二步「上一步／核准」，還差什麼只寫這一步的 -->
+      <ng-container dialogFoot>
+        <p
+          class="form-dialog__why m-0 mr-auto text-md max-wide:hidden"
+          [class.text-error-700]="!!errorMessage()"
+          [class.text-zinc-600]="!errorMessage()"
+          aria-live="polite"
+          data-testid="hint"
+        >
+          {{ errorMessage() ?? missingHint() }}
+        </p>
+        <p
+          class="form-dialog__why m-0 mr-auto hidden text-md max-wide:block"
+          [class.text-error-700]="!!errorMessage()"
+          [class.text-zinc-600]="!errorMessage()"
+          aria-live="polite"
+          data-testid="hint-step"
+        >
+          {{ errorMessage() ?? stepHint() }}
+        </p>
+        @if (step() === 2) {
+          <button
+            type="button"
+            class="hidden h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 max-wide:inline-flex"
+            [disabled]="saving()"
+            data-testid="back"
+            (click)="back()"
+          >
+            上一步
+          </button>
+        }
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
+          [class.max-wide:hidden]="step() === 2"
+          [disabled]="saving()"
+          (click)="closed.emit(null)"
+        >
+          取消
+        </button>
+        @if (step() === 1) {
+          <button
+            type="submit"
+            form="approve-form"
+            class="hidden h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 max-wide:inline-flex"
+            [attr.aria-disabled]="!!stepHint() || noPeriod() || loading()"
+            data-testid="next"
+          >
+            下一步
+          </button>
+        }
+        @if (conflicts().length > 0) {
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-warning-600 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-warning-800 hover:bg-warning-50 aria-disabled:opacity-55 wide:h-9"
+            [class.max-wide:hidden]="step() === 1"
+            [attr.aria-disabled]="!canSubmit() || saving()"
+            data-testid="force-approve"
+            (click)="submit(true)"
+          >
+            {{ saving() ? '核准中…' : '仍要核准' }}
+          </button>
+        } @else {
+          <button
+            type="submit"
+            form="approve-form"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+            [class.max-wide:hidden]="step() === 1"
+            [attr.aria-disabled]="!canSubmit() || saving()"
+            data-testid="submit"
+          >
+            {{ saving() ? '核准中…' : '核准並開帳單' }}
+          </button>
+        }
+      </ng-container>
+    </app-dialog-frame>
   `,
 })
 export class ApproveRequestDialogComponent implements OnInit {
@@ -322,6 +380,15 @@ export class ApproveRequestDialogComponent implements OnInit {
   readonly appendTo = input<HTMLElement | 'body'>('body');
   /** 核准成功帶回帳單編號，取消帶 null */
   readonly closed = output<{ invoiceNo: string | null } | null>();
+
+  private readonly injector = inject(Injector);
+
+  protected readonly subtitle = computed(
+    () =>
+      `${this.request().student.name} · ${this.request().target.name} · 核准會建報名並開首期帳單`,
+  );
+  /** 手機分步（#2396）：1 計費、2 首期帳單。桌機一直是 1、兩段都顯示 */
+  protected readonly step = signal<1 | 2>(1);
 
   protected readonly modes = MODES;
   protected readonly modeLabels = BILLING_MODE_LABELS;
@@ -425,6 +492,13 @@ export class ApproveRequestDialogComponent implements OnInit {
     return '';
   });
 
+  /** 手機第一步的「還沒填」：只看計費那段（修改原因在第二步） */
+  protected readonly stepHint = computed(() => {
+    if (this.step() === 2) return this.missingHint();
+    const m = this.missing().filter((x) => x !== '修改原因');
+    return m.length ? `還沒填：${m.join('、')}` : '';
+  });
+
   protected readonly canSubmit = computed(
     () => !this.loading() && !this.missingHint() && !this.noPeriod(),
   );
@@ -492,6 +566,24 @@ export class ApproveRequestDialogComponent implements OnInit {
 
   protected weekdayLabel(weekday: number): string {
     return ['一', '二', '三', '四', '五', '六', '日'][weekday - 1] ?? `${weekday}`;
+  }
+
+  /** form 的 submit（底部鈕或 Enter）：手機第一步＝下一步，其餘＝核准 */
+  protected onSubmit(): void {
+    if (dialogStepsActive() && this.step() === 1) this.next();
+    else this.submit();
+  }
+
+  protected next(): void {
+    if (this.loading() || this.stepHint() || this.noPeriod()) return;
+    this.step.set(2);
+    afterNextRender(() => document.getElementById('approve-amount')?.focus(), {
+      injector: this.injector,
+    });
+  }
+
+  protected back(): void {
+    this.step.set(1);
   }
 
   protected submit(skipConflictCheck = false): void {

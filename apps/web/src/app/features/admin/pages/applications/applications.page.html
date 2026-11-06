@@ -441,21 +441,14 @@
   (close)="approving.set(null)"
 >
   @if (approving(); as r) {
-    <!-- 共用殼（#2290）；原生 dialog 帶 role="dialog"，殼的 appDialogTitle 才找得到它掛名稱。
-         核准表單的動作列在子元件裡（投影不進殼的 dialogFoot），留在內容區 -->
-    <!-- dialog 是 overflow-visible（下拉要能溢出），捲動交給這一層；殼的底部列黏在它底下 -->
+    <!-- 共用殼在子元件裡（#2396：動作列才投影得進殼的 sticky 底部列）；原生 dialog 帶 role="dialog"，
+         殼的 appDialogTitle 才找得到它掛名稱。dialog 是 overflow-visible（下拉要能溢出），捲動交給這一層 -->
     <div class="min-h-0 overflow-y-auto overscroll-contain">
-      <app-dialog-frame
-        title="核准報名"
-        [sub]="r.student.name + ' · ' + r.target.name + ' · 核准會建報名並開首期帳單'"
-        (closed)="closeApprove()"
-      >
-        <app-approve-request-dialog
-          [request]="r"
-          [appendTo]="approveDialog"
-          (closed)="onApproveClosed($event)"
-        />
-      </app-dialog-frame>
+      <app-approve-request-dialog
+        [request]="r"
+        [appendTo]="approveDialog"
+        (closed)="onApproveClosed($event)"
+      />
     </div>
   }
 </dialog>
