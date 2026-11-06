@@ -1,272 +1,212 @@
-<!-- 共用殼（#2290）：h2「帳號設定」當對話框的可及名稱（原本是 span、沒有名稱）＋✕；內距由殼給 -->
+<!--
+  帳號設定（#2390，A6 a6.js:178 field()／a6.js:191 dialog.acset／a6.css:443-457）：
+  各欄是 .acset__f（標籤、輸入＋「儲存」一列、提示），直接放在殼的內容區（grid gap 20），不再分段。
+  錯誤列與「登入方式」稿沒畫、現況有，保留（R2）。手機的「儲存」等鈕 44（R3）。
+-->
 <app-dialog-frame title="帳號設定" (closed)="close()">
-  <div
-    class="account-settings__section flex flex-col gap-3 border-b border-b-zinc-100 last:border-b-0"
-  >
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">顯示名稱</label>
-      <div class="account-settings__input-row flex items-center gap-2">
-        <input pInputText class="min-w-0 flex-1" [(ngModel)]="displayName" [disabled]="saving()" />
-        <span class="account-settings__save-btn shrink-0 self-center">
-          @if (savedField() === 'displayName') {
-            <p-button
-              icon="pi pi-check"
-              size="small"
-              severity="success"
-              [outlined]="true"
-              [disabled]="true"
-            />
-          } @else {
-            <p-button
-              label="儲存"
-              size="small"
-              severity="secondary"
-              [outlined]="true"
-              [loading]="savingField() === 'displayName'"
-              [disabled]="saving()"
-              (onClick)="saveDisplayName()"
-            />
-          }
-        </span>
-      </div>
-      @if (fieldError()?.field === 'displayName') {
-        <p class="account-settings__error m-0 text-xs text-error-600">{{ fieldError()!.msg }}</p>
-      }
-    </div>
+  <ng-template #saveBtn let-field>
+    <button
+      type="button"
+      class="account-settings__save inline-flex h-11 shrink-0 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-3 text-sm leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-[30px]"
+      [disabled]="saving()"
+      (click)="saveField(field)"
+    >
+      {{ savingField() === field ? '儲存中…' : '儲存' }}
+    </button>
+  </ng-template>
 
-    <!-- 對外暱稱（#1665 Q6′）：存在 staff 列上，所以只有人員身分看得到 -->
-    @if (hasStaffRole()) {
-      <div class="form-dialog__field">
-        <label class="form-dialog__label" for="account-nickname">對外暱稱</label>
-        <div class="account-settings__input-row flex items-center gap-2">
-          <input
-            id="account-nickname"
-            pInputText
-            class="min-w-0 flex-1"
-            maxlength="20"
-            placeholder="例：王老師"
-            [(ngModel)]="nickname"
-            [disabled]="saving()"
-          />
-          <span class="account-settings__save-btn shrink-0 self-center">
-            @if (savedField() === 'nickname') {
-              <p-button
-                ariaLabel="暱稱已儲存"
-                icon="pi pi-check"
-                size="small"
-                severity="success"
-                [outlined]="true"
-                [disabled]="true"
-              />
-            } @else {
-              <p-button
-                label="儲存"
-                size="small"
-                severity="secondary"
-                [outlined]="true"
-                [loading]="savingField() === 'nickname'"
-                [disabled]="saving()"
-                (onClick)="saveNickname()"
-              />
-            }
-          </span>
-        </div>
-        <p class="form-dialog__hint">公開課程目錄顯示你的暱稱，沒填就顯示本名</p>
-        @if (fieldError()?.field === 'nickname') {
-          <p class="account-settings__error m-0 text-xs text-error-600">{{ fieldError()!.msg }}</p>
-        }
-      </div>
+  <ng-template #fieldError let-field>
+    @if (fieldErrorFor(field); as msg) {
+      <p class="account-settings__error mt-1 mb-0 text-sm text-error-700">{{ msg }}</p>
     }
+  </ng-template>
 
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">生日</label>
-      <div class="account-settings__input-row flex items-center gap-2">
-        <p-datepicker
-          [(ngModel)]="birthday"
-          [showIcon]="true"
-          placeholder="選擇生日"
-          appendTo="body"
-          class="account-settings__date-picker min-w-0 flex-1"
-          [disabled]="saving()"
-        />
-        <span class="account-settings__save-btn shrink-0 self-center">
-          @if (savedField() === 'birthday') {
-            <p-button
-              icon="pi pi-check"
-              size="small"
-              severity="success"
-              [outlined]="true"
-              [disabled]="true"
-            />
-          } @else {
-            <p-button
-              label="儲存"
-              size="small"
-              severity="secondary"
-              [outlined]="true"
-              [loading]="savingField() === 'birthday'"
-              [disabled]="saving()"
-              (onClick)="saveBirthday()"
-            />
-          }
-        </span>
-      </div>
+  <div>
+    <label class="mb-1 block text-md font-semibold text-zinc-700" for="account-name"
+      >顯示名稱</label
+    >
+    <div class="flex gap-2">
+      <input
+        id="account-name"
+        [class]="inputClass"
+        [(ngModel)]="displayName"
+        [disabled]="saving()"
+      />
+      <ng-container
+        [ngTemplateOutlet]="saveBtn"
+        [ngTemplateOutletContext]="{ $implicit: 'displayName' }"
+      />
     </div>
-
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">Email</label>
-      <div class="account-settings__input-row flex items-center gap-2">
-        <input
-          pInputText
-          class="min-w-0 flex-1"
-          type="email"
-          [(ngModel)]="email"
-          [disabled]="saving()"
-        />
-        <span class="account-settings__save-btn shrink-0 self-center">
-          @if (savedField() === 'email') {
-            <p-button
-              icon="pi pi-check"
-              size="small"
-              severity="success"
-              [outlined]="true"
-              [disabled]="true"
-            />
-          } @else {
-            <p-button
-              label="儲存"
-              size="small"
-              severity="secondary"
-              [outlined]="true"
-              [loading]="savingField() === 'email'"
-              [disabled]="saving()"
-              (onClick)="confirmSaveEmail()"
-            />
-          }
-        </span>
-      </div>
-      @if (fieldError()?.field === 'email') {
-        <p class="account-settings__error m-0 text-xs text-error-600">{{ fieldError()!.msg }}</p>
-      } @else {
-        <p class="account-settings__hint m-0 text-xs text-zinc-500">
-          補習班用這個 Email 幫你產生一次性登入連結
-        </p>
-      }
-    </div>
-
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">電話</label>
-      <div class="account-settings__input-row flex items-center gap-2">
-        <input
-          pInputText
-          class="min-w-0 flex-1"
-          type="tel"
-          [(ngModel)]="phone"
-          [disabled]="saving()"
-        />
-        <span class="account-settings__save-btn shrink-0 self-center">
-          @if (savedField() === 'phone') {
-            <p-button
-              icon="pi pi-check"
-              size="small"
-              severity="success"
-              [outlined]="true"
-              [disabled]="true"
-            />
-          } @else {
-            <p-button
-              label="儲存"
-              size="small"
-              severity="secondary"
-              [outlined]="true"
-              [loading]="savingField() === 'phone'"
-              [disabled]="saving()"
-              (onClick)="savePhone()"
-            />
-          }
-        </span>
-      </div>
-      @if (fieldError()?.field === 'phone') {
-        <p class="account-settings__error m-0 text-xs text-error-600">{{ fieldError()!.msg }}</p>
-      }
-    </div>
+    <ng-container
+      [ngTemplateOutlet]="fieldError"
+      [ngTemplateOutletContext]="{ $implicit: 'displayName' }"
+    />
   </div>
 
-  <!-- 登入方式（#1842 G-3）：列這個部署掛了的 provider；綁兩個以上才給解除（使用者 11-02） -->
-  <div
-    class="account-settings__section flex flex-col gap-3 border-b border-b-zinc-100 last:border-b-0"
-  >
-    <p
-      class="account-settings__section-label m-0 text-xs font-semibold tracking-[0.06em] text-zinc-500 uppercase"
+  @if (hasStaffRole()) {
+    <div>
+      <label class="mb-1 block text-md font-semibold text-zinc-700" for="account-nickname"
+        >對外暱稱</label
+      >
+      <div class="flex gap-2">
+        <input
+          id="account-nickname"
+          [class]="inputClass"
+          maxlength="20"
+          placeholder="例：王老師"
+          [(ngModel)]="nickname"
+          [disabled]="saving()"
+        />
+        <ng-container
+          [ngTemplateOutlet]="saveBtn"
+          [ngTemplateOutletContext]="{ $implicit: 'nickname' }"
+        />
+      </div>
+      <p class="mt-1 mb-0 text-md text-zinc-600">公開課程目錄顯示你的暱稱，沒填就顯示本名</p>
+      <ng-container
+        [ngTemplateOutlet]="fieldError"
+        [ngTemplateOutletContext]="{ $implicit: 'nickname' }"
+      />
+    </div>
+  }
+
+  <!-- 生日：稿是原生 date（gate #2390），值就是 yyyy-MM-dd -->
+  <div>
+    <label class="mb-1 block text-md font-semibold text-zinc-700" for="account-birthday"
+      >生日</label
     >
-      登入方式
-    </p>
+    <div class="flex gap-2">
+      <input
+        id="account-birthday"
+        type="date"
+        [class]="inputClass"
+        [(ngModel)]="birthday"
+        [disabled]="saving()"
+      />
+      <ng-container
+        [ngTemplateOutlet]="saveBtn"
+        [ngTemplateOutletContext]="{ $implicit: 'birthday' }"
+      />
+    </div>
+    <ng-container
+      [ngTemplateOutlet]="fieldError"
+      [ngTemplateOutletContext]="{ $implicit: 'birthday' }"
+    />
+  </div>
+
+  <div>
+    <label class="mb-1 block text-md font-semibold text-zinc-700" for="account-email">Email</label>
+    <div class="flex gap-2">
+      <input
+        id="account-email"
+        type="email"
+        [class]="inputClass"
+        [(ngModel)]="email"
+        [disabled]="saving()"
+      />
+      <ng-container
+        [ngTemplateOutlet]="saveBtn"
+        [ngTemplateOutletContext]="{ $implicit: 'email' }"
+      />
+    </div>
+    <p class="mt-1 mb-0 text-md text-zinc-600">補習班用這個 Email 幫你產生一次性登入連結</p>
+    <ng-container
+      [ngTemplateOutlet]="fieldError"
+      [ngTemplateOutletContext]="{ $implicit: 'email' }"
+    />
+  </div>
+
+  <div>
+    <label class="mb-1 block text-md font-semibold text-zinc-700" for="account-phone">電話</label>
+    <div class="flex gap-2">
+      <input
+        id="account-phone"
+        type="tel"
+        [class]="inputClass"
+        [(ngModel)]="phone"
+        [disabled]="saving()"
+      />
+      <ng-container
+        [ngTemplateOutlet]="saveBtn"
+        [ngTemplateOutletContext]="{ $implicit: 'phone' }"
+      />
+    </div>
+    <ng-container
+      [ngTemplateOutlet]="fieldError"
+      [ngTemplateOutletContext]="{ $implicit: 'phone' }"
+    />
+  </div>
+
+  <!-- 登入方式（#1842 G-3，稿沒畫、R2 保留）：列這個部署掛了的 provider；綁兩個以上才給解除（使用者 11-02） -->
+  <section aria-labelledby="account-methods">
+    <p class="mt-0 mb-1 text-md font-semibold text-zinc-700" id="account-methods">登入方式</p>
     @if (linked() === null) {
-      <p class="m-0 text-sm text-zinc-500">讀取中…</p>
+      <p class="m-0 text-md text-zinc-600">讀取中…</p>
     } @else {
       @if (linkedLoadFailed()) {
-        <p class="account-settings__error m-0 text-xs text-error-600">
+        <p class="account-settings__error m-0 text-sm text-error-700">
           讀不到登入方式，請稍後再試。
         </p>
       }
-      <ul class="account-settings__methods m-0 flex list-none flex-col gap-2 p-0">
+      <ul class="m-0 flex list-none flex-col gap-1 p-0">
         @for (provider of providers(); track provider) {
           <li class="account-settings__method flex min-h-11 items-center justify-between gap-2">
-            <span class="text-sm text-zinc-900">{{ names[provider] }}</span>
+            <span class="text-base text-zinc-900">{{ names[provider] }}</span>
             @if (isLinked(provider)) {
               <span class="flex items-center gap-2">
-                <span class="account-settings__linked text-sm text-zinc-500">已綁定</span>
+                <span class="text-md text-zinc-600">已綁定</span>
                 @if (canUnlink()) {
-                  <p-button
-                    label="解除綁定"
-                    size="small"
-                    severity="danger"
-                    [text]="true"
-                    [loading]="methodBusy() === provider"
+                  <button
+                    type="button"
+                    [class]="smallBtnClass + ' text-error-700'"
                     [disabled]="methodBusy() !== null"
-                    (onClick)="confirmUnlink(provider)"
-                  />
+                    (click)="confirmUnlink(provider)"
+                  >
+                    {{ methodBusy() === provider ? '處理中…' : '解除綁定' }}
+                  </button>
                 }
               </span>
             } @else if (provider === 'google' && inLineApp) {
-              <span class="account-settings__google-in-line text-xs text-zinc-500"
+              <span class="account-settings__google-in-line text-sm text-zinc-600"
                 >要綁 Google，請用 Safari 或 Chrome 打開</span
               >
             } @else if (!linkedLoadFailed()) {
-              <p-button
-                [label]="'綁定 ' + names[provider]"
-                size="small"
-                [outlined]="true"
-                [loading]="methodBusy() === provider"
+              <button
+                type="button"
+                [class]="smallBtnClass + ' text-zinc-900'"
                 [disabled]="methodBusy() !== null"
-                (onClick)="link(provider)"
-              />
+                (click)="link(provider)"
+              >
+                {{ methodBusy() === provider ? '處理中…' : '綁定 ' + names[provider] }}
+              </button>
             }
           </li>
         }
       </ul>
       @if (onlyOneLeft()) {
-        <p class="account-settings__desc m-0 text-sm text-zinc-500">至少要留一個登入方式。</p>
+        <p class="m-0 text-md text-zinc-600">至少要留一個登入方式。</p>
       }
       @if (methodError()) {
-        <p class="account-settings__error m-0 text-xs text-error-600">{{ methodError() }}</p>
+        <p class="account-settings__error m-0 text-sm text-error-700">{{ methodError() }}</p>
       }
     }
-  </div>
+  </section>
 
-  @if (!hasParentRole()) {
-    <div
-      class="account-settings__section flex flex-col gap-3 border-b border-b-zinc-100 last:border-b-0"
-    >
-      <p
-        class="account-settings__section-label m-0 text-xs font-semibold tracking-[0.06em] text-zinc-500 uppercase"
-      >
-        家長身份
+  <!-- 家長身份（A6 .acset__sec）：一律畫；有＝「✓ 已啟用」，沒有＝洽行政（#1844 不能自助啟用，R2） -->
+  <section
+    class="rounded-md bg-zinc-100 p-4"
+    aria-labelledby="account-parent"
+    data-testid="account-parent"
+  >
+    <p class="mt-0 mb-1 text-md font-semibold text-zinc-700" id="account-parent">家長身份</p>
+    @if (hasParentRole()) {
+      <p class="m-0 inline-flex items-center gap-1.5 font-semibold text-success-600">
+        <i class="pi pi-check" aria-hidden="true"></i>已啟用
       </p>
-      <!-- #1844：不能自助啟用 —— 綁孩子只有行政能做，所以改由行政在家長頁一次設定 -->
-      <p class="account-settings__desc m-0 text-sm text-zinc-500">
+    } @else {
+      <p class="m-0 text-md text-zinc-600">
         要以家長身分查看孩子的出缺席與課表，請洽補習班行政把你設為家長。
       </p>
-    </div>
-  }
+    }
+  </section>
 </app-dialog-frame>

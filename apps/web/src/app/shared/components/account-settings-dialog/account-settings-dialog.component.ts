@@ -1,3 +1,5 @@
+import { NgTemplateOutlet } from '@angular/common';
+import { MessageService } from 'primeng/api';
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { DialogService } from 'primeng/dynamicdialog';
 import {
@@ -7,9 +9,6 @@ import {
 import { Component, inject, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { InputTextModule } from 'primeng/inputtext';
-import { ButtonModule } from 'primeng/button';
-import { DatePickerModule } from 'primeng/datepicker';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
 import { AuthService } from '@core/auth.service';
 import {
@@ -23,10 +22,19 @@ import { firstValueFrom } from 'rxjs';
 
 type FieldKey = 'displayName' | 'nickname' | 'email' | 'phone' | 'birthday';
 
+/** 成功 toast 的欄名（A6 data-ok「已儲存{欄名}」） */
+const FIELD_LABELS: Record<FieldKey, string> = {
+  displayName: '顯示名稱',
+  nickname: '對外暱稱',
+  email: 'Email',
+  phone: '電話',
+  birthday: '生日',
+};
+
 @Component({
   selector: 'app-account-settings-dialog',
   standalone: true,
-  imports: [FormsModule, InputTextModule, ButtonModule, DatePickerModule, DialogFrameComponent],
+  imports: [FormsModule, NgTemplateOutlet, DialogFrameComponent],
   // 確認對話框在這個對話框上面再開一層（同 class-form-dialog）
   providers: [DialogService],
   templateUrl: './account-settings-dialog.component.html',
@@ -36,9 +44,16 @@ export class AccountSettingsDialogComponent {
   private readonly ref = inject(DynamicDialogRef);
   private readonly auth = inject(AuthService);
   private readonly dialogService = inject(DialogService);
+  private readonly messageService = inject(MessageService);
+
+  /** A6 `.acset__in`：桌機 36、手機 44（稿自己的 ≤860 規則）；焦點框 zinc-900 */
+  protected readonly inputClass =
+    'h-11 min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-lg text-zinc-900 focus:border-zinc-900 focus:outline-none disabled:opacity-60 wide:h-9 wide:text-base';
+  /** A6 `.btn.btn--sm`（30、12px／600）；手機 44（R3） */
+  protected readonly smallBtnClass =
+    'inline-flex h-11 shrink-0 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-3 text-sm leading-normal font-semibold whitespace-nowrap hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-[30px]';
 
   protected readonly savingField = signal<FieldKey | null>(null);
-  protected readonly savedField = signal<FieldKey | null>(null);
   protected readonly fieldError = signal<{ field: FieldKey; msg: string } | null>(null);
 
   protected readonly saving = computed(() => this.savingField() !== null);
@@ -71,7 +86,8 @@ export class AccountSettingsDialogComponent {
   protected nickname = '';
   protected email = this.auth.user()?.email ?? '';
   protected phone = '';
-  protected birthday: Date | null = null;
+  /** 原生 date 的值：yyyy-MM-dd；空字串＝沒填（#2390 gate） */
+  protected birthday = '';
 
   constructor() {
     void this.loadMe();
@@ -151,11 +167,28 @@ export class AccountSettingsDialogComponent {
       this.displayName = me.displayName;
       this.email = me.email ?? '';
       this.phone = me.phone ?? '';
-      this.birthday = me.birthday ? new Date(me.birthday) : null;
+      this.birthday = me.birthday ? me.birthday.slice(0, 10) : '';
       this.nickname = me.nickname ?? '';
     } catch {
       // silently ignore — 初始值已從 auth.user() 設定
     }
+  }
+
+  /** 各欄的「儲存」共用一顆鈕（模板 #saveBtn）；Email 先確認 */
+  protected saveField(field: FieldKey) {
+    const save: Record<FieldKey, () => void> = {
+      displayName: () => this.saveDisplayName(),
+      nickname: () => this.saveNickname(),
+      birthday: () => this.saveBirthday(),
+      email: () => this.confirmSaveEmail(),
+      phone: () => this.savePhone(),
+    };
+    save[field]();
+  }
+
+  protected fieldErrorFor(field: FieldKey): string | null {
+    const error = this.fieldError();
+    return error?.field === field ? error.msg : null;
   }
 
   protected saveDisplayName() {
@@ -168,7 +201,7 @@ export class AccountSettingsDialogComponent {
   }
 
   protected saveBirthday() {
-    this.patchMe('birthday', { birthday: this.birthday ? this.formatDate(this.birthday) : null });
+    this.patchMe('birthday', { birthday: this.birthday || null });
   }
 
   /**
@@ -205,11 +238,9 @@ export class AccountSettingsDialogComponent {
     this.http.patch(`${environment.apiUrl}/api/me`, payload, { withCredentials: true }).subscribe({
       next: () => {
         this.savingField.set(null);
-        this.savedField.set(field);
+        // A6 data-ok：成功用 toast 講「已儲存{欄名}」，鈕回到「儲存」（#2390 gate）
+        this.messageService.add({ severity: 'success', summary: `已儲存${FIELD_LABELS[field]}` });
         void this.auth.refreshRoles();
-        setTimeout(() => {
-          if (this.savedField() === field) this.savedField.set(null);
-        }, 2000);
       },
       error: (err) => {
         this.savingField.set(null);
@@ -225,13 +256,6 @@ export class AccountSettingsDialogComponent {
 
   protected close() {
     this.ref.close();
-  }
-
-  private formatDate(date: Date): string {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
   }
 
   /** 確認對話框（#2290：p-confirmdialog 改走共用殼的 ConfirmDialog，同 staff／parents 頁） */
