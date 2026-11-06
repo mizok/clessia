@@ -764,9 +764,9 @@ const xpSheet = (pop) => [
     pop,
     widths: [360],
     app: '>landmark:form\\[\\]$',
-    detail: '^padding 8px 20px 32px → 8px 20px 16px$',
-    reason: '手機貼底的匯出面板，內容區底留 16＋safe-area（稿 32）',
-    source: `${rule('R5')}「貼底抽屜底部留白 16」2026-11-05；#2381`,
+    detail: '^padding 8px 20px 32px → 8px 20px 24px$',
+    reason: '手機貼底的匯出面板，內容區底留 24＋safe-area（稿 32）',
+    source: `${rule('R5')}「貼底抽屜底部留白 24」2026-11-06；#2396`,
   },
 ];
 

@@ -72,7 +72,10 @@
     }
   </div>
 
-  <footer class="flex flex-none justify-end border-t border-zinc-200 p-3">
+  <!-- 手機全螢幕：底部留白＝--sheet-foot-gap＋safe-area（#2396）；桌機側面板照舊 -->
+  <footer
+    class="flex flex-none justify-end border-t border-zinc-200 p-3 max-wide:pb-[calc(var(--sheet-foot-gap)+env(safe-area-inset-bottom,0px))]"
+  >
     <a
       class="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50"
       [routerLink]="adminChangesLink"

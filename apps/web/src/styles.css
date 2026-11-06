@@ -432,6 +432,18 @@
       border-radius: var(--radius-xl) var(--radius-xl) 0 0;
       padding-bottom: env(safe-area-inset-bottom, 0px);
     }
+    /* 沒走共用殼的 p-dialog（篩選面板等例外形狀，#2396）：底部列下內距同殼＝--sheet-foot-gap＋safe-area，
+       本體就不再墊（safe-area 只墊一次）。!important 蓋 ≤640 那條 .p-dialog-footer 的 padding */
+    .p-dialog:not(.role-picker-dialog):has(> .p-dialog-footer) {
+      padding-bottom: 0;
+    }
+    .p-dialog:not(.role-picker-dialog) > .p-dialog-footer {
+      padding-bottom: calc(var(--sheet-foot-gap) + env(safe-area-inset-bottom, 0px)) !important;
+    }
+  }
+  /* 貼底 p-drawer（永遠貼底，#2396）：內容區的底（預設 20）改成 --sheet-foot-gap＋safe-area */
+  .p-drawer-bottom .p-drawer-content {
+    padding-bottom: calc(var(--sheet-foot-gap) + env(safe-area-inset-bottom, 0px));
   }
   @media (max-width: 640px) {
     .p-dialog .p-dialog-header,
@@ -690,7 +702,8 @@
     --dlg-w-md: 520px;
     --dlg-w-lg: 760px;
     --dlg-pad-x: var(--space-6);
-    --sheet-foot-gap: var(--space-4);
+    /* 貼底抽屜的底部留白（＋safe-area）：24（使用者 11-06 #2396：16 時鈕離底太近、safe-area 常是 0） */
+    --sheet-foot-gap: var(--space-6);
     /* 手機貼底抽屜的底色：白（使用者 11-05 17:10：A6 的 --gray-sheet 灰底讓內容看起來像停用／空狀態）。
        原生 <dialog> 的貼底寫 `max-wide:bg-(--sheet-bg)` 讀同一個 */
     --sheet-bg: var(--color-white);
