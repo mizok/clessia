@@ -1591,6 +1591,15 @@ export const PAGES = {
         reason: '資料：標題帶量測那個班的班名（稿是示範班）',
         source: 'class.html:251（A2.form title「停用「班名」」）；#2361',
       })),
+      // 產生課堂（#2361）：必填星號同全站慣例 aria-hidden，工具量不到（同 courses「新增班級」那條）
+      {
+        status: '缺',
+        pop: 'gen',
+        a6: 'text:label\\[(開始日期|結束日期)\\]>text:span\\[\\*\\]$',
+        reason: '必填星號有畫，但 aria-hidden（讀屏不念，必填由「還沒填：…」說），工具量不到',
+        source:
+          'apps/web/src/app/shared/components/select-field/select-field.component.ts:56（全站表單同款星號）；tools/a6-conformance/lib/extract.mjs:93',
+      },
       noCampusSwitch('一個班只屬於一間分校，頂欄切到別的分校會跟頁面矛盾'),
       // 量的是 seed.sql 的「數學班 A」，稿是「國三數學A班」：班名不同，狀態標跟著位移
       {

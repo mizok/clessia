@@ -5,6 +5,7 @@ import { of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { BrowserStateService } from '@core/browser-state.service';
+import { SystemClockService } from '@core/system-clock.service';
 import { ClassesService } from '@core/classes.service';
 import { GenerateSessionsDialogComponent } from './generate-sessions-dialog.component';
 
@@ -45,6 +46,7 @@ describe('GenerateSessionsDialogComponent', () => {
         { provide: ClassesService, useValue: classesServiceMock },
         { provide: MessageService, useValue: { add: vi.fn() } },
         { provide: DynamicDialogRef, useValue: dialogRefMock },
+        { provide: SystemClockService, useValue: { todayTaipei: () => '2026-03-01' } },
         {
           provide: BrowserStateService,
           useValue: {
@@ -74,61 +76,134 @@ describe('GenerateSessionsDialogComponent', () => {
     fixture.detectChanges();
   });
 
-  it('renders responsive table in preview step', () => {
-    (
-      component as unknown as {
-        generateFrom: { set: (value: Date) => void };
-        generateTo: { set: (value: Date) => void };
-        preview: () => void;
-      }
-    ).generateFrom.set(new Date('2026-03-16'));
-    (
-      component as unknown as {
-        generateFrom: { set: (value: Date) => void };
-        generateTo: { set: (value: Date) => void };
-        preview: () => void;
-      }
-    ).generateTo.set(new Date('2026-03-31'));
-
-    (component as unknown as { preview: () => void }).preview();
+  // #2361：內容照 A6 class.html genDialog —— 原生日期、一天一列的勾選清單、兩段主鈕、toast＋關窗
+  const sess = (date: string, start: string, exists = false, teacher = '張老師') => ({
+    sessionDate: date,
+    startTime: `${start}:00`,
+    endTime: `${String(Number(start.slice(0, 2)) + 1).padStart(2, '0')}${start.slice(2)}:00`,
+    teacherId: 't1',
+    teacherName: teacher,
+    weekday: 1,
+    exists,
+  });
+  const el = () => fixture.nativeElement as HTMLElement;
+  const setDate = (id: string, v: string) => {
+    const input = el().querySelector<HTMLInputElement>(`#${id}`)!;
+    input.value = v;
+    input.dispatchEvent(new Event('change'));
     fixture.detectChanges();
+  };
+  const next = () => {
+    el().querySelector<HTMLButtonElement>('[data-testid="gen-next"]')!.click();
+    fixture.detectChanges();
+  };
+  const toPreview = (data: unknown[]) => {
+    classesServiceMock.previewSessions.mockReturnValueOnce(of({ data }) as never);
+    setDate('gen-from', '2026-03-16');
+    setDate('gen-to', '2026-03-31');
+    next();
+  };
 
-    expect(fixture.nativeElement.querySelector('app-responsive-table')).not.toBeNull();
+  it('預覽：送日期、不帶排除；一天一列（同一天兩個時段合一列）；已存在的不列、合計句提一下', () => {
+    toPreview([
+      sess('2026-03-16', '18:00'),
+      sess('2026-03-16', '20:00'),
+      sess('2026-03-23', '18:00'),
+      sess('2026-03-30', '18:00', true),
+    ]);
+
+    expect(classesServiceMock.previewSessions).toHaveBeenCalledWith(
+      'class-1',
+      '2026-03-16',
+      '2026-03-31',
+      [],
+    );
+    const rows = [...el().querySelectorAll('[data-testid="gen-preview"] label')].map((l) =>
+      l.textContent!.trim(),
+    );
+    expect(rows).toEqual([
+      '3/16（一） 18:00–19:00、20:00–21:00 · 張老師',
+      '3/23（一） 18:00–19:00 · 張老師',
+    ]);
+    expect(el().querySelector('[data-testid="gen-sum"]')!.textContent).toContain(
+      '將產生 3 堂（排除 0 堂）。',
+    );
+    expect(el().querySelector('[data-testid="gen-sum"]')!.textContent).toContain(
+      '另有 1 堂已存在，會略過。',
+    );
+    expect(el().querySelector('[data-testid="gen-next"]')!.textContent).toContain('確認產生 3 堂');
   });
 
-  // #1314 Z 批：預覽的分頁器換成 A6 精簡版；「每頁筆數」選單拿掉、固定每頁 10 堂（R5）
-  it('預覽超過一頁：精簡版分頁器、沒有每頁筆數選單，按下一頁換到第 2 頁', () => {
-    const c = component as unknown as {
-      previewSessions: { set: (v: unknown[]) => void };
-      paginatedPreviewSessions: () => unknown[];
-      previewPagination: () => { rows: number };
-    };
-    c.previewSessions.set(
-      Array.from({ length: 12 }, (_, i) => ({
-        sessionDate: `2026-03-${String(i + 1).padStart(2, '0')}`,
-        startTime: '18:00:00',
-        endTime: '20:00:00',
-        teacherId: 'teacher-1',
-        teacherName: '張老師',
-        weekday: 1,
-        exists: false,
-      })),
-    );
-    (component as unknown as { step: { set: (v: string) => void } }).step.set('preview');
+  it('取消勾選一天就排除那一天：確認時帶 excludeDates；沒有待指派 → toast＋關窗', () => {
+    toPreview([sess('2026-03-16', '18:00'), sess('2026-03-23', '18:00')]);
+    el().querySelectorAll<HTMLInputElement>('[data-testid="gen-preview"] input')[0]!.click();
     fixture.detectChanges();
+    expect(el().querySelector('[data-testid="gen-sum"]')!.textContent).toContain(
+      '將產生 1 堂（排除 1 堂）。',
+    );
 
-    const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('p-paginator')).toBeNull();
-    expect(el.querySelector('app-responsive-table p-select')).toBeNull();
-    expect(c.previewPagination().rows).toBe(10);
-    expect(el.querySelector('app-pager [data-part="status"]')?.textContent?.trim()).toBe(
-      '第 1／2 頁 · 每頁 10 堂',
+    classesServiceMock.generateSessions.mockReturnValueOnce(
+      of({
+        createdAssigned: 1,
+        createdUnassigned: 0,
+        skippedExisting: 0,
+        skippedNoTeacher: 0,
+        totalPlanned: 1,
+      }) as never,
     );
-    Array.from(el.querySelectorAll<HTMLButtonElement>('app-pager button'))
-      .find((b) => b.textContent?.includes('下一頁'))!
-      .click();
+    next();
+    expect(classesServiceMock.generateSessions).toHaveBeenCalledWith(
+      'class-1',
+      '2026-03-16',
+      '2026-03-31',
+      ['2026-03-16'],
+    );
+    expect(dialogRefMock.close).toHaveBeenCalledWith('refresh');
+  });
+
+  it('有待指派老師的堂：留在結果頁，「前往指派老師」帶篩選跳課表（舊有新無，R2）', () => {
+    toPreview([sess('2026-03-16', '18:00')]);
+    classesServiceMock.generateSessions.mockReturnValueOnce(
+      of({
+        createdAssigned: 0,
+        createdUnassigned: 1,
+        skippedExisting: 0,
+        skippedNoTeacher: 0,
+        totalPlanned: 1,
+      }) as never,
+    );
+    next();
+
+    expect(dialogRefMock.close).not.toHaveBeenCalled();
+    expect(el().textContent).toContain('其中 1 堂待指派老師');
+    expect(el().textContent).toContain('前往指派老師');
+  });
+
+  it('預覽之後改日期：回到第一段（主鈕變回「預覽課堂」）', () => {
+    toPreview([sess('2026-03-16', '18:00')]);
+    setDate('gen-to', '2026-03-20');
+
+    expect(el().querySelector('[data-testid="gen-preview"]')).toBeNull();
+    expect(el().querySelector('[data-testid="gen-next"]')!.textContent).toContain('預覽課堂');
+  });
+
+  it('結束早於開始：不打 API，左邊寫原因；全部排除：不送、寫原因', () => {
+    setDate('gen-from', '2026-03-31');
+    setDate('gen-to', '2026-03-16');
+    next();
+    expect(classesServiceMock.previewSessions).not.toHaveBeenCalled();
+    expect(el().querySelector('.form-dialog__why')!.textContent).toContain(
+      '結束日期要晚於開始日期',
+    );
+
+    toPreview([sess('2026-03-16', '18:00')]);
+    el().querySelector<HTMLInputElement>('[data-testid="gen-preview"] input')!.click();
     fixture.detectChanges();
-    expect(c.paginatedPreviewSessions()).toHaveLength(2);
+    next();
+    expect(classesServiceMock.generateSessions).not.toHaveBeenCalled();
+    expect(el().querySelector('.form-dialog__why')!.textContent).toContain(
+      '全部都排除了，沒有要產生的課堂',
+    );
   });
 
   it('closes with refresh after generation result when user dismisses the dialog', () => {
