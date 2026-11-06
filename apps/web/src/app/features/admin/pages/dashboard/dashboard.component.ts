@@ -17,6 +17,7 @@ import {
 import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
+import { MessageService } from 'primeng/api';
 import { Router, RouterLink } from '@angular/router';
 import { format } from 'date-fns';
 import { catchError, of, switchMap, tap, type Observable } from 'rxjs';
@@ -109,6 +110,7 @@ import {
   PhoneLeaveComponent,
   type PhoneLeaveRosterRequest,
 } from './phone-leave/phone-leave.component';
+import { CheckinDeskComponent } from './checkin-desk/checkin-desk.component';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 import { HeightFollowDirective } from '@shared/directives/height-follow.directive';
 
@@ -122,6 +124,7 @@ import { HeightFollowDirective } from '@shared/directives/height-follow.directiv
     StatusDotComponent,
     RouterLink,
     PhoneLeaveComponent,
+    CheckinDeskComponent,
     PageActionsComponent,
     PageOpenComponent,
     NgTemplateOutlet,
@@ -145,6 +148,7 @@ export class DashboardComponent {
   private readonly orgSettings = inject(OrgSettingsService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly messageService = inject(MessageService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly campusCtx = inject(CampusContextService);
 
@@ -310,10 +314,62 @@ export class DashboardComponent {
     void this.openRosterDialog(target);
   }
 
-  /** 櫃台代刷＝到班打卡站（掃 QR）。登記請假用同一顆托盤鈕，不經這裡 */
+  // ── 櫃台代刷到班（#2314，A6 `forms.checkin`）：依姓名、課前也能用，不換頁 ──────────
+  protected readonly checkinDeskOpen = signal(false);
+  protected readonly checkinDeskError = signal<string | null>(null);
+  private readonly checkinDeskDialog =
+    viewChild<ElementRef<HTMLDialogElement>>('checkinDeskDialog');
+
+  /** 稿「學生（今天還沒到的）」：該到沒到＋還沒到上課時間的，依第一堂時間 */
+  protected readonly checkinCandidates = computed(() =>
+    this.rosterPeople()
+      .filter((p) => p.state === 'missing' || p.state === 'not_yet')
+      .map((p) => p.student)
+      .sort((a, b) =>
+        (a.firstSession?.startTime ?? '').localeCompare(b.firstSession?.startTime ?? ''),
+      ),
+  );
+
+  /**
+   * 日到班模式開代刷對話框；逐堂模式沒有今天的應到名單（workbench 三段是空的），照舊到打卡站。
+   * 卡號輸入留給打卡站，不從這裡進。
+   */
   protected openCheckinStation(): void {
-    void this.router.navigateByUrl(RoutesCatalog.ADMIN_CHECKIN.absolutePath);
+    if (!this.isDailyCheckin()) {
+      void this.router.navigateByUrl(RoutesCatalog.ADMIN_CHECKIN.absolutePath);
+      return;
+    }
+    this.checkinDeskError.set(null);
+    this.checkinDeskOpen.set(true);
+    const dialog = this.checkinDeskDialog()?.nativeElement;
+    if (dialog && !dialog.open && typeof dialog.showModal === 'function') dialog.showModal();
   }
+
+  protected closeCheckinDesk(): void {
+    this.checkinDeskOpen.set(false);
+    const dialog = this.checkinDeskDialog()?.nativeElement;
+    if (dialog?.open) dialog.close();
+  }
+
+  protected checkInFromDesk(student: WorkbenchExpectedStudent): void {
+    this.checkinDeskError.set(null);
+    this.checkIn(student, {
+      done: (at) => {
+        this.closeCheckinDesk();
+        this.messageService.add({
+          severity: 'success',
+          summary: `${student.studentName} ${at} 到班（櫃台代刷）`,
+        });
+      },
+      failed: () => this.checkinDeskError.set('沒能登記到班，請再試一次。'),
+    });
+  }
+
+  /**
+   * 這一輪在看板上代刷過的人（#2314，A6 #990）：列留在原處退成灰字、寫「HH:mm 到班 · 櫃台代刷」、
+   * 動作收掉 —— 不從清單抽掉，下一位的鈕就不會滑到游標下（連點兩下不會標到第二位）。
+   */
+  private readonly settledArrivals = signal<ReadonlySet<string>>(new Set());
 
   private readonly arrivedById = computed(
     () => new Map((this.workbench()?.arrived ?? []).map((a) => [a.studentId, a])),
@@ -344,10 +400,16 @@ export class DashboardComponent {
     });
   });
 
-  /** 該到沒到：開始時間早的在上面（最久沒到的先處理） */
-  protected readonly missingRows = computed(() =>
-    this.rosterPeople()
-      .filter((p) => p.state === 'missing' && p.reason !== null)
+  /** 該到沒到：開始時間早的在上面（最久沒到的先處理）；剛代刷的留在原處（settled） */
+  protected readonly missingRows = computed(() => {
+    const settled = this.settledArrivals();
+    return this.rosterPeople()
+      .filter(
+        (p) =>
+          p.reason !== null &&
+          (p.state === 'missing' ||
+            (p.state === 'arrived' && settled.has(p.student.studentId))),
+      )
       .sort((a, b) =>
         (a.student.firstSession?.startTime ?? '').localeCompare(
           b.student.firstSession?.startTime ?? '',
@@ -359,7 +421,13 @@ export class DashboardComponent {
         // 家長沒有帳號 → 沒有電話；沒有家長 → 兩個都沒有。都要說出來，不要空白
         parent: p.student.primaryParent,
         contactedAt: p.student.lastContact ? this.clock(p.student.lastContact.at) : null,
-      })),
+        arrivedAt: p.state === 'arrived' ? this.clock(p.arrival!.checkedInAt) : null,
+      }));
+  });
+
+  /** 標題的人數只算還沒處理的（A6 `recount`） */
+  protected readonly unsettledCount = computed(
+    () => this.missingRows().filter((r) => r.arrivedAt === null).length,
   );
 
   /** 到班名冊：依「今天最早那堂」分章，現在線插在第一個還沒開始的章前面 */
@@ -458,7 +526,10 @@ export class DashboardComponent {
    * API 那邊的散播規則（`#178`：只寫他有報名的課），是機器的推論而不是觀察到的
    * 事實。把推論寫成事實，之後規則一改那句話就變成謊。
    */
-  protected checkIn(student: WorkbenchExpectedStudent): void {
+  protected checkIn(
+    student: WorkbenchExpectedStudent,
+    hooks: { done?: (at: string) => void; failed?: () => void } = {},
+  ): void {
     if (this.boardBusy() !== null) return;
     this.boardBusy.set(student.studentId);
     this.boardError.set(null);
@@ -473,9 +544,11 @@ export class DashboardComponent {
       .subscribe({
         next: (checkin) => {
           // 用回應而不是樂觀更新 —— 到班時間是伺服器給的，猜一個會跟事實差幾秒。
-          // 包在頁內 VT 裡：這位學生從「該到沒到」消失，其餘列補位（#1641 項 5）
+          // 包在頁內 VT 裡（#1641 項 5）：「該到沒到」那列留在原處退灰（#2314），名冊裡的他換章內位置。
+          // settled 要跟 arrived 同一拍寫，不然 VT 會先拍到他消失、下一拍又長回來
           this.viewTransition(
-            () =>
+            () => {
+              this.settledArrivals.update((ids) => new Set(ids).add(checkin.studentId));
               this.workbench.update((current) =>
                 current === null
                   ? current
@@ -490,12 +563,17 @@ export class DashboardComponent {
                         },
                       ],
                     },
-              ),
+              );
+            },
             { rows: true },
           );
           this.boardBusy.set(null);
+          hooks.done?.(this.clock(checkin.checkedInAt));
         },
-        error: () => this.boardBusy.set(null),
+        error: () => {
+          this.boardBusy.set(null);
+          hooks.failed?.();
+        },
       });
   }
 

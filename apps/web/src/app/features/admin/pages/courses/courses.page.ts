@@ -750,7 +750,7 @@ export class CoursesPage implements OnInit {
   openAuditLog(): void {
     this.dialogService.open(AuditLogDialogComponent, {
       // A6 操作紀錄是 .acset.fdlg（寬 520）
-      width: '520px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
@@ -1103,7 +1103,7 @@ export class CoursesPage implements OnInit {
 
   protected openCreateCourseDialog(): void {
     const ref = this.dialogService.open(CourseFormDialogComponent, {
-      width: '520px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       // 表單自己聚焦課程名稱（桌機）；PrimeNG 預設會聚焦第一個可聚焦元素＝關閉鈕
@@ -1123,7 +1123,7 @@ export class CoursesPage implements OnInit {
 
   protected openEditCourseDialog(course: Course): void {
     const ref = this.dialogService.open(CourseFormDialogComponent, {
-      width: '520px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       // 表單自己聚焦課程名稱（桌機）；PrimeNG 預設會聚焦第一個可聚焦元素＝關閉鈕
@@ -1215,7 +1215,7 @@ export class CoursesPage implements OnInit {
     const course = this.courses().find((c) => c.id === courseId);
     const ref = this.dialogService.open(ClassFormDialogComponent, {
       // A6 `.cdlg`：760（時段列四欄並排）
-      width: '760px',
+      width: 'var(--dlg-w-lg)',
       modal: true,
       showHeader: false,
       // 表單自己聚焦班名（桌機）；PrimeNG 預設會聚焦第一個可聚焦元素＝關閉鈕
@@ -1240,7 +1240,7 @@ export class CoursesPage implements OnInit {
     const course = this.courses().find((c) => c.id === cls.courseId);
     const ref = this.dialogService.open(ClassFormDialogComponent, {
       // A6 `.cdlg`：760（時段列四欄並排）
-      width: '760px',
+      width: 'var(--dlg-w-lg)',
       modal: true,
       showHeader: false,
       // 表單自己聚焦班名（桌機）；PrimeNG 預設會聚焦第一個可聚焦元素＝關閉鈕
@@ -1282,7 +1282,7 @@ export class CoursesPage implements OnInit {
     }
 
     const ref = this.dialogService.open(GenerateSessionsDialogComponent, {
-      width: '600px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
@@ -1384,7 +1384,7 @@ export class CoursesPage implements OnInit {
   protected confirmToggleActive(cls: Class): void {
     if (cls.isActive) {
       const ref = this.dialogService.open(DeactivateClassDialogComponent, {
-        width: '500px',
+        width: 'var(--dlg-w-md)',
         modal: true,
         showHeader: false,
         appendTo: this.overlayContainer || 'body',

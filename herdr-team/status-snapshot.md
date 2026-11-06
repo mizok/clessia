@@ -22,6 +22,47 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
+## 🌅 11-06 晨間一節（labor-plan-20261105-1551，2026-11-06 06:55 台北寫；使用者睡前要求「早上可看」）
+
+> 狀態一律 `gh pr list --state open`、`herdr agent list` 現查；這節只記昨夜到今晨的「為什麼」。
+
+### 深夜事故：00:46 全機 OAuth 被撤銷，05:27 才復原
+
+- **形狀**：11 個 Claude session（clessia 八席＋fvg／bkw／yos）在 00:46 起各自的下一次請求全部 `authentication_failed`；網路通、沒睡眠、沒 VPN、沒卡巴斯基網路層錯誤。跟前兩次（卡巴斯基 connection refused、VPN ENOTFOUND）不同，這次是**帳號層**。
+- **最可能的機制**：多席共用同一把 Keychain refresh token，到期時同時去換，rotation 下第二個用舊 token 的被判重放 → 整個授權撤銷。本機證不了，只有 Anthropic 那端能確認（時間戳 2026-11-05T16:46Z）。
+- **為什麼拖五小時**：沒有任何活在 Claude 之外的東西發現它。`~/.local/bin/clessia-heartbeat.sh`（launchd 心跳）寫死 10-08 的席名，從 11-03 08:52 起連續 70 次 ALL_PATHS_FAILED；ops-warden 跟計畫席一樣死，而且它的 session 沒有 Telegram 工具。
+- **同夜機器極慢**（使用者 05:1x 連截圖都等一分鐘）：**不是記憶體**（可用最低約 8GB，902 筆 kill 全是 idle-exit），是 CPU 滿載：22:00～02:00 溫控每小時調功耗 800～2400 次；卡巴斯基 kavd 整夜逐進程驗簽章（00 點那小時 5 萬筆），來源是審核席十個突變 worktree＋vitest＋esbuild 的進程洪水。卡巴斯基是企業版，使用者不能排除目錄。
+- **處置（使用者裁）**：
+  1. `claude setup-token` 長效 token 放 `~/.zshenv`，**條件式**：`$PWD` 不含 `labor-plan-` 才 export。生產席走長效 token（不做 refresh，不參與競態）；計畫席維持 Keychain OAuth 以保留 Remote Control（使用者在外只遙控計畫席）。已用試驗席實測：同一訂閱額度、請求成功、Remote Control 在 token 席會被拒（預期）。既有席輪替時自動改走。
+  2. 負載規則進共用規則與 reviewer charter：突變一次只開一個暫存 worktree、跑完立刻 remove；暫存 worktree 的 node_modules 用 symlink 指回主 checkout；夜間 vitest `--maxWorkers=2`。
+  3. ops-warden charter（#2353 已合）加：≥2 席出現 Login expired → 第一行寫出並告知計畫席；看到 autocompact 互動框 → `herdr agent send-keys <席> esc`（今晨 reviewer／0859／1512 被這個框擋了十幾分鐘，`herdr agent prompt` 送進去的字全卡在輸入框）。
+  4. **沒做、要人做**：心跳腳本修席名＋OAuth 偵測（使用者點出「發 TG 我在睡也白搭」，所以價值只剩「縮短到半小時」，未排）；向 Anthropic 回報撤銷原因。
+- 記憶：`project_machine_oauth_revocation_outage.md`（判準、復原步驟、定案）。
+
+### 席位（2026-11-06 06:5x）
+
+| 席 | 在做 | 備註 |
+| --- | --- | --- |
+| labor-reviewer-20261105-1030 | 鏈：#2354→#2356→#2334（保留類，三道依據齊）；補尾 #2352／#2360／#2362／#2363；#2355 等 #2354 進 main 後 2314 併 | 鏈序由它依併 main 乾淨度調，換 SHA 的張移出鏈等驗 |
+| labor-20261105-0949（web） | #2325 批次請假內容照 A6（gate 過：PR1 兩支 p-select→app-select-field＋SELECT_FIELD 偏離；PR2 內容照稿＋R7／R3） | #2318（#2356）、#2346、#2358 已送 |
+| labor-20261105-0950-a（web） | #2290 課表 C 批（C1 #2362、C2 #2363 已送）；教室對話框（用 #2359 的 dialogSub 槽）＋順手修分校表單送出鈕 | 它承認 05:38 報完就停了 50 分鐘 |
+| labor-20261105-2314（web） | #2290 courses 第二批（選學生、複製名單、匯入名單）；之後它名下還 20 個未換殼（盤點在 #2290 issuecomment-6670972999）；#2361 內容照稿排在換殼後 | #2352（新 SHA fa4ae8a7）、#2354、#2355、#2360 已送 |
+| labor-20261105-1512（api） | 等 #2334 合；合了關分頁 w31:t1 | |
+| labor-20261105-0859 | **已退場**（#2357 charter 已合、分頁已關、`~/.cache/labor-0859` 使用者親刪） | |
+| ops-warden、db-reset | 常設 | |
+
+### 這輪使用者的裁定（已落地）
+
+- #2355 ConfirmDialog 寬 520 採 A6 稿（批准表寫 420）；#2356 636 行含 spec 不拆；#2316 由 #2343 收、已關；#2325 併 0950-a 的月份下拉 6 條。
+- 「換殼 PR 只收殼，內容差另開單」成為慣例：#2325（批次請假）、#2361（產生課堂／停用開課班）。
+- 有 `<form>` 的對話框，底部送出鈕用 `form` 屬性指回表單、不綁 click（#2362 reviewer 抓到 Enter 退步與雙送；規則進 dialog-frame.md）。
+- 已推分支不 rebase；新分支第一次推之前的 rebase 可以，但回報寫「基於 main」。
+
+### 等使用者
+
+- #1595 首開／換頁實測（約 5 分鐘）；#2339 方向級（聯絡簿解綁點名負責人）可否決。
+- 共用本機 DB 裡「國小六年級數學班今天 15:00」在 11-04 11:32 被改成停課（不是 reviewer），compare 會多 3 條資料差；要乾淨就在 db-reset 席親下 reset。
+
 ## 🔁 11-05 計畫席交接（labor-plan-20261103-0852，2026-11-05 15:13 台北寫；Ctx 近線，主動交接）
 
 > 狀態一律用 `gh pr list --state open`、`herdr agent list` 現查；這節只記「為什麼」和「誰在做什麼」。本任 11-03 08:53 上任，兩天半合了 70 張以上（#1928 範圍型 414／1000 截斷系列全部上線、#2206 六頁手機篩選抽屜、#2185／#2279／#2278 三支 migration 使用者親按）。

@@ -11,6 +11,18 @@ import { StudentsService } from '@core/students.service';
 import { LeaveService } from '@core/leave.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import type { Campus } from '@core/campuses.service';
+import { AttendanceService } from '@core/attendance.service';
+import { CampusContextService } from '@core/campus-context.service';
+import { SystemClockService } from '@core/system-clock.service';
+
+/** 勾堂模式（#2318）用到的三支；不開勾堂的測試只需要它們存在 */
+const studentDayMock = vi.fn();
+const campusIdMock = signal<string | null>(null);
+const PICK_PROVIDERS = [
+  { provide: AttendanceService, useValue: { studentDay: studentDayMock } },
+  { provide: CampusContextService, useValue: { id: campusIdMock } },
+  { provide: SystemClockService, useValue: { todayTaipei: signal('2027-03-15') } },
+];
 
 describe('LeaveFormDialogComponent', () => {
   let fixture: ComponentFixture<LeaveFormDialogComponent>;
@@ -62,6 +74,7 @@ describe('LeaveFormDialogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [LeaveFormDialogComponent],
       providers: [
+        ...PICK_PROVIDERS,
         { provide: DynamicDialogRef, useValue: dialogRefMock },
         { provide: StudentsService, useValue: studentsServiceMock },
         { provide: ReferenceDataService, useValue: referenceDataServiceMock },
@@ -150,7 +163,7 @@ describe('LeaveFormDialogComponent', () => {
     expect(fixture.nativeElement.querySelector('app-student-autocomplete')).not.toBeNull();
   });
 
-  it('searches students by name only in the leave dialog', () => {
+  it('搜尋跟儀表板「登記請假」同一組：不限學生名，家長名也比對（#2318）', () => {
     const dialog = component as any;
 
     dialog.searchStudents('劉');
@@ -161,7 +174,6 @@ describe('LeaveFormDialogComponent', () => {
       grade: undefined,
       isActive: true,
       pageSize: 30,
-      searchScope: 'student_name',
     });
   });
 });
@@ -194,6 +206,7 @@ describe('LeaveFormDialogComponent 編輯模式', () => {
     await TestBed.configureTestingModule({
       imports: [LeaveFormDialogComponent],
       providers: [
+        ...PICK_PROVIDERS,
         { provide: DynamicDialogRef, useValue: { close } },
         { provide: DynamicDialogConfig, useValue: { data: { leave } } },
         { provide: StudentsService, useValue: { list: vi.fn() } },
@@ -258,6 +271,7 @@ describe('LeaveFormDialogComponent 預帶學生（學生檔案的「登記請假
     await TestBed.configureTestingModule({
       imports: [LeaveFormDialogComponent],
       providers: [
+        ...PICK_PROVIDERS,
         { provide: DynamicDialogRef, useValue: dialogRefMock },
         {
           provide: DynamicDialogConfig,
@@ -300,6 +314,7 @@ describe('LeaveFormDialogComponent 嵌入（家長端）', () => {
     await TestBed.configureTestingModule({
       imports: [LeaveFormDialogComponent],
       providers: [
+        ...PICK_PROVIDERS,
         { provide: StudentsService, useValue: { list: vi.fn() } },
         { provide: ReferenceDataService, useValue: referenceDataServiceMock },
         { provide: LeaveService, useValue: leaveServiceMock },
@@ -443,5 +458,169 @@ describe('LeaveFormDialogComponent 嵌入（家長端）', () => {
     )!;
     cancel.click();
     expect(closed).toHaveBeenCalledWith(null);
+  });
+});
+
+// #2318：管理端勾當天的課（A6 leave.html newLeave）
+describe('LeaveFormDialogComponent 勾堂（管理端，#2318）', () => {
+  const close = vi.fn();
+  const create = vi.fn((_body: unknown) => of({ id: 'leave-9' }));
+  const update = vi.fn((_id: string, _body: unknown) => of({ id: 'leave-9' }));
+  const session = (id: string, o: object = {}) => ({
+    sessionId: id,
+    eventId: null,
+    startTime: '14:00:00',
+    endTime: '16:00:00',
+    className: `班 ${id}`,
+    cancelled: false,
+    attendance: null,
+    existingLeave: null,
+    ...o,
+  });
+  const STUDENT = { id: 'stu-1', name: '陳大同' };
+
+  async function setup(data: object) {
+    close.mockReset();
+    create.mockClear();
+    update.mockClear();
+    studentDayMock.mockReset();
+    studentDayMock.mockReturnValue(
+      of({
+        data: {
+          date: '2027-03-15',
+          sessions: [
+            session('s1'),
+            session('s2', { cancelled: true }),
+            session('s3', { existingLeave: { startDate: '2027-03-15', endDate: '2027-03-15' } }),
+            session('s4'),
+          ],
+          nextSession: null,
+        },
+      }),
+    );
+    campusIdMock.set('campus-1');
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [LeaveFormDialogComponent],
+      providers: [
+        ...PICK_PROVIDERS,
+        { provide: DynamicDialogRef, useValue: { close } },
+        { provide: DynamicDialogConfig, useValue: { header: '登記請假', data } },
+        { provide: StudentsService, useValue: { list: vi.fn() } },
+        {
+          provide: ReferenceDataService,
+          useValue: { campuses: signal<Campus[]>([]), loadCampuses: vi.fn() },
+        },
+        { provide: LeaveService, useValue: { create, update } },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(LeaveFormDialogComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return { fixture, dialog: fixture.componentInstance as any };
+  }
+
+  it('選學生 → 列那天的課、預設全勾能勾的；停課與已請假的不能勾；送 sessionIds（三步、不手打時間）', async () => {
+    const { fixture, dialog } = await setup({ pickSessions: true });
+    expect(dialog.missingHint()).toBe('還沒選學生');
+    dialog.onStudent(STUDENT);
+    fixture.detectChanges();
+    expect(studentDayMock).toHaveBeenCalledWith('stu-1', '2027-03-15');
+    expect([...dialog.picked()]).toEqual(['s1', 's4']);
+    const el = fixture.nativeElement as HTMLElement;
+    const boxes = [...el.querySelectorAll<HTMLInputElement>('[data-testid="leave-pick"] input')];
+    expect(boxes.map((b) => b.disabled)).toEqual([false, true, true, false]);
+    expect(el.textContent).toContain('停課');
+    expect(el.textContent).toContain('已請假');
+    expect(el.textContent).toContain('送出後，勾的課出缺席會標成請假');
+
+    dialog.toggle('s4');
+    dialog.submit();
+    expect(create).toHaveBeenCalledWith({
+      studentId: 'stu-1',
+      startDate: '2027-03-15',
+      endDate: '2027-03-15',
+      reason: null,
+      sessionIds: ['s1'],
+    });
+    expect(close).toHaveBeenCalledWith({ id: 'leave-9' });
+  });
+
+  it('一堂都沒勾：寫原因、不送', async () => {
+    const { dialog } = await setup({ pickSessions: true });
+    dialog.onStudent(STUDENT);
+    dialog.toggle('s1');
+    dialog.toggle('s4');
+    expect(dialog.missingHint()).toBe('至少勾一堂課');
+    dialog.submit();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('分校預設帶頂列', async () => {
+    const { dialog } = await setup({ pickSessions: true });
+    expect(dialog.selectedCampusId).toBe('campus-1');
+  });
+
+  it('改用日期區間：結束日跟開始日；送出走原本的區間（不帶 sessionIds）', async () => {
+    const { fixture, dialog } = await setup({ pickSessions: true });
+    (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLButtonElement>('[data-testid="leave-mode-toggle"]')!
+      .click();
+    expect(dialog.mode()).toBe('range');
+    dialog.onStudent(STUDENT);
+    dialog.setField('startDate', new Date('2027-03-20'));
+    expect(dialog.endDate).toEqual(new Date('2027-03-20'));
+    dialog.submit();
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ startDate: '2027-03-20', endDate: '2027-03-20' }),
+    );
+    expect(create.mock.calls[0][0]).not.toHaveProperty('sessionIds');
+  });
+
+  it('編輯綁堂的假：勾選模式帶回原本那幾堂，自己蓋到的不算「已請假」；儲存整組替換', async () => {
+    studentDayMock.mockReset();
+    const leave = {
+      id: 'leave-9',
+      studentId: 'stu-1',
+      studentName: '陳大同',
+      startDate: '2027-03-15',
+      endDate: '2027-03-15',
+      startTime: null,
+      endTime: null,
+      reason: '感冒',
+      sessionIds: ['s3'],
+    };
+    const { dialog } = await setup({ leave, pickSessions: true });
+    expect(dialog.mode()).toBe('sessions');
+    expect([...dialog.picked()]).toEqual(['s3']);
+    dialog.toggle('s1');
+    dialog.submit();
+    expect(update).toHaveBeenCalledWith('leave-9', { reason: '感冒', sessionIds: ['s3', 's1'] });
+  });
+
+  it('編輯沒綁堂的假：維持區間模式，也不給切換', async () => {
+    const leave = {
+      id: 'leave-8',
+      studentId: 'stu-1',
+      studentName: '陳大同',
+      startDate: '2027-03-15',
+      endDate: '2027-03-16',
+      startTime: null,
+      endTime: null,
+      reason: null,
+      sessionIds: [],
+    };
+    const { fixture, dialog } = await setup({ leave, pickSessions: true });
+    expect(dialog.mode()).toBe('range');
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="leave-mode-toggle"]'),
+    ).toBeNull();
+  });
+
+  it('沒給 pickSessions（家長端）：維持日期區間', async () => {
+    const { dialog } = await setup({});
+    expect(dialog.mode()).toBe('range');
+    expect(studentDayMock).not.toHaveBeenCalled();
   });
 });

@@ -1,11 +1,11 @@
-<div class="flex flex-col gap-5 p-5">
-  <header class="flex flex-col gap-1">
-    <h2 class="m-0 text-lg font-semibold text-zinc-900">計費設定</h2>
-    <p class="m-0 text-xs text-zinc-500">
-      {{ enrollment.studentName }} —— 計費模式是每位學生自己的選擇，同一班可以有月繳生也有期繳生。
-    </p>
-  </header>
-
+<!-- 共用殼（#2290） -->
+<app-dialog-frame
+  title="計費設定"
+  [sub]="
+    enrollment.studentName + ' —— 計費模式是每位學生自己的選擇，同一班可以有月繳生也有期繳生。'
+  "
+  (closed)="cancel()"
+>
   <div class="flex flex-col gap-4">
     <div class="flex flex-col gap-2">
       <label class="text-sm font-medium text-zinc-600" for="eb-mode">計費模式</label>
@@ -132,10 +132,11 @@
     }
   </div>
 
-  <footer class="flex justify-end gap-2">
+  <ng-container dialogFoot>
     <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
     <p-button label="儲存" [loading]="saving()" (onClick)="save()" />
-  </footer>
+  </ng-container>
+</app-dialog-frame>
 
-  <p-confirmdialog />
-</div>
+<!-- 刪除堂數包的確認：改走 ConfirmDialog 另一批（#2290） -->
+<p-confirmdialog />

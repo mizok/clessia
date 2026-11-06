@@ -136,6 +136,19 @@ describe('SessionDetailDialogComponent', () => {
     fixture.detectChanges();
   }
 
+  it('共用殼（#2290）：只有一個 h2「課堂異動紀錄」（不叫操作紀錄，#448），課名是 h3；關閉在底部列', () => {
+    createComponent();
+    const el = fixture.nativeElement as HTMLElement;
+    const h2s = [...el.querySelectorAll('h2')].map((h) => h.textContent?.trim());
+
+    expect(h2s).toEqual(['課堂異動紀錄']);
+    expect(el.querySelector('h3.session-detail__title')).not.toBeNull();
+    const close = [...el.querySelectorAll('.form-dialog__footer button')].find(
+      (b) => b.textContent?.trim() === '關閉',
+    );
+    expect(close).toBeTruthy();
+  });
+
   it('creates with history changes carrying original teacher and operation source metadata', () => {
     createComponent();
     expect(component).toBeTruthy();

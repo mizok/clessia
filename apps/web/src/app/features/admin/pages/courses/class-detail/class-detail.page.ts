@@ -202,7 +202,7 @@ export class ClassDetailPage implements OnInit {
         next: ([course, classes]) => {
           const ref = this.dialogService.open(ClassFormDialogComponent, {
             // 同課程列表：A6 `.cdlg` 760、表單自己聚焦班名
-            width: '760px',
+            width: 'var(--dlg-w-lg)',
             modal: true,
             showHeader: false,
             focusOnShow: false,
@@ -242,7 +242,7 @@ export class ClassDetailPage implements OnInit {
       return;
     }
     const ref = this.dialogService.open(GenerateSessionsDialogComponent, {
-      width: '600px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
@@ -268,7 +268,7 @@ export class ClassDetailPage implements OnInit {
     if (!cls) return;
     if (cls.isActive) {
       const ref = this.dialogService.open(DeactivateClassDialogComponent, {
-        width: '500px',
+        width: 'var(--dlg-w-md)',
         modal: true,
         showHeader: false,
         appendTo: this.overlayContainer || 'body',
@@ -389,7 +389,7 @@ export class ClassDetailPage implements OnInit {
 
   protected openBillingDialog(enrollment: Enrollment): void {
     const ref = this.dialogService.open(EnrollmentBillingDialogComponent, {
-      width: '460px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',

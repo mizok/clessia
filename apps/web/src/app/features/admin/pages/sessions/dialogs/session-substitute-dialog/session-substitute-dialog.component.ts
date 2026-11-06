@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { TextareaModule } from 'primeng/textarea';
 import { SelectModule } from 'primeng/select';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
@@ -17,9 +16,10 @@ interface TeacherOption {
   readonly weeklySessionCount: number;
 }
 
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 @Component({
   selector: 'app-session-substitute-dialog',
-  imports: [ReactiveFormsModule, ButtonModule, TextareaModule, SelectModule],
+  imports: [DialogFrameComponent, ReactiveFormsModule, TextareaModule, SelectModule],
   templateUrl: './session-substitute-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
