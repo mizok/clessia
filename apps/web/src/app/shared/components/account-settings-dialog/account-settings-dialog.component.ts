@@ -1,11 +1,15 @@
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
+import { DialogService } from 'primeng/dynamicdialog';
+import {
+  ConfirmDialogComponent,
+  type ConfirmDialogData,
+} from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { Component, inject, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { InputTextModule } from 'primeng/inputtext';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { ConfirmationService } from 'primeng/api';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
 import { AuthService } from '@core/auth.service';
 import {
@@ -22,15 +26,16 @@ type FieldKey = 'displayName' | 'nickname' | 'email' | 'phone' | 'birthday';
 @Component({
   selector: 'app-account-settings-dialog',
   standalone: true,
-  imports: [FormsModule, InputTextModule, ButtonModule, DatePickerModule, ConfirmDialogModule],
-  providers: [ConfirmationService],
+  imports: [FormsModule, InputTextModule, ButtonModule, DatePickerModule, DialogFrameComponent],
+  // 確認對話框在這個對話框上面再開一層（同 class-form-dialog）
+  providers: [DialogService],
   templateUrl: './account-settings-dialog.component.html',
 })
 export class AccountSettingsDialogComponent {
   private readonly http = inject(HttpClient);
   private readonly ref = inject(DynamicDialogRef);
   private readonly auth = inject(AuthService);
-  private readonly confirmationService = inject(ConfirmationService);
+  private readonly dialogService = inject(DialogService);
 
   protected readonly savingField = signal<FieldKey | null>(null);
   protected readonly savedField = signal<FieldKey | null>(null);
@@ -107,14 +112,15 @@ export class AccountSettingsDialogComponent {
       .filter((p) => p !== provider)
       .map((p) => PROVIDER_NAMES[p as ProviderId] ?? p)
       .join('、');
-    this.confirmationService.confirm({
-      key: 'account-settings-confirm',
-      header: `解除 ${PROVIDER_NAMES[provider]} 綁定`,
-      message: `解除之後就不能用 ${PROVIDER_NAMES[provider]} 登入，之後請用 ${others} 登入。`,
-      acceptLabel: '解除綁定',
-      rejectLabel: '取消',
-      accept: () => void this.unlink(provider),
-    });
+    this.confirm(
+      `解除 ${PROVIDER_NAMES[provider]} 綁定`,
+      {
+        message: `解除之後就不能用 ${PROVIDER_NAMES[provider]} 登入，之後請用 ${others} 登入。`,
+        acceptLabel: '解除綁定',
+        rejectLabel: '取消',
+      },
+      () => void this.unlink(provider),
+    );
   }
 
   private async unlink(provider: ProviderId) {
@@ -172,14 +178,15 @@ export class AccountSettingsDialogComponent {
    * 也就發不出連結。見 kb/wiki/architecture/line-oauth-login.md
    */
   protected confirmSaveEmail() {
-    this.confirmationService.confirm({
-      key: 'account-settings-confirm',
-      message: `確定要將 Email 改為「${this.email}」嗎？\n之後補習班要用新的 Email 才能幫你產生登入連結。`,
-      header: '確認修改 Email',
-      acceptLabel: '確定修改',
-      rejectLabel: '取消',
-      accept: () => this.patchMe('email', { email: this.email.trim() }),
-    });
+    this.confirm(
+      '確認修改 Email',
+      {
+        message: `確定要將 Email 改為「${this.email}」嗎？之後補習班要用新的 Email 才能幫你產生登入連結。`,
+        acceptLabel: '確定修改',
+        rejectLabel: '取消',
+      },
+      () => this.patchMe('email', { email: this.email.trim() }),
+    );
   }
 
   /**
@@ -225,5 +232,20 @@ export class AccountSettingsDialogComponent {
     const m = String(date.getMonth() + 1).padStart(2, '0');
     const d = String(date.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
+  }
+
+  /** 確認對話框（#2290：p-confirmdialog 改走共用殼的 ConfirmDialog，同 staff／parents 頁） */
+  private confirm(header: string, data: ConfirmDialogData, onAccept: () => void): void {
+    this.dialogService
+      .open(ConfirmDialogComponent, {
+        header,
+        width: 'var(--dlg-w-md)',
+        modal: true,
+        showHeader: false,
+        data,
+      })
+      ?.onClose.subscribe((ok) => {
+        if (ok) onAccept();
+      });
   }
 }

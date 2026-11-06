@@ -1,13 +1,16 @@
+import {
+  ConfirmDialogComponent,
+  type ConfirmDialogData,
+} from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { ButtonModule } from 'primeng/button';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { SelectModule } from 'primeng/select';
 import { TextareaModule } from 'primeng/textarea';
-import { ConfirmationService, MessageService } from 'primeng/api';
+import { MessageService } from 'primeng/api';
 import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
@@ -50,14 +53,12 @@ import { SessionPackFormDialogComponent } from '../session-pack-form-dialog/sess
   imports: [
     FormsModule,
     ButtonModule,
-    ConfirmDialogModule,
     InputNumberModule,
     SelectModule,
     TextareaModule,
     InlineNoticeComponent,
     DialogFrameComponent,
   ],
-  providers: [ConfirmationService],
   templateUrl: './enrollment-billing-dialog.component.html',
 })
 export class EnrollmentBillingDialogComponent {
@@ -65,7 +66,6 @@ export class EnrollmentBillingDialogComponent {
   private readonly feeTemplatesService = inject(FeeTemplatesService);
   private readonly sessionPacksService = inject(SessionPacksService);
   private readonly messageService = inject(MessageService);
-  private readonly confirmationService = inject(ConfirmationService);
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly ref = inject(DynamicDialogRef);
@@ -155,15 +155,15 @@ export class EnrollmentBillingDialogComponent {
   }
 
   protected confirmDeletePack(pack: SessionPack): void {
-    this.confirmationService.confirm({
-      message: `確定要刪除「${pack.purchasedAt} 購買 ${pack.purchasedCount} 堂」這筆紀錄嗎？`,
-      header: '確認刪除',
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: '刪除',
-      rejectLabel: '取消',
-      acceptButtonProps: { severity: 'danger' },
-      accept: () => this.deletePack(pack),
-    });
+    this.confirm(
+      '確認刪除',
+      {
+        message: `確定要刪除「${pack.purchasedAt} 購買 ${pack.purchasedCount} 堂」這筆紀錄嗎？`,
+        acceptLabel: '刪除',
+        rejectLabel: '取消',
+      },
+      () => this.deletePack(pack),
+    );
   }
 
   private deletePack(pack: SessionPack): void {
@@ -237,5 +237,20 @@ export class EnrollmentBillingDialogComponent {
 
   protected cancel(): void {
     this.ref.close();
+  }
+
+  /** 確認對話框（#2290：p-confirmdialog 改走共用殼的 ConfirmDialog，同 staff／parents 頁） */
+  private confirm(header: string, data: ConfirmDialogData, onAccept: () => void): void {
+    this.dialogService
+      .open(ConfirmDialogComponent, {
+        header,
+        width: 'var(--dlg-w-md)',
+        modal: true,
+        showHeader: false,
+        data,
+      })
+      ?.onClose.subscribe((ok) => {
+        if (ok) onAccept();
+      });
   }
 }

@@ -1,3 +1,5 @@
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
+import { NgTemplateOutlet } from '@angular/common';
 import {
   Component,
   ElementRef,
@@ -45,6 +47,8 @@ interface SubjectManagerNotice {
     TooltipModule,
     InlineNoticeComponent,
     LoadFailedComponent,
+    DialogFrameComponent,
+    NgTemplateOutlet,
   ],
   providers: [DialogService],
   templateUrl: './subject-manager.component.html',

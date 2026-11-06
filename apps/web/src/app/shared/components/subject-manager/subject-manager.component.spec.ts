@@ -57,6 +57,13 @@ describe('SubjectManagerComponent', () => {
    * 那句話在失敗時是謊話，而底下的「新增」欄位會邀請使用者建出重複的科目。
    * 斷言畫面主體，不是某個 signal —— 使用者看到的是畫面。
    */
+  it('對話框模式：共用殼的 h2「科目管理」當名稱，✕ 關窗（#2290）', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('app-dialog-frame h2')!.textContent).toContain('科目管理');
+    el.querySelector<HTMLButtonElement>('app-dialog-frame button[aria-label="關閉"]')!.click();
+    expect(TestBed.inject(DynamicDialogRef).close).toHaveBeenCalled();
+  });
+
   it('取數失敗時渲染「載入失敗」，不說「尚無科目」也不給新增欄位', async () => {
     subjectsServiceMock.list.mockReturnValue(throwError(() => new Error('boom')));
     (component as unknown as { loadSubjects: () => void }).loadSubjects();

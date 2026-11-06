@@ -4,11 +4,11 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { vi } from 'vitest';
 import { MessageService } from 'primeng/api';
-import { DynamicDialogRef } from 'primeng/dynamicdialog';
+import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { of } from 'rxjs';
 
 import { AuthService, type UserRole } from '@core/auth.service';
 import { AuthProvidersService } from '@core/auth-providers.service';
-import { ConfirmationService } from 'primeng/api';
 import { AccountSettingsDialogComponent } from './account-settings-dialog.component';
 
 /**
@@ -156,7 +156,15 @@ describe('AccountSettingsDialogComponent —— 登入方式（#1842 G-3）', ()
       [...el.querySelectorAll<HTMLButtonElement>('.account-settings__method button')].find((b) =>
         b.textContent?.includes(label),
       );
-    const confirm = fixture.debugElement.injector.get(ConfirmationService);
+    // 確認走 ConfirmDialog（#2290）：攔 open，直接回「確認了」，並把帶進去的 data 交給測試看
+    const dialogs = fixture.debugElement.injector.get(DialogService);
+    const confirm = {
+      accept: (check: (data: { message: string }) => void = () => undefined) =>
+        vi.spyOn(dialogs, 'open').mockImplementation((_c, cfg) => {
+          check(cfg.data as { message: string });
+          return { onClose: of(true) } as never;
+        }),
+    };
     return { fixture, el, rows, button, auth, confirm };
   }
 
@@ -176,11 +184,7 @@ describe('AccountSettingsDialogComponent —— 登入方式（#1842 G-3）', ()
 
   it('解除：先確認，確認後呼叫 unlinkProvider 並重讀已綁清單', async () => {
     const { fixture, button, auth, confirm } = await setup(['line', 'google'], ['line', 'google']);
-    const spy = vi.spyOn(confirm, 'confirm').mockImplementation((c) => {
-      expect(c.message).toContain('之後請用 LINE 登入');
-      c.accept?.();
-      return confirm;
-    });
+    const spy = confirm.accept((data) => expect(data.message).toContain('之後請用 LINE 登入'));
 
     const googleRow = [...fixture.nativeElement.querySelectorAll('.account-settings__method')][1];
     (googleRow as HTMLElement).querySelector('button')!.click();
@@ -194,10 +198,7 @@ describe('AccountSettingsDialogComponent —— 登入方式（#1842 G-3）', ()
   it('伺服器擋下最後一個：把原因顯示出來', async () => {
     const { fixture, auth, confirm, el } = await setup(['line', 'google'], ['line', 'google']);
     auth.unlinkProvider.mockResolvedValueOnce('至少要留一個登入方式');
-    vi.spyOn(confirm, 'confirm').mockImplementation((c) => {
-      c.accept?.();
-      return confirm;
-    });
+    confirm.accept();
     (el.querySelector('.account-settings__method button') as HTMLButtonElement).click();
     await fixture.whenStable();
     fixture.detectChanges();

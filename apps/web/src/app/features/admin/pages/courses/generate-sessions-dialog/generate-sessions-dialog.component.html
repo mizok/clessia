@@ -1,7 +1,6 @@
-<!-- 共用殼（#2290）：h2＋副標（原本的麵包屑）＋✕、內距、sticky 底部列 -->
+<!-- 共用殼（#2290）。內容照 A6 class.html:198-237 genDialog（#2361） -->
 <app-dialog-frame title="產生課堂" [sub]="breadcrumb()" (closed)="cancel()">
-  <!-- 內距在殼的內容區；這層只管排版 -->
-  <div class="flex flex-col gap-5">
+  <div class="flex flex-col gap-4">
     @if (step() === 'result') {
       <div class="flex items-start gap-3 px-4 py-6">
         <div class="text-[2rem] leading-none text-success-600">
@@ -22,230 +21,114 @@
           }
         </div>
       </div>
-    } @else if (step() === 'input') {
-      @if (hasBothClassDates()) {
-        <!-- 有完整班級日期：顯示日期卡片，直接跳過選擇 -->
-        <div
-          class="mb-1 flex flex-col gap-2 rounded-lg border border-accent-100 bg-accent-50 px-4 py-3"
-        >
-          <span
-            class="flex items-center gap-1 text-xs font-semibold tracking-[0.06em] text-accent-600 uppercase"
+    } @else {
+      <p class="m-0 text-md text-zinc-600">
+        依上課時段在這段期間產生課堂。先預覽，可以排除放假日，確認後才建立；已經存在的課堂不會重複建立。
+      </p>
+      <!-- A6 `.fdlg__half`：開始、結束各半欄；手機一欄 -->
+      <div class="grid grid-cols-2 gap-x-3 gap-y-4 max-wide:grid-cols-1">
+        <div class="min-w-0">
+          <label class="mb-1 block text-md font-semibold text-zinc-700" for="gen-from"
+            >開始日期 <span class="text-error-700" aria-hidden="true">*</span></label
           >
-            <i class="pi pi-calendar text-[11px]"></i>
-            班級有效期間
-          </span>
-          <div class="flex items-center gap-2">
-            <span
-              class="rounded-md border border-accent-200 bg-white px-3 py-1 text-sm font-semibold tracking-[0.01em] text-zinc-800 tabular-nums"
-            >
-              {{ classStartDate()! | date: 'yyyy-MM-dd' }}
-            </span>
-            <!-- 這是兩個日期之間的方向箭頭，承載「從 → 到」，不是純裝飾。accent-400 只有 2.16 —— 600 過 3:1 -->
-            <i class="pi pi-arrow-right text-[11px] text-accent-600"></i>
-            <span
-              class="rounded-md border border-accent-200 bg-white px-3 py-1 text-sm font-semibold tracking-[0.01em] text-zinc-800 tabular-nums"
-            >
-              {{ classEndDate()! | date: 'yyyy-MM-dd' }}
-            </span>
-          </div>
+          <input
+            id="gen-from"
+            type="date"
+            class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 tabular-nums [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11"
+            [min]="minDate()"
+            [max]="maxDate()"
+            [value]="generateFrom()"
+            (change)="setDate('from', $any($event.target).value)"
+          />
         </div>
-        <p class="mb-2 text-sm text-zinc-500">
-          選擇要排除的日期，其餘將依上課時間表批次產生課堂記錄。
-        </p>
-      } @else {
-        <!-- 無完整班級日期：手動選擇範圍 -->
-        <p class="mb-2 text-sm text-zinc-500">
-          選擇日期範圍，系統將依照上課時間表批次產生課堂記錄。
-        </p>
-        <div class="form-dialog__row">
-          <div class="form-dialog__field">
-            <label class="form-dialog__label"
-              >開始日期<span class="form-dialog__required">*</span></label
-            >
-            <p-datepicker
-              [ngModel]="generateFrom()"
-              (ngModelChange)="generateFrom.set($event)"
-              dateFormat="yy-mm-dd"
-              [showIcon]="true"
-              placeholder="選擇日期"
-              styleClass="w-full"
-              [appendTo]="'body'"
-              [minDate]="classStartDate()"
-              [maxDate]="classEndDate()"
-            />
+        <div class="min-w-0">
+          <label class="mb-1 block text-md font-semibold text-zinc-700" for="gen-to"
+            >結束日期 <span class="text-error-700" aria-hidden="true">*</span></label
+          >
+          <input
+            id="gen-to"
+            type="date"
+            class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 tabular-nums [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11"
+            [min]="generateFrom() || minDate()"
+            [max]="maxDate()"
+            [value]="generateTo()"
+            (change)="setDate('to', $any($event.target).value)"
+          />
+        </div>
+      </div>
+
+      @if (step() === 'preview') {
+        <!-- A6 `.prev`：捲動的勾選清單，取消勾選就排除那一天（一天一列：API 的排除按日，R7） -->
+        <div class="flex flex-col gap-2" data-testid="gen-preview">
+          <p class="m-0 text-md font-semibold text-zinc-700" id="gen-preview-label">
+            預覽：取消勾選就排除那一天
+          </p>
+          <div
+            class="max-h-60 overflow-auto rounded-md bg-zinc-50 p-2 shadow-[inset_0_0_0_1px_var(--zinc-200)]"
+            role="group"
+            aria-labelledby="gen-preview-label"
+          >
+            @for (day of days(); track day.date) {
+              <label
+                class="flex min-h-11 cursor-pointer items-center gap-2 px-2 text-base tabular-nums has-[:not(:checked)]:text-zinc-500 has-[:not(:checked)]:line-through wide:min-h-9"
+              >
+                <input
+                  type="checkbox"
+                  class="size-[18px] shrink-0 accent-zinc-900"
+                  [checked]="!excluded().has(day.date)"
+                  (change)="toggleDay(day.date, $any($event.target).checked)"
+                />
+                <span>{{ day.label }}</span>
+              </label>
+            }
           </div>
-          <div class="form-dialog__field">
-            <label class="form-dialog__label"
-              >結束日期<span class="form-dialog__required">*</span></label
-            >
-            <p-datepicker
-              [ngModel]="generateTo()"
-              (ngModelChange)="generateTo.set($event)"
-              dateFormat="yy-mm-dd"
-              [showIcon]="true"
-              placeholder="選擇日期"
-              styleClass="w-full"
-              [appendTo]="'body'"
-              [minDate]="generateFrom() ?? classStartDate()"
-              [maxDate]="classEndDate()"
-            />
-          </div>
+          <p
+            class="m-0 text-md font-semibold text-zinc-900"
+            data-testid="gen-sum"
+            aria-live="polite"
+          >
+            將產生 {{ includedCount() }} 堂（排除 {{ excludedCount() }} 堂）。
+            @if (existingCount() > 0) {
+              另有 {{ existingCount() }} 堂已存在，會略過。
+            }
+          </p>
         </div>
       }
-
-      <div class="form-dialog__field">
-        <label class="form-dialog__label">排除日期（選填）</label>
-        <p-datepicker
-          [ngModel]="excludeDates()"
-          (ngModelChange)="excludeDates.set($event)"
-          selectionMode="multiple"
-          dateFormat="yy-mm-dd"
-          [showIcon]="true"
-          placeholder="點選日曆選取要排除的日期"
-          styleClass="w-full"
-          [appendTo]="'body'"
-          [minDate]="classStartDate()"
-          [maxDate]="classEndDate()"
-        />
-        @if (excludeDates().length > 0) {
-          <span class="mt-1 text-xs font-medium text-accent-600"
-            >已排除 {{ excludeDates().length }} 個日期</span
-          >
-        }
-      </div>
-    } @else {
-      <!-- Preview Step -->
-      <div class="flex min-h-0 flex-col gap-4">
-        <div
-          class="flex flex-wrap items-center gap-2 rounded-md bg-zinc-50 p-3 text-sm font-semibold md:flex-nowrap md:gap-4"
-        >
-          <span class="text-zinc-900">共 {{ previewSessions().length }} 筆</span>
-          <span class="text-success-600">新增：{{ newCount() }}</span>
-          <span class="text-zinc-500">略過：{{ skippedCount() }}</span>
-        </div>
-
-        @if (previewSessions().length === 0) {
-          <div class="flex flex-col items-center gap-2 py-10 text-center text-zinc-500">
-            <i class="pi pi-calendar-times text-[2rem]"></i>
-            <p class="m-0 text-sm">在此日期範圍內沒有符合時間表的課堂</p>
-          </div>
-        } @else {
-          <app-responsive-table
-            class="block"
-            [headTemplate]="previewHead"
-            [bodyTemplate]="previewBody"
-            [pagination]="previewPagination()"
-            (page)="onPreviewPaginationChange($event)"
-          />
-
-          <ng-template #previewHead>
-            <tr>
-              <th
-                appRtColDef="sessionDate"
-                [appRtColDefMinWidth]="120"
-                [appRtColDefPriority]="1"
-                [appRtColDefCollapsible]="false"
-              >
-                日期
-              </th>
-              <th
-                appRtColDef="weekday"
-                [appRtColDefMinWidth]="96"
-                [appRtColDefPriority]="2"
-                [appRtColDefCollapsible]="false"
-              >
-                星期
-              </th>
-              <th
-                appRtColDef="time"
-                [appRtColDefMinWidth]="140"
-                [appRtColDefPriority]="3"
-                [appRtColDefCollapsible]="false"
-              >
-                時間
-              </th>
-              <th appRtColDef="teacherName" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">
-                老師
-              </th>
-              <th appRtColDef="status" [appRtColDefMinWidth]="108" [appRtColDefPriority]="5">
-                狀態
-              </th>
-            </tr>
-          </ng-template>
-
-          <ng-template #previewBody>
-            @for (s of paginatedPreviewSessions(); track s.sessionDate + s.startTime + s.endTime) {
-              <tr
-                appRtRow
-                [appRtRow]="s"
-                [appRtRowId]="s.sessionDate + '-' + s.startTime + '-' + s.endTime"
-                [attr.data-exists]="s.exists || null"
-                class="data-exists:[--rt-cell-bg:color-mix(in_srgb,var(--zinc-50)_78%,var(--color-white))] data-exists:[--rt-cell-color:var(--zinc-500)]"
-              >
-                <td appRtColCell="sessionDate">{{ s.sessionDate }}</td>
-                <td appRtColCell="weekday">{{ getWeekdayLabel(s.weekday) }}</td>
-                <td appRtColCell="time">
-                  {{ s.startTime.substring(0, 5) }}-{{ s.endTime.substring(0, 5) }}
-                </td>
-                <td appRtColCell="teacherName">{{ s.teacherName ?? '—' }}</td>
-                <td appRtColCell="status">
-                  @if (s.exists) {
-                    <span
-                      class="inline-flex rounded-[4px] bg-zinc-100 px-1.5 py-0.5 text-[10px] font-bold text-zinc-600"
-                      >已存在</span
-                    >
-                  } @else {
-                    <span
-                      class="inline-flex rounded-[4px] bg-success-100 px-1.5 py-0.5 text-[10px] font-bold text-success-600"
-                      >將新增</span
-                    >
-                  }
-                </td>
-              </tr>
-            }
-          </ng-template>
-        }
-      </div>
     }
   </div>
 
   <ng-container dialogFoot>
     @if (step() === 'result') {
       <p-button label="稍後指派" [text]="true" severity="secondary" (onClick)="closeDone()" />
-      @if (generationResult()!.createdUnassigned > 0) {
-        <p-button
-          label="前往指派老師"
-          icon="pi pi-arrow-right"
-          iconPos="right"
-          (onClick)="goToSessionsList()"
-        />
-      } @else {
-        <p-button label="完成" (onClick)="closeDone()" />
-      }
-    } @else if (step() === 'input') {
-      <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
       <p-button
-        label="預覽課堂"
-        icon="pi pi-eye"
-        [loading]="loading()"
-        [disabled]="!hasBothClassDates() && (!generateFrom() || !generateTo())"
-        (onClick)="preview()"
+        label="前往指派老師"
+        icon="pi pi-arrow-right"
+        iconPos="right"
+        (onClick)="goToSessionsList()"
       />
     } @else {
-      <p-button
-        label="返回修改"
-        icon="pi pi-arrow-left"
-        [text]="true"
-        severity="secondary"
-        (onClick)="step.set('input')"
-      />
-      <p-button
-        label="確認建立"
-        icon="pi pi-check"
-        [loading]="loading()"
-        [disabled]="newCount() === 0"
-        (onClick)="confirm()"
-      />
+      <p class="form-dialog__why" aria-live="polite">{{ why() }}</p>
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+        [disabled]="loading()"
+        (click)="cancel()"
+      >
+        取消
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-accent-vivid bg-accent-vivid text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2"
+        data-testid="gen-next"
+        [attr.aria-disabled]="loading() || (step() === 'preview' && includedCount() === 0)"
+        (click)="next()"
+      >
+        @if (loading()) {
+          {{ step() === 'preview' ? '產生中…' : '預覽中…' }}
+        } @else {
+          {{ step() === 'preview' ? '確認產生 ' + includedCount() + ' 堂' : '預覽課堂' }}
+        }
+      </button>
     }
   </ng-container>
 </app-dialog-frame>

@@ -159,6 +159,49 @@ describe('AcademyExamFormDialogComponent', () => {
     );
   });
 
+  describe('送出只走 form 的 submit 一條路（送出鈕在殼的底部列、form 外，dialog-frame.md）', () => {
+    async function filled() {
+      await createComponent({ data: { mode: 'create' } });
+      (component as unknown as { formData: { set: (v: unknown) => void } }).formData.set({
+        name: '模擬考',
+        examType: 'mock_exam',
+        subjectId: 's1',
+        campusId: 'c1',
+        examDate: '2026-04-20',
+        totalScore: 100,
+        passScore: 70,
+        scopeNote: '',
+        classIds: ['cls-1'],
+      });
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      return {
+        form: el.querySelector<HTMLFormElement>('form#academy-exam-form')!,
+        submit: el.querySelector<HTMLButtonElement>(
+          'button[type="submit"][form="academy-exam-form"]',
+        )!,
+      };
+    }
+
+    it('點底部的「建立考試」：送一次', async () => {
+      const { submit } = await filled();
+      // 數 save 而不是 create：save 進去就設 saving，第二次會被擋掉，數 create 看不出「點一次送兩次」
+      const save = vi.spyOn(component as unknown as { save: () => void }, 'save');
+      expect(submit).not.toBeNull();
+      submit.click();
+      expect(save).toHaveBeenCalledTimes(1);
+      expect(academyExamsServiceMock.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('欄位按 Enter（form submit）：送一次', async () => {
+      const { form } = await filled();
+      const save = vi.spyOn(component as unknown as { save: () => void }, 'save');
+      form.dispatchEvent(new Event('submit', { cancelable: true }));
+      expect(save).toHaveBeenCalledTimes(1);
+      expect(academyExamsServiceMock.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('blocks save when passScore 超過 totalScore（跟後端 CHECK 同一條界線）', async () => {
     await createComponent({ data: { mode: 'create' } });
     (component as unknown as { formData: { set: (v: unknown) => void } }).formData.set({

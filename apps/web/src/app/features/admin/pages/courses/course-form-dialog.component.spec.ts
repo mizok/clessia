@@ -112,6 +112,42 @@ describe('CourseFormDialogComponent', () => {
     );
   });
 
+  describe('送出只走 form 的 submit 一條路（送出鈕在殼的底部列、form 外，dialog-frame.md）', () => {
+    function filled() {
+      (
+        component as unknown as { formData: { update: (fn: (f: object) => object) => void } }
+      ).formData.update((f) => ({
+        ...f,
+        subjectId: 'subject-1',
+        name: '國文先修班',
+        gradeLevels: ['J1'],
+      }));
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      // 數 save 而不是 create：save 進去就設 loading，第二次會被擋掉，數 create 看不出「點一次送兩次」
+      const save = vi.spyOn(component as unknown as { save: () => void }, 'save');
+      return {
+        save,
+        form: el.querySelector<HTMLFormElement>('form#course-form')!,
+        submit: el.querySelector<HTMLButtonElement>('button[type="submit"][form="course-form"]')!,
+      };
+    }
+
+    it('點底部的「建立課程」：送一次', () => {
+      const { save, submit } = filled();
+      submit.click();
+      expect(save).toHaveBeenCalledTimes(1);
+      expect(coursesServiceMock.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('欄位按 Enter（form submit）：送一次', () => {
+      const { save, form } = filled();
+      form.dispatchEvent(new Event('submit', { cancelable: true }));
+      expect(save).toHaveBeenCalledTimes(1);
+      expect(coursesServiceMock.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('opens subject manager with the overlay container', () => {
     (component as unknown as { openSubjectManager: () => void }).openSubjectManager();
 

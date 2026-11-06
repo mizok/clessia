@@ -1,158 +1,161 @@
+<!--
+  共用殼（#2290）：對話框模式（從表單開的 DynamicDialog）才有 h2＋✕；內嵌模式（設定頁）照舊只有內容。
+  內容只寫一份，兩種模式共用（ngTemplateOutlet）。
+-->
 @if (isDialog()) {
-  <div class="dialog-header-inline">
-    <div class="dialog-header-inline__title-container">
-      <h2 class="dialog-header-inline__title">科目管理</h2>
-    </div>
-    <button class="dialog-header-inline__close size-11" aria-label="關閉" (click)="cancel()">
-      <i class="pi pi-times"></i>
-    </button>
-  </div>
+  <app-dialog-frame title="科目管理" (closed)="cancel()">
+    <ng-container [ngTemplateOutlet]="content" />
+  </app-dialog-frame>
+} @else {
+  <ng-container [ngTemplateOutlet]="content" />
 }
 
-<div class="subject-manager">
-  <div class="subject-manager__body flex min-h-[120px] flex-col gap-1">
-    @if (notice(); as n) {
-      <app-inline-notice
-        [severity]="n.severity"
-        [summary]="n.summary"
-        [detail]="n.detail"
-        (dismissed)="dismissNotice()"
-      />
-    }
-
-    <!-- Loading skeleton -->
-    @if (loading()) {
-      @for (_ of [1, 2, 3]; track $index) {
-        <div
-          class="subject-manager__row subject-manager__row--skeleton flex cursor-default items-center gap-2 rounded-md px-0 py-2 [transition:background_0.15s] hover:bg-zinc-50"
-        >
-          <span class="skeleton-bar"></span>
-        </div>
+<ng-template #content>
+  <div class="subject-manager">
+    <div class="subject-manager__body flex min-h-[120px] flex-col gap-1">
+      @if (notice(); as n) {
+        <app-inline-notice
+          [severity]="n.severity"
+          [summary]="n.summary"
+          [detail]="n.detail"
+          (dismissed)="dismissNotice()"
+        />
       }
-    } @else if (loadFailed()) {
-      <!--
-        **失敗時連「新增」欄位都不渲染**：你不知道現有科目有哪些，
-        而那顆新增會邀請使用者建出重複的科目（#788 的理由，逐字適用）。
-      -->
-      <app-load-failed description="沒有讀到科目清單，可能是連線問題" (retry)="loadSubjects()" />
-    } @else {
-      <!-- Subject list -->
-      @for (subject of subjects(); track subject.id) {
-        <div
-          [style.view-transition-name]="'subject-' + subject.id"
-          class="subject-manager__row vt-row grid min-h-[68px] cursor-default grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-0 border-b border-solid border-zinc-200 py-3 wide:gap-x-5"
-        >
-          @if (editingId() === subject.id) {
-            <!-- Inline edit mode -->
-            <input
-              pInputText
-              class="subject-manager__input flex-1 text-[0.9375rem]"
-              [ngModel]="editingName()"
-              (ngModelChange)="editingName.set($event)"
-              (keydown)="onEditNameKeydown($event)"
-              [disabled]="saving()"
-              autofocus
-            />
-            <div class="flex gap-1">
-              <p-button
-                icon="pi pi-check"
-                [rounded]="true"
-                [text]="true"
-                severity="success"
-                size="small"
-                [loading]="saving()"
-                (onClick)="confirmRename()"
-                pTooltip="確認"
-                ariaLabel="確認改名"
-                tooltipPosition="top"
-              />
-              <p-button
-                icon="pi pi-times"
-                [rounded]="true"
-                [text]="true"
-                severity="secondary"
-                size="small"
+
+      <!-- Loading skeleton -->
+      @if (loading()) {
+        @for (_ of [1, 2, 3]; track $index) {
+          <div
+            class="subject-manager__row subject-manager__row--skeleton flex cursor-default items-center gap-2 rounded-md px-0 py-2 [transition:background_0.15s] hover:bg-zinc-50"
+          >
+            <span class="skeleton-bar"></span>
+          </div>
+        }
+      } @else if (loadFailed()) {
+        <!--
+          **失敗時連「新增」欄位都不渲染**：你不知道現有科目有哪些，
+          而那顆新增會邀請使用者建出重複的科目（#788 的理由，逐字適用）。
+        -->
+        <app-load-failed description="沒有讀到科目清單，可能是連線問題" (retry)="loadSubjects()" />
+      } @else {
+        <!-- Subject list -->
+        @for (subject of subjects(); track subject.id) {
+          <div
+            [style.view-transition-name]="'subject-' + subject.id"
+            class="subject-manager__row vt-row grid min-h-[68px] cursor-default grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-0 border-b border-solid border-zinc-200 py-3 wide:gap-x-5"
+          >
+            @if (editingId() === subject.id) {
+              <!-- Inline edit mode -->
+              <input
+                pInputText
+                class="subject-manager__input flex-1 text-[0.9375rem]"
+                [ngModel]="editingName()"
+                (ngModelChange)="editingName.set($event)"
+                (keydown)="onEditNameKeydown($event)"
                 [disabled]="saving()"
-                (onClick)="cancelEdit()"
-                pTooltip="取消"
-                ariaLabel="取消改名"
-                tooltipPosition="top"
+                autofocus
               />
-            </div>
-          } @else {
-            <!-- Display mode -->
-            <div class="subject-manager__name-stack flex min-w-0 flex-1 flex-col gap-0.5">
-              <div class="subject-manager__name text-lg leading-normal font-bold text-zinc-900">
-                {{ subject.name }}
+              <div class="flex gap-1">
+                <p-button
+                  icon="pi pi-check"
+                  [rounded]="true"
+                  [text]="true"
+                  severity="success"
+                  size="small"
+                  [loading]="saving()"
+                  (onClick)="confirmRename()"
+                  pTooltip="確認"
+                  ariaLabel="確認改名"
+                  tooltipPosition="top"
+                />
+                <p-button
+                  icon="pi pi-times"
+                  [rounded]="true"
+                  [text]="true"
+                  severity="secondary"
+                  size="small"
+                  [disabled]="saving()"
+                  (onClick)="cancelEdit()"
+                  pTooltip="取消"
+                  ariaLabel="取消改名"
+                  tooltipPosition="top"
+                />
               </div>
-              <!-- 常駐文字，不是只靠 tooltip —— hover 在觸控裝置上摸不到。沒被用到也講（A6） -->
-              <span class="subject-manager__usage-hint text-sm leading-normal text-zinc-600">{{
-                deleteBlockReason(subject) ?? '還沒被用到'
-              }}</span>
-            </div>
-            <!-- A6 `.icobtn` 是 40px；觸控下限 44px（A27，harness 守）優先 -->
-            <div class="flex gap-1">
-              <button
-                type="button"
-                class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100 wide:size-10"
-                pTooltip="改名"
-                tooltipPosition="top"
-                [attr.aria-label]="'改名 ' + subject.name"
-                (click)="startEdit(subject)"
-              >
-                <i class="pi pi-pencil" aria-hidden="true"></i>
-              </button>
-              <!-- 被用到的不灰掉：按了跳說明（A6「不是只灰掉」），只把圖示降成淡色 -->
-              <button
-                type="button"
-                class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent hover:bg-zinc-100 wide:size-10"
-                [class]="deleteBlockReason(subject) ? 'text-zinc-400' : 'text-zinc-800'"
-                [pTooltip]="deleteBlockReason(subject) ?? '刪除'"
-                tooltipPosition="top"
-                [attr.aria-label]="
-                  deleteBlockReason(subject)
-                    ? '刪除 ' + subject.name + '（使用中，不能刪，按了看原因）'
-                    : '刪除 ' + subject.name
-                "
-                (click)="confirmDelete(subject)"
-              >
-                <i class="pi pi-trash" aria-hidden="true"></i>
-              </button>
-            </div>
-          }
+            } @else {
+              <!-- Display mode -->
+              <div class="subject-manager__name-stack flex min-w-0 flex-1 flex-col gap-0.5">
+                <div class="subject-manager__name text-lg leading-normal font-bold text-zinc-900">
+                  {{ subject.name }}
+                </div>
+                <!-- 常駐文字，不是只靠 tooltip —— hover 在觸控裝置上摸不到。沒被用到也講（A6） -->
+                <span class="subject-manager__usage-hint text-sm leading-normal text-zinc-600">{{
+                  deleteBlockReason(subject) ?? '還沒被用到'
+                }}</span>
+              </div>
+              <!-- A6 `.icobtn` 是 40px；觸控下限 44px（A27，harness 守）優先 -->
+              <div class="flex gap-1">
+                <button
+                  type="button"
+                  class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100 wide:size-10"
+                  pTooltip="改名"
+                  tooltipPosition="top"
+                  [attr.aria-label]="'改名 ' + subject.name"
+                  (click)="startEdit(subject)"
+                >
+                  <i class="pi pi-pencil" aria-hidden="true"></i>
+                </button>
+                <!-- 被用到的不灰掉：按了跳說明（A6「不是只灰掉」），只把圖示降成淡色 -->
+                <button
+                  type="button"
+                  class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent hover:bg-zinc-100 wide:size-10"
+                  [class]="deleteBlockReason(subject) ? 'text-zinc-400' : 'text-zinc-800'"
+                  [pTooltip]="deleteBlockReason(subject) ?? '刪除'"
+                  tooltipPosition="top"
+                  [attr.aria-label]="
+                    deleteBlockReason(subject)
+                      ? '刪除 ' + subject.name + '（使用中，不能刪，按了看原因）'
+                      : '刪除 ' + subject.name
+                  "
+                  (click)="confirmDelete(subject)"
+                >
+                  <i class="pi pi-trash" aria-hidden="true"></i>
+                </button>
+              </div>
+            }
+          </div>
+        }
+
+        @if (subjects().length === 0) {
+          <p class="subject-manager__empty px-0 py-4 text-center text-[0.875rem] text-zinc-500">
+            尚無科目，請新增
+          </p>
+        }
+
+        <!-- Add new：A6 `.addrow`（輸入框 `.acset__in` 40 高、zinc-300 框；鈕是 `.btn` 白底框 13px／600、0 16px）。
+             手機高度 44（A27／R3）。鈕不灰掉：空著按會提示並聚焦輸入框（A6 data-add-subj） -->
+        <div class="subject-manager__add mt-5 flex max-w-[520px] items-center gap-2">
+          <input
+            #newNameInput
+            pInputText
+            class="subject-manager__input h-11 min-w-0 flex-1 border-zinc-300 px-3 py-0 text-lg wide:h-10 wide:text-base"
+            placeholder="新增科目名稱"
+            aria-label="新增科目名稱"
+            [ngModel]="newSubjectName()"
+            (ngModelChange)="newSubjectName.set($event)"
+            (keydown)="onNewNameKeydown($event)"
+            [disabled]="saving()"
+          />
+          <p-button
+            icon="pi pi-plus"
+            label="新增"
+            severity="secondary"
+            [outlined]="true"
+            styleClass="h-11 gap-1.5 border-zinc-300 bg-white px-4 py-0 text-md leading-normal text-zinc-900 wide:h-9 [&_.p-button-label]:font-semibold"
+            [loading]="saving()"
+            (onClick)="addSubject()"
+          />
         </div>
       }
-
-      @if (subjects().length === 0) {
-        <p class="subject-manager__empty px-0 py-4 text-center text-[0.875rem] text-zinc-500">
-          尚無科目，請新增
-        </p>
-      }
-
-      <!-- Add new：A6 `.addrow`（輸入框 `.acset__in` 40 高、zinc-300 框；鈕是 `.btn` 白底框 13px／600、0 16px）。
-           手機高度 44（A27／R3）。鈕不灰掉：空著按會提示並聚焦輸入框（A6 data-add-subj） -->
-      <div class="subject-manager__add mt-5 flex max-w-[520px] items-center gap-2">
-        <input
-          #newNameInput
-          pInputText
-          class="subject-manager__input h-11 min-w-0 flex-1 border-zinc-300 px-3 py-0 text-lg wide:h-10 wide:text-base"
-          placeholder="新增科目名稱"
-          aria-label="新增科目名稱"
-          [ngModel]="newSubjectName()"
-          (ngModelChange)="newSubjectName.set($event)"
-          (keydown)="onNewNameKeydown($event)"
-          [disabled]="saving()"
-        />
-        <p-button
-          icon="pi pi-plus"
-          label="新增"
-          severity="secondary"
-          [outlined]="true"
-          styleClass="h-11 gap-1.5 border-zinc-300 bg-white px-4 py-0 text-md leading-normal text-zinc-900 wide:h-9 [&_.p-button-label]:font-semibold"
-          [loading]="saving()"
-          (onClick)="addSubject()"
-        />
-      </div>
-    }
+    </div>
   </div>
-</div>
+</ng-template>
