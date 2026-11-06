@@ -177,7 +177,7 @@ export class ShellLayoutComponent {
   protected openAccountSettings() {
     this.hide('shell-account');
     this.dialogService.open(AccountSettingsDialogComponent, {
-      width: '480px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainerService.getContainer() ?? 'body',

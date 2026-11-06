@@ -1,18 +1,5 @@
-<div class="form-dialog">
-  <div class="dialog-header-inline">
-    <div class="dialog-header-inline__content">
-      <span class="dialog-header-inline__title">帳號設定</span>
-    </div>
-    <button
-      type="button"
-      class="dialog-header-inline__close size-11"
-      (click)="close()"
-      aria-label="關閉"
-    >
-      <i class="pi pi-times"></i>
-    </button>
-  </div>
-
+<!-- 共用殼（#2290）：h2「帳號設定」當對話框的可及名稱（原本是 span、沒有名稱）＋✕；內距由殼給 -->
+<app-dialog-frame title="帳號設定" (closed)="close()">
   <div
     class="account-settings__section flex flex-col gap-3 border-b border-b-zinc-100 last:border-b-0"
   >
@@ -282,4 +269,4 @@
       </p>
     </div>
   }
-</div>
+</app-dialog-frame>

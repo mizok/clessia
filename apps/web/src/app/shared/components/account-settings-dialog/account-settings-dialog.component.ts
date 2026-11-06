@@ -1,3 +1,4 @@
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { DialogService } from 'primeng/dynamicdialog';
 import {
   ConfirmDialogComponent,
@@ -25,7 +26,7 @@ type FieldKey = 'displayName' | 'nickname' | 'email' | 'phone' | 'birthday';
 @Component({
   selector: 'app-account-settings-dialog',
   standalone: true,
-  imports: [FormsModule, InputTextModule, ButtonModule, DatePickerModule],
+  imports: [FormsModule, InputTextModule, ButtonModule, DatePickerModule, DialogFrameComponent],
   // 確認對話框在這個對話框上面再開一層（同 class-form-dialog）
   providers: [DialogService],
   templateUrl: './account-settings-dialog.component.html',

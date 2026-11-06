@@ -224,7 +224,7 @@ export class CourseFormDialogComponent {
 
   protected openSubjectManager(): void {
     const dialogRef = this.dialogService.open(SubjectManagerComponent, {
-      width: '400px',
+      width: 'var(--dlg-w-sm)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer ?? 'body',
