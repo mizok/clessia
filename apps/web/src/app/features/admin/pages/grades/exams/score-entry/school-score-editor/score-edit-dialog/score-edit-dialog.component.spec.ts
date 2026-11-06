@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ConfirmationService, MessageService } from 'primeng/api';
+import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { of } from 'rxjs';
 
@@ -45,7 +45,6 @@ describe('ScoreEditDialogComponent', () => {
           },
         },
         { provide: MessageService, useValue: { add: () => undefined } },
-        { provide: ConfirmationService, useValue: { confirm: () => undefined } },
       ],
     }).compileComponents();
 

@@ -1,3 +1,8 @@
+import { DialogService } from 'primeng/dynamicdialog';
+import {
+  ConfirmDialogComponent,
+  type ConfirmDialogData,
+} from '@shared/components/confirm-dialog/confirm-dialog.component';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -13,8 +18,7 @@ import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { ButtonModule } from 'primeng/button';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { ConfirmationService, MessageService } from 'primeng/api';
+import { MessageService } from 'primeng/api';
 import { DrawerModule } from 'primeng/drawer';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { InputNumberModule } from 'primeng/inputnumber';
@@ -82,13 +86,13 @@ const SCORE_STATUS_OPTIONS: Array<{ label: string; value: SchoolScoreStatus }> =
     DialogFrameComponent,
     FormsModule,
     ButtonModule,
-    ConfirmDialogModule,
     DrawerModule,
     InputNumberModule,
     InputTextModule,
     SelectModule,
   ],
-  providers: [ConfirmationService],
+  // 確認對話框在這個對話框上面再開一層（同 class-form-dialog）
+  providers: [DialogService],
   templateUrl: './score-edit-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -97,7 +101,7 @@ export class ScoreEditDialogComponent implements OnInit {
   private readonly host = inject(ElementRef);
   private readonly refData = inject(ReferenceDataService);
   private readonly messageService = inject(MessageService);
-  private readonly confirmationService = inject(ConfirmationService);
+  private readonly dialogService = inject(DialogService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly ref = inject(DynamicDialogRef);
   private readonly config = inject(DynamicDialogConfig<ScoreEditDialogData>);
@@ -198,14 +202,11 @@ export class ScoreEditDialogComponent implements OnInit {
       return;
     }
 
-    this.confirmationService.confirm({
-      message: '尚有未儲存的變更，確定要關閉嗎？',
-      header: '確認關閉',
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: '關閉',
-      rejectLabel: '取消',
-      accept: () => this.ref.close(),
-    });
+    this.confirm(
+      '確認關閉',
+      { message: '尚有未儲存的變更，確定要關閉嗎？', acceptLabel: '關閉', rejectLabel: '取消' },
+      () => this.ref.close(),
+    );
   }
 
   protected save(): void {
@@ -324,5 +325,20 @@ export class ScoreEditDialogComponent implements OnInit {
     if (currentSheetRow?.subjectId === subjectId) {
       this.subjectSheetRow.set(nextRow);
     }
+  }
+
+  /** 確認對話框（#2290：p-confirmdialog 改走共用殼的 ConfirmDialog，同 staff／parents 頁） */
+  private confirm(header: string, data: ConfirmDialogData, onAccept: () => void): void {
+    this.dialogService
+      .open(ConfirmDialogComponent, {
+        header,
+        width: 'var(--dlg-w-md)',
+        modal: true,
+        showHeader: false,
+        data,
+      })
+      ?.onClose.subscribe((ok) => {
+        if (ok) onAccept();
+      });
   }
 }

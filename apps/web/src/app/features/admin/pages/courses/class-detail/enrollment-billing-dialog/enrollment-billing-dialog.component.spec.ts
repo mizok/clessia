@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
 import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { ConfirmationService, MessageService } from 'primeng/api';
+import { MessageService } from 'primeng/api';
 
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import { FeeTemplatesService, type FeeTemplate } from '@core/fee-templates.service';
@@ -83,7 +83,6 @@ describe('EnrollmentBillingDialogComponent', () => {
         { provide: DynamicDialogRef, useValue: dialogRef },
         { provide: DynamicDialogConfig, useValue: { data: { enrollment: data } } },
         MessageService,
-        ConfirmationService,
       ],
     }).compileComponents();
 
@@ -267,8 +266,7 @@ describe('EnrollmentBillingDialogComponent', () => {
         pack,
       );
 
-      // ConfirmationService 的預設對話框需要使用者互動才會 accept，
-      // 這裡只驗證「還沒確認前不會呼叫 delete」——確認流程本身是 PrimeNG 元件的責任
+      // 確認走 ConfirmDialog（#2290）：使用者還沒按「刪除」前不會呼叫 delete
       expect(sessionPacks.delete).not.toHaveBeenCalled();
     });
   });
