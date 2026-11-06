@@ -8,6 +8,8 @@ export interface ConfirmDialogData {
   message: string;
   acceptLabel?: string;
   rejectLabel?: string;
+  /** false：只留主鈕（學校「它已經停用了」只是告知，沒有第二個選擇） */
+  rejectVisible?: boolean;
   /** 不再影響顏色：A6 的確認主鈕一律是 cta（#2290）。留著讓既有呼叫端不用改 */
   acceptSeverity?: 'danger' | 'warn' | 'success' | 'secondary';
   requireNotes?: boolean;
@@ -40,7 +42,12 @@ export class ConfirmDialogComponent {
     this.ref.close(this.data.requireNotes ? { notes: this.notes.trim() } : true);
   }
 
+  /** 按次要鈕回 false；✕／Esc 回 undefined —— 次要鈕是第二個動作時（請假「完全刪除」）分得出來 */
   protected reject(): void {
     this.ref.close(false);
+  }
+
+  protected dismiss(): void {
+    this.ref.close();
   }
 }
