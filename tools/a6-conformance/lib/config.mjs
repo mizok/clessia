@@ -1504,10 +1504,33 @@ export const PAGES = {
     // 課程 id seed.sql 也是隨機的；網址的 courseId 段頁面沒讀（class-detail.page.ts resolvedCourseId 沒有讀者），放佔位字串
     app: '/admin/courses/seed-course/classes/62000000-0000-0000-0000-000000000001',
     // 產生課堂（#2290 courses）：稿 genDialog 是原生 dialog.acset.fdlg；app 是 DialogService（共用殼）。
-    // 課程頁的 gen 要先有「需介入」的班，seed 在稿的時間點沒有，量不到 —— 改在這裡量
-    a6Open: { gen: { click: '[data-gen]', root: 'dialog[open]' } },
-    appOpen: { gen: { click: 'button:has-text("產生課堂")', root: '.p-dialog:has(app-generate-sessions-dialog)' } },
+    // 課程頁的 gen 要先有「需介入」的班，seed 在稿的時間點沒有，量不到 —— 改在這裡量。
+    // 名單的加入學生、Excel 匯入：稿是 A2.form（dialog.fdlg）。稿的「複製名單」是複製到剪貼簿，
+    // 跟 app 的「從其他班複製」不是同一件事，不量
+    a6Open: {
+      gen: { click: '[data-gen]', root: 'dialog[open]' },
+      add: { click: '[data-add]', root: 'dialog[open]' },
+      import: { click: '[data-import]', root: 'dialog[open]' },
+    },
+    appOpen: {
+      gen: { click: 'button:has-text("產生課堂")', root: '.p-dialog:has(app-generate-sessions-dialog)' },
+      add: { click: 'button:has-text("加入學生")', root: '.p-dialog:has(app-student-picker-dialog)' },
+      import: { click: 'button:has-text("Excel 匯入")', root: '.p-dialog:has(app-roster-import-dialog)' },
+    },
     deviations: [
+      // 加入學生、Excel 匯入的關閉鈕：手機 44×44（稿 34／35 寬）
+      ...['add', 'import'].flatMap((pop) =>
+        [
+          { status: '尺寸', widths: [360], detail: '^寬 3\\d→44$' },
+          { status: '位置', widths: [360] },
+        ].map((d) => ({
+          ...d,
+          pop,
+          a6: '>landmark:dialog\\[[^\\]]*\\]>control:button\\[關閉\\]$',
+          reason: '可點元素基底 ≥44px',
+          source: `${rule('R3')}`,
+        })),
+      ),
       noCampusSwitch('一個班只屬於一間分校，頂欄切到別的分校會跟頁面矛盾'),
       // 量的是 seed.sql 的「數學班 A」，稿是「國三數學A班」：班名不同，狀態標跟著位移
       {
