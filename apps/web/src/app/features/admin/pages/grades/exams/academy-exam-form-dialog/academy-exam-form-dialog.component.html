@@ -13,6 +13,7 @@
   } @else {
     <!-- A6 `.fdlg__body`：兩欄 grid；手機一欄 -->
     <form
+      id="academy-exam-form"
       ngNoForm
       class="grid grid-cols-2 gap-x-3 gap-y-4 max-wide:grid-cols-1"
       (submit)="$event.preventDefault(); save()"
@@ -211,11 +212,12 @@
       >
         取消
       </button>
+      <!-- 送出鈕在殼的底部列（form 外）：type=submit＋form 指回表單，只走 form 的 submit 一條路（dialog-frame.md） -->
       <button
-        type="button"
+        type="submit"
+        form="academy-exam-form"
         class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
         [attr.aria-disabled]="!canSave() || saving()"
-        (click)="save()"
       >
         {{ saving() ? (isEditing() ? '儲存中…' : '建立中…') : isEditing() ? '儲存' : '建立考試' }}
       </button>
