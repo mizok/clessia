@@ -761,6 +761,16 @@ export const PAGES = {
     // 第三層：年級名單隨資料（稿是國一～小五，demo 是高一～國三）
     behaveIgnore: ['^[高國小][一二三四五六]#?$'],
     deviations: [
+      // 帳號設定：寬照 #2290「寬三種」用 520（稿 .acset 480），✕ 跟著右移 40
+      {
+        status: '位置',
+        widths: [1440],
+        pop: 'acset',
+        a6: '>landmark:dialog\\[帳號設定\\]>control:button\\[關閉\\]$',
+        detail: '^相對「帳號設定」 Δx \\+40、Δy 0（',
+        reason: '對話框寬歸成 420／520／760 三種，帳號設定用 520（稿 .acset 480）',
+        source: `${rule('R5')}「對話框寬三種」2026-11-05；#2290`,
+      },
       // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 courses／grades-class 那條
       ...['尺寸', '樣式', '位置'].map((status) => ({
         status,
