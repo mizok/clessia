@@ -324,17 +324,23 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
         'user_id',
         (roles ?? []).map((r) => r.user_id as string),
       )
+      .order('created_at')
+      .order('id')
       .limit(1)
       .maybeSingle();
     if (error || !admin) throw new Error(`seed 裡找不到 admin：${error?.message ?? '沒有列'}`);
     ctx.orgId = admin.org_id as string;
     ctx.userId = admin.user_id as string;
 
+    // **挑最早建立的那列**（#2333）：別支契約會在同一個 seed org 建臨時列、afterAll 刪掉（course-list 的日界線班）。
+    // 不排序時 limit 1 可能挑到它，並行跑到一半被刪 → 404。seed 列在 db:reset 時就建好，一定最早
     const first = async (table: string, column = 'id') => {
       const { data, error: e } = await supabase
         .from(table)
         .select(column)
         .eq('org_id', ctx.orgId)
+        .order('created_at')
+        .order('id')
         .limit(1)
         .single();
       if (e || !data) throw new Error(`seed 裡找不到 ${table}：${e?.message}`);
@@ -355,16 +361,21 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
     ids['{leave}'] = await first('leave_requests');
 
     // 有班的那場校內考，classId／examId 要對得上
+    // academy_exam_classes 沒有 created_at，從考試這邊挑最早、有班的那場
     const { data: examClass, error: examClassError } = await supabase
-      .from('academy_exam_classes')
-      .select('exam_id, class_id, academy_exams!inner(org_id)')
-      .eq('academy_exams.org_id', ctx.orgId)
+      .from('academy_exams')
+      .select('id, academy_exam_classes!inner(class_id)')
+      .eq('org_id', ctx.orgId)
+      .order('created_at')
+      .order('id')
       .limit(1)
       .single();
     if (examClassError || !examClass)
       throw new Error(`seed 裡找不到 academy_exam_classes：${examClassError?.message}`);
-    ids['{academyExam}'] = examClass.exam_id as string;
-    ids['{examClass}'] = examClass.class_id as string;
+    ids['{academyExam}'] = examClass.id as string;
+    ids['{examClass}'] = (
+      examClass.academy_exam_classes as Array<{ class_id: string }>
+    )[0]!.class_id;
 
     // 有孩子的家長：家長端點用他的身分打
     const { data: parent, error: parentError } = await supabase
@@ -372,6 +383,8 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
       .select('id, user_id, parent_student_relations!inner(student_id)')
       .eq('org_id', ctx.orgId)
       .not('user_id', 'is', null)
+      .order('created_at')
+      .order('id')
       .limit(1)
       .single();
     if (parentError || !parent)
@@ -395,6 +408,8 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
         'class_id',
         (childEnrollments ?? []).map((e) => e['class_id'] as string),
       )
+      .order('created_at')
+      .order('id')
       .limit(1)
       .maybeSingle();
     if (!childSession) throw new Error('seed 裡家長的孩子沒有課堂，課務異動通知的契約驗不到');
