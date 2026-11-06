@@ -1,4 +1,5 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import {
   AttendanceService,
   type AttendanceRoster,
@@ -43,7 +44,13 @@ export interface RosterPanelSession {
 @Component({
   selector: 'app-attendance-roster-panel',
   standalone: true,
-  imports: [DataChipComponent, ButtonModule, ProgressSpinnerModule, InlineNoticeComponent],
+  imports: [
+    DialogFrameComponent,
+    DataChipComponent,
+    ButtonModule,
+    ProgressSpinnerModule,
+    InlineNoticeComponent,
+  ],
   templateUrl: './attendance-roster-panel.component.html',
   providers: [DialogService],
 })
@@ -57,6 +64,10 @@ export class AttendanceRosterPanelComponent implements OnInit {
   private initialStatus = new Map<string, 'present' | 'absent'>();
 
   protected readonly session = this.config.data as RosterPanelSession;
+  /** 殼的副標：日期 · 時段 */
+  protected readonly sub = [this.session.eventDate, this.session.timeRange]
+    .filter(Boolean)
+    .join(' · ');
 
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);

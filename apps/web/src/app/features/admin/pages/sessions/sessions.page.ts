@@ -1457,7 +1457,7 @@ export class SessionsPage implements OnInit {
     }
 
     const ref = this.dialogService.open(AttendanceRosterPanelComponent, {
-      width: '480px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       closable: false,
