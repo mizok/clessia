@@ -40,9 +40,9 @@ import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-fra
       (close)="onClosed()"
     >
       @if (campus(); as campus) {
-        <!-- 共用殼（#2290）。A6 的副標是教室清單＋每間「⋯」（按鈕在副標裡）→ 投影進 [dialogSub] -->
+        <!-- 共用殼（#2290）。A6 的副標是教室清單＋每間「⋯」；#2396 彈窗不放副標 → 清單搬進內容區第一行（D 類） -->
         <app-dialog-frame [title]="'教室：' + campus.name" (closed)="close()">
-          <p dialogSub class="dialog-header-inline__sub" data-rooms>
+          <p class="m-0 text-md text-zinc-600" data-rooms>
             @if (loadFailed()) {
               沒有讀到教室清單。<button
                 type="button"

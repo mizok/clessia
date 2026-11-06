@@ -79,15 +79,17 @@ describe('ClassroomsDialogComponent', () => {
     expect(sub).toBe('A教室（30人）、B教室');
   });
 
-  it('共用殼（#2290）：教室清單投影在殼的標頭（h2 之後），每間的「⋯」照樣在；dialog 的名稱指到 h2', async () => {
+  it('共用殼：教室清單在內容區第一行、不在標頭（#2396 不放副標），每間的「⋯」照樣在；dialog 的名稱指到 h2', async () => {
     const { el, fixture } = setup();
     await fixture.whenStable();
     const head = el.querySelector('.dialog-header-inline__content')!;
     const h2 = head.querySelector('h2')!;
+    const body = el.querySelector('.dialog-frame__body')!;
 
     expect(h2.textContent?.trim()).toBe('教室：中正分校');
-    expect(head.querySelector('[data-rooms]')).not.toBeNull();
-    expect(head.querySelectorAll('[data-rooms] button[aria-label$="的更多動作"]')).toHaveLength(2);
+    expect(head.querySelector('[data-rooms]')).toBeNull();
+    expect(body.firstElementChild!.matches('[data-rooms]')).toBe(true);
+    expect(body.querySelectorAll('[data-rooms] button[aria-label$="的更多動作"]')).toHaveLength(2);
     expect(el.querySelector('dialog')!.getAttribute('aria-labelledby')).toBe(h2.id);
   });
 
