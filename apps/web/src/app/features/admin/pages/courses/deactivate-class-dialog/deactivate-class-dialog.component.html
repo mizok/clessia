@@ -1,32 +1,39 @@
 <!-- 共用殼（#2290）。內容照 A6 class.html:249-256（A2.form）：一個「停用方式」radio＋單一送出（#2361） -->
 <app-dialog-frame [title]="'停用「' + (cls()?.name ?? '') + '」'" [sub]="sub()" (closed)="cancel()">
   <!-- 稿的 A2.form 把欄位包在 form 裡；送出鈕在殼的底部列，用 form 屬性指回（dialog-frame.md） -->
-  <form id="deactivate-form" class="min-w-0" (submit)="$event.preventDefault(); submit()">
-    <!-- 稿是 label（A2.form 的 radio 欄位）；radiogroup 沒有單一控制項可以 for，靠 aria-labelledby 指回來（同分校表單） -->
-    <label class="mb-1 block text-md font-semibold text-zinc-700" id="deactivate-mode-label"
-      >停用方式</label
-    >
-    <!-- A6 .fdlg__seg／.fdlg__opt：radio 包成框，選中的框加深 -->
-    <div class="flex flex-wrap gap-2" role="radiogroup" aria-labelledby="deactivate-mode-label">
-      @for (opt of modes; track opt.value) {
-        <label
-          class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 font-semibold text-zinc-900 has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset max-wide:h-11"
-        >
-          <input
-            type="radio"
-            name="deactivate-mode"
-            class="m-0 accent-zinc-900"
-            [value]="opt.value"
-            [checked]="mode() === opt.value"
-            [disabled]="loading()"
-            (change)="mode.set(opt.value)"
-          />{{ opt.label }}
-        </label>
-      }
+  <form
+    id="deactivate-form"
+    class="grid gap-x-3 gap-y-4"
+    (submit)="$event.preventDefault(); submit()"
+  >
+    <!-- A6 .acset__f：一個欄位（標籤＋選項＋說明） -->
+    <div class="min-w-0">
+      <!-- 稿是 label（A2.form 的 radio 欄位）；radiogroup 沒有單一控制項可以 for，靠 aria-labelledby 指回來（同分校表單） -->
+      <label class="mb-1 block text-md font-semibold text-zinc-700" id="deactivate-mode-label"
+        >停用方式</label
+      >
+      <!-- A6 .fdlg__seg／.fdlg__opt：radio 包成框，選中的框加深 -->
+      <div class="flex flex-wrap gap-2" role="radiogroup" aria-labelledby="deactivate-mode-label">
+        @for (opt of modes; track opt.value) {
+          <label
+            class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 font-semibold text-zinc-900 has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset max-wide:h-11"
+          >
+            <input
+              type="radio"
+              name="deactivate-mode"
+              class="m-0 accent-zinc-900"
+              [value]="opt.value"
+              [checked]="mode() === opt.value"
+              [disabled]="loading()"
+              (change)="mode.set(opt.value)"
+            />{{ opt.label }}
+          </label>
+        }
+      </div>
+      <p class="m-0 mt-1 text-sm text-zinc-600" data-testid="deactivate-hint">
+        停用並停課未來課堂：未來、還沒開始的課都改成停課，已上過的課保留。僅停用班級：已排的課照常上，之後不能再排新的課。
+      </p>
     </div>
-    <p class="m-0 mt-1 text-sm text-zinc-600" data-testid="deactivate-hint">
-      停用並停課未來課堂：未來、還沒開始的課都改成停課，已上過的課保留。僅停用班級：已排的課照常上，之後不能再排新的課。
-    </p>
   </form>
 
   <ng-container dialogFoot>
