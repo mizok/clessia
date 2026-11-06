@@ -1,4 +1,5 @@
 import { DatePipe } from '@angular/common';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
@@ -38,7 +39,14 @@ const MAX_CONTENT = 5000;
 @Component({
   selector: 'app-contact-book-entry-dialog',
   standalone: true,
-  imports: [DatePipe, StatusDotComponent, FormsModule, ButtonModule, TextareaModule],
+  imports: [
+    DatePipe,
+    StatusDotComponent,
+    FormsModule,
+    ButtonModule,
+    TextareaModule,
+    DialogFrameComponent,
+  ],
   /**
    * `MessageService` 與 toast 出口都是全站一份（#1615，`app.config.ts`＋`App` 的 `<app-toast>`）。
    * 這裡原本自己帶一組（#733）：老師端整條路上沒有 provider 也沒有 `<p-toast>`，
@@ -87,6 +95,15 @@ export class ContactBookEntryDialogComponent {
   protected readonly entryDate = computed(
     () => this.entry()?.entryDate ?? this.draft()?.entryDate ?? '',
   );
+  /** 殼的副標：日期 · 全部班名（#2080-1：列上跨班只寫第一個＋N，點開看全部）· 最後編輯者 */
+  protected readonly sub = computed(() => {
+    const e = this.entry();
+    return [
+      this.entryDate(),
+      ...(e?.classNames.length ? [e.classNames.join('、')] : []),
+      ...(e?.lastEditedByName ? [`最後由 ${e.lastEditedByName} 編輯`] : []),
+    ].join(' · ');
+  });
 
   /** 補寫時只要有字就算 dirty —— 沒有「原本的內容」可以比 */
   protected readonly dirty = computed(() => {

@@ -1,53 +1,70 @@
-<form [formGroup]="form" (ngSubmit)="submit()" class="session-op-form">
-  <div class="session-op-form__field">
-    <label for="substituteTeacher" class="session-op-form__label">
-      代課老師<span class="session-op-form__required">*</span>
-    </label>
-    <p-select
-      id="substituteTeacher"
-      formControlName="teacherId"
-      [options]="teacherOptions()"
-      optionLabel="displayName"
-      optionValue="id"
-      placeholder="選擇代課老師"
-      styleClass="w-full"
-      appendTo="body"
-      [filter]="true"
-      filterBy="displayName"
-      [loading]="loadingTeachers()"
+<!-- 共用殼（#2290）。A6 課表走批次步驟頁，沒畫單堂的這支；標題沿用產品原本的 header -->
+<app-dialog-frame title="安排代課" (closed)="closeDialog()">
+  <form
+    id="session-substitute-form"
+    [formGroup]="form"
+    (ngSubmit)="submit()"
+    class="session-op-form"
+  >
+    <div class="session-op-form__field">
+      <label for="substituteTeacher" class="session-op-form__label">
+        代課老師<span class="session-op-form__required">*</span>
+      </label>
+      <p-select
+        id="substituteTeacher"
+        formControlName="teacherId"
+        [options]="teacherOptions()"
+        optionLabel="displayName"
+        optionValue="id"
+        placeholder="選擇代課老師"
+        styleClass="w-full"
+        appendTo="body"
+        [filter]="true"
+        filterBy="displayName"
+        [loading]="loadingTeachers()"
+      >
+        <ng-template pTemplate="item" let-item>
+          <div class="flex items-center justify-between gap-2">
+            <span>{{ item.displayName }}</span>
+            <span
+              class="shrink-0 rounded-full bg-zinc-100 px-1.5 py-px text-xs font-medium whitespace-nowrap text-zinc-700"
+              >本週 {{ item.weeklySessionCount }} 堂</span
+            >
+          </div>
+        </ng-template>
+      </p-select>
+      @if (!loadingTeachers() && teacherOptions().length === 0) {
+        <p class="m-0 mt-2 text-sm text-zinc-500">目前沒有符合該課堂分校與科目的代課老師。</p>
+      }
+    </div>
+    <div class="session-op-form__field">
+      <label for="substituteReason" class="session-op-form__label">代課原因（選填）</label>
+      <textarea
+        id="substituteReason"
+        pTextarea
+        formControlName="reason"
+        placeholder="例如：原老師請假..."
+        class="session-op-form__textarea"
+      ></textarea>
+    </div>
+  </form>
+
+  <ng-container dialogFoot>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+      (click)="closeDialog()"
     >
-      <ng-template pTemplate="item" let-item>
-        <div class="flex items-center justify-between gap-2">
-          <span>{{ item.displayName }}</span>
-          <span
-            class="shrink-0 rounded-full bg-zinc-100 px-1.5 py-px text-xs font-medium whitespace-nowrap text-zinc-700"
-            >本週 {{ item.weeklySessionCount }} 堂</span
-          >
-        </div>
-      </ng-template>
-    </p-select>
-    @if (!loadingTeachers() && teacherOptions().length === 0) {
-      <p class="m-0 mt-2 text-sm text-zinc-500">目前沒有符合該課堂分校與科目的代課老師。</p>
-    }
-  </div>
-  <div class="session-op-form__field">
-    <label for="substituteReason" class="session-op-form__label">代課原因（選填）</label>
-    <textarea
-      id="substituteReason"
-      pTextarea
-      formControlName="reason"
-      placeholder="例如：原老師請假..."
-      class="session-op-form__textarea"
-    ></textarea>
-  </div>
-  <div class="session-op-form__footer">
-    <p-button label="取消" severity="secondary" [text]="true" (onClick)="closeDialog()" />
-    <p-button
-      label="確認代課"
-      severity="primary"
+      取消
+    </button>
+    <button
       type="submit"
-      [disabled]="form.invalid"
-      [loading]="isSubmitting()"
-    />
-  </div>
-</form>
+      form="session-substitute-form"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 border-accent-vivid bg-accent-vivid text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2"
+      data-testid="op-submit"
+      [disabled]="form.invalid || isSubmitting()"
+    >
+      {{ isSubmitting() ? '處理中…' : '確認代課' }}
+    </button>
+  </ng-container>
+</app-dialog-frame>

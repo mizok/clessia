@@ -376,9 +376,9 @@ export class StudentDetailPage implements OnInit {
   private askCardReason(header: string, message: string, onAccept: (reason: string) => void): void {
     const ref = this.dialogService.open(ConfirmDialogComponent, {
       header,
-      width: '420px',
+      width: 'var(--dlg-w-md)',
       modal: true,
-      showHeader: true,
+      showHeader: false,
       appendTo: this.overlayContainer || 'body',
       data: {
         message,
@@ -510,7 +510,7 @@ export class StudentDetailPage implements OnInit {
     event.stopPropagation();
     const ref = this.dialogService.open(EnrollmentBillingDialogComponent, {
       header: '計費設定',
-      width: '480px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',

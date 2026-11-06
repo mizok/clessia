@@ -1,14 +1,14 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { TextareaModule } from 'primeng/textarea';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import type { Session } from '@core/sessions.service';
 import { SessionsService } from '@core/sessions.service';
 
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 @Component({
   selector: 'app-session-cancel-dialog',
-  imports: [ReactiveFormsModule, ButtonModule, TextareaModule],
+  imports: [DialogFrameComponent, ReactiveFormsModule, TextareaModule],
   templateUrl: './session-cancel-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

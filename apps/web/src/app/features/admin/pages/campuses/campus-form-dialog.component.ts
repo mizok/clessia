@@ -60,6 +60,7 @@ type Mode = '' | 'per_session' | 'daily_checkin';
           (closed)="close()"
         >
           <form
+            id="campus-form"
             ngNoForm
             class="grid grid-cols-2 gap-x-3 gap-y-4 max-wide:grid-cols-1"
             (submit)="$event.preventDefault(); save()"
@@ -184,11 +185,12 @@ type Mode = '' | 'per_session' | 'daily_checkin';
             >
               取消
             </button>
+            <!-- 指回表單、不綁 click：欄位按 Enter 照樣送出（dialog-frame.md；順手修既有，換殼前就在 form 外） -->
             <button
-              type="button"
+              type="submit"
+              form="campus-form"
               class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-accent-vivid bg-accent-vivid hover:border-accent-vivid-2 hover:bg-accent-vivid-2"
               [attr.aria-disabled]="!!missingHint() || loading()"
-              (click)="save()"
             >
               {{ loading() ? (campus() ? '儲存中…' : '建立中…') : campus() ? '儲存' : '建立' }}
             </button>

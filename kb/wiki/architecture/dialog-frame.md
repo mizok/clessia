@@ -3,7 +3,7 @@ title: 對話框與貼底面板的共用規則（app-dialog-frame）
 summary: 全站對話框收斂成共用殼 app-dialog-frame（h2＋副標＋關閉、內距、sticky 底部、手機貼底抽屜的底部留白）；寬三種 --dlg-w-sm/md/lg、左右內距 --dlg-pad-x（24／手機 16）、貼底底部留白 --sheet-foot-gap＋safe-area 只墊一次；進退場時長走 --motion-* token，減少動態時只淡入淡出。#2290 第 3 步分批遷移中。
 category: architecture
 status: developing
-updated: 2026-11-05
+updated: 2026-11-06
 tags: [architecture, dialog, a6, motion, accessibility]
 ---
 
@@ -27,6 +27,7 @@ tags: [architecture, dialog, a6, motion, accessibility]
 ```
 
 - 副標要放按鈕或清單（教室對話框的教室清單＋「⋯」）：投影 `<p dialogSub class="dialog-header-inline__sub">…</p>`，放在 h2 之後；字串 `sub` 照舊，兩者擇一。
+- **有 `<form>` 的對話框**：送出鈕在殼的底部列、已經在 form 外面，要寫 `<button type="submit" form="<form 的 id>">`，**不綁 `(click)`**，只留 form 的 `(ngSubmit)` 一條路 —— 不指回表單，欄位按 Enter 就不送出（鍵盤退步）；兩條都留，按一次送兩次（#2362 二讀）。
 - 開窗端（DynamicDialog）：`width: 'var(--dlg-w-md)'`、`showHeader: false`；**不寫 `breakpoints`**（≤860 會被全站 `.p-dialog` 的 `width: 100% !important` 蓋掉，寫了也沒作用）。
 - 原生 `<dialog>`：殼放在 `<dialog>` 裡；`<dialog>` 自己帶 `aria-labelledby` 或靠殼的 `appDialogTitle`（找最近的 `[role=dialog]`）。
 
@@ -38,7 +39,7 @@ tags: [architecture, dialog, a6, motion, accessibility]
 | 可及名稱       | h2 掛 `appDialogTitle`（殼內建）。`showHeader: false` 時 PrimeNG 不掛 `aria-labelledby`，不補就只念「對話框」                                                                                                                                           | `dialog-title.directive.ts`     |
 | ✕              | `aria-label="關閉"`；手機 44、桌機 40                                                                                                                                                                                                                   | A6 `.acset__x`；R3／A27         |
 | 標頭內距       | 桌機 `16 16 8 24`；手機左距 16（跟內容對齊，A6 是 24）                                                                                                                                                                                                  | A6；#2290                       |
-| 寬             | `--dlg-w-sm` 420（確認）／`--dlg-w-md` 520（預設：表單、詳情）／`--dlg-w-lg` 760（寬內容）                                                                                                                                                              | A6 `.fdlg` 520、`.gdlg` 760     |
+| 寬             | `--dlg-w-sm` 420（單一欄位的小對話框；**確認對話框用 md**：A6 `confirmDel` 是 `.fdlg` 520，#2290 ConfirmDialog）／`--dlg-w-md` 520（預設：表單、詳情）／`--dlg-w-lg` 760（寬內容）                                                                                                                                                              | A6 `.fdlg` 520、`.gdlg` 760     |
 | 內容內距       | `--dlg-pad-x` 24／手機 16；上 8、下 24（手機 16）；`.p-dialog-content` 歸 0                                                                                                                                                                             | A6 `.acset__body`               |
 | 底部           | 有動作就 sticky；靠右、次要在左主要在右；左邊可放「還沒填」                                                                                                                                                                                             | A6 `.fdlg__foot`、`.gdlg__foot` |
 | 貼底抽屜的底部 | 底部列下內距＝`--sheet-foot-gap`（16）＋safe-area；沒有底部列時內容區最後留同一個值。**抽屜本體照 A6 貼底**（`margin: auto 0 0`），不浮起                                                                                                               | 使用者 11-05；#2290 Q1(b)       |

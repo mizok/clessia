@@ -401,7 +401,7 @@ export class ParentsPage implements OnInit {
 
   protected openCreateDialog(): void {
     const ref = this.dialogService.open(ParentFormDialogComponent, {
-      width: '520px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       // 表單自己聚焦姓名（桌機）；PrimeNG 預設會聚焦第一個可聚焦元素＝關閉鈕
@@ -451,7 +451,7 @@ export class ParentsPage implements OnInit {
     this.parentsService.get(parent.id).subscribe({
       next: (res) => {
         const ref = this.dialogService.open(ParentFormDialogComponent, {
-          width: '520px',
+          width: 'var(--dlg-w-md)',
           modal: true,
           showHeader: false,
           // 表單自己聚焦姓名（桌機）；PrimeNG 預設會聚焦第一個可聚焦元素＝關閉鈕
@@ -638,9 +638,9 @@ export class ParentsPage implements OnInit {
   private openConfirmDialog(header: string, data: ConfirmDialogData, onAccept: () => void): void {
     const ref = this.dialogService.open(ConfirmDialogComponent, {
       header,
-      width: '420px',
+      width: 'var(--dlg-w-md)',
       modal: true,
-      showHeader: true,
+      showHeader: false,
       appendTo: this.overlayContainer || 'body',
       data,
     });

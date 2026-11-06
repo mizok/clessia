@@ -1,3 +1,4 @@
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -26,6 +27,7 @@ import { format } from 'date-fns';
   selector: 'app-generate-sessions-dialog',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     CommonModule,
     FormsModule,
     ButtonModule,
@@ -96,6 +98,7 @@ export class GenerateSessionsDialogComponent {
   protected readonly breadcrumb = computed(() => {
     const c = this.cls();
     if (!c) return '';
+    // 麵包屑當副標（A6 class.html genDialog：`.fdlg__sub`「分校 › 課程 › 班名」）
     return `${c.campusName ?? ''} › ${c.courseName ?? ''} › ${c.name}`;
   });
 

@@ -1,6 +1,7 @@
-<div class="flex flex-col">
+<!-- 共用殼（#2290）：標題原本是開窗端的 PrimeNG header；各步驟的動作列收成一個 dialogFoot（投影只吃最上層節點） -->
+<app-dialog-frame title="從既有班級複製名單" (closed)="cancel()">
   @if (step() === 1) {
-    <div class="flex flex-1 flex-col gap-4 p-5">
+    <div class="flex flex-1 flex-col gap-4">
       <!-- 分校標注 -->
       @if (campusName) {
         <div
@@ -114,14 +115,10 @@
         <app-inline-notice severity="error" [detail]="copyError()" [dismissible]="false" />
       }
     </div>
-
-    <div class="flex justify-end gap-2 border-t border-zinc-100 px-5 py-4">
-      <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
-    </div>
   }
 
   @if (step() === 2) {
-    <div class="flex flex-1 flex-col gap-4 p-5">
+    <div class="flex flex-1 flex-col gap-4">
       <div
         class="flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600"
       >
@@ -162,27 +159,10 @@
         <app-inline-notice severity="error" [detail]="copyError()" [dismissible]="false" />
       }
     </div>
-
-    <div class="flex justify-end gap-2 border-t border-zinc-100 px-5 py-4">
-      <p-button
-        label="上一步"
-        [text]="true"
-        severity="secondary"
-        (onClick)="back()"
-        [disabled]="submitting()"
-      />
-      <p-button
-        label="複製"
-        icon="pi pi-copy"
-        [loading]="submitting()"
-        [disabled]="selectedStatuses().length === 0 || filteredCount() === 0"
-        (onClick)="submit()"
-      />
-    </div>
   }
 
   @if (step() === 3) {
-    <div class="flex flex-1 flex-col items-center justify-center gap-3 px-5 py-10 text-center">
+    <div class="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-center">
       <div>
         <i class="pi pi-check-circle text-[3rem] text-success-600"></i>
       </div>
@@ -200,9 +180,29 @@
         </p>
       }
     </div>
-
-    <div class="flex justify-end gap-2 border-t border-zinc-100 px-5 py-4">
-      <p-button label="完成" icon="pi pi-check" (onClick)="done()" />
-    </div>
   }
-</div>
+  <ng-container dialogFoot>
+    @if (step() === 1) {
+      <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
+    }
+    @if (step() === 2) {
+      <p-button
+        label="上一步"
+        [text]="true"
+        severity="secondary"
+        (onClick)="back()"
+        [disabled]="submitting()"
+      />
+      <p-button
+        label="複製"
+        icon="pi pi-copy"
+        [loading]="submitting()"
+        [disabled]="selectedStatuses().length === 0 || filteredCount() === 0"
+        (onClick)="submit()"
+      />
+    }
+    @if (step() === 3) {
+      <p-button label="完成" icon="pi pi-check" (onClick)="done()" />
+    }
+  </ng-container>
+</app-dialog-frame>

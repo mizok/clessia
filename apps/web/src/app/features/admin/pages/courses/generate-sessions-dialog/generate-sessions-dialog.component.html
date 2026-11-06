@@ -1,22 +1,7 @@
-<div class="form-dialog">
-  <div class="dialog-header-inline">
-    <div class="dialog-header-inline__content">
-      @if (breadcrumb()) {
-        <span class="dialog-header-inline__breadcrumb">{{ breadcrumb() }}</span>
-      }
-      <span class="dialog-header-inline__title">產生課堂</span>
-    </div>
-    <button
-      type="button"
-      class="dialog-header-inline__close size-11"
-      (click)="cancel()"
-      aria-label="Close"
-    >
-      <i class="pi pi-times"></i>
-    </button>
-  </div>
-
-  <div class="form-dialog__content">
+<!-- 共用殼（#2290）：h2＋副標（原本的麵包屑）＋✕、內距、sticky 底部列 -->
+<app-dialog-frame title="產生課堂" [sub]="breadcrumb()" (closed)="cancel()">
+  <!-- 內距在殼的內容區；這層只管排版 -->
+  <div class="flex flex-col gap-5">
     @if (step() === 'result') {
       <div class="flex items-start gap-3 px-4 py-6">
         <div class="text-[2rem] leading-none text-success-600">
@@ -224,7 +209,7 @@
     }
   </div>
 
-  <div class="form-dialog__footer">
+  <ng-container dialogFoot>
     @if (step() === 'result') {
       <p-button label="稍後指派" [text]="true" severity="secondary" (onClick)="closeDone()" />
       @if (generationResult()!.createdUnassigned > 0) {
@@ -262,5 +247,5 @@
         (onClick)="confirm()"
       />
     }
-  </div>
-</div>
+  </ng-container>
+</app-dialog-frame>

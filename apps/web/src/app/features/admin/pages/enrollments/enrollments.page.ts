@@ -497,7 +497,7 @@ export class EnrollmentsPage {
   private openBillingDialog(enrollment: Enrollment): void {
     this.dialogService
       .open(EnrollmentBillingDialogComponent, {
-        width: '460px',
+        width: 'var(--dlg-w-md)',
         modal: true,
         showHeader: false,
         appendTo: this.overlayContainer.getContainer() || 'body',
@@ -514,7 +514,8 @@ export class EnrollmentsPage {
     this.dialogService
       .open(ConfirmDialogComponent, {
         header: '終止報名',
-        width: '420px',
+        width: 'var(--dlg-w-md)',
+        showHeader: false,
         modal: true,
         appendTo: this.overlayContainer.getContainer() || 'body',
         data: {

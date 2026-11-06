@@ -1,3 +1,4 @@
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { format } from 'date-fns';
@@ -26,7 +27,14 @@ export interface SessionPackFormDialogData {
 @Component({
   selector: 'app-session-pack-form-dialog',
   standalone: true,
-  imports: [FormsModule, ButtonModule, DatePickerModule, InputNumberModule, InputTextModule],
+  imports: [
+    FormsModule,
+    ButtonModule,
+    DatePickerModule,
+    InputNumberModule,
+    InputTextModule,
+    DialogFrameComponent,
+  ],
   templateUrl: './session-pack-form-dialog.component.html',
 })
 export class SessionPackFormDialogComponent {
