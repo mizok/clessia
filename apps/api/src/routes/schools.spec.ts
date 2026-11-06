@@ -58,6 +58,7 @@ describe('schools 的稽核 details（#837）', () => {
 
   function fakeDb() {
     const auditRows: Array<Record<string, unknown>> = [];
+    const eqCalls: Array<[string, unknown]> = [];
     let mutated = false;
     let after: Record<string, unknown> = BEFORE;
 
@@ -66,7 +67,10 @@ describe('schools 的稽核 details（#837）', () => {
       const chain = () => builder as never;
       Object.assign(builder, {
         select: () => chain(),
-        eq: () => chain(),
+        eq: (col: string, val: unknown) => {
+          eqCalls.push([col, val]);
+          return chain();
+        },
         in: () => chain(),
         order: () => chain(),
         ilike: () => chain(),
@@ -98,7 +102,7 @@ describe('schools 的稽核 details（#837）', () => {
       return builder;
     };
 
-    return { auditRows, from: (table: string) => make(table) };
+    return { auditRows, eqCalls, from: (table: string) => make(table) };
   }
 
   async function request(path: string, method: string, body?: unknown) {
@@ -125,8 +129,18 @@ describe('schools 的稽核 details（#837）', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    return { status: res.status, auditRows: db.auditRows };
+    return { status: res.status, auditRows: db.auditRows, eqCalls: db.eqCalls };
   }
+
+  // #2313：z.coerce.boolean() 把字串 "false" 讀成 true，篩成「啟用中」
+  it('GET ?isActive=false 篩停用的（不是啟用中）；0／1 也認；亂寫 400', async () => {
+    const isActiveEq = (calls: Array<[string, unknown]>) =>
+      calls.filter(([col]) => col === 'is_active').map(([, v]) => v);
+    expect(isActiveEq((await request('/?isActive=false', 'GET')).eqCalls)).toEqual([false]);
+    expect(isActiveEq((await request('/?isActive=0', 'GET')).eqCalls)).toEqual([false]);
+    expect(isActiveEq((await request('/?isActive=1', 'GET')).eqCalls)).toEqual([true]);
+    expect((await request('/?isActive=yes', 'GET')).status).toBe(400);
+  });
 
   it('改名：details 從「只有新值」變成有 from 與 to', async () => {
     // ⚠️ schools 的更新是 **PATCH** 不是 PUT（campuses 是 PUT）——

@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { inChunks } from '../lib/in-chunks';
 import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
-import { DbUuidSchema } from '../lib/validation';
+import { DbUuidSchema, QueryBooleanSchema } from '../lib/validation';
 import {
   classifyAcademyExamTodo,
   loadAcademyExamCounts,
@@ -520,7 +520,7 @@ const listRoute = createRoute({
       // `todoLevel` 把它切成兩級：`none` = 一筆都沒有（高），`partial` = 登到一半（低）。
       // 不合併成一級的理由：告警量會上升（現在完全看不到「登到一半」的那些），
       // 一級化會讓原本最急的那類被稀釋進去。
-      todo: z.coerce.boolean().optional(),
+      todo: QueryBooleanSchema.optional(),
       todoLevel: z.enum(['none', 'partial']).optional(),
       order: z.enum(['date_asc', 'date_desc']).default('date_desc').optional(),
       page: z.coerce.number().int().min(1).default(1).optional(),

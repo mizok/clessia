@@ -64,3 +64,55 @@ describe('school-exams 的寫入只有管理員', () => {
     expect(res.status).toBe(403);
   });
 });
+
+// #2313：z.coerce.boolean() 把字串 "false" 讀成 true，todo=false 也走待辦（多一支 id 查詢、只看 active）
+describe('GET /school-exams 的 todo 是字串布林', () => {
+  function listApp() {
+    const fromCalls: string[] = [];
+    const eqCalls: Array<[string, unknown]> = [];
+    const builder: Record<string, unknown> = {};
+    const chain = () => builder;
+    Object.assign(builder, {
+      select: chain,
+      order: chain,
+      range: chain,
+      in: chain,
+      ilike: chain,
+      gte: chain,
+      lte: chain,
+      eq: (col: string, val: unknown) => {
+        eqCalls.push([col, val]);
+        return builder;
+      },
+      then: (resolve: (v: unknown) => unknown) => resolve({ data: [], count: 0, error: null }),
+    });
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('roles', ['admin']);
+      set('orgId', '00000000-0000-0000-0000-0000000000aa');
+      set('userId', 'u1');
+      set('campusScope', null);
+      set('supabase', {
+        from: (t: string) => {
+          fromCalls.push(t);
+          return builder;
+        },
+      });
+      await next();
+    });
+    app.route('/', schoolExamsRoute as unknown as Hono);
+    return { app, fromCalls, eqCalls };
+  }
+
+  it('todo=false 不走待辦：只查一次、照 status 篩', async () => {
+    const off = listApp();
+    expect((await off.app.request('/?todo=false&status=closed')).status).toBe(200);
+    expect(off.fromCalls.filter((t) => t === 'school_exams')).toHaveLength(1);
+    expect(off.eqCalls).toContainEqual(['status', 'closed']);
+
+    const on = listApp();
+    expect((await on.app.request('/?todo=true&status=closed')).status).toBe(200);
+    expect(on.eqCalls).not.toContainEqual(['status', 'closed']);
+  });
+});

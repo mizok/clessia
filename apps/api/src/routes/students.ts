@@ -8,7 +8,7 @@ import { loadTeacherRosterViaSql } from '../lib/teacher-roster-sql';
 import { loadStudentTodayBase } from '../lib/student-today-sql';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
-import { DbUuidSchema } from '../lib/validation';
+import { DbUuidSchema, QueryBooleanSchema } from '../lib/validation';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { fetchAllPages } from '../lib/fetch-all-pages';
 import { getAuth } from '../lib/get-auth';
@@ -291,9 +291,9 @@ app.openapi(
         campusId: DbUuidSchema.optional(),
         page: z.coerce.number().min(1).default(1).optional(),
         pageSize: z.coerce.number().min(1).max(100).default(20).optional(),
-        isActive: z.coerce.boolean().optional(),
+        isActive: QueryBooleanSchema.optional(),
         // 意圖提示而已：老師的範圍由角色決定（見 students/teacher-scope.ts）
-        taughtByMe: z.coerce.boolean().optional(),
+        taughtByMe: QueryBooleanSchema.optional(),
         /** 今日到班篩選（#1314 SL1）。逐堂點名模式的分校 → 400 `TODAY_UNSUPPORTED_MODE` */
         today: z.enum(['any', 'arrived', 'not_yet', 'missing', 'on_leave']).optional(),
         /** `false` = 不算今日到班（儀表板只要總數的呼叫用）。預設第一頁才算 */

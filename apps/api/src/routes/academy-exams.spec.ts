@@ -163,9 +163,7 @@ function fakeCountsPool(tables: {
       const [orgId, examIds] = values as [string, string[]];
       const inOrg = (examId: unknown) =>
         examIds.includes(examId as string) &&
-        tables.exams.some(
-          (exam) => exam['id'] === examId && (exam['org_id'] ?? orgId) === orgId,
-        );
+        tables.exams.some((exam) => exam['id'] === examId && (exam['org_id'] ?? orgId) === orgId);
       const links = tables.examClasses.filter((row) => inOrg(row['exam_id']));
       if (text.includes('from public.academy_scores')) {
         if (tables.scoresError) throw new Error(tables.scoresError);
@@ -415,6 +413,13 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
     await list('todo=true');
 
     expect(todoIds()?.sort()).toEqual(['exam-empty', 'exam-partial']);
+  });
+
+  // #2313：z.coerce.boolean() 把字串 "false" 讀成 true，todo=false 也進待辦模式
+  it('`todo=false` → 不進待辦模式（不篩待登錄）', async () => {
+    const { list, todoIds } = createListApp(BASE);
+    expect((await list('todo=false')).response.status).toBe(200);
+    expect(todoIds()).toBeNull();
   });
 
   it('`todoLevel=none` → 只有一筆都沒有的那些（高）', async () => {

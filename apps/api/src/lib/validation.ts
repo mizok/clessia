@@ -28,6 +28,16 @@ export const DbUuidSchema = z.string().regex(DB_UUID_PATTERN, 'Invalid UUID').op
 export const NullableDbUuidSchema = DbUuidSchema.nullable();
 
 /**
+ * query string 的布林（#2313）。**不要用 `z.coerce.boolean()`**：它是 `Boolean(value)`，字串 `"false"`
+ * 是 truthy → 讀成 true（`?isActive=false` 篩成在籍）。只收 `true／false／1／0`，其他值 400。
+ * 用法：`isActive: QueryBooleanSchema.optional()`
+ */
+export const QueryBooleanSchema = z
+  .enum(['true', 'false', '1', '0'])
+  .transform((v) => v === 'true' || v === '1')
+  .openapi({ type: 'boolean' });
+
+/**
  * 對外暱稱（#1665 Q6）：頭尾空白去掉；空字串＝清掉（存 null）。長度同 DB 的 `staff_nickname_len`（1–20）。
  * 人員管理（管理員改別人）與帳號設定（本人改自己）共用這一條，不另設審核。
  */
