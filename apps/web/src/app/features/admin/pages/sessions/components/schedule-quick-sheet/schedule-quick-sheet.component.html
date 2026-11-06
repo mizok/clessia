@@ -69,7 +69,10 @@
     }
   </div>
 
-  <footer class="flex-none border-t border-zinc-300 bg-zinc-200 px-4 pt-3 pb-4">
+  <!-- 底部留白＝--sheet-foot-gap＋safe-area（#2396，同共用殼） -->
+  <footer
+    class="flex-none border-t border-zinc-300 bg-zinc-200 px-4 pt-3 pb-[calc(var(--sheet-foot-gap)+env(safe-area-inset-bottom,0px))]"
+  >
     <div class="flex flex-wrap items-baseline gap-x-3">
       <p class="m-0 text-md font-semibold tabular-nums" aria-live="polite">
         已勾 <b class="text-xl">{{ selectedIds().size }}</b> 堂

@@ -217,7 +217,8 @@
       ariaCloseLabel="關閉"
     >
       @if (selectedInvoice(); as invoice) {
-        <div class="payments__detail flex flex-col gap-3 p-4">
+        <!-- 底部留白由 p-drawer 內容區墊（--sheet-foot-gap＋safe-area，styles.css #2396），這裡不再加 -->
+        <div class="payments__detail flex flex-col gap-3 p-4 pb-0">
           <!-- 抽屜是例外形狀（永遠貼底），只把標題升成 h2（#2290 分批表） -->
           <h2 class="payments__detail-title m-0 text-lg font-semibold">
             帳單 #{{ invoice.invoiceNo ?? invoice.id.slice(0, 8) }}
