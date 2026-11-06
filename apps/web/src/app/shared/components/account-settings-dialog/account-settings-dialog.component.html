@@ -7,7 +7,7 @@
   <ng-template #saveBtn let-field>
     <button
       type="button"
-      class="account-settings__save inline-flex h-11 shrink-0 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-3 text-sm leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-[30px]"
+      class="account-settings__save inline-flex h-11 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-3 text-sm leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
       [disabled]="saving()"
       (click)="saveField(field)"
     >
@@ -62,7 +62,7 @@
           [ngTemplateOutletContext]="{ $implicit: 'nickname' }"
         />
       </div>
-      <p class="mt-1 mb-0 text-md text-zinc-600">公開課程目錄顯示你的暱稱，沒填就顯示本名</p>
+      <p class="mt-1 mb-0 text-sm text-zinc-600">公開課程目錄顯示你的暱稱，沒填就顯示本名</p>
       <ng-container
         [ngTemplateOutlet]="fieldError"
         [ngTemplateOutletContext]="{ $implicit: 'nickname' }"
@@ -109,7 +109,7 @@
         [ngTemplateOutletContext]="{ $implicit: 'email' }"
       />
     </div>
-    <p class="mt-1 mb-0 text-md text-zinc-600">補習班用這個 Email 幫你產生一次性登入連結</p>
+    <p class="mt-1 mb-0 text-sm text-zinc-600">補習班用這個 Email 幫你產生一次性登入連結</p>
     <ng-container
       [ngTemplateOutlet]="fieldError"
       [ngTemplateOutletContext]="{ $implicit: 'email' }"
