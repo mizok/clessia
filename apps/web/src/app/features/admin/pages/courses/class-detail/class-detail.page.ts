@@ -414,8 +414,9 @@ export class ClassDetailPage implements OnInit {
     ).length;
 
     const ref = this.dialogService.open(StudentPickerDialogComponent, {
-      header: '選擇學生',
-      width: '560px',
+      header: '加入學生',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       modal: true,
       appendTo: this.overlayContainer || 'body',
       data: {
@@ -423,6 +424,7 @@ export class ClassDetailPage implements OnInit {
         maxStudents: this.cls()?.maxStudents ?? 9999,
         currentActiveCount,
         classId: this.resolvedClassId(),
+        className: this.cls()?.name ?? '',
       },
     });
 
@@ -454,7 +456,8 @@ export class ClassDetailPage implements OnInit {
 
     const ref = this.dialogService.open(CopyRosterDialogComponent, {
       header: '從既有班級複製名單',
-      width: '480px',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       modal: true,
       appendTo: this.overlayContainer || 'body',
       data: { classId: cls.id, campusId: cls.campusId, campusName: cls.campusName },
@@ -470,11 +473,12 @@ export class ClassDetailPage implements OnInit {
     if (!cls) return;
 
     const ref = this.dialogService.open(RosterImportDialogComponent, {
-      header: '從 Excel 匯入名單',
-      width: '640px',
+      header: 'Excel 匯入名冊',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       modal: true,
       appendTo: this.overlayContainer || 'body',
-      data: { classId: cls.id },
+      data: { classId: cls.id, className: cls.name },
     });
 
     ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
@@ -572,7 +576,8 @@ export class ClassDetailPage implements OnInit {
   ): void {
     const ref = this.dialogService.open(ConfirmDialogComponent, {
       header,
-      width: '420px',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       modal: true,
       appendTo: this.overlayContainer || 'body',
       data,

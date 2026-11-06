@@ -7,7 +7,6 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
 import { InputTextModule } from 'primeng/inputtext';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
@@ -33,9 +32,10 @@ export interface MobileBatchDialogResult {
   readonly mode: MobileBatchMode;
 }
 
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 @Component({
   selector: 'app-mobile-batch-dialog',
-  imports: [FormsModule, ButtonModule, SelectModule, InputTextModule],
+  imports: [DialogFrameComponent, FormsModule, SelectModule, InputTextModule],
   templateUrl: './mobile-batch-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -162,5 +162,10 @@ export class MobileBatchDialogComponent implements OnInit {
       reason: this.batchReason(),
       targetWeekday: this.batchWeekday(),
     } as const;
+  }
+
+  /** 殼的 ✕：不帶結果關窗（同按遮罩、Esc） */
+  protected close(): void {
+    this.ref.close();
   }
 }

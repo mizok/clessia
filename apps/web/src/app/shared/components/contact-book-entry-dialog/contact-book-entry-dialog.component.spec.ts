@@ -58,14 +58,16 @@ describe('ContactBookEntryDialogComponent', () => {
   it('全部班名寫在日期後面；沒有班就不出現', async () => {
     await setup({ ...signedEntry, classNames: ['三年甲班', '作文班'] });
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('[data-testid="entry-classes"]')?.textContent).toBe('三年甲班、作文班');
+    // 換殼後寫在副標（#2290）
+    expect(el.querySelector('.dialog-header-inline__sub')?.textContent).toContain(
+      '· 三年甲班、作文班',
+    );
   });
 
   it('沒有班名：不出現班名那一段', async () => {
     await setup(signedEntry);
-    expect(
-      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="entry-classes"]'),
-    ).toBeNull();
+    const sub = (fixture.nativeElement as HTMLElement).querySelector('.dialog-header-inline__sub');
+    expect(sub?.textContent).not.toContain('、');
   });
 
   it('簽收時間不以原始 ISO 時間戳渲染', async () => {
@@ -100,7 +102,7 @@ describe('ContactBookEntryDialogComponent', () => {
     const reason = () =>
       fixture.nativeElement.querySelector('.entry-dialog__disabled-reason') as HTMLElement | null;
     const saveButton = () =>
-      fixture.nativeElement.querySelector('.entry-dialog__footer p-button:last-child button') as
+      fixture.nativeElement.querySelector('.form-dialog__footer p-button:last-child button') as
         HTMLButtonElement | undefined;
 
     it('既有稿沒改：停用並寫「內容沒有修改」，改了之後提示消失、鈕可按', async () => {

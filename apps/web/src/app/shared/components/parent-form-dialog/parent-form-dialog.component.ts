@@ -12,7 +12,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { AutoCompleteModule, type AutoCompleteCompleteEvent } from 'primeng/autocomplete';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
-import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import {
   ParentsService,
   ParentDetail,
@@ -24,7 +24,7 @@ import { StudentsService, type Student } from '@core/students.service';
 @Component({
   selector: 'app-parent-form-dialog',
   standalone: true,
-  imports: [FormsModule, AutoCompleteModule, DialogTitleDirective],
+  imports: [FormsModule, AutoCompleteModule, DialogFrameComponent],
   templateUrl: './parent-form-dialog.component.html',
 })
 export class ParentFormDialogComponent {

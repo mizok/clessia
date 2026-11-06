@@ -1,20 +1,14 @@
 <!-- 共用殼（#2290）：標題照 A6 staff.html:251「授課紀錄 · 姓名」；月份是內容裡帶標籤的欄位（原本是第二個標頭） -->
 <app-dialog-frame [title]="'授課紀錄 · ' + staffName" (closed)="close()">
   <div class="flex flex-col gap-4">
-    <!-- A6 .acset__f：label 裡包 span.acset__l ＋選單 -->
-    <label class="flex flex-col gap-1">
-      <span class="text-md font-semibold text-zinc-700">月份</span>
-      <p-select
-        [options]="monthOptions"
-        [ngModel]="month()"
-        (ngModelChange)="onMonthChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        styleClass="w-full"
-        appendTo="body"
-        ariaLabel="月份"
-      />
-    </label>
+    <!-- A6 .acset__f 的下拉（#2325）：全站 app-select-field -->
+    <app-select-field
+      label="月份"
+      labelSize="md"
+      [options]="monthOptions"
+      [value]="month()"
+      (valueChange)="$event && onMonthChange($event)"
+    />
 
     @if (loading()) {
       <section class="flex flex-wrap items-center gap-4" aria-label="教學紀錄載入中">

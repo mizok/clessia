@@ -25,8 +25,6 @@ import { InputTextModule } from 'primeng/inputtext';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { PagerComponent } from '@shared/components/pager/pager.component';
-import { Popover, PopoverModule } from 'primeng/popover';
-import { ButtonModule } from 'primeng/button';
 import { ScoresService, type StudentScoreAggregate } from '@core/scores.service';
 import { SystemClockService, addDaysToDateString } from '@core/system-clock.service';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -115,10 +113,8 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     IconFieldModule,
     InputIconModule,
     PagerComponent,
-    PopoverModule,
     FilterPanelComponent,
     ActiveFiltersComponent,
-    ButtonModule,
     EmptyStateComponent,
     LoadFailedComponent,
   ],
@@ -624,7 +620,26 @@ export class StudentViewComponent implements OnInit {
   protected readonly exportRange = signal<'filtered' | 'all'>('filtered');
   protected readonly exporting = signal(false);
 
-  protected exportScores(panel: Popover): void {
+  /**
+   * 匯出面板的位置：桌機貼著匯出鈕往下開、靠右對齊；手機交給 CSS 當底部面板。
+   * ponytail: reports、parent meals、payments 各有同樣幾行；抽到 shared 等殼的擁有者
+   */
+  protected placeExport(event: Event, trigger: HTMLElement): void {
+    const popover = event.target as HTMLElement;
+    if ((event as ToggleEvent).newState !== 'open') return;
+    if (matchMedia('(max-width: 860px)').matches) {
+      popover.removeAttribute('style');
+      return;
+    }
+    const box = trigger.getBoundingClientRect();
+    Object.assign(popover.style, {
+      position: 'fixed',
+      left: `${Math.max(16, box.right - popover.offsetWidth)}px`,
+      top: `${box.bottom + 8}px`,
+    });
+  }
+
+  protected exportScores(panel: HTMLElement): void {
     if (this.exporting()) return;
     this.exporting.set(true);
     const filtered = this.exportRange() === 'filtered';
@@ -644,7 +659,7 @@ export class StudentViewComponent implements OnInit {
           a.click();
           URL.revokeObjectURL(url);
           this.exporting.set(false);
-          panel.hide();
+          panel.hidePopover();
           this.messageService.add({
             severity: 'success',
             summary: '已匯出',

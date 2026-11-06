@@ -1,4 +1,9 @@
-<div class="flex min-h-0 flex-col gap-4">
+<!-- 共用殼（#2290）：標題原本是開窗端的 PrimeNG header；各步驟的動作列收成一個 dialogFoot（投影只吃最上層節點） -->
+<app-dialog-frame
+  title="加入學生"
+  [sub]="(className ? className + ' · ' : '') + '勾選要加入的學生，下一步確認並可一起開帳單'"
+  (closed)="cancel()"
+>
   @if (step() === 'selecting') {
     <!-- Command Bar -->
     <div class="shrink-0 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
@@ -93,16 +98,6 @@
     </div>
 
     <!-- Footer -->
-    <div class="flex shrink-0 items-center justify-end gap-3 border-t border-zinc-100 pt-3">
-      <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
-      <p-button
-        [label]="selectedCount() > 0 ? '下一步（' + selectedCount() + ' 人）' : '下一步'"
-        [disabled]="selectedCount() === 0"
-        icon="pi pi-arrow-right"
-        iconPos="right"
-        (onClick)="goToReview()"
-      />
-    </div>
   } @else if (step() === 'reviewing') {
     <!-- Step 2: Review -->
     <div class="flex shrink-0 items-center gap-3 border-b border-zinc-100 pb-3">
@@ -263,27 +258,6 @@
         </div>
       </div>
     }
-
-    <div class="flex shrink-0 items-center justify-end gap-3 border-t border-zinc-100 pt-3">
-      <p-button
-        label="上一步"
-        [text]="true"
-        severity="secondary"
-        icon="pi pi-arrow-left"
-        [disabled]="confirming()"
-        (onClick)="goBack()"
-      />
-      <p-button
-        [label]="
-          confirming()
-            ? ''
-            : (issueInvoice() ? '加入並開帳 ' : '確認加入 ') + selectedCount() + ' 人'
-        "
-        [loading]="confirming()"
-        [disabled]="selectedCount() === 0 || overQuotaCount() > 0 || confirming()"
-        (onClick)="confirm()"
-      />
-    </div>
   } @else {
     <!-- Step 3: Result —— 原本這裡直接關閉，只留一個 toast 摘要 -->
     <div class="flex shrink-0 items-center gap-3 border-b border-zinc-100 pb-3">
@@ -345,8 +319,37 @@
         </div>
       }
     </div>
-
-    <div class="flex shrink-0 items-center justify-end gap-3 border-t border-zinc-100 pt-3">
+  }
+  <ng-container dialogFoot>
+    @if (step() === 'selecting') {
+      <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
+      <p-button
+        [label]="selectedCount() > 0 ? '下一步（' + selectedCount() + ' 人）' : '下一步'"
+        [disabled]="selectedCount() === 0"
+        icon="pi pi-arrow-right"
+        iconPos="right"
+        (onClick)="goToReview()"
+      />
+    } @else if (step() === 'reviewing') {
+      <p-button
+        label="上一步"
+        [text]="true"
+        severity="secondary"
+        icon="pi pi-arrow-left"
+        [disabled]="confirming()"
+        (onClick)="goBack()"
+      />
+      <p-button
+        [label]="
+          confirming()
+            ? ''
+            : (issueInvoice() ? '加入並開帳 ' : '確認加入 ') + selectedCount() + ' 人'
+        "
+        [loading]="confirming()"
+        [disabled]="selectedCount() === 0 || overQuotaCount() > 0 || confirming()"
+        (onClick)="confirm()"
+      />
+    } @else {
       <p-button
         label="完成"
         [text]="true"
@@ -364,6 +367,6 @@
           (onClick)="issueRemaining()"
         />
       }
-    </div>
-  }
-</div>
+    }
+  </ng-container>
+</app-dialog-frame>

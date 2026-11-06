@@ -9,7 +9,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
-import { SelectModule } from 'primeng/select';
+import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { TagModule } from 'primeng/tag';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
@@ -42,7 +42,7 @@ import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-fra
     RtRowDirective,
     StatusDotComponent,
     FormsModule,
-    SelectModule,
+    SelectFieldComponent,
     TagModule,
   ],
   templateUrl: './teaching-log-dialog.component.html',
