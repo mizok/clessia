@@ -102,6 +102,7 @@
 @source './app/shared/components/confirm-dialog';
 @source './app/shared/components/audit-log-dialog';
 @source './app/shared/components/dialog-frame';
+@source './app/shared/components/dialog-steps';
 @source './app/shared/components/login-link-dialog';
 @source './app/shared/components/parent-form-dialog';
 @source './app/shared/components/leave-form-dialog';
