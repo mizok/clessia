@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
@@ -58,12 +59,25 @@ type TeacherOption = Pick<
 
 @Component({
   selector: 'app-session-advanced-filters-dialog',
-  imports: [FormsModule, ButtonModule, MultiSelectModule, ImeFilterInputComponent],
+  imports: [
+    FormsModule,
+    ButtonModule,
+    MultiSelectModule,
+    ImeFilterInputComponent,
+    DialogFrameComponent,
+  ],
   templateUrl: './session-advanced-filters-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SessionAdvancedFiltersDialogComponent {
   private readonly config = inject(DynamicDialogConfig<SessionAdvancedFiltersDialogData>);
+  /** 殼的標題：開窗端的 header（開窗端 `showHeader: false`） */
+  protected readonly title = (this.config.header as string | undefined) ?? '進階篩選';
+
+  /** 殼的 ✕：不套用、直接關 */
+  protected close(): void {
+    this.ref.close();
+  }
   private readonly ref = inject(DynamicDialogRef);
 
   protected readonly mode = signal<'sessions' | 'attendance'>('attendance');
