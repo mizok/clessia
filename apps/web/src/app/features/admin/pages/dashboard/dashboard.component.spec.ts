@@ -929,6 +929,45 @@ describe('DashboardComponent（管理端）', () => {
         expect(desk().nativeElement.querySelector('h2').textContent).toContain('櫃台代刷到班');
       });
 
+      it('沒有可代刷的人（都到了或請假了）：鈕直接停用、有說明，點了不開窗（#2387）', async () => {
+        await board({
+          workbenchExpected: [
+            expectedStudent({ studentId: 'here', studentName: '已到生' }),
+            expectedStudent({ studentId: 'off', studentName: '請假生' }),
+          ],
+          workbenchArrived: [
+            { studentId: 'here', checkedInAt: `${TODAY}T01:00:00Z`, checkinId: 'k1' },
+          ],
+          workbenchOnLeave: [
+            {
+              studentId: 'off',
+              studentName: '請假生',
+              startDate: TODAY,
+              endDate: TODAY,
+              submittedByRole: 'admin',
+            },
+          ],
+        });
+        const btn = q('desktop-checkin') as HTMLButtonElement;
+        expect(btn.disabled).toBe(true);
+        expect(btn.title).toBe('今天要來的都到了或請假了');
+        // 手機托盤同一份（page-actions 的 secondary）
+        expect(component['leaveSecondary']()).toEqual(
+          expect.objectContaining({ disabled: true, disabledReason: '今天要來的都到了或請假了' }),
+        );
+        component['openCheckinStation']();
+        fixture.detectChanges();
+        expect(desk()).toBeNull();
+      });
+
+      it('有人可代刷：鈕可以按、沒有停用說明（#2387）', async () => {
+        await openDesk();
+        const btn = q('desktop-checkin') as HTMLButtonElement;
+        expect(btn.disabled).toBe(false);
+        expect(btn.getAttribute('title')).toBeNull();
+        expect(desk()).not.toBeNull();
+      });
+
       it('課前選人送出：寫到班、關窗、toast 講到班時間（不換頁）', async () => {
         await openDesk();
         const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
