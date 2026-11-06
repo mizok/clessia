@@ -938,6 +938,8 @@ export const PAGES = {
     // 收款彈窗（#2316 寫期別、#2290 換殼）：稿列上的「收款」↔ app 列上的「收款」（DynamicDialog）
     // 稿的「收款」鈕在收合的章節裡（逾期列是「提醒」），先展開第一個章節再點
     a6Open: { pay: { click: ['details.coll > summary', '[data-pay]'], root: 'dialog[open]' } },
+    // 匯出帳單（稿 `bexp`、app 原生 popover `payments-export`，#2371 起）—— 沒對照時兩邊配不上、從沒量過（#2373）
+    popovers: { bexp: 'payments-export' },
     appOpen: {
       pay: {
         click: 'button[aria-label^="記錄 "]',
@@ -3080,6 +3082,8 @@ export const PAGES = {
   'grades-student': {
     a6: 'grades-student.html',
     app: '/admin/grades/overview/student',
+    // 匯出成績（稿 `gexp`、app 原生 popover `sv-export`，#2372 起）—— 沒對照時從沒量過（#2373）
+    popovers: { gexp: 'sv-export' },
     a6Open: opensOf('grades-student', 'a6Open'),
     // app 的篩選是 app-filter-panel：桌機 PrimeNG Popover、≤860 貼底抽屜 p-dialog（#2206）；#2079(c) 開課班／期間要打開才量得到
     appOpen: {
