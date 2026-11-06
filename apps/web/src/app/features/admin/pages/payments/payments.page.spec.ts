@@ -686,6 +686,21 @@ describe('PaymentsPage', () => {
       expect(el().textContent).not.toContain('全部提醒');
     });
 
+    it('匯出面板是原生 popover（A6 .xp，同報表／餐費）：觸發鈕指向它、三個範圍 radio、點了改範圍', () => {
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      const panel = el.querySelector('#payments-export')!;
+
+      expect(panel.hasAttribute('popover')).toBe(true);
+      expect(el.querySelector('button[aria-label="匯出"]')?.getAttribute('popovertarget')).toBe(
+        'payments-export',
+      );
+      const radios = [...panel.querySelectorAll<HTMLInputElement>('input[type=radio]')];
+      expect(radios.map((r) => r.value)).toEqual(['all', 'overdue', 'outstanding']);
+      radios[1]!.click();
+      expect(component['exportScope']()).toBe('overdue');
+    });
+
     it('匯出預設當月（台北今天所在月），檔名與範圍寫進檔名；逾期範圍送 overdue', async () => {
       const writeFile = vi.fn();
       vi.doMock('xlsx', () => ({
@@ -702,8 +717,11 @@ describe('PaymentsPage', () => {
       invoices.list.mockClear();
       invoices.list.mockReturnValue(of(listResponse(rows())));
 
-      await component['exportInvoices']({ hide: vi.fn() } as never);
+      const panel = { hidePopover: vi.fn() };
+      await component['exportInvoices'](panel as never);
 
+      // 成功才收起原生 popover（#2290 匯出系列換成 .xp）
+      expect(panel.hidePopover).toHaveBeenCalledTimes(1);
       expect(invoices.list).toHaveBeenCalledWith(
         expect.objectContaining({
           issuedMonth: month,
@@ -728,7 +746,7 @@ describe('PaymentsPage', () => {
         throwError(() => new TypeError('Failed to fetch dynamically imported module: /x.js')),
       );
 
-      await component['exportInvoices']({ hide: vi.fn() } as never);
+      await component['exportInvoices']({ hidePopover: vi.fn() } as never);
 
       expect(TestBed.inject(AppVersionService).isStale()).toBe(true);
       expect(toasts.filter((t) => t.severity === 'error')).toEqual([]);
@@ -749,7 +767,7 @@ describe('PaymentsPage', () => {
         .mockReturnValueOnce(of(listResponse(rows(), 3)))
         .mockReturnValueOnce(of(listResponse([invoice({ id: 'inv-3' })], 3, 2)));
 
-      await component['exportInvoices']({ hide: vi.fn() } as never);
+      await component['exportInvoices']({ hidePopover: vi.fn() } as never);
 
       expect(invoices.list).toHaveBeenCalledTimes(2);
       expect(invoices.list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }));
@@ -782,7 +800,6 @@ describe('PaymentsPage', () => {
       expect(toggle().getAttribute('aria-expanded')).toBe('true');
 
       // 外點擊由 Popover 自己關：直接呼叫它的 hide()，會發 onHide
-      // 頁上還有匯出的 Popover，挑開著的那個
       fixture.debugElement
         .queryAll(By.directive(Popover))
         .map((d) => d.injector.get(Popover))
@@ -1052,7 +1069,7 @@ describe('PaymentsPage', () => {
     it('匯出帶畫面上的分校', async () => {
       await pick('c3');
       invoices.list.mockClear();
-      await component['exportInvoices']({ hide: vi.fn() } as never);
+      await component['exportInvoices']({ hidePopover: vi.fn() } as never);
       expect(lastCall(invoices.list)).toMatchObject({ campusId: 'c3' });
     });
 
