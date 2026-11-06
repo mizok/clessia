@@ -225,7 +225,7 @@ export class DashboardComponent {
     this.destroyRef.onDestroy(() => injector.destroy());
 
     const ref = injector.get(DialogService).open(AttendanceRosterPanelComponent, {
-      width: '480px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       closable: false,
@@ -280,11 +280,22 @@ export class DashboardComponent {
 
   // 手機托盤：A6 的「櫃台代刷」比桌機鈕「櫃台代刷到班」短；圖示照稿
   protected readonly leavePrimary = { label: '登記請假', icon: 'pi pi-file-edit' };
-  protected readonly leaveSecondary = {
+  /**
+   * 櫃台代刷：日到班、今天的名單已經到了、卻沒有還沒到的人 → 鈕直接停用，不開空的對話框（使用者 11-06，#2387）。
+   * 判斷用對話框同一份候選（checkinCandidates），不另外打 API。逐堂模式這顆鈕是到打卡站，不受影響
+   */
+  protected readonly checkinDisabled = computed(
+    () =>
+      this.isDailyCheckin() && this.workbench() !== null && this.checkinCandidates().length === 0,
+  );
+  protected readonly checkinDisabledReason = '今天要來的都到了或請假了';
+  protected readonly leaveSecondary = computed(() => ({
     label: '櫃台代刷到班',
     mobileLabel: '櫃台代刷',
     icon: 'pi pi-check',
-  };
+    disabled: this.checkinDisabled(),
+    disabledReason: this.checkinDisabledReason,
+  }));
 
   /** 登記請假的彈窗（#2037）：原生 <dialog>，從工具列或「該到沒到」的列打開 */
   private readonly phoneLeaveDialog = viewChild<ElementRef<HTMLDialogElement>>('phoneLeaveDialog');
@@ -335,6 +346,7 @@ export class DashboardComponent {
    * 卡號輸入留給打卡站，不從這裡進。
    */
   protected openCheckinStation(): void {
+    if (this.checkinDisabled()) return;
     if (!this.isDailyCheckin()) {
       void this.router.navigateByUrl(RoutesCatalog.ADMIN_CHECKIN.absolutePath);
       return;
@@ -407,8 +419,7 @@ export class DashboardComponent {
       .filter(
         (p) =>
           p.reason !== null &&
-          (p.state === 'missing' ||
-            (p.state === 'arrived' && settled.has(p.student.studentId))),
+          (p.state === 'missing' || (p.state === 'arrived' && settled.has(p.student.studentId))),
       )
       .sort((a, b) =>
         (a.student.firstSession?.startTime ?? '').localeCompare(

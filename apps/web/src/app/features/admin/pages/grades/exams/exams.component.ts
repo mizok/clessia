@@ -844,8 +844,7 @@ export class ExamsComponent implements OnInit {
   private openAcademyDialog(mode: 'create' | 'edit', examId?: string): void {
     const ref = this.dialogService.open(AcademyExamFormDialogComponent, {
       header: mode === 'create' ? '新增補習班考試' : '編輯補習班考試',
-      width: '520px',
-      breakpoints: { '640px': '96%' },
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       // 表單自己聚焦考試名稱（桌機）；PrimeNG 預設會聚焦第一個可聚焦元素＝關閉鈕

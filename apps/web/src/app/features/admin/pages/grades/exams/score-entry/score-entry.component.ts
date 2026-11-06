@@ -1,3 +1,4 @@
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -72,6 +73,7 @@ interface SummaryStats {
   selector: 'app-score-entry',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     SkeletonComponent,
     PageOpenComponent,
     RouterLink,
@@ -127,6 +129,15 @@ export class ScoreEntryComponent implements OnInit {
    * 完成後仍可修改（#1931，照 A6）：完成只是從待辦拿掉，改過的由 API 記進操作紀錄
    */
   private readonly completeDialog = viewChild<ElementRef<HTMLDialogElement>>('completeDialog');
+
+  /** 標記完成的副標（A6 scores.html data-complete：「N／M 已登錄 · K 位的變更會一起儲存。完成後仍可修改。」） */
+  protected completeSummary(): string {
+    const editor = this.academyEditor();
+    if (!editor) return '完成後仍可修改。';
+    const { logged, total } = editor.tally();
+    const dirty = editor.dirtyCount();
+    return `${logged}／${total} 已登錄${dirty ? ` · ${dirty} 位的變更會一起儲存` : ''}。完成後仍可修改。`;
+  }
   /** 選了「標記完成」而且要先存檔：存成功（onSaved）才 close；存失敗就作罷 */
   private completeAfterSave = false;
   protected readonly completing = signal(false);

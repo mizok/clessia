@@ -3,7 +3,7 @@ title: 管理員儀表板
 summary: 管理員首頁（A6 版）：機構名＋一句話，日到班機構主段是「該到沒到，先打給家長」，其餘收成灰摺疊列；待處理只留未點名與待開單。
 category: spec
 status: active
-updated: 2026-11-05
+updated: 2026-11-06
 tags: [specs, admin, dashboard]
 ---
 
@@ -55,7 +55,7 @@ tags: [specs, admin, dashboard]
 - **「打電話」＝ `tel:` 連結＋`POST /api/contact-logs`（channel=phone）**；記成功才把該列換成「已聯絡 HH:mm」，記不成功列不變並提示。載入時 `expected[].lastContact` 已有值的列直接是已聯絡。沒有家長電話／沒有登記家長就不給「打電話」並說出原因。
 - **逐堂點名（per_session）機構主段仍是今日課表**（A6 只畫了日到班的形狀）；點名 dialog 不動。
 - 灰摺疊三條：到班名冊（僅日到班）、今天的請假（來源＝家長 app／櫃台＋原因）、逾期帳單（僅 `manage_finance`；張數與金額來自 `GET /invoices/summary` 的 `overdue`，列表前 4 筆）。
-- 工具列／手機托盤：次要「櫃台代刷到班」（日到班模式開 `app-checkin-desk` 彈窗：從今天還沒到的人裡選一位、不換頁，課前也能用；逐堂模式照舊連到 `/admin/checkin` 打卡站，#2314）＋主要「登記請假」（開 `app-phone-leave` **彈窗**——原生 `<dialog>` `showModal`，手機桌機都置中，#2037；列內版預帶該生，`presetStudentId`，學生回來前先畫骨架、讀不到退回搜尋框）。需 `basic_operations`。
+- 工具列／手機托盤：次要「櫃台代刷到班」（日到班模式開 `app-checkin-desk` 彈窗：從今天還沒到的人裡選一位、不換頁，課前也能用；逐堂模式照舊連到 `/admin/checkin` 打卡站，#2314；日到班沒有可代刷的人時鈕停用、title 說明，不開空對話框，#2387）＋主要「登記請假」（開 `app-phone-leave` **彈窗**——原生 `<dialog>` `showModal`，手機桌機都置中，#2037；列內版預帶該生，`presetStudentId`，學生回來前先畫骨架、讀不到退回搜尋框）。需 `basic_operations`。
 - **「臨時狀況？」三個直達捷徑**（#2242 拿掉、#2246 放回）：都到課表頁 `/admin/sessions`，各帶 `?quick=`。
   每一跳收到參數**消費一次就從網址拿掉**（`replaceUrl`），重新整理、返回不會再觸發一次：
 

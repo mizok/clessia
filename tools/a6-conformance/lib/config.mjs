@@ -996,6 +996,8 @@ export const PAGES = {
     // 收款彈窗（#2316 寫期別、#2290 換殼）：稿列上的「收款」↔ app 列上的「收款」（DynamicDialog）
     // 稿的「收款」鈕在收合的章節裡（逾期列是「提醒」），先展開第一個章節再點
     a6Open: { pay: { click: ['details.coll > summary', '[data-pay]'], root: 'dialog[open]' } },
+    // 匯出帳單（稿 `bexp`、app 原生 popover `payments-export`，#2371 起）—— 沒對照時兩邊配不上、從沒量過（#2373）
+    popovers: { bexp: 'payments-export' },
     appOpen: {
       pay: {
         click: 'button[aria-label^="記錄 "]',
@@ -1584,11 +1586,26 @@ export const PAGES = {
       gen: { click: '[data-gen]', root: 'dialog[open]' },
       add: { click: '[data-add]', root: 'dialog[open]' },
       import: { click: '[data-import]', root: 'dialog[open]' },
+      // 停用開課班（#2361）：兩邊都在「⋯」選單裡
+      off: { click: ['[popovertarget="kacts"]', '[data-off]'], root: 'dialog[open]' },
     },
     appOpen: {
-      gen: { click: 'button:has-text("產生課堂")', root: '.p-dialog:has(app-generate-sessions-dialog)' },
-      add: { click: 'button:has-text("加入學生")', root: '.p-dialog:has(app-student-picker-dialog)' },
-      import: { click: 'button:has-text("Excel 匯入")', root: '.p-dialog:has(app-roster-import-dialog)' },
+      gen: {
+        click: 'button:has-text("產生課堂")',
+        root: '.p-dialog:has(app-generate-sessions-dialog)',
+      },
+      add: {
+        click: 'button:has-text("加入學生")',
+        root: '.p-dialog:has(app-student-picker-dialog)',
+      },
+      import: {
+        click: 'button:has-text("Excel 匯入")',
+        root: '.p-dialog:has(app-roster-import-dialog)',
+      },
+      off: {
+        click: ['button[aria-label="更多動作"]', '[role=menuitem]:has-text("停用班級")'],
+        root: '.p-dialog:has(app-deactivate-class-dialog)',
+      },
     },
     deviations: [
       // 加入學生、Excel 匯入的關閉鈕：手機 44×44（稿 34／35 寬）
@@ -1604,6 +1621,16 @@ export const PAGES = {
           source: `${rule('R3')}`,
         })),
       ),
+      // 停用開課班（#2361）：標題帶班名，稿是示範班「國三數學A班」、seed 是另一個班 —— 文案是資料
+      ...[
+        { status: '文案', a6: '(^pop\\[off\\]>|>)landmark:dialog\\[停用「國三數學A班」\\]$' },
+        { status: '文案', a6: '>heading:h2\\[停用「國三數學A班」\\]$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'off',
+        reason: '資料：標題帶量測那個班的班名（稿是示範班）',
+        source: 'class.html:251（A2.form title「停用「班名」」）；#2361',
+      })),
       noCampusSwitch('一個班只屬於一間分校，頂欄切到別的分校會跟頁面矛盾'),
       // 量的是 seed.sql 的「數學班 A」，稿是「國三數學A班」：班名不同，狀態標跟著位移
       {
@@ -1671,8 +1698,18 @@ export const PAGES = {
     appOpen: { checkin: { click: 'button:has-text("櫃台代刷")', root: 'dialog[open]' } },
     deviations: [
       // ── 櫃台代刷到班（#2314）──
+      // 稿的時間點（10-01 17:40）seed 沒有還沒到、沒請假的人：鈕照 #2387 停用，對話框開不起來
+      {
+        status: '缺',
+        a6: '^pop\\[checkin\\]$',
+        reason: '資料＋裁定：稿的時間點沒有可代刷的人，「櫃台代刷到班」停用、不開空對話框',
+        source: `${rule('R5')}「櫃台代刷到班：沒有可代刷的人時鈕停用」2026-11-06；#2387`,
+      },
       // 學生：app-select-field（p-select）對稿的 .dd；稿的按鈕名「選擇：…」跟 app 的 trigger 錯配
-      ...selectFieldDeviations('選擇|學生（今天還沒到的）\\*').map((d) => ({ ...d, pop: 'checkin' })),
+      ...selectFieldDeviations('選擇|學生（今天還沒到的）\\*').map((d) => ({
+        ...d,
+        pop: 'checkin',
+      })),
       ...[
         { status: '角色', a6: '>landmark:form\\[\\]>text:label\\[學生（今天還沒到的）\\]$' },
         ...['文案', '位置', '樣式'].map((status) => ({
@@ -2007,6 +2044,16 @@ export const PAGES = {
     deviations: [
       // 批次請假的課堂：app-select-field 對稿的 .dd（#2325，全站同一套）
       ...selectFieldInDialog('batch', '課堂', '選擇'),
+      // 批次請假（#2325）：手機內容左右 16（共用殼的規格，稿 24），內容區的段落與欄位寬 +16
+      {
+        status: '尺寸',
+        widths: [360],
+        pop: 'batch',
+        a6: '>landmark:dialog\\[批次請假\\]>(text:p|text:label|control:textbox)\\[[^\\]]*\\]$',
+        detail: '^寬 312→328$',
+        reason: '對話框手機內容左右 16（共用殼），稿 24',
+        source: `${rule('R5', '「對話框手機內容左右 16」2026-11-05')}`,
+      },
       // 登記請假（#2318）：app 的日期、要請假的課、原因三格同層同子元素數，被工具合成一列（README「列是資料」的 div 格線規則）；
       // 稿同樣的三格沒觸發，於是「要請假的課」與空狀態那句報缺、app 報多一列 —— 內容與樣式照稿（.pick、.pick__none）
       ...[
@@ -2996,13 +3043,15 @@ export const PAGES = {
         widths: [360],
         pop: 'new-exam',
         a6: 'landmark:form\\[\\]>text:label\\[(參加的開課班|滿分|及格分數)\\]$',
-        detail: 'Δx 0、Δy \\+1[5-7]\\d',
+        // 換殼後子項相對 form 多了殼的內距（手機 −16，#2290 計畫席裁定 issuecomment-6660276130）
+        detail: 'Δx (0|-16)、Δy \\+1[5-7]\\d',
         reason: '連帶：手機上科目、分校（R2 保留）各佔一列',
         source: `${rule('R5')}「新增考試的開課班多選與保留欄位」2026-11-02`,
       },
       // 滿分／及格分數：稿用共用的 money 欄型（前面一個「NT$」，輸入框因此是 flex 子項），分數不加 NT$
       ...[
-        { status: '位置', detail: 'Δx -3[5-9]' },
+        // 換殼後再加殼的內距（−16／−24）
+        { status: '位置', detail: 'Δx -(3[5-9]|5[1-5]|59|6[0-3])' },
         { status: '樣式', detail: '^display block → inline-block$' },
       ].map((d) => ({
         ...d,
@@ -3017,7 +3066,34 @@ export const PAGES = {
     a6: 'scores.html',
     // seed 的考試（跟 scores-dirty 同一場）；原本的 id 是某一席本機 DB 的，seed 裡沒有（#1314 10-30）
     app: '/admin/grades/exams/academy/70000000-0000-0000-0000-000000000003/scores',
-    deviations: [noCampusSwitch('看的是一場考試；班可能跨分校，誰能看由後端權限擋')],
+    // 加入其他學生、標記完成（#2290 grades）：稿是 A2.form（dialog.fdlg）；app 是 p-dialog／原生 dialog＋共用殼
+    a6Open: {
+      add: { click: '[data-add]', root: 'dialog[open]' },
+      complete: { click: '[data-complete]', root: 'dialog[open]' },
+    },
+    appOpen: {
+      add: { click: 'button:has-text("加入其他學生")', root: '.p-dialog:has(app-dialog-frame)' },
+      complete: { click: 'button:has-text("標記完成")', root: 'dialog[open]' },
+    },
+    deviations: [
+      noCampusSwitch('看的是一場考試；班可能跨分校，誰能看由後端權限擋'),
+      // 標記完成：稿是 fields: [] 的 A2.form（空 <form> 有上下內距），app 的確認沒有欄位、不包 form（同 staff 停用確認）
+      {
+        status: '缺',
+        pop: 'complete',
+        a6: '>landmark:dialog\\[標記完成\\]>landmark:form\\[\\]$',
+        reason: '確認對話框沒有欄位，不包空的 form（稿是 A2.form fields: []）',
+        source: `${rule('R7')}`,
+      },
+      {
+        status: '尺寸',
+        pop: 'complete',
+        a6: '^pop\\[complete\\]>landmark:dialog\\[標記完成\\]$',
+        detail: '^高 ',
+        reason: '連帶：稿的空 form 有上下內距，app 沒有 form',
+        source: `${rule('R7')}`,
+      },
+    ],
   },
   grades: {
     a6: 'grades.html',
@@ -3100,6 +3176,8 @@ export const PAGES = {
   'grades-student': {
     a6: 'grades-student.html',
     app: '/admin/grades/overview/student',
+    // 匯出成績（稿 `gexp`、app 原生 popover `sv-export`，#2372 起）—— 沒對照時從沒量過（#2373）
+    popovers: { gexp: 'sv-export' },
     a6Open: opensOf('grades-student', 'a6Open'),
     // app 的篩選是 app-filter-panel：桌機 PrimeNG Popover、≤860 貼底抽屜 p-dialog（#2206）；#2079(c) 開課班／期間要打開才量得到
     appOpen: {
@@ -3107,6 +3185,15 @@ export const PAGES = {
       ...opensOf('grades-student', 'appOpen'),
     },
     deviations: [
+      // 成績明細合計列：左右內距從這一列移到殼的內容區（--dlg-pad-x），畫面位置相同（#2290 計畫席裁定）
+      {
+        status: '樣式',
+        pop: 'detail',
+        a6: '>landmark:dialog\\[[^\\]]*\\]>text:p\\[#場·平均#分·不及格#場\\]$',
+        item: '^padding 0px (24|16)px 8px → 0px 0px 8px$',
+        reason: '殼的內距在內容區外層（.dialog-frame__body），稿在這一列上，幾何相同',
+        source: 'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
+      },
       // 同 grades-class：工具列換成全站共用的搜尋框之後（#1314 G9），量到的是 input 不是外層 label
       ...['尺寸', '樣式', '位置'].map((status) => ({
         status,

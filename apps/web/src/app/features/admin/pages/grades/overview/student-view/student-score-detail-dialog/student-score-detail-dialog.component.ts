@@ -19,7 +19,7 @@ import { MessageService } from 'primeng/api';
 import { PagerComponent } from '@shared/components/pager/pager.component';
 import { TooltipModule } from 'primeng/tooltip';
 
-import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import {
   SelectFieldComponent,
   type SelectFieldOption,
@@ -64,7 +64,7 @@ const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
     EmptyStateComponent,
     PagerComponent,
     SelectFieldComponent,
-    DialogTitleDirective,
+    DialogFrameComponent,
     TooltipModule,
   ],
   templateUrl: './student-score-detail-dialog.component.html',
