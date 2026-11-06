@@ -1,9 +1,9 @@
 <!-- 共用殼（#2290）：學生名當 h2（可及名稱）、年級當副標；「N 科未儲存」移到內容最上面 -->
-<app-dialog-frame
-  [title]="data?.studentName ?? '學生'"
-  [sub]="formatGrade(data?.studentGrade ?? null)"
-  (closed)="close()"
->
+<app-dialog-frame [title]="data?.studentName ?? '學生'" (closed)="close()">
+  <!-- #2396 B：年級 -->
+  @if (formatGrade(data?.studentGrade ?? null); as grade) {
+    <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ grade }}</p>
+  }
   @if (isDirty()) {
     <p
       class="m-0 inline-flex items-center gap-1 justify-self-start rounded-sm bg-warning-100 px-2 py-px text-xs font-semibold text-warning-800"
