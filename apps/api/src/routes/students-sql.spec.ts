@@ -175,6 +175,14 @@ describe('GET /api/students 先走 SQL（#1595 P2 ② 刀 1a）', () => {
     expect(d.slice(3, 8)).toEqual([null, null, false, false, false]);
   });
 
+  // #2313：z.coerce.boolean() 把字串 "false" 讀成 true，?isActive=false 篩成在籍
+  it('isActive=false 是 false（不是在籍）；taughtByMe=false 解析得過', async () => {
+    expect((await params('/?withToday=false&isActive=false', null))[4]).toBe(false);
+    expect((await params('/?withToday=false&isActive=0', null))[4]).toBe(false);
+    expect((await params('/?withToday=false&isActive=1&taughtByMe=false', null))[4]).toBe(true);
+    expect((await list('/?withToday=false&isActive=yes', {})).status).toBe(400);
+  });
+
   it('老師（刀 2）：先一支老師範圍 SQL，現任班才算（前任不算）、在籍學生只取現任班', async () => {
     const pool = {
       query: vi.fn().mockImplementation(async (sql: string) =>
@@ -219,11 +227,9 @@ describe('GET /api/students 先走 SQL（#1595 P2 ② 刀 1a）', () => {
 
   it('老師沒有 staff 列 → 403（同 REST 那條）', async () => {
     const pool = {
-      query: vi
-        .fn()
-        .mockResolvedValue({
-          rows: [{ result: { staffId: null, schedules: [], enrollments: [] } }],
-        }),
+      query: vi.fn().mockResolvedValue({
+        rows: [{ result: { staffId: null, schedules: [], enrollments: [] } }],
+      }),
     };
     expect((await list('/?withToday=false', { pool, teacher: true })).status).toBe(403);
     expect(pool.query).toHaveBeenCalledTimes(1);

@@ -1,7 +1,7 @@
 import { z } from '@hono/zod-openapi';
 import { describe, expect, it } from 'vitest';
 
-import { DbUuidSchema } from './validation';
+import { DbUuidSchema, QueryBooleanSchema } from './validation';
 
 /**
  * P0-1（2026-09-06）：`supabase/seed.sql` 用可讀 id（例如這裡測的
@@ -38,5 +38,17 @@ describe('DbUuidSchema', () => {
     const result = DbUuidSchema.safeParse('5627c510-47fe-4c69-b139-91c1b63d71e1');
 
     expect(result.success).toBe(true);
+  });
+});
+
+// #2313：query 字串的布林 —— z.coerce.boolean() 會把 "false" 讀成 true
+describe('QueryBooleanSchema', () => {
+  it('true／1 → true，false／0 → false，其他拒絕', () => {
+    expect(QueryBooleanSchema.parse('true')).toBe(true);
+    expect(QueryBooleanSchema.parse('1')).toBe(true);
+    expect(QueryBooleanSchema.parse('false')).toBe(false);
+    expect(QueryBooleanSchema.parse('0')).toBe(false);
+    expect(QueryBooleanSchema.safeParse('yes').success).toBe(false);
+    expect(QueryBooleanSchema.safeParse('').success).toBe(false);
   });
 });

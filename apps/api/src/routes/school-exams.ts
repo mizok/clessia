@@ -4,7 +4,7 @@ import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
 import { canManageOrgExam } from '../lib/exam-scope';
-import { DbUuidSchema } from '../lib/validation';
+import { DbUuidSchema, QueryBooleanSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { fetchAllPages } from '../lib/fetch-all-pages';
@@ -380,7 +380,7 @@ const listRoute = createRoute({
       subject_id: DbUuidSchema.optional(),
       date_from: z.string().date().optional(),
       date_to: z.string().date().optional(),
-      todo: z.coerce.boolean().optional(),
+      todo: QueryBooleanSchema.optional(),
       page: z.coerce.number().int().min(1).default(1).optional(),
       pageSize: z.coerce.number().int().min(1).max(200).default(20).optional(),
     }),

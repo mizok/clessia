@@ -25,13 +25,15 @@ export const forgotPasswordSchema = z.object({
 
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 
-export const resetPasswordSchema = z.object({
-  password: z.string().min(6, '密碼至少需要 6 個字元'),
-  confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: '密碼不一致',
-  path: ['confirmPassword'],
-});
+export const resetPasswordSchema = z
+  .object({
+    password: z.string().min(6, '密碼至少需要 6 個字元'),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: '密碼不一致',
+    path: ['confirmPassword'],
+  });
 
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 
@@ -131,11 +133,19 @@ export const paginationSchema = z.object({
 
 export type PaginationInput = z.infer<typeof paginationSchema>;
 
+/**
+ * query string 的布林（#2313）：`z.coerce.boolean()` 會把字串 "false" 讀成 true，不要用。
+ * api 端同一支在 `apps/api/src/lib/validation.ts`（那邊走 @hono/zod-openapi 的 z）
+ */
+export const queryBooleanSchema = z
+  .enum(['true', 'false', '1', '0'])
+  .transform((v) => v === 'true' || v === '1');
+
 export const listQuerySchema = paginationSchema.extend({
   search: z.string().optional(),
   sortBy: z.string().optional(),
   sortOrder: z.enum(['asc', 'desc']).default('asc'),
-  isActive: z.coerce.boolean().optional(),
+  isActive: queryBooleanSchema.optional(),
   campusId: z.uuid().optional(),
 });
 

@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
-import { DbUuidSchema } from '../lib/validation';
+import { DbUuidSchema, QueryBooleanSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 import { auditDeleteSnapshot, auditFieldDiff } from '../lib/audit-diff';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -85,7 +85,7 @@ const listRoute = createRoute({
   request: {
     query: z.object({
       search: z.string().optional(),
-      isActive: z.coerce.boolean().optional(),
+      isActive: QueryBooleanSchema.optional(),
     }),
   },
   responses: {
