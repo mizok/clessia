@@ -1,32 +1,34 @@
-<div class="confirm-dialog p-2">
-  <p class="confirm-dialog__message mx-0 mt-0 mb-6 leading-[1.6] text-zinc-900">
-    {{ data.message }}
-  </p>
-
+<!--
+  共用殼（#2290）：A6 的確認＝沒有欄位的表單對話框（courses.html `confirmDel`：A2.form title＋sub、fields: []）——
+  標題用開窗端的 `header`，訊息當副標；底部「取消」＋主鈕（稿的危險確認也是同一顆 cta，a6.css 沒有 fdlg--danger 樣式）
+-->
+<app-dialog-frame [title]="config.header ?? '確認'" [sub]="data.message" (closed)="reject()">
   @if (data.requireNotes) {
-    <div class="confirm-dialog__notes mb-4">
-      <textarea
-        pTextarea
-        [(ngModel)]="notes"
-        [placeholder]="data.notesPlaceholder ?? '請填寫原因（必填）'"
-        rows="3"
-        class="w-full"
-      ></textarea>
-    </div>
+    <textarea
+      pTextarea
+      [(ngModel)]="notes"
+      [placeholder]="data.notesPlaceholder ?? '請填寫原因（必填）'"
+      [attr.aria-label]="data.notesPlaceholder ?? '原因（必填）'"
+      rows="3"
+      class="w-full"
+    ></textarea>
   }
-
-  <div class="confirm-dialog__actions flex justify-end gap-2">
-    <p-button
-      [label]="data.rejectLabel ?? '取消'"
-      [outlined]="true"
-      severity="secondary"
-      (onClick)="reject()"
-    />
-    <p-button
-      [label]="data.acceptLabel ?? '確認'"
-      [severity]="data.acceptSeverity ?? 'danger'"
-      [disabled]="!canAccept"
-      (onClick)="accept()"
-    />
-  </div>
-</div>
+  <ng-container dialogFoot>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
+      (click)="reject()"
+    >
+      {{ data.rejectLabel ?? '取消' }}
+    </button>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+      data-testid="confirm-accept"
+      [attr.aria-disabled]="!canAccept"
+      (click)="accept()"
+    >
+      {{ data.acceptLabel ?? '確認' }}
+    </button>
+  </ng-container>
+</app-dialog-frame>

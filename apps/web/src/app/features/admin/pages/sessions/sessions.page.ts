@@ -713,9 +713,8 @@ export class SessionsPage implements OnInit {
       initialMode,
     };
     const ref = this.dialogService.open(MobileBatchDialogComponent, {
-      header: `已選 ${this.selectedCount()} 堂`,
-      width: '420px',
-      closable: true,
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       closeOnEscape: true,
       dismissableMask: true,
       appendTo: this.overlayContainer ?? 'body',
@@ -810,9 +809,8 @@ export class SessionsPage implements OnInit {
       selectedStatuses: this.selectedStatuses(),
     };
     const ref = this.dialogService.open(MobileFilterDialogComponent, {
-      header: '篩選條件',
-      width: '420px',
-      closable: true,
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       closeOnEscape: true,
       dismissableMask: true,
       appendTo: this.overlayContainer ?? 'body',

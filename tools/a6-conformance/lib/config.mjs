@@ -704,6 +704,13 @@ const FORM_DIALOGS = {
       '[data-testid^="permission-count-"]',
       'app-permission-dialog',
     ),
+    // 確認對話框（#2290 ConfirmDialog）：稿＝沒有欄位的 A2.form（停用帳號）；app 的 ConfirmDialog 換殼。
+    // 第一列是本人（稿 p1／app 登入的管理員），兩邊都取第二列
+    off: dlgOpen(
+      ['.pp__more[data-x="p2"]', '[data-off]'],
+      [':nth-match(button[aria-label$=" 的更多動作"], 2)', '[role=menuitem]:has-text("停用帳號")'],
+      'app-confirm-dialog',
+    ),
     // 授課紀錄（#2290 B 批）：老師章第一列的「⋯」→「授課紀錄」
     'teaching-log': dlgOpen(
       ['[aria-label="老師"] .pp__more', '[data-log-t]'],
@@ -1512,10 +1519,33 @@ export const PAGES = {
     // 課程 id seed.sql 也是隨機的；網址的 courseId 段頁面沒讀（class-detail.page.ts resolvedCourseId 沒有讀者），放佔位字串
     app: '/admin/courses/seed-course/classes/62000000-0000-0000-0000-000000000001',
     // 產生課堂（#2290 courses）：稿 genDialog 是原生 dialog.acset.fdlg；app 是 DialogService（共用殼）。
-    // 課程頁的 gen 要先有「需介入」的班，seed 在稿的時間點沒有，量不到 —— 改在這裡量
-    a6Open: { gen: { click: '[data-gen]', root: 'dialog[open]' } },
-    appOpen: { gen: { click: 'button:has-text("產生課堂")', root: '.p-dialog:has(app-generate-sessions-dialog)' } },
+    // 課程頁的 gen 要先有「需介入」的班，seed 在稿的時間點沒有，量不到 —— 改在這裡量。
+    // 名單的加入學生、Excel 匯入：稿是 A2.form（dialog.fdlg）。稿的「複製名單」是複製到剪貼簿，
+    // 跟 app 的「從其他班複製」不是同一件事，不量
+    a6Open: {
+      gen: { click: '[data-gen]', root: 'dialog[open]' },
+      add: { click: '[data-add]', root: 'dialog[open]' },
+      import: { click: '[data-import]', root: 'dialog[open]' },
+    },
+    appOpen: {
+      gen: { click: 'button:has-text("產生課堂")', root: '.p-dialog:has(app-generate-sessions-dialog)' },
+      add: { click: 'button:has-text("加入學生")', root: '.p-dialog:has(app-student-picker-dialog)' },
+      import: { click: 'button:has-text("Excel 匯入")', root: '.p-dialog:has(app-roster-import-dialog)' },
+    },
     deviations: [
+      // 加入學生、Excel 匯入的關閉鈕：手機 44×44（稿 34／35 寬）
+      ...['add', 'import'].flatMap((pop) =>
+        [
+          { status: '尺寸', widths: [360], detail: '^寬 3\\d→44$' },
+          { status: '位置', widths: [360] },
+        ].map((d) => ({
+          ...d,
+          pop,
+          a6: '>landmark:dialog\\[[^\\]]*\\]>control:button\\[關閉\\]$',
+          reason: '可點元素基底 ≥44px',
+          source: `${rule('R3')}`,
+        })),
+      ),
       noCampusSwitch('一個班只屬於一間分校，頂欄切到別的分校會跟頁面矛盾'),
       // 量的是 seed.sql 的「數學班 A」，稿是「國三數學A班」：班名不同，狀態標跟著位移
       {
@@ -2390,6 +2420,33 @@ export const PAGES = {
         '>landmark:main[]>landmark:region[已停用]>heading:h2[已停用]',
     },
     deviations: [
+      // ── 停用確認（ConfirmDialog，#2290）──
+      // 稿的確認是 fields: [] 的 A2.form（空 <form>）；app 的確認沒有欄位，不包 form（R7）。取消／主鈕的位置連帶
+      {
+        status: '缺',
+        pop: 'off',
+        a6: '>landmark:dialog\\[確認停用\\]>landmark:form\\[\\]$',
+        reason: '確認對話框沒有欄位，不包空的 form（稿是 A2.form fields: []）',
+        source: `${rule('R7')}`,
+      },
+      ...['取消', '停用'].map((name) => ({
+        status: '位置',
+        pop: 'off',
+        a6: `>landmark:dialog\\[確認停用\\]>control:button\\[${name}\\]$`,
+        reason: '連帶：稿的空 form 有上下內距，app 沒有 form',
+        source: `${rule('R7')}`,
+      })),
+      // 關閉鈕：手機 44×44（稿 29 寬）
+      ...[
+        { status: '尺寸', widths: [360], detail: '^寬 29→44$' },
+        { status: '位置', widths: [360] },
+      ].map((d) => ({
+        ...d,
+        pop: 'off',
+        a6: '>landmark:dialog\\[確認停用\\]>control:button\\[關閉\\]$',
+        reason: '可點元素基底 ≥44px',
+        source: `${rule('R3')}`,
+      })),
       // 權限設定（#1314 ST2）。稿量第二筆「張教務」，app 量第一位管理員：人名、權限項數、頁長都是資料
       ...[
         { status: '文案', a6: '\\[張教務的權限\\]$' },
@@ -2421,6 +2478,17 @@ export const PAGES = {
         a6: 'heading:h2\\[授課紀錄· \\{名\\}\\]$',
         reason: '資料：標題帶量測那位老師的本名（稿是示範人名）',
         source: 'staff.html:251（sheet 標題「授課紀錄 · 姓名」）；#2290',
+      },
+      // #2290 換殼：殼的內距在內容區外層（.dialog-frame__body），稿在 form 上 —— form 本身相對對話框的位移
+      // （全站那兩條只涵蓋 form 的 padding 與子項；同 enrollments「直接報名」那條，同一份裁定）
+      {
+        status: '位置',
+        pop: 'new-staff',
+        a6: '>landmark:dialog\\[新增人員\\]>landmark:form\\[\\]$',
+        detail: '^相對「新增人員」 Δx \\+(16|24)、Δy \\+(8|9|1[01])（',
+        reason: '殼的內距在內容區外層（.dialog-frame__body），稿在 form 上，幾何相同',
+        source:
+          'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
       },
       // 手機關閉鈕 44（稿 38）—— 同新增家長那條
       ...[

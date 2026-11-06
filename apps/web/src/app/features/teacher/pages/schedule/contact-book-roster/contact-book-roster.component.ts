@@ -106,7 +106,7 @@ export class ContactBookRosterComponent {
           // 沒有才是真的新寫
           const existing = res.data[0];
           const ref = this.dialogService.open(ContactBookEntryDialogComponent, {
-            width: '480px',
+            width: 'var(--dlg-w-md)',
             modal: true,
             showHeader: false,
             closable: false,

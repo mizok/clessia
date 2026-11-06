@@ -7,7 +7,6 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { SelectModule } from 'primeng/select';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
@@ -55,9 +54,16 @@ interface MobileFilterClassDisplayOption {
   readonly campusName: string | null;
 }
 
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 @Component({
   selector: 'app-mobile-filter-dialog',
-  imports: [FormsModule, ButtonModule, MultiSelectModule, SelectModule, ImeFilterInputComponent],
+  imports: [
+    DialogFrameComponent,
+    FormsModule,
+    MultiSelectModule,
+    SelectModule,
+    ImeFilterInputComponent,
+  ],
   templateUrl: './mobile-filter-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -300,5 +306,10 @@ export class MobileFilterDialogComponent implements OnInit {
     return items.filter((item) =>
       fields(item).some((value) => value?.toLowerCase().includes(normalizedQuery)),
     );
+  }
+
+  /** 殼的 ✕：不帶結果關窗（同按遮罩、Esc） */
+  protected close(): void {
+    this.ref.close();
   }
 }

@@ -358,7 +358,7 @@ export class ApplicationsPage {
 
   protected createParent(app: PublicApplication): void {
     this.dialog.open(ParentFormDialogComponent, {
-      width: '520px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       // 表單自己聚焦姓名（桌機）；PrimeNG 預設會聚焦第一個可聚焦元素＝關閉鈕

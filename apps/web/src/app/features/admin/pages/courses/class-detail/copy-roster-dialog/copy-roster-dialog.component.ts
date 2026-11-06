@@ -1,3 +1,4 @@
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
@@ -43,6 +44,7 @@ interface GradeLevelOption {
   selector: 'app-copy-roster-dialog',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     CommonModule,
     FormsModule,
     ButtonModule,
