@@ -977,10 +977,9 @@ export class ExamsComponent implements OnInit {
   private openConfirmDialog(header: string, data: ConfirmDialogData, onAccept: () => void): void {
     const ref = this.dialogService.open(ConfirmDialogComponent, {
       header,
-      width: '420px',
-      breakpoints: { '640px': '96%' },
+      width: 'var(--dlg-w-md)',
       modal: true,
-      showHeader: true,
+      showHeader: false,
       appendTo: this.overlayContainer || 'body',
       data,
     });

@@ -568,7 +568,8 @@ export class ClassDetailPage implements OnInit {
   ): void {
     const ref = this.dialogService.open(ConfirmDialogComponent, {
       header,
-      width: '420px',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       modal: true,
       appendTo: this.overlayContainer || 'body',
       data,

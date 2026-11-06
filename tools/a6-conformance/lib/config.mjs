@@ -689,6 +689,13 @@ const FORM_DIALOGS = {
       '[data-testid^="permission-count-"]',
       'app-permission-dialog',
     ),
+    // 確認對話框（#2290 ConfirmDialog）：稿＝沒有欄位的 A2.form（停用帳號）；app 的 ConfirmDialog 換殼。
+    // 第一列是本人（稿 p1／app 登入的管理員），兩邊都取第二列
+    off: dlgOpen(
+      ['.pp__more[data-x="p2"]', '[data-off]'],
+      [':nth-match(button[aria-label$=" 的更多動作"], 2)', '[role=menuitem]:has-text("停用帳號")'],
+      'app-confirm-dialog',
+    ),
     // 授課紀錄（#2290 B 批）：老師章第一列的「⋯」→「授課紀錄」
     'teaching-log': dlgOpen(
       ['[aria-label="老師"] .pp__more', '[data-log-t]'],
@@ -2363,6 +2370,33 @@ export const PAGES = {
         '>landmark:main[]>landmark:region[已停用]>heading:h2[已停用]',
     },
     deviations: [
+      // ── 停用確認（ConfirmDialog，#2290）──
+      // 稿的確認是 fields: [] 的 A2.form（空 <form>）；app 的確認沒有欄位，不包 form（R7）。取消／主鈕的位置連帶
+      {
+        status: '缺',
+        pop: 'off',
+        a6: '>landmark:dialog\\[確認停用\\]>landmark:form\\[\\]$',
+        reason: '確認對話框沒有欄位，不包空的 form（稿是 A2.form fields: []）',
+        source: `${rule('R7')}`,
+      },
+      ...['取消', '停用'].map((name) => ({
+        status: '位置',
+        pop: 'off',
+        a6: `>landmark:dialog\\[確認停用\\]>control:button\\[${name}\\]$`,
+        reason: '連帶：稿的空 form 有上下內距，app 沒有 form',
+        source: `${rule('R7')}`,
+      })),
+      // 關閉鈕：手機 44×44（稿 29 寬）
+      ...[
+        { status: '尺寸', widths: [360], detail: '^寬 29→44$' },
+        { status: '位置', widths: [360] },
+      ].map((d) => ({
+        ...d,
+        pop: 'off',
+        a6: '>landmark:dialog\\[確認停用\\]>control:button\\[關閉\\]$',
+        reason: '可點元素基底 ≥44px',
+        source: `${rule('R3')}`,
+      })),
       // 權限設定（#1314 ST2）。稿量第二筆「張教務」，app 量第一位管理員：人名、權限項數、頁長都是資料
       ...[
         { status: '文案', a6: '\\[張教務的權限\\]$' },
