@@ -1,150 +1,134 @@
-<div class="roster-panel flex flex-col">
-  <div class="roster-panel__header flex items-start justify-between border-b border-b-zinc-200 p-4">
-    <div>
-      <div class="roster-panel__title text-[1rem] font-semibold text-zinc-900">
-        {{ session.className }}
+<!-- 共用殼（#2290）：h2＝班名、副標＝日期 · 時段 -->
+<app-dialog-frame [title]="session.className" [sub]="sub" (closed)="close()">
+  <div class="roster-panel flex flex-col">
+    @if (notice()) {
+      <app-inline-notice
+        [severity]="notice()!.severity"
+        [detail]="notice()!.detail"
+        (dismissed)="notice.set(null)"
+      />
+    }
+
+    @if (loading()) {
+      <div class="roster-panel__loading flex justify-center p-8">
+        <p-progressSpinner strokeWidth="4" />
       </div>
-      <div class="roster-panel__subtitle mt-0.5 text-[0.75rem] text-zinc-500">
-        {{ session.eventDate }}
-        @if (session.timeRange) {
-          · {{ session.timeRange }}
+    } @else if (roster()) {
+      <div
+        class="roster-panel__list max-h-[calc(var(--window-height,100dvh)*0.55)] overflow-y-auto px-0 py-2"
+      >
+        @if (rosterEmpty()) {
+          <p class="roster-panel__empty m-0 px-4 py-6 text-center text-sm text-zinc-500">
+            這個班還沒有學生，先到班級名單加人。
+          </p>
         }
-      </div>
-    </div>
-    <p-button icon="pi pi-times" [text]="true" severity="secondary" (onClick)="close()" />
-  </div>
-
-  @if (notice()) {
-    <app-inline-notice
-      [severity]="notice()!.severity"
-      [detail]="notice()!.detail"
-      (dismissed)="notice.set(null)"
-    />
-  }
-
-  @if (loading()) {
-    <div class="roster-panel__loading flex justify-center p-8">
-      <p-progressSpinner strokeWidth="4" />
-    </div>
-  } @else if (roster()) {
-    <div
-      class="roster-panel__list max-h-[calc(var(--window-height,100dvh)*0.55)] overflow-y-auto px-0 py-2"
-    >
-      @if (rosterEmpty()) {
-        <p class="roster-panel__empty m-0 px-4 py-6 text-center text-sm text-zinc-500">
-          這個班還沒有學生，先到班級名單加人。
-        </p>
-      }
-      @for (student of roster()!.students; track student.studentId) {
-        <!--
+        @for (student of roster()!.students; track student.studentId) {
+          <!--
           請假的列**刻意不用 opacity 淡化**：它是老師唯一需要發現、卻在這裡做不了事的一列（學生人在現場、系統說他請假），
           淡化等於說「這列不用管」，也會把裡面 chip 的對比從 10.58 吃到 4.39。區別由結構（沒有出席／缺席鈕）加
           zinc-200 底色（對白亮度差 0.1958）承擔；底色加深後副標跟著從 zinc-500 改 zinc-600（對比 6.44）。
           只有請假單、紀錄還沒套用的那種列**不掛** `--on-leave`（它本來就能標記）。
         -->
-        <div
-          class="roster-panel__row flex items-center justify-between border-b border-b-zinc-100 px-4 py-3"
-          [class.roster-panel__row--on-leave]="isLocked(student)"
-          [class.bg-zinc-200]="isLocked(student)"
-        >
-          <div class="roster-panel__student flex min-w-0 flex-col gap-0.5">
-            <span class="roster-panel__identity flex min-w-0 flex-wrap items-center gap-2">
-              <span class="roster-panel__name text-[0.9rem] font-medium text-zinc-800">{{
-                student.studentName
-              }}</span>
-              @if (hasLeave(student)) {
-                <app-data-chip>請假</app-data-chip>
-              }
-            </span>
-            <span
-              class="roster-panel__sub text-[0.75rem]"
-              [class.text-zinc-500]="!isLocked(student)"
-              [class.text-zinc-600]="isLocked(student)"
-            >
-              {{ gradeLabel(student.grade) }}{{ student.school ? ' · ' + student.school : '' }}
-            </span>
-            @if (isMismarked(student)) {
-              <!--
+          <div
+            class="roster-panel__row flex items-center justify-between border-b border-b-zinc-100 px-4 py-3"
+            [class.roster-panel__row--on-leave]="isLocked(student)"
+            [class.bg-zinc-200]="isLocked(student)"
+          >
+            <div class="roster-panel__student flex min-w-0 flex-col gap-0.5">
+              <span class="roster-panel__identity flex min-w-0 flex-wrap items-center gap-2">
+                <span class="roster-panel__name text-[0.9rem] font-medium text-zinc-800">{{
+                  student.studentName
+                }}</span>
+                @if (hasLeave(student)) {
+                  <app-data-chip>請假</app-data-chip>
+                }
+              </span>
+              <span
+                class="roster-panel__sub text-[0.75rem]"
+                [class.text-zinc-500]="!isLocked(student)"
+                [class.text-zinc-600]="isLocked(student)"
+              >
+                {{ gradeLabel(student.grade) }}{{ student.school ? ' · ' + student.school : '' }}
+              </span>
+              @if (isMismarked(student)) {
+                <!--
                 刻意不是 app-status-dot 的 tone：五個 tone 回答「這件事現在怎麼樣」（狀態），
                 這一句回答「你得看一眼」（對這一列的旗標）。不同的問題用不同的載體。
                 2026-09-02 與 design-web-2 的結論；第二個使用者出現時再升上 shared。
               -->
-              <span
-                class="roster-panel__mismark mt-0.5 inline-flex items-center gap-1 text-[0.75rem] font-medium text-warning-800"
-              >
-                <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-                這位學生已請假，不需點名
-              </span>
-            }
-          </div>
+                <span
+                  class="roster-panel__mismark mt-0.5 inline-flex items-center gap-1 text-[0.75rem] font-medium text-warning-800"
+                >
+                  <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                  這位學生已請假，不需點名
+                </span>
+              }
+            </div>
 
-          @if (isLocked(student)) {
-            <!--
+            @if (isLocked(student)) {
+              <!--
               A1：請假的學生今天出現了。在這顆按鈕之前，這一列是死的 ——
               學生本人站在教室裡，系統沒有任何方式記錄他來了。
             -->
-            @if (cancelDropsUntil(student); as dropUntil) {
-              <p class="roster-panel__leave-span m-0 text-[0.75rem] text-warning-800">
-                銷假將一併取消到 {{ dropUntil }} 的請假
-              </p>
+              @if (cancelDropsUntil(student); as dropUntil) {
+                <p class="roster-panel__leave-span m-0 text-[0.75rem] text-warning-800">
+                  銷假將一併取消到 {{ dropUntil }} 的請假
+                </p>
+              }
+              @if (canCancelLeave()) {
+                <p-button
+                  class="roster-panel__came shrink-0"
+                  label="他來了"
+                  icon="pi pi-user-plus"
+                  size="small"
+                  [outlined]="true"
+                  [loading]="cancelling() === student.studentId"
+                  (onClick)="cancelLeave(student.studentId)"
+                />
+              }
+            } @else if (session.readOnly) {
+              <app-data-chip>
+                {{
+                  getStatus(student.studentId) === 'present'
+                    ? '出席'
+                    : getStatus(student.studentId) === 'absent'
+                      ? '缺席'
+                      : '未點名'
+                }}
+              </app-data-chip>
+            } @else {
+              <div class="roster-panel__toggle flex shrink-0 gap-2">
+                <p-button
+                  label="出席"
+                  size="small"
+                  [outlined]="getStatus(student.studentId) !== 'present'"
+                  severity="success"
+                  [ariaPressed]="getStatus(student.studentId) === 'present'"
+                  (onClick)="setStatus(student.studentId, 'present')"
+                />
+                <p-button
+                  label="缺席"
+                  size="small"
+                  [outlined]="getStatus(student.studentId) !== 'absent'"
+                  severity="danger"
+                  [ariaPressed]="getStatus(student.studentId) === 'absent'"
+                  (onClick)="setStatus(student.studentId, 'absent')"
+                />
+              </div>
             }
-            @if (canCancelLeave()) {
-              <p-button
-                class="roster-panel__came shrink-0"
-                label="他來了"
-                icon="pi pi-user-plus"
-                size="small"
-                [outlined]="true"
-                [loading]="cancelling() === student.studentId"
-                (onClick)="cancelLeave(student.studentId)"
-              />
-            }
-          } @else if (session.readOnly) {
-            <app-data-chip>
-              {{
-                getStatus(student.studentId) === 'present'
-                  ? '出席'
-                  : getStatus(student.studentId) === 'absent'
-                    ? '缺席'
-                    : '未點名'
-              }}
-            </app-data-chip>
-          } @else {
-            <div class="roster-panel__toggle flex shrink-0 gap-2">
-              <p-button
-                label="出席"
-                size="small"
-                [outlined]="getStatus(student.studentId) !== 'present'"
-                severity="success"
-                [ariaPressed]="getStatus(student.studentId) === 'present'"
-                (onClick)="setStatus(student.studentId, 'present')"
-              />
-              <p-button
-                label="缺席"
-                size="small"
-                [outlined]="getStatus(student.studentId) !== 'absent'"
-                severity="danger"
-                [ariaPressed]="getStatus(student.studentId) === 'absent'"
-                (onClick)="setStatus(student.studentId, 'absent')"
-              />
-            </div>
-          }
-        </div>
-      }
-    </div>
-
-    @if (session.readOnly) {
-      <div
-        class="roster-panel__footer flex flex-wrap items-center gap-2 border-t border-t-zinc-200 p-4"
-      >
+          </div>
+        }
+      </div>
+    }
+  </div>
+  <ng-container dialogFoot>
+    <!-- 底部列原本在 @else if (roster()) 裡；投影只吃最上層節點，條件搬到這裡（#2290） -->
+    @if (!loading() && roster()) {
+      @if (session.readOnly) {
         <span class="roster-panel__progress min-w-0 flex-[1_1_10rem] text-xs text-zinc-500"
           >由行政人員點名，這裡只能查看</span
         >
-      </div>
-    } @else {
-      <div
-        class="roster-panel__footer flex flex-wrap items-center gap-2 border-t border-t-zinc-200 p-4"
-      >
+      } @else {
         <!--
         進度講在按鈕旁邊。**三種狀態都有話講，所以這一格永遠在** ——
         標完最後一人的瞬間如果它消失，footer 會縮 25px、儲存鈕往上跳，
@@ -183,7 +167,7 @@
           <!-- 刻意不 disable：按不下去的按鈕不會解釋原因，按得下去的才會（save() 裡說明） -->
           <p-button label="儲存點名" icon="pi pi-check" [loading]="saving()" (onClick)="save()" />
         </div>
-      </div>
+      }
     }
-  }
-</div>
+  </ng-container>
+</app-dialog-frame>

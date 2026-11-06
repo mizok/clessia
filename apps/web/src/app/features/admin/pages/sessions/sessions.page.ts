@@ -759,8 +759,9 @@ export class SessionsPage implements OnInit {
 
     const ref = this.dialogService.open(SessionAdvancedFiltersDialogComponent, {
       header: '進階篩選',
-      width: '36rem',
+      width: 'var(--dlg-w-md)',
       modal: true,
+      showHeader: false, // 標題由共用殼畫（#2290）
       closable: true,
       dismissableMask: true,
       appendTo: this.overlayContainer ?? 'body',
@@ -1455,7 +1456,7 @@ export class SessionsPage implements OnInit {
     }
 
     const ref = this.dialogService.open(AttendanceRosterPanelComponent, {
-      width: '480px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       closable: false,

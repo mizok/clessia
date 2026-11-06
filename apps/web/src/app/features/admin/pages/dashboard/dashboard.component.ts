@@ -225,7 +225,7 @@ export class DashboardComponent {
     this.destroyRef.onDestroy(() => injector.destroy());
 
     const ref = injector.get(DialogService).open(AttendanceRosterPanelComponent, {
-      width: '480px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       closable: false,
@@ -419,8 +419,7 @@ export class DashboardComponent {
       .filter(
         (p) =>
           p.reason !== null &&
-          (p.state === 'missing' ||
-            (p.state === 'arrived' && settled.has(p.student.studentId))),
+          (p.state === 'missing' || (p.state === 'arrived' && settled.has(p.student.studentId))),
       )
       .sort((a, b) =>
         (a.student.firstSession?.startTime ?? '').localeCompare(
