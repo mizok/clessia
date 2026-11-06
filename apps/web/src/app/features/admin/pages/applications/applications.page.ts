@@ -14,7 +14,6 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MessageService, type MenuItem } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { DialogService } from 'primeng/dynamicdialog';
-import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { TextareaModule } from 'primeng/textarea';
 import { forkJoin, of } from 'rxjs';
 
@@ -130,7 +129,6 @@ const RELATION_LABELS = { father: '父親', mother: '母親', other: '其他' } 
 @Component({
   selector: 'app-applications',
   imports: [
-    DialogFrameComponent,
     SkeletonComponent,
     DatePipe,
     FormsModule,
