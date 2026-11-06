@@ -744,6 +744,32 @@ const FORM_DIALOGS = {
 const opensOf = (page, side) =>
   Object.fromEntries(Object.entries(FORM_DIALOGS[page] ?? {}).map(([id, o]) => [id, o[side]]));
 
+/**
+ * 匯出面板（原生 popover `.xp`）手機貼底時兩頁共用的偏離（#2381）：✕ 照觸控下限 44（稿 `.xp__x` 36）、
+ * 內容區底留 --sheet-foot-gap 16（稿 `.xp__body` 手機 32）
+ */
+// `pop` 是全等比對（不是 regex），所以帶參數
+const xpSheet = (pop) => [
+  {
+    status: '尺寸',
+    pop,
+    widths: [360],
+    app: '>control:button\\[關閉\\]$',
+    detail: '^寬 36→44',
+    reason: '匯出面板的 ✕ 手機 44（稿 36）',
+    source: `${rule('R3')}；${hardRule('A27')}`,
+  },
+  {
+    status: '樣式',
+    pop,
+    widths: [360],
+    app: '>landmark:form\\[\\]$',
+    detail: '^padding 8px 20px 32px → 8px 20px 16px$',
+    reason: '手機貼底的匯出面板，內容區底留 16＋safe-area（稿 32）',
+    source: `${rule('R5')}「貼底抽屜底部留白 16」2026-11-05；#2381`,
+  },
+];
+
 export const PAGES = {
   students: {
     a6: 'students.html',
@@ -947,6 +973,33 @@ export const PAGES = {
       },
     },
     deviations: [
+      ...xpSheet('bexp'),
+      {
+        // 面板照稿貼著匯出鈕右緣往下開（同一段定位）；匯出鈕本身 Δx −48 已歸偏離（工具列多了篩選與操作紀錄鈕），
+        // 彈出物根沒有已配對祖先、工具連帶不到，這裡跟著鈕歸
+        status: '位置',
+        pop: 'bexp',
+        widths: [1440],
+        a6: '^pop\\[bexp\\]>landmark:popover\\[匯出帳單\\]$',
+        detail: '^相對頁面 Δx -48、',
+        reason: '連帶：匯出鈕右邊多了操作紀錄鈕，面板跟著鈕右緣',
+        source: `${rule('R2')}；使用者 10-23 裁定 #2006；billing.html:237-238（貼匯出鈕右緣）`,
+      },
+      {
+        // 稿是三個月的 select；app 原生 type=month，可選任意開立月份（現況行為）
+        status: '多',
+        pop: 'bexp',
+        app: '>landmark:form\\[\\]>control:textbox\\[月份\\]$',
+        reason: '月份用原生 type=month（任意開立月份），不是稿的三個月 select',
+        source: `${rule('R7')}；#2371 描述；https://github.com/mizok/clessia/issues/2381#issuecomment-6675289108`,
+      },
+      {
+        status: '多',
+        pop: 'bexp',
+        app: '>landmark:form\\[\\]>text:p\\[範圍以這裡的選擇為準',
+        reason: '「範圍以這裡為準、不跟畫面篩選；月份看開立日」稿沒有、現況有，保留',
+        source: `${rule('R2')}；#2371 描述；https://github.com/mizok/clessia/issues/2381#issuecomment-6675289108`,
+      },
       // #2316：收款彈窗標題寫期別、副標加到期日 —— 標題文字變了，工具把稿的 h2 配到別的字上
       ...[
         { status: '文案', a6: '^pop\\[pay\\]>landmark:dialog\\[記錄收款\\]$' },
@@ -3091,6 +3144,17 @@ export const PAGES = {
       ...opensOf('grades-student', 'appOpen'),
     },
     deviations: [
+      ...xpSheet('gexp'),
+      // 「全部學生 N 位」不畫：匯出的「全部」是 API 端範圍（scores.ts resolveScoreScope），跟畫面清單口徑不同
+      ...[
+        { status: '缺', a6: '>text:label\\[全部學生\\]>text:span\\[#位\\]$' },
+        { status: '文案', a6: '>text:label\\[全部學生\\]>control:radio\\[全部學生#位\\]$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'gexp',
+        reason: '匯出成績「全部學生」不寫人數（口徑跟畫面清單不同，數錯比不畫糟）',
+        source: `${rule('R5')}「成績匯出『全部學生』不寫人數」2026-11-06；#2381`,
+      })),
       // 同 grades-class：工具列換成全站共用的搜尋框之後（#1314 G9），量到的是 input 不是外層 label
       ...['尺寸', '樣式', '位置'].map((status) => ({
         status,
