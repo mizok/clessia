@@ -76,6 +76,32 @@ describe('ParentFormDialogComponent', () => {
   });
 
   // #1008：驗證其實是「姓名必填、Email／手機二擇一」—— 星號只能標姓名。
+  // dialog-frame.md form 規則（#2375 二讀）：送出鈕在殼的底部列、指回 form，只走 form 的 submit 一條路
+  describe('送出只走 form submit', () => {
+    const fill = () => {
+      const c = component as unknown as { formData: { set: (v: unknown) => void; (): object } };
+      c.formData.set({ ...c.formData(), name: '王媽媽', phone: '0912345678' });
+      fixture.detectChanges();
+    };
+    const form = () => (fixture.nativeElement as HTMLElement).querySelector('form#parent-form')!;
+
+    it('點送出鈕：送一次（鈕是 type=submit、指回 form）', () => {
+      fill();
+      const btn = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+        'button[type="submit"][form="parent-form"]',
+      )!;
+      expect(btn).not.toBeNull();
+      btn.click();
+      expect(parentsServiceMock.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('欄位按 Enter（form submit）：送一次', () => {
+      fill();
+      form().dispatchEvent(new Event('submit', { cancelable: true }));
+      expect(parentsServiceMock.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('必填星號只標姓名；Email／手機旁寫「至少填一個」', () => {
     const el = fixture.nativeElement as HTMLElement;
     const stars = el.querySelectorAll('label .text-error-700');

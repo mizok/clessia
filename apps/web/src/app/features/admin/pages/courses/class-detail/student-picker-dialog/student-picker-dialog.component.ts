@@ -1,3 +1,4 @@
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { Component, OnInit, inject, signal, computed, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -43,6 +44,7 @@ import {
   selector: 'app-student-picker-dialog',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     FormsModule,
     ButtonModule,
     InputTextModule,
@@ -229,6 +231,8 @@ export class StudentPickerDialogComponent implements OnInit {
   private readonly maxStudents: number = this.config.data?.maxStudents ?? 9999;
   private readonly currentActiveCount: number = this.config.data?.currentActiveCount ?? 0;
   private readonly classId: string = this.config.data?.classId ?? '';
+  /** 副標的班名（A6 class.html「加入學生」：`{班名} · …`） */
+  protected readonly className: string = this.config.data?.className ?? '';
   protected readonly remainingSlots = this.maxStudents - this.currentActiveCount;
 
   protected readonly gradeOptions = [

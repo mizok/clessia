@@ -114,7 +114,7 @@ describe('StudentViewComponent', () => {
   describe('匯出成績', () => {
     const student = (id: string, schoolId: string) =>
       ({ id, name: id, grade: 'J1', school: { id: schoolId, name: schoolId } }) as never;
-    const panel = { hide: vi.fn() } as never;
+    const panel = { hidePopover: vi.fn() } as never;
 
     beforeEach(() => {
       URL.createObjectURL = vi.fn(() => 'blob:x');
@@ -131,6 +131,15 @@ describe('StudentViewComponent', () => {
       (component as any).rawStudents.set([student('s1', 'sch-a'), student('s2', 'sch-b')]);
     });
 
+    it('匯出面板是原生 popover（A6 .xp，同報表／帳單／餐費）：觸發鈕指向它', () => {
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[data-testid="export-toggle"]')?.getAttribute('popovertarget')).toBe(
+        'sv-export',
+      );
+      expect(el.querySelector('#sv-export')?.hasAttribute('popover')).toBe(true);
+    });
+
     it('照目前的篩選：帶畫面上的學生（學校篩過的）與頂欄分校；面板寫的人數一致', () => {
       TestBed.inject(CampusContextService).select('campus-9');
       (component as any).schoolIdFilter.set('sch-a');
@@ -143,6 +152,10 @@ describe('StudentViewComponent', () => {
       expect(req.request.body).toEqual({ studentIds: ['s1'], campusId: 'campus-9' });
       req.flush(new Blob(['csv']));
       expect((component as any).exporting()).toBe(false);
+      // 成功才收起原生 popover（#2290 匯出系列換成 .xp）
+      expect(
+        (panel as unknown as { hidePopover: ReturnType<typeof vi.fn> }).hidePopover,
+      ).toHaveBeenCalled();
     });
 
     it('全部學生：不帶 studentIds（範圍由後端決定）', () => {
