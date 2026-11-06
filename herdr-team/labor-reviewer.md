@@ -949,3 +949,38 @@ G-1B（`auth-google.contract.ts`）還沒開 PR，進來時要完整二讀（保
 8. **zsh 的變數修飾符**：`$H:supabase/…`、`$H:apps/…` 會被當成 `:s`／`:a` 修飾 → `bad substitution` 或展開成怪路徑。一律寫 `${H}:path`。`git grep` 預設 BRE，`\|` 不是或，要 `-E`；回空前先用同一條查詢抓一個一定存在的東西當正控。
 9. **PostgREST 的 `max_rows` 不截斷 `PATCH … return=representation`**（本機實測 1500／1500），`update().select('id')` 拿得到全部 id。
 10. **head 在鏈排好之後才換**：不要改正在跑的 bash 腳本（bash 邊跑邊讀檔）；讓 steward-merge 擋下舊 SHA（`head 變了`、鏈停），先跟計畫席說一聲會收到「鏈停」，再釘新 SHA 單獨合（#2287）。
+
+## 11-06 交接（labor-reviewer-20261105-1030 → 下一任，context 長，輪替）
+
+> 計畫席 **labor-plan-20261105-1551**（11-05 從 labor-plan-20261103-0852 換手）。上一節（11-05）以這一節為準。
+
+本任 11-05 10:30～11-06 10:1x 二讀＋代合：#2299 起到 #2375，#2290 對話框遷移各家族全部合完（最後一批 #2364、#2375）。保留類（#2302、#2303、#2307、#2310、#2334）突變表都在各 PR 留言。ST①（#2321）、ST②（#2324）是**使用者親合** —— 計畫席轉述的授權會被 auto mode 擋（`Merge Without Review`），不要繞。
+
+### 一、手上的單（2026-11-06）
+
+**沒有在跑的鏈，也沒有待合的單。** 接手先 `ps -A -o pid=,command= | grep -E 'chain\.sh|mv\.sh|cimg|steward-merge'` 確認沒有殘留。
+暫存 worktree：本任自己的已全部 `git worktree remove`；`.worktrees/scratch-*` 底下剩的是別席的，照規則各席自己收。
+待來：0949 的 #2290 B 批（點名面板、進階篩選）與 #2325 PR2；0950-a 的 #2361 PR1／PR2。
+
+### 二、新規則（使用者 11-06，計畫席轉）
+
+1. 突變／契約**一次只開一個暫存 worktree**，跑完立刻 `git worktree remove`（企業版卡巴斯基逐進程驗簽章，十個並行會把整機拖慢）
+2. 暫存 worktree 放 `<repo>/.worktrees/scratch-<席名>-<用途>`；`node_modules` **symlink** 指回主 checkout（root 與 `apps/api/` 各一個）
+3. 夜間 vitest 帶 `--maxWorkers=2`
+4. 腳本與 log 放自己 worktree 的 `tmp/`（gitignored）；`~/.cache` 只用 fulltest 鎖
+
+### 三、這一任學到的
+
+1. **鏈中間一張停了，後面的接力會連鎖中止**：接力靠「前一段 log 有鏈完成」才接，一張停（網路斷、GraphQL 錯、衝突、mergeable UNKNOWN）就全部不接。接手第一步永遠是：停掉殘留 → 逐張 `headRefOid` 對審過的 SHA → **重排成一支腳本**。不要疊多支 `while kill -0` 等待。
+2. **要插隊只能在「等 verify」或「等 CI」的空檔停鏈**：先 `pgrep -f steward-merge` 確認沒有合併在進行，再停、改、重開。不要改正在跑的 bash 腳本。
+3. **GitHub 端錯誤 vs 真衝突**：`gh pr view --json mergeable,mergeStateStatus` —— `UNKNOWN` 是 GitHub 還沒算（等它算出 MERGEABLE 再重試）；`CONFLICTING/DIRTY` 是真衝突（請作者 merge main）。網路斷（`connection abort`）時先等連續 3 次查得到再排鏈。
+4. **基準守衛要對**：
+   - 測試名稱裡有「×」（`每種身分 × 指定分校`）—— 判失敗只認**行首**的 `×`／`↓`：`grep -E '^\s*(×|↓) |failed'`
+   - `cmd | tail` 的 `$?` 是 tail 的；要 cmd 的結束碼就把輸出導到檔再 `tail`（對照組：`false | tail` 回 0）
+   - 本機 supabase 沒起時，要 DB 的單元測試會被 `↓` 略過 —— 基準會因此中止，是對的；重開機後 Docker／supabase 要計畫席起
+5. **hook 層級失敗不算殺**：主測試是 `↓`、失敗算在 describe 上，那個突變是「沒驗到」。逾時被記成殺也不算（#2310 原表的錯）。
+6. **等價突變要補組合突變**：#2334 ③ 只拿掉兩道任課班限制的一道會存活（`today-attendance.ts:115` 還有第二道）；③′ 兩道一起拿掉 → 紅，才證明行為有斷言守。
+7. **換殼的送出鈕**（#2362 起寫進 `dialog-frame.md`）：有 `<form>` 的對話框，底部鈕在 form 外 → `type="submit" form="<id>"`、**不綁 `(click)`**；換 type=submit 卻留 `(click)` = 一按送兩次。二讀查法：form 有 id、`form=` 指得到、`(click)="save|submit"` 次數 0、form 的 `(submit)` 還在。
+8. **compare「數字沒動」不等於畫面沒變**：先看 `config.mjs` 那一頁有沒有打開該面板的 `a6Open`／`appOpen`（#2371 的匯出面板前後都沒被量）。
+9. **疊 squash PR 的那張一定衝突**：被疊的合進 main 後，請作者 merge main；驗新 SHA 只看「merge 外無新 commit、PR 自身 diff 跟審過的相同、`config.mjs`／R5 表沒被複製兩份、併 main 乾淨」。
+10. **工具在中文上會說謊**：macOS `sort | uniq -d` 在 UTF-8 下比 CJK 會誤報重複 → `LC_ALL=C`；zsh 的 `$H:path` 會被吃成修飾符 → `${H}:path`；zsh 不拆 `$(...)` 檔名清單 → 用 `bash -c`；`git fetch` 撞到別席同時 fetch 會拿不到 ref 鎖、`gh` 回空 → 檢查 SHA 長度 40 再用。
