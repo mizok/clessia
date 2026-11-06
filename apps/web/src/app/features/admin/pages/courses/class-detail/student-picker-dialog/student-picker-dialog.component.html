@@ -4,6 +4,7 @@
   [sub]="(className ? className + ' · ' : '') + '勾選要加入的學生，下一步確認並可一起開帳單'"
   (closed)="cancel()"
 >
+  <app-dialog-steps [current]="stepNo()" [total]="3" [label]="stepLabel()" />
   @if (step() === 'selecting') {
     <!-- Command Bar -->
     <div class="shrink-0 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
@@ -100,15 +101,8 @@
     <!-- Footer -->
   } @else if (step() === 'reviewing') {
     <!-- Step 2: Review -->
+    <!-- 「返回選擇」拿掉：底部列已有「上一步」（#2396：同一個動作不在內容區再放一次） -->
     <div class="flex shrink-0 items-center gap-3 border-b border-zinc-100 pb-3">
-      <button
-        type="button"
-        class="relative -my-3 flex min-h-11 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-sm text-zinc-500 [transition:color_0.12s] hover:text-zinc-800"
-        (click)="goBack()"
-      >
-        <i class="pi pi-arrow-left"></i>
-        返回選擇
-      </button>
       <span class="text-sm font-semibold text-zinc-700">確認加入 {{ selectedCount() }} 位學生</span>
     </div>
 
