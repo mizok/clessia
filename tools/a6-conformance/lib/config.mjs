@@ -1640,6 +1640,13 @@ export const PAGES = {
     appOpen: { checkin: { click: 'button:has-text("櫃台代刷")', root: 'dialog[open]' } },
     deviations: [
       // ── 櫃台代刷到班（#2314）──
+      // 稿的時間點（10-01 17:40）seed 沒有還沒到、沒請假的人：鈕照 #2387 停用，對話框開不起來
+      {
+        status: '缺',
+        a6: '^pop\\[checkin\\]$',
+        reason: '資料＋裁定：稿的時間點沒有可代刷的人，「櫃台代刷到班」停用、不開空對話框',
+        source: `${rule('R5')}「櫃台代刷到班：沒有可代刷的人時鈕停用」2026-11-06；#2387`,
+      },
       // 學生：app-select-field（p-select）對稿的 .dd；稿的按鈕名「選擇：…」跟 app 的 trigger 錯配
       ...selectFieldDeviations('選擇|學生（今天還沒到的）\\*').map((d) => ({
         ...d,

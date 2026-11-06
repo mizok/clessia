@@ -48,7 +48,7 @@
       <app-page-actions
         class="ml-auto"
         [primary]="leavePrimary"
-        [secondary]="leaveSecondary"
+        [secondary]="leaveSecondary()"
         [primaryOnDesktop]="false"
         [secondaryOnDesktop]="false"
         (primaryClick)="openPhoneLeave()"
@@ -56,8 +56,10 @@
       >
         <button
           type="button"
-          class="tbar-control hidden cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 min-[640.02px]:inline-flex"
+          class="tbar-control hidden cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 min-[640.02px]:inline-flex disabled:cursor-not-allowed disabled:opacity-50"
           data-testid="desktop-checkin"
+          [disabled]="checkinDisabled()"
+          [attr.title]="checkinDisabled() ? checkinDisabledReason : null"
           (click)="openCheckinStation()"
         >
           <i class="pi pi-check text-lg" aria-hidden="true"></i>櫃台代刷到班

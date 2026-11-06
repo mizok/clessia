@@ -44,6 +44,8 @@ export interface PageAction {
   /** primeicons 的 class，例如 `pi pi-plus` */
   readonly icon?: string;
   readonly disabled?: boolean;
+  /** 停用時為什麼不能按（滑過去看得到的 title；#2387） */
+  readonly disabledReason?: string;
 }
 
 @Component({
