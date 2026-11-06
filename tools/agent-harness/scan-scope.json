@@ -137,6 +137,7 @@
       "apps/web/src/app/shared/components/contact-book-entry-dialog",
       "apps/web/src/app/shared/components/day-timeline",
       "apps/web/src/app/shared/components/dialog-frame",
+      "apps/web/src/app/shared/components/dialog-steps",
       "apps/web/src/app/shared/components/empty-state",
       "apps/web/src/app/shared/components/filter-chip",
       "apps/web/src/app/shared/components/filter-panel",

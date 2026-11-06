@@ -1,7 +1,7 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { BillingPeriodsService } from '@core/billing-periods.service';
 import { EnrollmentsService } from '@core/enrollments.service';
@@ -470,5 +470,131 @@ describe('ApproveRequestDialogComponent（#1726）', () => {
     expect(hint()).toContain(message);
     expect(closed).not.toHaveBeenCalled();
     expect(c.templateId()).toBe('m1');
+  });
+});
+
+/**
+ * #2396 L3：手機分兩步（①計費 ②首期帳單），桌機單頁。送出鈕在殼的底部列：type=submit form="approve-form"，
+ * 點鈕與 Enter 都只走 form 的 submit（#2362）。**保留類（開帳單）：分步不改送出內容** —— 手機兩步走完與
+ * 桌機一次送出，approve 收到的 body 完全相同。
+ */
+describe('核准報名：手機分步（#2396）', () => {
+  const mobile = (on: boolean) =>
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({ matches: on })),
+    );
+  afterEach(() => vi.unstubAllGlobals());
+
+  const fill = async (s: Awaited<ReturnType<typeof setup>>) => {
+    s.c.agreedAmount.set(2500);
+    s.c.adjustmentNote.set(' 手足優惠 ');
+    s.c.amountInput.set(1500);
+    s.c.amountNote.set(' 少上一週 ');
+    s.c.dueDate.set('2026-11-20');
+    await s.render();
+  };
+  const form = (el: HTMLElement) => el.querySelector<HTMLFormElement>('#approve-form')!;
+  const step = (el: HTMLElement, n: number) => el.querySelector(`[data-step="${n}"]`)!;
+
+  it('手機：第一步沒填完不前進，只列這一步缺的；填完下一步 → 第二步，上一步回來保留值', async () => {
+    mobile(true);
+    const s = await setup(req({ billingMode: null }));
+    await s.render();
+    expect(step(s.el, 1).classList).not.toContain('max-wide:hidden');
+    expect(step(s.el, 2).classList).toContain('max-wide:hidden');
+    expect(s.el.textContent).toContain('第 1／2 步 · 計費');
+
+    s.click('next');
+    await s.render();
+    expect(s.c.step()).toBe(1);
+    expect(s.el.querySelector('[data-testid="hint-step"]')!.textContent).toContain('計費模式');
+
+    s.c.setMode('monthly');
+    s.c.templateId.set('m1');
+    await s.render();
+    s.click('next');
+    await s.render();
+    expect(s.c.step()).toBe(2);
+    expect(step(s.el, 1).classList).toContain('max-wide:hidden');
+    expect(step(s.el, 2).classList).not.toContain('max-wide:hidden');
+    expect(s.el.textContent).toContain('第 2／2 步 · 首期帳單');
+    expect(s.parents.approve).not.toHaveBeenCalled();
+
+    s.click('back');
+    await s.render();
+    expect(s.c.step()).toBe(1);
+    expect(s.c.templateId()).toBe('m1');
+  });
+
+  it('保留類：手機兩步走完與桌機一次送出，送出的 body 完全相同（金額不變）', async () => {
+    mobile(true);
+    const m = await setup(req({ defaultFeeTemplateId: 'm1' }));
+    await fill(m);
+    m.click('next');
+    await m.render();
+    m.click('submit');
+    expect(m.parents.approve).toHaveBeenCalledTimes(1);
+    const mobileBody = m.parents.approve.mock.calls[0];
+    TestBed.resetTestingModule();
+
+    mobile(false);
+    const d = await setup(req({ defaultFeeTemplateId: 'm1' }));
+    await fill(d);
+    d.click('submit');
+    expect(d.parents.approve).toHaveBeenCalledTimes(1);
+    expect(d.parents.approve.mock.calls[0]).toEqual(mobileBody);
+    expect(mobileBody).toEqual([
+      'r1',
+      {
+        billingMode: 'monthly',
+        feeTemplateId: 'm1',
+        effectiveFrom: '2026-11-11',
+        agreedAmount: 2500,
+        adjustmentNote: '手足優惠',
+        amount: 1500,
+        amountNote: '少上一週',
+        dueDate: '2026-11-20',
+      },
+    ]);
+  });
+
+  it('Enter（form submit）：桌機＝核准一次；手機第一步＝下一步、不核准', async () => {
+    mobile(false);
+    const d = await setup(req({ defaultFeeTemplateId: 'm1' }));
+    await d.render();
+    form(d.el).requestSubmit();
+    expect(d.parents.approve).toHaveBeenCalledTimes(1);
+    TestBed.resetTestingModule();
+
+    mobile(true);
+    const m = await setup(req({ defaultFeeTemplateId: 'm1' }));
+    await m.render();
+    form(m.el).requestSubmit();
+    await m.render();
+    expect(m.c.step()).toBe(2);
+    expect(m.parents.approve).not.toHaveBeenCalled();
+  });
+
+  it('底部鈕是 type=submit form="approve-form"，在殼的 sticky 底部列（不在內容區）', async () => {
+    const s = await setup(req({ defaultFeeTemplateId: 'm1' }));
+    await s.render();
+    const btn = s.el.querySelector('[data-testid="submit"]')!;
+    expect(btn.getAttribute('type')).toBe('submit');
+    expect(btn.getAttribute('form')).toBe('approve-form');
+    expect(btn.closest('.form-dialog__footer')).not.toBeNull();
+    expect(form(s.el).contains(btn)).toBe(false);
+  });
+
+  // 審核席 #2401 突變 M3b：「下一步」也是 form 外的送出鈕 —— 改回 type=button＋(click) 的話 Enter 跟點鈕又分兩條路
+  it('手機第一步的「下一步」也是 type=submit form="approve-form"，不在 form 內、在殼的底部列', async () => {
+    mobile(true);
+    const s = await setup(req({ defaultFeeTemplateId: 'm1' }));
+    await s.render();
+    const next = s.el.querySelector('[data-testid="next"]')!;
+    expect(next.getAttribute('type')).toBe('submit');
+    expect(next.getAttribute('form')).toBe('approve-form');
+    expect(next.closest('.form-dialog__footer')).not.toBeNull();
+    expect(form(s.el).contains(next)).toBe(false);
   });
 });
