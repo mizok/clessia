@@ -371,7 +371,7 @@ export class StudentViewComponent implements OnInit {
   protected selectStudent(student: Student): void {
     this.dialogService.open(StudentScoreDetailDialogComponent, {
       // A6 `.gdlg` 760
-      width: '760px',
+      width: 'var(--dlg-w-lg)',
       modal: true,
       showHeader: false,
       appendTo: 'body',

@@ -7,35 +7,18 @@
   及格線與班名仍缺（要 API 加 passScore／className）。
 -->
 @if (student; as s) {
-  <!-- A6 `.acset.gdlg`：h2 掛 appDialogTitle 當對話框的可及名稱；form-dialog--a6 給圓角 8、手機灰底、內距歸 0 -->
-  <div class="form-dialog form-dialog--a6">
-    <div class="dialog-header-inline">
-      <div class="dialog-header-inline__content">
-        <h2 appDialogTitle class="dialog-header-inline__title">{{ s.name }} 的成績</h2>
-        <p class="dialog-header-inline__sub">{{ subtitle(s) }}</p>
-      </div>
-      <button
-        type="button"
-        class="dialog-header-inline__close size-11 wide:size-10"
-        (click)="close()"
-        aria-label="關閉"
-      >
-        <i class="pi pi-times" aria-hidden="true"></i>
-      </button>
-    </div>
-
-    <!-- 內距照 A6：各段自己帶左右 padding（.gdlg__bar／__sum／__list），不放在外層 -->
+  <!-- 共用殼（#2290）：A6 `.acset.gdlg` 標題列、sticky 底部；左右內距交給殼的內容區 -->
+  <app-dialog-frame [title]="s.name + ' 的成績'" [sub]="subtitle(s)" (closed)="close()">
+    <!-- 左右內距在殼的內容區（--dlg-pad-x），各段只留上下 -->
     <div class="flex flex-col">
       @if (loadingSummary()) {
-        <p class="m-0 flex items-center gap-2 px-4 pb-3 text-sm text-zinc-600 wide:px-6">
+        <p class="m-0 flex items-center gap-2 pb-3 text-sm text-zinc-600">
           <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
           載入科目摘要...
         </p>
       } @else if (summary().length > 0) {
         <!-- 各科摘要（既有功能，A6 沒畫）：灰面、一科一格 -->
-        <div
-          class="mx-4 mb-3 grid grid-cols-1 gap-3 rounded-lg bg-zinc-100 p-4 sm:grid-cols-2 wide:mx-6"
-        >
+        <div class="mb-3 grid grid-cols-1 gap-3 rounded-lg bg-zinc-100 p-4 sm:grid-cols-2">
           @for (subj of summary(); track subj.subjectName) {
             <div class="flex min-w-0 flex-col gap-2">
               <span class="flex items-baseline justify-between gap-2">
@@ -79,7 +62,7 @@
         </div>
       }
 
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 pb-3 wide:px-6">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2 pb-3">
         <!-- A6 `.dd`：共用 app-select-field，標籤只給讀屏（稿是 aria-label） -->
         <app-select-field
           class="min-w-35 [&_.p-select]:tbar-control"
@@ -117,7 +100,7 @@
       </div>
 
       @if (!loadingScores() && scores().length > 0) {
-        <p appTextSwap class="m-0 px-4 pb-2 text-md text-zinc-700 tabular-nums wide:px-6">
+        <p appTextSwap class="m-0 pb-2 text-md text-zinc-700 tabular-nums">
           顯示 <b>{{ filteredScores().length }}</b
           >／{{ scores().length }} 場 · 不及格 {{ failCount() }} 場
           @if (absentCount()) {
@@ -126,7 +109,7 @@
         </p>
       }
 
-      <div class="px-4 pb-4 wide:px-6">
+      <div class="pb-4">
         @if (loadingScores()) {
           <p class="m-0 flex items-center gap-2 text-sm text-zinc-600">
             <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
@@ -232,7 +215,7 @@
     </div>
 
     <!-- A6 `.gdlg__foot`：sticky 貼底（form-dialog__footer） -->
-    <div class="form-dialog__footer">
+    <ng-container dialogFoot>
       <a
         class="inline-flex h-11 items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
         [routerLink]="['/admin/students', s.id]"
@@ -246,6 +229,6 @@
       >
         關閉
       </button>
-    </div>
-  </div>
+    </ng-container>
+  </app-dialog-frame>
 }

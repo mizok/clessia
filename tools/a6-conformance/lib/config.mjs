@@ -2985,13 +2985,15 @@ export const PAGES = {
         widths: [360],
         pop: 'new-exam',
         a6: 'landmark:form\\[\\]>text:label\\[(參加的開課班|滿分|及格分數)\\]$',
-        detail: 'Δx 0、Δy \\+1[5-7]\\d',
+        // 換殼後子項相對 form 多了殼的內距（手機 −16，#2290 計畫席裁定 issuecomment-6660276130）
+        detail: 'Δx (0|-16)、Δy \\+1[5-7]\\d',
         reason: '連帶：手機上科目、分校（R2 保留）各佔一列',
         source: `${rule('R5')}「新增考試的開課班多選與保留欄位」2026-11-02`,
       },
       // 滿分／及格分數：稿用共用的 money 欄型（前面一個「NT$」，輸入框因此是 flex 子項），分數不加 NT$
       ...[
-        { status: '位置', detail: 'Δx -3[5-9]' },
+        // 換殼後再加殼的內距（−16／−24）
+        { status: '位置', detail: 'Δx -(3[5-9]|5[1-5]|59|6[0-3])' },
         { status: '樣式', detail: '^display block → inline-block$' },
       ].map((d) => ({
         ...d,
@@ -3006,7 +3008,34 @@ export const PAGES = {
     a6: 'scores.html',
     // seed 的考試（跟 scores-dirty 同一場）；原本的 id 是某一席本機 DB 的，seed 裡沒有（#1314 10-30）
     app: '/admin/grades/exams/academy/70000000-0000-0000-0000-000000000003/scores',
-    deviations: [noCampusSwitch('看的是一場考試；班可能跨分校，誰能看由後端權限擋')],
+    // 加入其他學生、標記完成（#2290 grades）：稿是 A2.form（dialog.fdlg）；app 是 p-dialog／原生 dialog＋共用殼
+    a6Open: {
+      add: { click: '[data-add]', root: 'dialog[open]' },
+      complete: { click: '[data-complete]', root: 'dialog[open]' },
+    },
+    appOpen: {
+      add: { click: 'button:has-text("加入其他學生")', root: '.p-dialog:has(app-dialog-frame)' },
+      complete: { click: 'button:has-text("標記完成")', root: 'dialog[open]' },
+    },
+    deviations: [
+      noCampusSwitch('看的是一場考試；班可能跨分校，誰能看由後端權限擋'),
+      // 標記完成：稿是 fields: [] 的 A2.form（空 <form> 有上下內距），app 的確認沒有欄位、不包 form（同 staff 停用確認）
+      {
+        status: '缺',
+        pop: 'complete',
+        a6: '>landmark:dialog\\[標記完成\\]>landmark:form\\[\\]$',
+        reason: '確認對話框沒有欄位，不包空的 form（稿是 A2.form fields: []）',
+        source: `${rule('R7')}`,
+      },
+      {
+        status: '尺寸',
+        pop: 'complete',
+        a6: '^pop\\[complete\\]>landmark:dialog\\[標記完成\\]$',
+        detail: '^高 ',
+        reason: '連帶：稿的空 form 有上下內距，app 沒有 form',
+        source: `${rule('R7')}`,
+      },
+    ],
   },
   grades: {
     a6: 'grades.html',
@@ -3098,6 +3127,15 @@ export const PAGES = {
       ...opensOf('grades-student', 'appOpen'),
     },
     deviations: [
+      // 成績明細合計列：左右內距從這一列移到殼的內容區（--dlg-pad-x），畫面位置相同（#2290 計畫席裁定）
+      {
+        status: '樣式',
+        pop: 'detail',
+        a6: '>landmark:dialog\\[[^\\]]*\\]>text:p\\[#場·平均#分·不及格#場\\]$',
+        item: '^padding 0px (24|16)px 8px → 0px 0px 8px$',
+        reason: '殼的內距在內容區外層（.dialog-frame__body），稿在這一列上，幾何相同',
+        source: 'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
+      },
       // 同 grades-class：工具列換成全站共用的搜尋框之後（#1314 G9），量到的是 input 不是外層 label
       ...['尺寸', '樣式', '位置'].map((status) => ({
         status,
