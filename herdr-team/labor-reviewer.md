@@ -984,3 +984,13 @@ G-1B（`auth-google.contract.ts`）還沒開 PR，進來時要完整二讀（保
 8. **compare「數字沒動」不等於畫面沒變**：先看 `config.mjs` 那一頁有沒有打開該面板的 `a6Open`／`appOpen`（#2371 的匯出面板前後都沒被量）。
 9. **疊 squash PR 的那張一定衝突**：被疊的合進 main 後，請作者 merge main；驗新 SHA 只看「merge 外無新 commit、PR 自身 diff 跟審過的相同、`config.mjs`／R5 表沒被複製兩份、併 main 乾淨」。
 10. **工具在中文上會說謊**：macOS `sort | uniq -d` 在 UTF-8 下比 CJK 會誤報重複 → `LC_ALL=C`；zsh 的 `$H:path` 會被吃成修飾符 → `${H}:path`；zsh 不拆 `$(...)` 檔名清單 → 用 `bash -c`；`git fetch` 撞到別席同時 fetch 會拿不到 ref 鎖、`gh` 回空 → 檢查 SHA 長度 40 再用。
+
+### 四、11-06 白天補記（#2376～#2397）
+
+11. **R5 表只加不刪**（計畫席 11-06 裁，#2377、#2397）：裁定被推翻時，原列保留、開頭加「YYYY-MM-DD 被 #N 取代；下面是原裁定」，另加新列。二讀查法：`git diff origin/main...H -- R5 | grep -c '^-| 20'` 有值時，逐列對照那一列是不是「加了前綴的同一列」。
+12. **「清乾淨了」要在全部相關 PR 都合進去的樹上量**：只看 main＋本張會把另一張還沒合的檔算成殘留（#2386＋#2391 的 p-confirmdialog）。用 `git commit-tree` 疊出模擬樹（不動任何分支）再 grep。
+13. **疊在 squash PR 上的那張，二讀內容要相對被疊的那張比**：相對 main 的 diff 會混進 merge main 帶進來的檔（#2393 一度顯示 39 檔）。新 SHA 的正確驗法：作者自己的 commit 改的檔集合＝現在對 main 的檔集合，且現在 diff 沒有作者 commit 以外的行。
+14. **合併腳本遇到 CI 紅會停，而 rerun 中的 CI 讀起來仍是舊的紅**：重排時先等 `statusCheckRollup` 的 verify `COMPLETED` 再進 chain（#2394 flake）。
+15. **共用元件的回傳值改了，要 grep 全部呼叫端怎麼判**：#2391 讓 ConfirmDialog 的 ✕ 從 `false` 變 `undefined`；查 `=== false` 判確認結果的地方是 0 才放行。
+16. **「沒有 form」也要說出來**：form 送出規則只管有 `<form>` 的對話框；沒有 form 的（補課、批次請假、點名面板）送出只靠點鈕，確認 `submit()` 自己擋「送出中」就好。
+17. **使用者點名的單插隊**：在等 verify 的空檔停掉後面的接力、整串重排成一支；正在合的那段不動。
