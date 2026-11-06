@@ -784,8 +784,6 @@ export const PAGES = {
     // 第三層：年級名單隨資料（稿是國一～小五，demo 是高一～國三）
     behaveIgnore: ['^[高國小][一二三四五六]#?$'],
     deviations: [
-      // 停用確認：確認訊息從副標搬進內容區（#2396 C 類）
-      ...noSubDeviations('off', '確認停用', '確定要停用[^\\]]*'),
       // ── 帳號設定內容（#2390）──
       // 寬 520（稿 .acset 480，寬三種）／手機內容左右 16（稿 24）：整欄寬的部件變寬，靠右的儲存鈕跟著位移
       ...[
@@ -2553,6 +2551,8 @@ export const PAGES = {
         '>landmark:main[]>landmark:region[已停用]>heading:h2[已停用]',
     },
     deviations: [
+      // 停用確認：確認訊息從副標搬進內容區（#2396 C 類）
+      ...noSubDeviations('off', '確認停用', '確定要停用[^\\]]*'),
       // ── 停用確認（ConfirmDialog，#2290）──
       // 稿的確認是 fields: [] 的 A2.form（空 <form>）；app 的確認沒有欄位，不包 form（R7）。取消／主鈕的位置連帶
       {
