@@ -749,7 +749,15 @@ export const PAGES = {
     a6: 'students.html',
     app: '/admin/students',
     // app 的篩選是 app-filter-panel：桌機 PrimeNG Popover、≤860 貼底抽屜 p-dialog（#2206）
-    appOpen: { filt: { click: 'button:has-text("篩選：")', root: '.p-popover, .p-dialog' } },
+    appOpen: {
+      filt: { click: 'button:has-text("篩選：")', root: '.p-popover, .p-dialog' },
+      // 帳號設定（#2290 shared）：頂欄帳戶選單 →「帳號設定」。稿是原生 dialog.acset；app 是 DynamicDialog＋共用殼
+      acset: {
+        click: ['button[aria-label^="帳戶："]', 'button:has-text("帳號設定")'],
+        root: '.p-dialog:has(app-account-settings-dialog)',
+      },
+    },
+    a6Open: { acset: { click: ['[popovertarget="acct"]', '[data-acset]'], root: 'dialog.acset[open]' } },
     // 第三層：年級名單隨資料（稿是國一～小五，demo 是高一～國三）
     behaveIgnore: ['^[高國小][一二三四五六]#?$'],
     deviations: [
