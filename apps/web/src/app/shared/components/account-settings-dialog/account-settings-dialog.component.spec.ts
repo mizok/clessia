@@ -52,9 +52,82 @@ describe('AccountSettingsDialogComponent —— 家長身份改由行政設定�
     http.verify();
   });
 
-  it('已經有家長身分：這一區不顯示', () => {
+  it('已經有家長身分：照稿寫「✓ 已啟用」，不寫洽行政（A6 .acset__sec，#2390）', () => {
     const { el } = setup(['teacher', 'parent']);
+    const sec = el.querySelector('[data-testid="account-parent"]')!;
+    expect(sec.textContent).toContain('家長身份');
+    expect(sec.textContent).toContain('已啟用');
     expect(el.textContent).not.toContain('請洽補習班行政');
+  });
+});
+
+/** #2390（gate 過）：儲存回饋照稿「儲存中…」＋toast；生日是原生 date，值就是 yyyy-MM-dd */
+describe('AccountSettingsDialogComponent —— 儲存回饋與生日（#2390）', () => {
+  function setup(me: Record<string, unknown>) {
+    const add = vi.fn();
+    TestBed.configureTestingModule({
+      imports: [AccountSettingsDialogComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: AuthService,
+          useValue: {
+            roles: signal(['admin']),
+            refreshRoles: vi.fn(),
+            profile: () => null,
+            user: () => null,
+            linkedProviders: vi.fn(async () => []),
+          },
+        },
+        { provide: AuthProvidersService, useValue: { providers: signal(['line']) } },
+        { provide: MessageService, useValue: { add } },
+        { provide: DynamicDialogRef, useValue: { close: vi.fn() } },
+      ],
+    });
+    const fixture = TestBed.createComponent(AccountSettingsDialogComponent);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    http.expectOne((r) => r.method === 'GET' && r.url.endsWith('/api/me')).flush(me);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const saveButtons = () => [...el.querySelectorAll<HTMLButtonElement>('.account-settings__save')];
+    return { fixture, http, el, add, saveButtons };
+  }
+
+  it('按「儲存」：送出中寫「儲存中…」，成功後 toast「已儲存顯示名稱」、鈕回到「儲存」', async () => {
+    const { fixture, http, add, saveButtons } = setup({ displayName: '林主任' });
+    await fixture.whenStable();
+    saveButtons()[0].click();
+    fixture.detectChanges();
+    expect(saveButtons()[0].textContent).toContain('儲存中…');
+
+    http.expectOne((r) => r.method === 'PATCH' && r.url.endsWith('/api/me')).flush({});
+    fixture.detectChanges();
+    expect(add).toHaveBeenCalledWith(expect.objectContaining({ summary: '已儲存顯示名稱' }));
+    expect(saveButtons()[0].textContent!.trim()).toBe('儲存');
+  });
+
+  it('生日是原生 date：帶出 yyyy-MM-dd；改了送原值、清空送 null', async () => {
+    const { fixture, http, el } = setup({ birthday: '1990-05-17' });
+    // loadMe 是 firstValueFrom（多一個 microtask），ngModel 寫值又是非同步：等兩輪
+    for (let i = 0; i < 2; i++) {
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+    const input = el.querySelector<HTMLInputElement>('#account-birthday')!;
+    expect(input.type).toBe('date');
+    expect(input.value).toBe('1990-05-17');
+
+    const save = (value: string) => {
+      (fixture.componentInstance as unknown as { birthday: string }).birthday = value;
+      (fixture.componentInstance as unknown as { saveBirthday: () => void }).saveBirthday();
+      const req = http.expectOne((r) => r.method === 'PATCH' && r.url.endsWith('/api/me'));
+      req.flush({});
+      return req.request.body;
+    };
+    expect(save('2001-02-03')).toEqual({ birthday: '2001-02-03' });
+    expect(save('')).toEqual({ birthday: null });
   });
 });
 
