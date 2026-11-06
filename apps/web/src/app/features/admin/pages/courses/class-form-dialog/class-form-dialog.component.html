@@ -2,12 +2,6 @@
 <app-dialog-frame [title]="dialogTitle()" [sub]="subtitle() || ''" (closed)="cancel()">
   <!-- A6 `.fdlg__body`：兩欄 grid，班名／人數各半欄，其餘整列；手機一欄 -->
   <div class="grid grid-cols-2 gap-x-3 gap-y-4 max-wide:grid-cols-1">
-    <!-- 儀表板「班級改時段」進來、班有多個時段（#2246）：不替人挑，說要按哪裡 -->
-    @if (retimeHint()) {
-      <p class="col-span-full m-0 text-md font-semibold text-zinc-800" data-testid="retime-hint">
-        選一個時段改時間：按那個時段下面的「從某日起改時段」
-      </p>
-    }
     <div class="min-w-0">
       <label class="mb-1 block text-md font-semibold text-zinc-700" for="class-name"
         >開課班名稱 <span class="text-error-700" aria-hidden="true">*</span></label

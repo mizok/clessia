@@ -701,6 +701,45 @@ describe('PaymentsPage', () => {
       expect(component['exportScope']()).toBe('overdue');
     });
 
+    // #2381：張數跟匯出同一支查詢（只差 pageSize 1），失敗的那格不寫 0
+    it('範圍旁的張數（A6 .xp__n）：三個範圍各打一次 pageSize 1；失敗留空；改月份重打', () => {
+      invoices.list.mockClear();
+      invoices.list.mockImplementation((params?: unknown) => {
+        const p = params as { overdue?: boolean; outstanding?: boolean };
+        if (p.outstanding) return throwError(() => new Error('x'));
+        return of(listResponse([], p.overdue ? 2 : 7));
+      });
+
+      component['loadExportCounts']({ newState: 'closed' } as never);
+      expect(invoices.list).not.toHaveBeenCalled();
+      component['loadExportCounts']({ newState: 'open' } as never);
+      fixture.detectChanges();
+
+      const month = component['exportMonth']();
+      expect(invoices.list).toHaveBeenCalledTimes(3);
+      expect(invoices.list).toHaveBeenCalledWith(
+        expect.objectContaining({ issuedMonth: month, overdue: true, page: 1, pageSize: 1 }),
+      );
+      const labels = [
+        ...(fixture.nativeElement as HTMLElement).querySelectorAll('#payments-export label'),
+      ].map((l) => l.textContent!.replace(/\s+/g, ''));
+      expect(labels.filter((t) => /全部帳單|只有逾期|還沒繳清/.test(t))).toEqual([
+        '全部帳單7張',
+        '只有逾期2張',
+        '還沒繳清',
+      ]);
+
+      invoices.list.mockClear();
+      const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+        '#payments-export input[type=month]',
+      )!;
+      input.value = '2026-01';
+      input.dispatchEvent(new Event('input'));
+      expect(invoices.list).toHaveBeenCalledWith(
+        expect.objectContaining({ issuedMonth: '2026-01', pageSize: 1 }),
+      );
+    });
+
     it('匯出預設當月（台北今天所在月），檔名與範圍寫進檔名；逾期範圍送 overdue', async () => {
       const writeFile = vi.fn();
       vi.doMock('xlsx', () => ({

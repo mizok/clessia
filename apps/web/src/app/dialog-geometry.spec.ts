@@ -47,7 +47,7 @@ describe('全站彈窗幾何（A6 .acset，#1776）', () => {
 });
 
 /**
- * #2290 Q1（使用者 11-05）：貼底抽屜照 A6 貼底，**底部列**下內距＝--sheet-foot-gap（16）＋safe-area，
+ * #2290 Q1（使用者 11-05）：貼底抽屜照 A6 貼底，**底部列**下內距＝--sheet-foot-gap（24，#2396）＋safe-area，
  * 鈕不貼 home indicator；沒有底部列的殼由內容區墊同一個值；抽屜本體不再墊（safe-area 只墊一次）。
  * 審核席 #2309 突變 ②：拿掉底部列的 safe-area 原本沒有任何 spec 會紅。
  */
@@ -59,8 +59,14 @@ describe('共用殼的貼底底部（#2290）', () => {
   })();
   const SAFE = /calc\(\s*var\(--sheet-foot-gap\)\s*\+\s*env\(safe-area-inset-bottom/;
 
-  it('--sheet-foot-gap 是 16（space-4）', () => {
-    expect(css).toMatch(/--sheet-foot-gap:\s*var\(--space-4\)/);
+  it('--sheet-foot-gap 是 24（space-6，使用者 11-06 #2396）', () => {
+    expect(css).toMatch(/--sheet-foot-gap:\s*var\(--space-6\)/);
+  });
+
+  // #2396：沒走殼的 p-dialog（篩選面板）與貼底 p-drawer 也墊同一個值 —— 原本只有 12px／20px、沒有 safe-area
+  it('手機：沒走殼的 p-dialog 底部列、貼底 p-drawer 內容區也是 --sheet-foot-gap＋safe-area', () => {
+    expect(rule('.p-dialog:not(.role-picker-dialog) > .p-dialog-footer', css)).toMatch(SAFE);
+    expect(rule('.p-drawer-bottom .p-drawer-content', css)).toMatch(SAFE);
   });
 
   it('手機：底部列下內距＝--sheet-foot-gap＋safe-area', () => {
