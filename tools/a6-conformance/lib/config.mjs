@@ -2450,6 +2450,17 @@ export const PAGES = {
         reason: '資料：標題帶量測那位老師的本名（稿是示範人名）',
         source: 'staff.html:251（sheet 標題「授課紀錄 · 姓名」）；#2290',
       },
+      // #2290 換殼：殼的內距在內容區外層（.dialog-frame__body），稿在 form 上 —— form 本身相對對話框的位移
+      // （全站那兩條只涵蓋 form 的 padding 與子項；同 enrollments「直接報名」那條，同一份裁定）
+      {
+        status: '位置',
+        pop: 'new-staff',
+        a6: '>landmark:dialog\\[新增人員\\]>landmark:form\\[\\]$',
+        detail: '^相對「新增人員」 Δx \\+(16|24)、Δy \\+(8|9|1[01])（',
+        reason: '殼的內距在內容區外層（.dialog-frame__body），稿在 form 上，幾何相同',
+        source:
+          'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
+      },
       // 手機關閉鈕 44（稿 38）—— 同新增家長那條
       ...[
         { status: '尺寸', detail: '^寬 38→44$' },
