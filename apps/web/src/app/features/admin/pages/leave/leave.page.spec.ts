@@ -2,7 +2,11 @@ import { NEVER, Subject, of, throwError } from 'rxjs';
 import { provideRouter } from '@angular/router';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { ConfirmEventType, ConfirmationService, MessageService } from 'primeng/api';
+import { MessageService } from 'primeng/api';
+import {
+  ConfirmDialogComponent,
+  type ConfirmDialogData,
+} from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DialogService } from 'primeng/dynamicdialog';
 import type { Campus } from '@core/campuses.service';
 import type { LeaveListItem, LeaveRequest } from '@core/leave.service';
@@ -47,11 +51,13 @@ describe('LeavePage', () => {
     campuses: signal<Campus[]>([]),
     loadCampuses: vi.fn(),
   };
-  const confirmationService = new ConfirmationService();
   const messageService = new MessageService();
   const dialogServiceMock = {
     open: vi.fn(),
   };
+  /** 確認對話框（ConfirmDialog）各開一次的 header／data，與「按下」：true 主鈕、false 次要鈕、undefined ✕ */
+  let confirms: Array<{ header: string; data: ConfirmDialogData; close: (r?: boolean) => void }>;
+  const message = (i = 0) => confirms[i]!.data.message;
 
   let component: LeavePage;
   let fixture: ComponentFixture<LeavePage>;
@@ -83,7 +89,16 @@ describe('LeavePage', () => {
     leaveServiceMock.delete.mockClear();
     referenceDataServiceMock.loadCampuses.mockClear();
     vi.restoreAllMocks();
-    dialogServiceMock.open.mockClear();
+    dialogServiceMock.open.mockReset();
+    confirms = [];
+    dialogServiceMock.open.mockImplementation(
+      (cmp: unknown, cfg: { header: string; data: ConfirmDialogData }) => {
+        if (cmp !== ConfirmDialogComponent) return undefined;
+        const onClose = new Subject<boolean | undefined>();
+        confirms.push({ ...cfg, close: (r) => onClose.next(r) });
+        return { onClose };
+      },
+    );
 
     await TestBed.configureTestingModule({
       imports: [LeavePage],
@@ -107,7 +122,6 @@ describe('LeavePage', () => {
         set: {
           providers: [
             { provide: MessageService, useValue: messageService },
-            { provide: ConfirmationService, useValue: confirmationService },
             { provide: DialogService, useValue: dialogServiceMock },
           ],
         },
@@ -117,7 +131,6 @@ describe('LeavePage', () => {
     fixture = TestBed.createComponent(LeavePage);
     component = fixture.componentInstance;
     fixture.componentRef.setInput('page', { label: '學生請假紀錄' });
-    vi.spyOn(confirmationService, 'confirm');
     vi.spyOn(messageService, 'add');
     fixture.detectChanges();
     await fixture.whenStable();
@@ -224,42 +237,33 @@ describe('LeavePage', () => {
     vi.useRealTimers();
   });
 
-  it('在進行中假期選擇完全刪除時，會延後開啟第二次確認視窗', () => {
+  it('進行中假期按次要鈕「完全刪除」才開第二窗；✕ 關掉什麼都不做', () => {
     component['confirmDelete'](activeRecord);
+    expect(confirms).toHaveLength(1);
+    expect(confirms[0]!.header).toBe('取消進行中假期');
 
-    expect(confirmationService.confirm).toHaveBeenCalledTimes(1);
+    confirms[0]!.close(undefined);
+    expect(confirms).toHaveLength(1);
+    expect(leaveServiceMock.delete).not.toHaveBeenCalled();
 
-    const firstConfirm = vi.mocked(confirmationService.confirm).mock.calls[0]?.[0] as {
-      reject?: (type?: ConfirmEventType) => void;
-    };
+    component['confirmDelete'](activeRecord);
+    confirms[1]!.close(false);
+    expect(confirms).toHaveLength(3);
+    expect(confirms[2]!.header).toBe('完全刪除請假紀錄');
+    expect(confirms[2]!.data.acceptLabel).toBe('確認完全刪除');
+    expect(leaveServiceMock.delete).not.toHaveBeenCalled();
+  });
 
-    firstConfirm.reject?.(ConfirmEventType.REJECT);
-    expect(confirmationService.confirm).toHaveBeenCalledTimes(1);
-
-    vi.runAllTimers();
-
-    expect(confirmationService.confirm).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(confirmationService.confirm).mock.calls[1]?.[0]).toMatchObject({
-      header: '完全刪除請假紀錄',
-      acceptLabel: '確認完全刪除',
-    });
+  it('進行中假期按主鈕：以 truncate 呼叫刪除 API', () => {
+    component['confirmDelete'](activeRecord);
+    confirms[0]!.close(true);
+    expect(leaveServiceMock.delete).toHaveBeenCalledWith(activeRecord.id, 'truncate');
   });
 
   it('確認完全刪除後會以 full 模式呼叫刪除 API', () => {
     component['confirmDelete'](activeRecord);
-
-    const firstConfirm = vi.mocked(confirmationService.confirm).mock.calls[0]?.[0] as {
-      reject?: (type?: ConfirmEventType) => void;
-    };
-
-    firstConfirm.reject?.(ConfirmEventType.REJECT);
-    vi.runAllTimers();
-
-    const secondConfirm = vi.mocked(confirmationService.confirm).mock.calls[1]?.[0] as {
-      accept?: () => void;
-    };
-
-    secondConfirm.accept?.();
+    confirms[0]!.close(false);
+    confirms[1]!.close(true);
 
     expect(leaveServiceMock.delete).toHaveBeenCalledWith(activeRecord.id, 'full');
   });
@@ -476,8 +480,7 @@ describe('LeavePage', () => {
       respond([record]);
       component['loadRecords']();
       fixture.detectChanges();
-      const open = { onClose: { subscribe: () => undefined } };
-      dialogServiceMock.open.mockReturnValue(open);
+      dialogServiceMock.open.mockReturnValueOnce({ onClose: NEVER });
 
       q('edit')!.click();
       expect(dialogServiceMock.open).toHaveBeenCalledWith(
@@ -486,7 +489,7 @@ describe('LeavePage', () => {
       );
 
       q('cancel')!.click();
-      expect(confirmationService.confirm).toHaveBeenCalledTimes(1);
+      expect(confirms).toHaveLength(1);
     });
 
     it('色面句：今天幾位（不重複學生）、之後還有幾筆', () => {
@@ -641,9 +644,6 @@ describe('LeavePage', () => {
     });
 
     describe('取消請假的確認文案寫清出缺席影響（rules §6–7）', () => {
-      const message = () =>
-        (vi.mocked(confirmationService.confirm).mock.calls[0]?.[0] as { message: string }).message;
-
       it('還沒開始：不影響任何出缺席', () => {
         component['confirmDelete'](rec({ startDate: '2026-04-20', endDate: '2026-04-21' }));
         expect(message()).toContain('還沒開始');
@@ -685,16 +685,9 @@ describe('LeavePage', () => {
         expect(leaveServiceMock.impact).toHaveBeenNthCalledWith(1, 'lv-now', 'truncate');
         expect(message()).toContain('取消剩餘假期：1 堂會回到「還沒點名」。');
 
-        const first = vi.mocked(confirmationService.confirm).mock.calls[0]![0] as {
-          reject: (t: ConfirmEventType) => void;
-        };
-        first.reject(ConfirmEventType.REJECT);
-        vi.runAllTimers();
+        confirms[0]!.close(false);
         expect(leaveServiceMock.impact).toHaveBeenNthCalledWith(2, 'lv-now', 'full');
-        const second = (
-          vi.mocked(confirmationService.confirm).mock.calls[1]![0] as { message: string }
-        ).message;
-        expect(second).toContain('實際會動到：3 堂會回到「還沒點名」、2 堂已點名，維持請假。');
+        expect(message(1)).toContain('實際會動到：3 堂會回到「還沒點名」、2 堂已點名，維持請假。');
       });
 
       it('預覽讀不到：照原本的文案開窗，不擋取消', () => {

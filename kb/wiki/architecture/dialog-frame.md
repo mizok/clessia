@@ -28,6 +28,7 @@ tags: [architecture, dialog, a6, motion, accessibility]
 
 - 副標要放按鈕或清單（教室對話框的教室清單＋「⋯」）：投影 `<p dialogSub class="dialog-header-inline__sub">…</p>`，放在 h2 之後；字串 `sub` 照舊，兩者擇一。
 - **有 `<form>` 的對話框**：送出鈕在殼的底部列、已經在 form 外面，要寫 `<button type="submit" form="<form 的 id>">`，**不綁 `(click)`**，只留 form 的 `(ngSubmit)` 一條路 —— 不指回表單，欄位按 Enter 就不送出（鍵盤退步）；兩條都留，按一次送兩次（#2362 二讀）。
+- **確認對話框**（`ConfirmDialogComponent`）：關窗結果主鈕 `true`、次要鈕 `false`、✕／Esc `undefined` —— 次要鈕本身是第二個動作時（請假「完全刪除」）用 `=== false` 分辨；只是告知、沒有第二個選擇時給 `rejectVisible: false`（學校「它已經停用了」）。訊息可用 `\n` 分行。全站已無 `p-confirmdialog`／`ConfirmationService`（#2290）。
 - 開窗端（DynamicDialog）：`width: 'var(--dlg-w-md)'`、`showHeader: false`；**不寫 `breakpoints`**（≤860 會被全站 `.p-dialog` 的 `width: 100% !important` 蓋掉，寫了也沒作用）。
 - 原生 `<dialog>`：殼放在 `<dialog>` 裡；`<dialog>` 自己帶 `aria-labelledby` 或靠殼的 `appDialogTitle`（找最近的 `[role=dialog]`）。
 

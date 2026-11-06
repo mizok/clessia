@@ -5,7 +5,7 @@ import { provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
 import { NEVER, type Observable, Subject, of, throwError } from 'rxjs';
 import { beforeAll, vi } from 'vitest';
-import { MessageService, ConfirmationService } from 'primeng/api';
+import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
 import { CoursesPage } from './courses.page';
@@ -21,10 +21,6 @@ describe('CoursesPage', () => {
   let fixture: ComponentFixture<CoursesPage>;
   let component: CoursesPage;
   let router: Router;
-  const confirmationServiceMock = {
-    confirm: vi.fn(),
-  };
-
   const coursesServiceMock = {
     list: vi.fn((): Observable<unknown> => of({ data: [] })),
     delete: vi.fn(),
@@ -100,7 +96,6 @@ describe('CoursesPage', () => {
         { provide: BrowserStateService, useValue: { isMobile: () => false } },
         { provide: DialogService, useValue: { open: vi.fn() } },
         { provide: MessageService, useValue: { add: vi.fn() } },
-        { provide: ConfirmationService, useValue: confirmationServiceMock },
       ],
     }).compileComponents();
 
@@ -132,8 +127,6 @@ describe('CoursesPage', () => {
     localStorage.removeItem('clessia.campusContext');
     localStorage.removeItem('clessia.campusContext.single');
     sessionsServiceMock.list.mockClear();
-    confirmationServiceMock.confirm.mockClear();
-
     await mount();
   });
 

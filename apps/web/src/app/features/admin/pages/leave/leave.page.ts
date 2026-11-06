@@ -7,13 +7,16 @@ import { FormsModule } from '@angular/forms';
 import { DatePickerModule } from 'primeng/datepicker';
 import { SelectModule } from 'primeng/select';
 import { TooltipModule } from 'primeng/tooltip';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { MessageService, ConfirmationService, ConfirmEventType } from 'primeng/api';
+import { MessageService } from 'primeng/api';
+import {
+  ConfirmDialogComponent,
+  type ConfirmDialogData,
+} from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { format, differenceInCalendarDays } from 'date-fns';
-import { skip } from 'rxjs';
+import { EMPTY, type Observable, skip, take } from 'rxjs';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { LeaveService, type LeaveListItem, type LeaveRequest } from '@core/leave.service';
 import { CampusContextService } from '@core/campus-context.service';
@@ -63,10 +66,9 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
     DatePickerModule,
     SelectModule,
     TooltipModule,
-    ConfirmDialogModule,
     DynamicDialogModule,
   ],
-  providers: [ConfirmationService, DialogService],
+  providers: [DialogService],
   templateUrl: './leave.page.html',
 })
 export class LeavePage implements OnInit {
@@ -81,7 +83,6 @@ export class LeavePage implements OnInit {
   /** 分校跟頂欄走（#1138）：頁內分校下拉拿掉 */
   private readonly campusCtx = inject(CampusContextService);
   private readonly messageService = inject(MessageService);
-  private readonly confirmationService = inject(ConfirmationService);
   private readonly systemClock = inject(SystemClockService);
   private readonly dialogService = inject(DialogService);
   // 彈窗掛在殼層的 overlay 容器：#166 的 max-height（--shell-layout-body-height）才吃得到，
@@ -540,17 +541,16 @@ export class LeavePage implements OnInit {
   }
 
   private confirmFutureDelete(record: LeaveRequest): void {
-    this.confirmationService.confirm({
+    this.confirm('取消請假', {
       // 出缺席影響照 rules/attendance-rules.md §6–7：還沒開始的假沒有任何出缺席紀錄
       message:
         `確定要取消 ${record.studentName} 的請假（${record.startDate} ~ ${record.endDate}）？\n` +
         `這張假還沒開始，取消後不影響任何出缺席紀錄。`,
-      header: '取消請假',
-      icon: 'pi pi-exclamation-triangle',
       acceptLabel: '確認取消',
       rejectLabel: '返回',
-      accept: () =>
-        this.executeDelete(record, 'full', '已取消請假', `${record.studentName} 的請假申請已取消`),
+    }).subscribe((ok) => {
+      if (ok)
+        this.executeDelete(record, 'full', '已取消請假', `${record.studentName} 的請假申請已取消`);
     });
   }
 
@@ -577,19 +577,18 @@ export class LeavePage implements OnInit {
   }
 
   private openPastDelete(record: LeaveRequest, impact: string): void {
-    this.confirmationService.confirm({
+    this.confirm('取消歷史請假', {
       // 舊文案寫「同步恢復對應課堂的出勤狀態」—— 與 rules §6／API 不符：已點過名的日子不動
       message:
         `${record.studentName} 的請假（${record.startDate} ~ ${record.endDate}）已經結束。\n` +
         `取消後，還沒點名的日子，請假紀錄會被刪掉、回到「還沒點名」；已經點過名的日子不會動。` +
         `${impact}\n` +
         `此操作無法復原。`,
-      header: '取消歷史請假',
-      icon: 'pi pi-exclamation-triangle',
       acceptLabel: '確認刪除',
       rejectLabel: '返回',
-      accept: () =>
-        this.executeDelete(record, 'full', '已刪除', `${record.studentName} 的歷史請假紀錄已刪除`),
+    }).subscribe((ok) => {
+      if (ok)
+        this.executeDelete(record, 'full', '已刪除', `${record.studentName} 的歷史請假紀錄已刪除`);
     });
   }
 
@@ -606,29 +605,25 @@ export class LeavePage implements OnInit {
     const today = this.systemClock.todayTaipei();
     const yesterday = addDaysToDateString(today, -1);
 
-    this.confirmationService.confirm({
+    this.confirm('取消進行中假期', {
       message:
         `${record.studentName} 的假目前進行中（${record.startDate} ~ ${record.endDate}）。\n` +
         `・取消剩餘假期：保留到 ${yesterday}，今天起還沒點名的課回到「還沒點名」。\n` +
         `・完全刪除：整張假撤銷；還沒點名的日子都回到「還沒點名」，已經點過名的日子不會動。` +
         // 這一窗的數字是「取消剩餘假期」的；完全刪除的數字在下一窗
         (impact ? `\n取消剩餘假期${impact.trim().replace('實際會動到', '')}` : ''),
-      header: '取消進行中假期',
-      icon: 'pi pi-exclamation-triangle',
       acceptLabel: '取消剩餘假期',
       rejectLabel: '完全刪除',
-      accept: () =>
+    }).subscribe((result) => {
+      if (result)
         this.executeDelete(
           record,
           'truncate',
           '已取消剩餘假期',
           `已保留至 ${yesterday} 的請假，${today} 起恢復出勤`,
-        ),
-      reject: (type?: ConfirmEventType) => {
-        if (type === ConfirmEventType.REJECT) {
-          setTimeout(() => this.confirmFullActiveDelete(record));
-        }
-      },
+        );
+      // 次要鈕「完全刪除」回 false 才開下一窗；✕／Esc 是 undefined，什麼都不做
+      else if (result === false) this.confirmFullActiveDelete(record);
     });
   }
 
@@ -637,23 +632,22 @@ export class LeavePage implements OnInit {
   }
 
   private openFullActiveDelete(record: LeaveRequest, impact: string): void {
-    this.confirmationService.confirm({
+    this.confirm('完全刪除請假紀錄', {
       message:
         `確定要完全刪除 ${record.studentName} 的請假紀錄（${record.startDate} ~ ${record.endDate}）？\n` +
         `整張假都會撤銷：還沒點名的日子（含已過去的）回到「還沒點名」，已經點過名的日子不會動。` +
         `${impact}\n` +
         `此操作無法復原。`,
-      header: '完全刪除請假紀錄',
-      icon: 'pi pi-exclamation-triangle',
       acceptLabel: '確認完全刪除',
       rejectLabel: '返回',
-      accept: () =>
+    }).subscribe((ok) => {
+      if (ok)
         this.executeDelete(
           record,
           'full',
           '已刪除請假紀錄',
           `${record.studentName} 的請假紀錄已完全刪除`,
-        ),
+        );
     });
   }
 
@@ -662,6 +656,21 @@ export class LeavePage implements OnInit {
    * `truncate`（進行中的假提早結束）**那一列不會消失**，只是結束日改了 —— 沒有東西可以先拿掉，
    * 所以等伺服器回來，由重抓就地換上新的結束日。
    */
+  /**
+   * 確認對話框（#2290：p-confirmdialog 改走共用殼的 ConfirmDialog）。回傳關窗結果：
+   * 主鈕 true、次要鈕 false、✕／Esc undefined
+   */
+  private confirm(header: string, data: ConfirmDialogData): Observable<unknown> {
+    const ref = this.dialogService.open(ConfirmDialogComponent, {
+      header,
+      width: 'var(--dlg-w-md)',
+      modal: true,
+      showHeader: false,
+      data,
+    });
+    return ref ? ref.onClose.pipe(take(1)) : EMPTY;
+  }
+
   private executeDelete(
     record: LeaveRequest,
     mode: 'truncate' | 'full',
