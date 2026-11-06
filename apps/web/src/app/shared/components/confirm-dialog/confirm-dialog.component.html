@@ -1,10 +1,15 @@
 <!--
   共用殼（#2290）：A6 的確認＝沒有欄位的表單對話框（courses.html `confirmDel`：A2.form title＋sub、fields: []）——
-  標題用開窗端的 `header`，訊息當副標；底部「取消」＋主鈕（稿的危險確認也是同一顆 cta，a6.css 沒有 fdlg--danger 樣式）
+  標題用開窗端的 `header`；訊息在內容區（#2396：彈窗不放副標，C 類內容本體搬進內容區）；底部「取消」＋主鈕（稿的危險確認也是同一顆 cta，a6.css 沒有 fdlg--danger 樣式）
 -->
 <app-dialog-frame [title]="config.header ?? '確認'" (closed)="dismiss()">
-  <!-- 訊息可能分行（請假的取消說明用 \n 分段）：投影副標、保留換行 -->
-  <p dialogSub class="dialog-header-inline__sub whitespace-pre-line">{{ data.message }}</p>
+  <!-- 訊息可能分行（請假的取消說明用 \n 分段）：保留換行 -->
+  <p
+    class="m-0 text-base leading-[1.6] whitespace-pre-line text-zinc-700"
+    data-testid="confirm-message"
+  >
+    {{ data.message }}
+  </p>
   @if (data.requireNotes) {
     <textarea
       pTextarea
