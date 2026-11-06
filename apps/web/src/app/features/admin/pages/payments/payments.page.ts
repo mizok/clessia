@@ -306,6 +306,31 @@ export class PaymentsPage implements OnInit {
   protected readonly exportScopeOptions = (Object.keys(EXPORT_SCOPE_LABELS) as ExportScope[]).map(
     (value) => ({ value, label: EXPORT_SCOPE_LABELS[value] }),
   );
+  /**
+   * 範圍旁的張數（A6 `.xp__n`，#2381）：跟匯出同一支查詢（`exportQuery`）帶 pageSize 1、只取 meta.total。
+   * 開面板、改月份時打；還沒回來或失敗就沒有那一格（不寫 0），不擋匯出
+   */
+  protected readonly exportCounts = signal<Partial<Record<ExportScope, number>>>({});
+  private readonly exportCountMonth = new Subject<string>();
+  private readonly exportCountLoader = this.exportCountMonth
+    .pipe(
+      switchMap((month) => {
+        this.exportCounts.set({});
+        if (!/^\d{4}-\d{2}$/.test(month)) return EMPTY;
+        const count = (scope: ExportScope) =>
+          this.service.list(this.exportQuery(month, scope, 1, 1)).pipe(
+            map((res) => res.meta.total),
+            catchError(() => of(undefined)),
+          );
+        return forkJoin({
+          all: count('all'),
+          overdue: count('overdue'),
+          outstanding: count('outstanding'),
+        });
+      }),
+      takeUntilDestroyed(),
+    )
+    .subscribe((counts) => this.exportCounts.set(counts));
 
   /**
    * 已經生效、但從來沒開過帳單的報名數。
@@ -675,6 +700,22 @@ export class PaymentsPage implements OnInit {
     });
   }
 
+  protected loadExportCounts(event?: Event): void {
+    if (event && (event as ToggleEvent).newState !== 'open') return;
+    this.exportCountMonth.next(this.exportMonth());
+  }
+
+  private exportQuery(month: string, scope: ExportScope, page: number, pageSize: number) {
+    return {
+      issuedMonth: month,
+      overdue: scope === 'overdue' || undefined,
+      outstanding: scope === 'outstanding' || undefined,
+      campusId: this.campusId(),
+      page,
+      pageSize,
+    };
+  }
+
   protected async exportInvoices(popover: HTMLElement): Promise<void> {
     const month = this.exportMonth();
     if (this.exporting() || !/^\d{4}-\d{2}$/.test(month)) return;
@@ -685,14 +726,7 @@ export class PaymentsPage implements OnInit {
       // 一頁最多 200 筆；用 meta.total 判斷收完了沒
       for (let page = 1; ; page++) {
         const res = await firstValueFrom(
-          this.service.list({
-            issuedMonth: month,
-            overdue: scope === 'overdue' || undefined,
-            outstanding: scope === 'outstanding' || undefined,
-            campusId: this.campusId(),
-            page,
-            pageSize: 200,
-          }),
+          this.service.list(this.exportQuery(month, scope, page, 200)),
         );
         rows.push(...res.data);
         if (res.data.length === 0 || rows.length >= res.meta.total) break;

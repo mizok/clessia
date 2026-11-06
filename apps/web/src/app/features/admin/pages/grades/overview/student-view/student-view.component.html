@@ -93,21 +93,31 @@
         >
           <fieldset class="m-0 grid min-w-0 gap-2 border-0 p-0">
             <legend class="p-0 text-md font-bold tracking-[0.04em] text-zinc-800">範圍</legend>
-            <label class="flex min-h-9 cursor-pointer items-center gap-2 text-base">
+            <!-- A6 `.xp__r`：手機 44（R3 同）、radio 18、人數靠右（`.xp__n`）。
+                 「全部學生」不寫人數：匯出的「全部」是 API 端的範圍，跟畫面清單口徑不同（R5，#2381） -->
+            <label
+              class="flex min-h-9 cursor-pointer items-center gap-2 text-base max-wide:min-h-11"
+            >
               <input
                 type="radio"
                 name="sv-export-range"
                 value="filtered"
+                class="m-0 size-[18px] accent-zinc-900"
                 [checked]="exportRange() === 'filtered'"
                 (change)="exportRange.set('filtered')"
               />
-              照目前的篩選<span class="text-zinc-600">{{ totalStudents() }} 位</span>
+              照目前的篩選<span class="ml-auto text-zinc-600 tabular-nums"
+                >{{ totalStudents() }} 位</span
+              >
             </label>
-            <label class="flex min-h-9 cursor-pointer items-center gap-2 text-base">
+            <label
+              class="flex min-h-9 cursor-pointer items-center gap-2 text-base max-wide:min-h-11"
+            >
               <input
                 type="radio"
                 name="sv-export-range"
                 value="all"
+                class="m-0 size-[18px] accent-zinc-900"
                 [checked]="exportRange() === 'all'"
                 (change)="exportRange.set('all')"
               />

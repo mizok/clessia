@@ -117,7 +117,7 @@
         popover
         class="overlay-motion overlay-motion--from-bottom-narrow m-0 w-[340px] rounded-lg border border-surface-border bg-white p-0 text-zinc-900 shadow-[0_12px_32px_-8px_rgb(26_22_20/24%)] max-wide:fixed max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:max-h-[calc(100%-48px)] max-wide:w-full max-wide:max-w-none max-wide:overflow-y-auto max-wide:rounded-none max-wide:rounded-t-xl max-wide:border-0 max-wide:bg-(--sheet-bg) max-wide:backdrop:bg-zinc-900/40"
         aria-labelledby="payments-export-title"
-        (toggle)="placeExport($event, exportTrigger)"
+        (toggle)="placeExport($event, exportTrigger); loadExportCounts($event)"
       >
         <div class="flex items-center gap-2 pt-4 pr-3 pb-2 pl-5">
           <h2 id="payments-export-title" class="m-0 text-lg font-bold">匯出帳單</h2>
@@ -142,21 +142,30 @@
               name="exportMonth"
               class="h-10 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit]"
               [ngModel]="exportMonth()"
-              (ngModelChange)="exportMonth.set($event)"
+              (ngModelChange)="exportMonth.set($event); loadExportCounts()"
             />
           </label>
           <fieldset class="m-0 grid min-w-0 gap-2 border-0 p-0">
             <legend class="p-0 text-md font-bold tracking-[0.04em] text-zinc-800">範圍</legend>
             @for (opt of exportScopeOptions; track opt.value) {
-              <label class="flex min-h-9 cursor-pointer items-center gap-2 text-base">
+              <!-- A6 `.xp__r`：手機 44（R3 同）、radio 18 -->
+              <label
+                class="flex min-h-9 cursor-pointer items-center gap-2 text-base max-wide:min-h-11"
+              >
                 <input
                   type="radio"
                   name="exportScope"
+                  class="m-0 size-[18px] accent-zinc-900"
                   [value]="opt.value"
                   [checked]="exportScope() === opt.value"
                   (change)="exportScope.set(opt.value)"
                 />
                 {{ opt.label }}
+                @if (exportCounts()[opt.value] !== undefined) {
+                  <span class="ml-auto text-zinc-600 tabular-nums"
+                    >{{ exportCounts()[opt.value] }} 張</span
+                  >
+                }
               </label>
             }
           </fieldset>
