@@ -10,8 +10,11 @@ import {
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { EMPTY, Subject, catchError, debounceTime, switchMap } from 'rxjs';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { ConfirmationService, MessageService } from 'primeng/api';
+import { MessageService } from 'primeng/api';
+import {
+  ConfirmDialogComponent,
+  type ConfirmDialogData,
+} from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { DialogService } from 'primeng/dynamicdialog';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
@@ -42,18 +45,16 @@ const CHAPTERS: ReadonlyArray<{ level: SchoolLevel | null; label: string }> = [
     PageActionsComponent,
     FormsModule,
     ReloadVeilComponent,
-    ConfirmDialogModule,
     EmptyStateComponent,
     LoadFailedComponent,
   ],
-  providers: [ConfirmationService, DialogService],
+  providers: [DialogService],
   templateUrl: './schools.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SchoolsPage implements OnInit {
   private readonly schoolsService = inject(SchoolsService);
   private readonly messageService = inject(MessageService);
-  private readonly confirmationService = inject(ConfirmationService);
   private readonly dialogService = inject(DialogService);
   private readonly destroyRef = inject(DestroyRef);
   /** 重抓的資料平滑換上；新增／編輯造成的重抓帶 rows，那一列淡入或淡出（#1641 5b） */
@@ -194,20 +195,13 @@ export class SchoolsPage implements OnInit {
       return;
     }
 
-    // **`acceptLabel` / `rejectLabel` 不能省**（#752）：PrimeNG 原生的
-    // `ConfirmationService` 沒給就會吃元件庫的英文預設值（`Yes` / `No`），
-    // 而這一頁的訊息是中文 —— 全站唯一一個中文訊息配英文按鈕的確認框。
-    // 這裡的四個欄位跟另外 9 個 `confirmationService.confirm()` 呼叫點同形。
-    this.confirmationService.confirm({
-      message: `確定刪除「${school.name}」？`,
-      header: '確認刪除',
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: '刪除',
-      rejectLabel: '取消',
+    this.confirm(
+      '確認刪除',
+      { message: `確定刪除「${school.name}」？`, acceptLabel: '刪除', rejectLabel: '取消' },
       // 等伺服器確認才淡出（悲觀刪除）—— 全站刪除是樂觀的（#1641 5b 第 1 點），這一頁是例外
       // （計畫席 10-16 同意盤點時的判準）：前端只擋得住有學生的學校，學校考試、考程也是
       // FK RESTRICT（409 CONSTRAINT），樂觀版會「先淡出又回來」。
-      accept: () => {
+      () => {
         this.schoolsService
           .delete(school.id)
           .pipe(takeUntilDestroyed(this.destroyRef))
@@ -229,7 +223,7 @@ export class SchoolsPage implements OnInit {
             },
           });
       },
-    });
+    );
   }
 
   /**
@@ -238,14 +232,15 @@ export class SchoolsPage implements OnInit {
    */
   private explainBlocked(school: School): void {
     const label = school.shortName || school.name;
-    this.confirmationService.confirm({
-      header: `「${label}」不能刪除`,
-      message: `還有 ${school.studentCount} 位學生的資料寫著這所學校。可以改成停用：新填的學生資料選不到它，已經寫著它的不受影響。`,
-      icon: 'pi pi-info-circle',
-      acceptLabel: school.isActive ? '改成停用' : '它已經停用了',
-      rejectLabel: '取消',
-      rejectVisible: school.isActive,
-      accept: () => {
+    this.confirm(
+      `「${label}」不能刪除`,
+      {
+        message: `還有 ${school.studentCount} 位學生的資料寫著這所學校。可以改成停用：新填的學生資料選不到它，已經寫著它的不受影響。`,
+        acceptLabel: school.isActive ? '改成停用' : '它已經停用了',
+        rejectLabel: '取消',
+        rejectVisible: school.isActive,
+      },
+      () => {
         if (!school.isActive) return;
         this.schoolsService
           .update(school.id, { isActive: false })
@@ -264,7 +259,22 @@ export class SchoolsPage implements OnInit {
             },
           });
       },
-    });
+    );
+  }
+
+  /** 確認對話框（#2290：p-confirmdialog 改走共用殼的 ConfirmDialog，同 staff／parents 頁） */
+  private confirm(header: string, data: ConfirmDialogData, onAccept: () => void): void {
+    this.dialogService
+      .open(ConfirmDialogComponent, {
+        header,
+        width: 'var(--dlg-w-md)',
+        modal: true,
+        showHeader: false,
+        data,
+      })
+      ?.onClose.subscribe((ok) => {
+        if (ok) onAccept();
+      });
   }
 
   private openSchoolDialog(editing: School | null): void {

@@ -392,38 +392,6 @@
   }
   /* Toast：全站唯一出口 app-toast（#1615），樣式在元件裡，這裡不再覆寫 PrimeNG 的 .p-toast */
   /* =============================================================================
-     Confirm Dialog Styles
-     ============================================================================= */
-  .p-confirmdialog .p-dialog-header {
-    padding: var(--space-5) var(--space-6);
-    border-bottom: 1px solid var(--zinc-100);
-    background: var(--zinc-50);
-  }
-  .p-confirmdialog .p-dialog-header .p-dialog-title {
-    font-size: var(--text-lg);
-    font-weight: var(--font-semibold);
-    color: var(--zinc-900);
-  }
-  .p-confirmdialog .p-dialog-content .p-confirmdialog-message {
-    margin-left: var(--space-4);
-    font-size: var(--text-md);
-    color: var(--zinc-700);
-    line-height: var(--leading-relaxed);
-  }
-  .p-confirmdialog .p-dialog-footer {
-    padding: var(--space-4) var(--space-6);
-    border-top: 1px solid var(--zinc-100);
-    background: var(--zinc-50);
-    gap: var(--space-3);
-  }
-  .p-confirmdialog {
-    /* Warning icon styling */
-  }
-  .p-confirmdialog .p-confirmdialog-icon {
-    color: var(--warning-600);
-    font-size: 1.5rem;
-  }
-  /* =============================================================================
      Global Dialog & Form Patterns
      PrimeNG dialogs are teleported to <body>, so these must be global.
      ============================================================================= */

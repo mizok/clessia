@@ -1,11 +1,28 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ConfirmationService, MessageService } from 'primeng/api';
+import { MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
 import { Subject, of, throwError } from 'rxjs';
 import { afterEach, beforeEach as viBeforeEach, vi } from 'vitest';
 
 import { SchoolsService, type SchoolListResponse } from '@core/schools.service';
 
 import { SchoolsPage } from './schools.page';
+import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
+
+/**
+ * 確認走共用 ConfirmDialog（#2290）：攔 DialogService.open，`result` 是使用者按的（true＝主鈕）。
+ * `arg(i)` 把開窗端的 header 與 data 攤平成一個物件，斷言好寫
+ */
+function stubConfirm(fixture: ComponentFixture<SchoolsPage>, result?: boolean) {
+  const spy = vi
+    .spyOn(fixture.debugElement.injector.get(DialogService), 'open')
+    .mockReturnValue({ onClose: of(result) } as never);
+  const arg = (i = 0) => {
+    const cfg = spy.mock.calls[i]![1] as { header: string; data: ConfirmDialogData };
+    return { header: cfg.header, ...cfg.data };
+  };
+  return { spy, arg };
+}
 
 describe('SchoolsPage', () => {
   let component: SchoolsPage;
@@ -197,14 +214,7 @@ describe('SchoolsPage', () => {
   });
 
   describe('#752 刪除確認框的按鈕要是中文', () => {
-    /**
-     * 這一頁用的是 PrimeNG 原生的 `ConfirmationService`，**不是**共用的
-     * `ConfirmDialogComponent`。原生那支沒給 `acceptLabel` / `rejectLabel`
-     * 就會吃元件庫的英文預設值（`Yes` / `No`）——而全站其他 9 個
-     * `confirmationService.confirm()` 呼叫點**每一個都有給中文**。
-     *
-     * 所以這裡驗的不是「有沒有中文化的機制」，是**這一處有沒有照既有形狀寫**。
-     */
+    /** 共用 ConfirmDialog 沒給文字時是「取消／確認」；這裡驗刪除這一處給的是「刪除」 */
     const zeroStudentSchool = {
       id: 'school-0',
       name: '示範可刪除國中',
@@ -213,36 +223,19 @@ describe('SchoolsPage', () => {
       studentCount: 0,
     };
 
-    it('confirm() 帶的是中文的 acceptLabel / rejectLabel，而不是讓 PrimeNG 用英文預設值', () => {
-      const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
-      const confirmSpy = vi.spyOn(confirmationService, 'confirm');
+    it('開 ConfirmDialog：標題「確認刪除」、按鈕「刪除／取消」；✕ 關掉不刪', () => {
+      const { spy, arg } = stubConfirm(fixture);
 
       (component as unknown as { onDelete: (s: unknown) => void }).onDelete(zeroStudentSchool);
 
-      expect(confirmSpy).toHaveBeenCalledTimes(1);
-      const arg = confirmSpy.mock.calls[0]![0]!;
-      expect(arg.acceptLabel).toBe('刪除');
-      expect(arg.rejectLabel).toBe('取消');
-    });
-
-    it('也帶 header 與 icon —— 跟另外 9 個呼叫點同一個形狀', () => {
-      const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
-      const confirmSpy = vi.spyOn(confirmationService, 'confirm');
-
-      (component as unknown as { onDelete: (s: unknown) => void }).onDelete(zeroStudentSchool);
-
-      const arg = confirmSpy.mock.calls[0]![0]!;
-      expect(arg.header).toBe('確認刪除');
-      expect(arg.icon).toBe('pi pi-exclamation-triangle');
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(arg()).toMatchObject({ header: '確認刪除', acceptLabel: '刪除', rejectLabel: '取消' });
+      expect(schoolsServiceMock.delete).not.toHaveBeenCalled();
     });
 
     // #1314 SE4（A6）：有學生時跳說明＋「改成停用」，不是只出 toast；永遠不打刪除 API
     it('學生數 > 0 → 說明框給「改成停用」，按下去 PUT isActive=false，不刪', () => {
-      const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
-      const confirmSpy = vi.spyOn(confirmationService, 'confirm').mockImplementation((c) => {
-        c.accept?.();
-        return confirmationService;
-      });
+      const { arg } = stubConfirm(fixture, true);
       schoolsServiceMock.update.mockReturnValueOnce(of({ success: true }));
 
       (component as unknown as { onDelete: (s: unknown) => void }).onDelete({
@@ -251,20 +244,15 @@ describe('SchoolsPage', () => {
         studentCount: 2,
       });
 
-      const arg = confirmSpy.mock.calls[0]![0]!;
-      expect(arg.header).toBe('「示範國中」不能刪除');
-      expect(arg.message).toContain('還有 2 位學生');
-      expect(arg.acceptLabel).toBe('改成停用');
+      expect(arg().header).toBe('「示範國中」不能刪除');
+      expect(arg().message).toContain('還有 2 位學生');
+      expect(arg().acceptLabel).toBe('改成停用');
       expect(schoolsServiceMock.update).toHaveBeenCalledWith('school-0', { isActive: false });
       expect(schoolsServiceMock.delete).not.toHaveBeenCalled();
     });
 
     it('已停用又有學生 → 說明框不再給停用動作', () => {
-      const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
-      const confirmSpy = vi.spyOn(confirmationService, 'confirm').mockImplementation((c) => {
-        c.accept?.();
-        return confirmationService;
-      });
+      const { arg } = stubConfirm(fixture, true);
 
       (component as unknown as { onDelete: (s: unknown) => void }).onDelete({
         ...zeroStudentSchool,
@@ -272,7 +260,7 @@ describe('SchoolsPage', () => {
         studentCount: 2,
       });
 
-      expect(confirmSpy.mock.calls[0]![0]!.acceptLabel).toBe('它已經停用了');
+      expect(arg().acceptLabel).toBe('它已經停用了');
       expect(schoolsServiceMock.update).not.toHaveBeenCalled();
     });
   });
@@ -288,11 +276,7 @@ describe('SchoolsPage', () => {
       fixture.detectChanges();
     };
     const deleteSecond = () => {
-      const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
-      vi.spyOn(confirmationService, 'confirm').mockImplementation((c) => {
-        c.accept?.();
-        return confirmationService;
-      });
+      stubConfirm(fixture, true);
       (component as unknown as { onDelete: (s: unknown) => void }).onDelete({
         id: 'school-1',
         name: '乙國中',
@@ -431,13 +415,7 @@ describe('SchoolsPage', () => {
       expect(labels).toEqual(['國小', '國中', '高中', '未分類']);
     });
 
-    const confirmAccept = () => {
-      const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
-      return vi.spyOn(confirmationService, 'confirm').mockImplementation((c) => {
-        c.accept?.();
-        return confirmationService;
-      });
-    };
+    const confirmAccept = () => stubConfirm(fixture, true);
 
     it('H9：停用成功 → 重抓列表（列上的「已停用」才會出現）', () => {
       confirmAccept();
@@ -462,15 +440,14 @@ describe('SchoolsPage', () => {
     });
 
     it('H14：已停用又有學生 → 說明框只有一顆鈕（不顯示「取消」）', () => {
-      const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
-      const spy = vi.spyOn(confirmationService, 'confirm').mockReturnValue(confirmationService);
+      const { spy, arg } = stubConfirm(fixture);
       (component as unknown as { onDelete: (s: unknown) => void }).onDelete(
         school({ isActive: false }),
       );
-      expect(spy.mock.calls[0]![0]!.rejectVisible).toBe(false);
+      expect(arg().rejectVisible).toBe(false);
       spy.mockClear();
       (component as unknown as { onDelete: (s: unknown) => void }).onDelete(school({}));
-      expect(spy.mock.calls[0]![0]!.rejectVisible).toBe(true);
+      expect(arg().rejectVisible).toBe(true);
     });
 
     it('H12：清除搜尋 → 重抓時不帶關鍵字（框是空的、結果也不能是篩過的）', () => {
