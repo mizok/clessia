@@ -27,7 +27,7 @@ import {
 import { Campus } from '@core/campuses.service';
 import { Subject } from '@core/subjects.service';
 import { SubjectManagerComponent } from '@shared/components/subject-manager/subject-manager.component';
-import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { AuthService } from '@core/auth.service';
 import { roleLock } from './permission-rules';
 
@@ -69,7 +69,7 @@ const ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
   standalone: true,
   imports: [
     CommonModule,
-    DialogTitleDirective,
+    DialogFrameComponent,
     FormsModule,
     ButtonModule,
     MultiSelectModule,
@@ -225,6 +225,8 @@ export class StaffFormDialogComponent {
    * 誤觸的代價是看到一則錯誤訊息，而那正是我們要他看到的東西。
    */
   protected save(): void {
+    // 鈕是 aria-disabled（不鎖死），送出中按 Enter 也會走到這裡 —— 這裡擋
+    if (this.loading()) return;
     const form = this.formData();
     const firstError = this.validate();
     // 錯誤留在欄位上（紅框＋欄位下的字），動作列左邊也寫還差什麼（A6 `.fdlg__why`）——

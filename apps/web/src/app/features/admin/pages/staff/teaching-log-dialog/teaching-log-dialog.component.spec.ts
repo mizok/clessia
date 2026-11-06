@@ -207,7 +207,10 @@ describe('TeachingLogDialogComponent', () => {
       const el = fixture.nativeElement as HTMLElement;
 
       expect(el.querySelector('h2')?.textContent?.trim()).toBe(`授課紀錄 · ${data.staffName}`);
-      expect(el.querySelector('label')?.textContent).toContain('月份');
+      // 月份是 app-select-field（#2325）：標籤是 span，選單的可及名稱由 aria-labelledby 指回它
+      const combo = el.querySelector('[role="combobox"]')!;
+      const labelId = combo.getAttribute('aria-labelledby')!;
+      expect(el.querySelector(`[id="${labelId}"]`)?.textContent).toContain('月份');
       expect(closeButton()!.closest('.form-dialog__footer')).not.toBeNull();
     });
 

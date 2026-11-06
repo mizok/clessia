@@ -1,158 +1,167 @@
-<div class="flex flex-col gap-3">
-  @if (campuses().length > 1) {
+<!-- 共用殼（#2290）：標題沿用原本的 header -->
+<app-dialog-frame title="篩選條件" (closed)="close()">
+  <div class="flex flex-col gap-3">
+    @if (campuses().length > 1) {
+      <div class="flex flex-col gap-1">
+        <label class="text-sm font-semibold text-zinc-600">分校</label>
+        <p-select
+          [options]="campuses()"
+          optionLabel="name"
+          optionValue="id"
+          placeholder="選擇分校"
+          [appendTo]="'body'"
+          [filter]="true"
+          filterBy="name"
+          filterPlaceholder="搜尋分校..."
+          [ngModel]="selectedCampusId()"
+          (ngModelChange)="onCampusIdChange($event)"
+          styleClass="w-full"
+        />
+      </div>
+    }
+    @if (availableCourses().length > 0) {
+      <div class="flex flex-col gap-1">
+        <label class="text-sm font-semibold text-zinc-600">課程</label>
+        <p-multiselect
+          [options]="availableCourses()"
+          optionLabel="name"
+          optionValue="id"
+          placeholder="所有課程"
+          selectedItemsLabel="{0} 個課程"
+          [appendTo]="'body'"
+          [filter]="false"
+          [ngModel]="selectedCourseIds()"
+          (ngModelChange)="onCourseIdsChange($event)"
+          styleClass="w-full"
+        >
+          <ng-template #filter>
+            <app-ime-filter-input
+              placeholder="搜尋課程..."
+              (filterChange)="courseFilterQuery.set($event)"
+            />
+          </ng-template>
+          <ng-template #item let-course>
+            <div class="flex min-w-0 flex-col gap-0.5">
+              <span class="text-md leading-[1.35] text-zinc-900">{{ course.name }}</span>
+              @if (getCourseCampusName(course); as campusName) {
+                <span class="text-xs leading-[1.3] text-zinc-500">{{ campusName }}</span>
+              }
+            </div>
+          </ng-template>
+        </p-multiselect>
+      </div>
+    }
     <div class="flex flex-col gap-1">
-      <label class="text-sm font-semibold text-zinc-600">分校</label>
-      <p-select
-        [options]="campuses()"
-        optionLabel="name"
+      <label class="text-sm font-semibold text-zinc-600">老師</label>
+      <p-multiselect
+        [options]="availableTeacherGroups()"
+        [group]="true"
+        optionGroupLabel="label"
+        optionGroupChildren="items"
+        optionLabel="displayName"
         optionValue="id"
-        placeholder="選擇分校"
+        placeholder="所有老師"
+        selectedItemsLabel="{0} 位老師"
         [appendTo]="'body'"
         [filter]="true"
-        filterBy="name"
-        filterPlaceholder="搜尋分校..."
-        [ngModel]="selectedCampusId()"
-        (ngModelChange)="onCampusIdChange($event)"
-        styleClass="w-full"
-      />
-    </div>
-  }
-  @if (availableCourses().length > 0) {
-    <div class="flex flex-col gap-1">
-      <label class="text-sm font-semibold text-zinc-600">課程</label>
-      <p-multiselect
-        [options]="availableCourses()"
-        optionLabel="name"
-        optionValue="id"
-        placeholder="所有課程"
-        selectedItemsLabel="{0} 個課程"
-        [appendTo]="'body'"
-        [filter]="false"
-        [ngModel]="selectedCourseIds()"
-        (ngModelChange)="onCourseIdsChange($event)"
+        filterBy="displayName,subjectNames"
+        filterPlaceholder="搜尋老師..."
+        [ngModel]="selectedTeacherIds()"
+        (ngModelChange)="onTeacherIdsChange($event)"
         styleClass="w-full"
       >
-        <ng-template #filter>
-          <app-ime-filter-input
-            placeholder="搜尋課程..."
-            (filterChange)="courseFilterQuery.set($event)"
-          />
-        </ng-template>
-        <ng-template #item let-course>
+        <ng-template #item let-teacher>
           <div class="flex min-w-0 flex-col gap-0.5">
-            <span class="text-md leading-[1.35] text-zinc-900">{{ course.name }}</span>
-            @if (getCourseCampusName(course); as campusName) {
-              <span class="text-xs leading-[1.3] text-zinc-500">{{ campusName }}</span>
+            <span class="text-md leading-[1.35] text-zinc-900">{{ teacher.displayName }}</span>
+            @if (getTeacherSubjectLabel(teacher); as subjectLabel) {
+              <span class="text-xs leading-[1.3] text-zinc-500">{{ subjectLabel }}</span>
             }
           </div>
         </ng-template>
       </p-multiselect>
     </div>
-  }
-  <div class="flex flex-col gap-1">
-    <label class="text-sm font-semibold text-zinc-600">老師</label>
-    <p-multiselect
-      [options]="availableTeacherGroups()"
-      [group]="true"
-      optionGroupLabel="label"
-      optionGroupChildren="items"
-      optionLabel="displayName"
-      optionValue="id"
-      placeholder="所有老師"
-      selectedItemsLabel="{0} 位老師"
-      [appendTo]="'body'"
-      [filter]="true"
-      filterBy="displayName,subjectNames"
-      filterPlaceholder="搜尋老師..."
-      [ngModel]="selectedTeacherIds()"
-      (ngModelChange)="onTeacherIdsChange($event)"
-      styleClass="w-full"
-    >
-      <ng-template #item let-teacher>
-        <div class="flex min-w-0 flex-col gap-0.5">
-          <span class="text-md leading-[1.35] text-zinc-900">{{ teacher.displayName }}</span>
-          @if (getTeacherSubjectLabel(teacher); as subjectLabel) {
-            <span class="text-xs leading-[1.3] text-zinc-500">{{ subjectLabel }}</span>
-          }
-        </div>
-      </ng-template>
-    </p-multiselect>
-  </div>
-  @if (availableClasses().length > 0) {
-    <div class="flex flex-col gap-1">
-      <label class="text-sm font-semibold text-zinc-600">班級</label>
-      <p-multiselect
-        [options]="classDisplayOptions()"
-        optionLabel="name"
-        optionValue="id"
-        placeholder="所有班級"
-        selectedItemsLabel="{0} 個班級"
-        [appendTo]="'body'"
-        [filter]="false"
-        [ngModel]="selectedClassIds()"
-        (ngModelChange)="onClassIdsChange($event)"
-        styleClass="w-full"
-      >
-        <ng-template #filter>
-          <app-ime-filter-input
-            placeholder="搜尋班級..."
-            (filterChange)="classFilterQuery.set($event)"
-          />
-        </ng-template>
-        <ng-template #item let-classOption>
-          <div class="flex min-w-0 flex-col gap-0.5">
-            <span class="text-md leading-[1.35] text-zinc-900">{{ classOption.name }}</span>
-            @if (getClassMetaLabel(classOption); as metaLabel) {
-              <span class="text-xs leading-[1.3] text-zinc-500">{{ metaLabel }}</span>
-            }
-          </div>
-        </ng-template>
-      </p-multiselect>
-    </div>
-  }
-  <div class="flex flex-col gap-1">
-    <label class="text-sm font-semibold text-zinc-600">學生</label>
-    <p-multiselect
-      [options]="availableStudents()"
-      optionLabel="name"
-      optionValue="id"
-      placeholder="所有學生"
-      selectedItemsLabel="{0} 位學生"
-      [appendTo]="'body'"
-      [filter]="true"
-      filterBy="name,school"
-      [showClear]="true"
-      [resetFilterOnHide]="true"
-      [ngModel]="selectedStudentIds()"
-      (ngModelChange)="onStudentIdsChange($event)"
-      styleClass="w-full"
-    />
-  </div>
-  <div class="flex flex-col gap-1">
-    <label class="text-sm font-semibold text-zinc-600">課堂狀態</label>
-    <p-multiselect
-      [options]="statusOptions"
-      optionLabel="label"
-      optionValue="value"
-      placeholder="課堂狀態"
-      selectedItemsLabel="{0} 種狀態"
-      [appendTo]="'body'"
-      [ngModel]="selectedStatuses()"
-      (ngModelChange)="selectedStatuses.set($event)"
-      styleClass="w-full"
-    />
-  </div>
-  <div class="flex items-center justify-end gap-2 pt-2">
-    @if (hasActiveFilters()) {
-      <p-button
-        label="清除全部"
-        severity="secondary"
-        [text]="true"
-        size="small"
-        icon="pi pi-times"
-        (onClick)="clearFilters()"
-      />
+    @if (availableClasses().length > 0) {
+      <div class="flex flex-col gap-1">
+        <label class="text-sm font-semibold text-zinc-600">班級</label>
+        <p-multiselect
+          [options]="classDisplayOptions()"
+          optionLabel="name"
+          optionValue="id"
+          placeholder="所有班級"
+          selectedItemsLabel="{0} 個班級"
+          [appendTo]="'body'"
+          [filter]="false"
+          [ngModel]="selectedClassIds()"
+          (ngModelChange)="onClassIdsChange($event)"
+          styleClass="w-full"
+        >
+          <ng-template #filter>
+            <app-ime-filter-input
+              placeholder="搜尋班級..."
+              (filterChange)="classFilterQuery.set($event)"
+            />
+          </ng-template>
+          <ng-template #item let-classOption>
+            <div class="flex min-w-0 flex-col gap-0.5">
+              <span class="text-md leading-[1.35] text-zinc-900">{{ classOption.name }}</span>
+              @if (getClassMetaLabel(classOption); as metaLabel) {
+                <span class="text-xs leading-[1.3] text-zinc-500">{{ metaLabel }}</span>
+              }
+            </div>
+          </ng-template>
+        </p-multiselect>
+      </div>
     }
-    <p-button label="套用" size="small" (onClick)="apply()" />
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-semibold text-zinc-600">學生</label>
+      <p-multiselect
+        [options]="availableStudents()"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="所有學生"
+        selectedItemsLabel="{0} 位學生"
+        [appendTo]="'body'"
+        [filter]="true"
+        filterBy="name,school"
+        [showClear]="true"
+        [resetFilterOnHide]="true"
+        [ngModel]="selectedStudentIds()"
+        (ngModelChange)="onStudentIdsChange($event)"
+        styleClass="w-full"
+      />
+    </div>
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-semibold text-zinc-600">課堂狀態</label>
+      <p-multiselect
+        [options]="statusOptions"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="課堂狀態"
+        selectedItemsLabel="{0} 種狀態"
+        [appendTo]="'body'"
+        [ngModel]="selectedStatuses()"
+        (ngModelChange)="selectedStatuses.set($event)"
+        styleClass="w-full"
+      />
+    </div>
   </div>
-</div>
+
+  <ng-container dialogFoot>
+    @if (hasActiveFilters()) {
+      <button
+        type="button"
+        class="mr-auto inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-[3px] disabled:cursor-not-allowed disabled:opacity-50 wide:min-h-0"
+        (click)="clearFilters()"
+      >
+        清除全部
+      </button>
+    }
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 border-accent-vivid bg-accent-vivid text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2"
+      (click)="apply()"
+    >
+      套用
+    </button>
+  </ng-container>
+</app-dialog-frame>

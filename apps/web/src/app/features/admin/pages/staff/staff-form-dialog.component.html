@@ -1,31 +1,14 @@
-<div class="form-dialog form-dialog--a6">
-  <!-- A6 `.fdlg` 標題列：h2＋副標＋關閉（staff.html baseFields） -->
-  <div class="dialog-header-inline">
-    <div class="dialog-header-inline__content">
-      <h2 appDialogTitle class="dialog-header-inline__title">
-        {{ isEditing() ? '編輯 ' + staff()!.displayName : '新增人員' }}
-      </h2>
-      <!-- 編輯時的 Email 改成表單裡的唯讀欄位（偏離 A6 的副標寫法，R5：使用者 11-05） -->
-      @if (!isEditing()) {
-        <p class="dialog-header-inline__sub">
-          建立後會出一次性登入連結，交給本人綁定 LINE（不設密碼）
-        </p>
-      }
-    </div>
-    <button
-      type="button"
-      class="dialog-header-inline__close size-11 wide:size-10"
-      (click)="cancel()"
-      aria-label="關閉"
-    >
-      <i class="pi pi-times" aria-hidden="true"></i>
-    </button>
-  </div>
-
+<!-- 共用殼（#2290）：標題、副標照 A6 staff.html baseFields；編輯沒有副標（Email 是表單裡的唯讀欄位，R5 使用者 11-05） -->
+<app-dialog-frame
+  [title]="isEditing() ? '編輯 ' + staff()!.displayName : '新增人員'"
+  [sub]="isEditing() ? '' : '建立後會出一次性登入連結，交給本人綁定 LINE（不設密碼）'"
+  (closed)="cancel()"
+>
   <!-- A6 `.fdlg__body`：兩欄 grid；手機一欄 -->
   <form
+    id="staff-form"
     ngNoForm
-    class="grid grid-cols-2 gap-x-3 gap-y-4 px-6 pt-2 pb-6 max-wide:grid-cols-1 max-wide:px-4"
+    class="grid grid-cols-2 gap-x-3 gap-y-4 max-wide:grid-cols-1"
     (submit)="$event.preventDefault(); save()"
   >
     <div class="min-w-0">
@@ -243,7 +226,7 @@
   </form>
 
   <!-- A6 `.fdlg__foot`：必填沒填不鎖死送出鈕，左邊寫還差什麼 -->
-  <div class="form-dialog__footer">
+  <ng-container dialogFoot>
     <p class="form-dialog__why" aria-live="polite">{{ missingHint() }}</p>
     <button
       type="button"
@@ -253,13 +236,14 @@
     >
       取消
     </button>
+    <!-- 指回表單、不綁 click：欄位按 Enter 照樣送出（dialog-frame.md） -->
     <button
-      type="button"
+      type="submit"
+      form="staff-form"
       class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
       [attr.aria-disabled]="!!missingHint() || loading()"
-      (click)="save()"
     >
       {{ loading() ? (isEditing() ? '儲存中…' : '建立中…') : isEditing() ? '儲存' : '建立' }}
     </button>
-  </div>
-</div>
+  </ng-container>
+</app-dialog-frame>

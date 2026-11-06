@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef, DialogService } from 'primeng/dynamicdialog';
-import { of } from 'rxjs';
+import { NEVER, of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
@@ -296,6 +296,20 @@ describe('StaffFormDialogComponent —— 編輯', () => {
 
     expect(update).toHaveBeenCalled();
     expect(fixture.nativeElement.textContent).toContain('還沒有電話，建議補上');
+  });
+
+  it('共用殼（#2290）：送出鈕在 form 外但指回表單；Enter（隱式送出）只送一次，送出中再按不重送', () => {
+    const { fixture } = setup();
+    const el = fixture.nativeElement as HTMLElement;
+    const form = el.querySelector('form')!;
+    const submit = el.querySelector<HTMLButtonElement>('button[form="staff-form"]')!;
+
+    expect(form.contains(submit)).toBe(false);
+    expect(submit.form).toBe(form);
+    update.mockReturnValueOnce(NEVER as never); // 讓請求停在送出中
+    form.requestSubmit();
+    form.requestSubmit();
+    expect(update).toHaveBeenCalledTimes(1);
   });
 
   it('存檔不帶 permissions（API 不動）；角色沒變也不帶 roles', () => {

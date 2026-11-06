@@ -328,7 +328,7 @@ export class ContactBookPage {
    */
   protected writeMissing(target: MissingContactBookStudent): void {
     const ref = this.dialogService.open(ContactBookEntryDialogComponent, {
-      width: '560px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
@@ -432,7 +432,7 @@ export class ContactBookPage {
 
   protected openEntry(entry: ContactBookEntry): void {
     const ref = this.dialogService.open(ContactBookEntryDialogComponent, {
-      width: '560px',
+      width: 'var(--dlg-w-md)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
