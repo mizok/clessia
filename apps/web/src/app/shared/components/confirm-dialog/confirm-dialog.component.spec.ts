@@ -20,17 +20,18 @@ describe('ConfirmDialogComponent（共用殼，#2290）', () => {
     return { fixture, host, close };
   }
 
-  it('開窗端的 header 是 h2（可及名稱），訊息是副標；✕ 回 undefined（不是次要鈕的 false）', () => {
+  it('開窗端的 header 是 h2（可及名稱），訊息在內容區、不是副標（#2396）；✕ 回 undefined（不是次要鈕的 false）', () => {
     const { host, close } = setup({ message: '確定要刪除課程「數學」嗎？' });
     expect(host.querySelector('h2')!.textContent).toContain('確認刪除');
-    expect(host.querySelector('.dialog-header-inline__sub')!.textContent).toContain('數學');
+    expect(host.querySelector('[data-testid="confirm-message"]')!.textContent).toContain('數學');
+    expect(host.querySelector('.dialog-header-inline__sub')).toBeNull();
     host.querySelector<HTMLButtonElement>('button[aria-label="關閉"]')!.click();
     expect(close).toHaveBeenCalledWith();
   });
 
   it('次要鈕回 false；rejectVisible: false 時只留主鈕；訊息保留換行', () => {
     const { host, close } = setup({ message: '第一行\n第二行', rejectLabel: '完全刪除' });
-    expect(host.querySelector('.dialog-header-inline__sub')!.classList).toContain(
+    expect(host.querySelector('[data-testid="confirm-message"]')!.classList).toContain(
       'whitespace-pre-line',
     );
     const reject = [...host.querySelectorAll('button')].find((b) =>

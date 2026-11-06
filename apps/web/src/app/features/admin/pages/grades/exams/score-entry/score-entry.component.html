@@ -316,8 +316,9 @@
   role="dialog"
   (cancel)="$event.preventDefault(); resolveComplete(false)"
 >
-  <!-- A6 data-complete：統計句是副標（A2.form sub），沒有內容區 -->
-  <app-dialog-frame title="標記完成" [sub]="completeSummary()" (closed)="resolveComplete(false)">
+  <!-- A6 data-complete 的統計句是副標；#2396 彈窗不放副標 → 搬進內容區（C 類） -->
+  <app-dialog-frame title="標記完成" (closed)="resolveComplete(false)">
+    <p class="m-0 text-base text-zinc-700" data-part="complete-summary">{{ completeSummary() }}</p>
     <ng-container dialogFoot>
       <button
         type="button"
