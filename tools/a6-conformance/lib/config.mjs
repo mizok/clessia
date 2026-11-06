@@ -1977,6 +1977,16 @@ export const PAGES = {
     deviations: [
       // 批次請假的課堂：app-select-field 對稿的 .dd（#2325，全站同一套）
       ...selectFieldInDialog('batch', '課堂', '選擇'),
+      // 批次請假（#2325）：手機內容左右 16（共用殼的規格，稿 24），內容區的段落與欄位寬 +16
+      {
+        status: '尺寸',
+        widths: [360],
+        pop: 'batch',
+        a6: '>landmark:dialog\\[批次請假\\]>(text:p|text:label|control:textbox)\\[[^\\]]*\\]$',
+        detail: '^寬 312→328$',
+        reason: '對話框手機內容左右 16（共用殼），稿 24',
+        source: `${rule('R5', '「對話框手機內容左右 16」2026-11-05')}`,
+      },
       // 登記請假（#2318）：app 的日期、要請假的課、原因三格同層同子元素數，被工具合成一列（README「列是資料」的 div 格線規則）；
       // 稿同樣的三格沒觸發，於是「要請假的課」與空狀態那句報缺、app 報多一列 —— 內容與樣式照稿（.pick、.pick__none）
       ...[
