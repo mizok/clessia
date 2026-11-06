@@ -1526,11 +1526,26 @@ export const PAGES = {
       gen: { click: '[data-gen]', root: 'dialog[open]' },
       add: { click: '[data-add]', root: 'dialog[open]' },
       import: { click: '[data-import]', root: 'dialog[open]' },
+      // 停用開課班（#2361）：兩邊都在「⋯」選單裡
+      off: { click: ['[popovertarget="kacts"]', '[data-off]'], root: 'dialog[open]' },
     },
     appOpen: {
-      gen: { click: 'button:has-text("產生課堂")', root: '.p-dialog:has(app-generate-sessions-dialog)' },
-      add: { click: 'button:has-text("加入學生")', root: '.p-dialog:has(app-student-picker-dialog)' },
-      import: { click: 'button:has-text("Excel 匯入")', root: '.p-dialog:has(app-roster-import-dialog)' },
+      gen: {
+        click: 'button:has-text("產生課堂")',
+        root: '.p-dialog:has(app-generate-sessions-dialog)',
+      },
+      add: {
+        click: 'button:has-text("加入學生")',
+        root: '.p-dialog:has(app-student-picker-dialog)',
+      },
+      import: {
+        click: 'button:has-text("Excel 匯入")',
+        root: '.p-dialog:has(app-roster-import-dialog)',
+      },
+      off: {
+        click: ['button[aria-label="更多動作"]', '[role=menuitem]:has-text("停用班級")'],
+        root: '.p-dialog:has(app-deactivate-class-dialog)',
+      },
     },
     deviations: [
       // 加入學生、Excel 匯入的關閉鈕：手機 44×44（稿 34／35 寬）
@@ -1546,6 +1561,16 @@ export const PAGES = {
           source: `${rule('R3')}`,
         })),
       ),
+      // 停用開課班（#2361）：標題帶班名，稿是示範班「國三數學A班」、seed 是另一個班 —— 文案是資料
+      ...[
+        { status: '文案', a6: '(^pop\\[off\\]>|>)landmark:dialog\\[停用「國三數學A班」\\]$' },
+        { status: '文案', a6: '>heading:h2\\[停用「國三數學A班」\\]$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'off',
+        reason: '資料：標題帶量測那個班的班名（稿是示範班）',
+        source: 'class.html:251（A2.form title「停用「班名」」）；#2361',
+      })),
       noCampusSwitch('一個班只屬於一間分校，頂欄切到別的分校會跟頁面矛盾'),
       // 量的是 seed.sql 的「數學班 A」，稿是「國三數學A班」：班名不同，狀態標跟著位移
       {
@@ -1614,7 +1639,10 @@ export const PAGES = {
     deviations: [
       // ── 櫃台代刷到班（#2314）──
       // 學生：app-select-field（p-select）對稿的 .dd；稿的按鈕名「選擇：…」跟 app 的 trigger 錯配
-      ...selectFieldDeviations('選擇|學生（今天還沒到的）\\*').map((d) => ({ ...d, pop: 'checkin' })),
+      ...selectFieldDeviations('選擇|學生（今天還沒到的）\\*').map((d) => ({
+        ...d,
+        pop: 'checkin',
+      })),
       ...[
         { status: '角色', a6: '>landmark:form\\[\\]>text:label\\[學生（今天還沒到的）\\]$' },
         ...['文案', '位置', '樣式'].map((status) => ({

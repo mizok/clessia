@@ -1,84 +1,58 @@
-<!-- 共用殼（#2290）：h2＋副標（原本的麵包屑）＋✕、內距、sticky 底部列 -->
-<app-dialog-frame title="停用班級" [sub]="breadcrumb()" (closed)="cancel()">
-  <div class="@container/deactivate-dialog flex flex-col gap-5">
-    <div
-      class="flex flex-col items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 bg-[linear-gradient(180deg,var(--color-white)_0%,rgba(250,250,250,0.8)_100%)] p-4 text-center sm:p-5"
-    >
-      <div
-        class="inline-flex size-14 items-center justify-center rounded-full bg-error-100 text-error-700"
+<!-- 共用殼（#2290）。內容照 A6 class.html:249-256（A2.form）：一個「停用方式」radio＋單一送出（#2361） -->
+<app-dialog-frame [title]="'停用「' + (cls()?.name ?? '') + '」'" [sub]="sub()" (closed)="cancel()">
+  <!-- 稿的 A2.form 把欄位包在 form 裡；送出鈕在殼的底部列，用 form 屬性指回（dialog-frame.md） -->
+  <form
+    id="deactivate-form"
+    class="grid gap-x-3 gap-y-4"
+    (submit)="$event.preventDefault(); submit()"
+  >
+    <!-- A6 .acset__f：一個欄位（標籤＋選項＋說明） -->
+    <div class="min-w-0">
+      <!-- 稿是 label（A2.form 的 radio 欄位）；radiogroup 沒有單一控制項可以 for，靠 aria-labelledby 指回來（同分校表單） -->
+      <label class="mb-1 block text-md font-semibold text-zinc-700" id="deactivate-mode-label"
+        >停用方式</label
       >
-        <i class="pi pi-ban text-[1.6rem]"></i>
+      <!-- A6 .fdlg__seg／.fdlg__opt：radio 包成框，選中的框加深 -->
+      <div class="flex flex-wrap gap-2" role="radiogroup" aria-labelledby="deactivate-mode-label">
+        @for (opt of modes; track opt.value) {
+          <label
+            class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 font-semibold text-zinc-900 has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset max-wide:h-11"
+          >
+            <input
+              type="radio"
+              name="deactivate-mode"
+              class="m-0 accent-zinc-900"
+              [value]="opt.value"
+              [checked]="mode() === opt.value"
+              [disabled]="loading()"
+              (change)="mode.set(opt.value)"
+            />{{ opt.label }}
+          </label>
+        }
       </div>
-      <p class="m-0 text-lg leading-[1.5] font-semibold text-zinc-900 sm:text-xl">
-        確定要停用班級「<strong class="text-error-700">{{ cls()?.name }}</strong
-        >」嗎？
-      </p>
-      <p class="m-0 text-sm leading-[1.6] text-zinc-500">
-        停用後將無法新增學生報名，也無法產生新課堂。
+      <p class="m-0 mt-1 text-sm text-zinc-600" data-testid="deactivate-hint">
+        停用並停課未來課堂：未來、還沒開始的課都改成停課，已上過的課保留。僅停用班級：已排的課照常上，之後不能再排新的課。
       </p>
     </div>
-
-    <div class="grid grid-cols-1 gap-3 @tablet-portrait/deactivate-dialog:grid-cols-2">
-      <article
-        class="flex min-h-full flex-col gap-3 rounded-lg border border-error-100 bg-[linear-gradient(180deg,rgba(254,242,242,0.6)_0%,var(--color-white)_100%)] p-4"
-      >
-        <div class="flex items-center gap-2">
-          <i class="pi pi-calendar-times text-[1rem] text-error-600"></i>
-          <span class="text-base leading-[1.5] font-semibold text-zinc-900"
-            >模式 A：停用並停課未來課堂</span
-          >
-        </div>
-        <p
-          class="m-0 text-sm leading-[1.6] text-zinc-600 @tablet-portrait/deactivate-dialog:min-h-[3.2em]"
-        >
-          會把這個班級所有未來、尚未開始的已排課堂改為停課，歷史課堂保留。
-        </p>
-        <p-button
-          label="停用並停課未來課堂"
-          icon="pi pi-check"
-          severity="danger"
-          [loading]="loading()"
-          [disabled]="loading()"
-          (onClick)="deactivateAndCancel()"
-          styleClass="w-full"
-        />
-      </article>
-
-      <article
-        class="flex min-h-full flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4"
-      >
-        <div class="flex items-center gap-2">
-          <i class="pi pi-ban text-[1rem] text-zinc-500"></i>
-          <span class="text-base leading-[1.5] font-semibold text-zinc-900"
-            >模式 B：僅停用班級</span
-          >
-        </div>
-        <p
-          class="m-0 text-sm leading-[1.6] text-zinc-600 @tablet-portrait/deactivate-dialog:min-h-[3.2em]"
-        >
-          只停用班級本身，既有課堂維持原樣，無法新增未來課程排程。
-        </p>
-        <p-button
-          label="僅停用（保留已排課堂）"
-          icon="pi pi-check"
-          [outlined]="true"
-          severity="secondary"
-          [loading]="loading()"
-          [disabled]="loading()"
-          (onClick)="deactivateOnly()"
-          styleClass="w-full"
-        />
-      </article>
-    </div>
-  </div>
+  </form>
 
   <ng-container dialogFoot>
-    <p-button
-      label="取消"
-      [text]="true"
-      severity="secondary"
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
       [disabled]="loading()"
-      (onClick)="cancel()"
-    />
+      (click)="cancel()"
+    >
+      取消
+    </button>
+    <button
+      type="submit"
+      form="deactivate-form"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 border-accent-vivid bg-accent-vivid text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2"
+      data-testid="deactivate-submit"
+      [disabled]="loading()"
+    >
+      {{ loading() ? '停用中…' : '停用班級' }}
+    </button>
   </ng-container>
 </app-dialog-frame>
