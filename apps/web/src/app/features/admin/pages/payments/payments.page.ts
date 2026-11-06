@@ -29,7 +29,7 @@ import { ButtonModule } from 'primeng/button';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
-import { PopoverModule, type Popover } from 'primeng/popover';
+import { SelectButtonModule } from 'primeng/selectbutton';
 import { FilterPanelComponent } from '@shared/components/filter-panel/filter-panel.component';
 import {
   ActiveFiltersComponent,
@@ -37,7 +37,6 @@ import {
 } from '@shared/components/active-filters/active-filters.component';
 import { PagerComponent } from '@shared/components/pager/pager.component';
 import { SelectModule } from 'primeng/select';
-import { SelectButtonModule } from 'primeng/selectbutton';
 import { MessageService } from 'primeng/api';
 import { AppVersionService } from '@core/app-version.service';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -155,7 +154,6 @@ const emptyChapter = (): ChapterState => ({
     FormsModule,
     ButtonModule,
     SelectModule,
-    SelectButtonModule,
     PagerComponent,
     PageActionsComponent,
     PageOpenComponent,
@@ -163,7 +161,7 @@ const emptyChapter = (): ChapterState => ({
     IconFieldModule,
     InputIconModule,
     InputTextModule,
-    PopoverModule,
+    SelectButtonModule,
     FilterPanelComponent,
     ActiveFiltersComponent,
     ResponsiveTableComponent,
@@ -658,7 +656,26 @@ export class PaymentsPage implements OnInit {
     });
   }
 
-  protected async exportInvoices(popover: Popover): Promise<void> {
+  /**
+   * 匯出面板的位置：桌機貼著匯出鈕往下開、靠右對齊；手機交給 CSS 當底部面板。
+   * ponytail: 第三份（reports、parent meals 各一份同樣的幾行）；再多一處就抽到 shared
+   */
+  protected placeExport(event: Event, trigger: HTMLElement): void {
+    const popover = event.target as HTMLElement;
+    if ((event as ToggleEvent).newState !== 'open') return;
+    if (matchMedia('(max-width: 860px)').matches) {
+      popover.removeAttribute('style');
+      return;
+    }
+    const box = trigger.getBoundingClientRect();
+    Object.assign(popover.style, {
+      position: 'fixed',
+      left: `${Math.max(16, box.right - popover.offsetWidth)}px`,
+      top: `${box.bottom + 8}px`,
+    });
+  }
+
+  protected async exportInvoices(popover: HTMLElement): Promise<void> {
     const month = this.exportMonth();
     if (this.exporting() || !/^\d{4}-\d{2}$/.test(month)) return;
     this.exporting.set(true);
@@ -696,7 +713,7 @@ export class PaymentsPage implements OnInit {
       XLSX.utils.book_append_sheet(book, sheet, '帳單');
       const suffix = scope === 'all' ? '' : `_${EXPORT_SCOPE_LABELS[scope]}`;
       XLSX.writeFile(book, `帳單_${month}${suffix}.xlsx`);
-      popover.hide();
+      popover.hidePopover();
       this.messageService.add({
         severity: 'success',
         summary: '已匯出',

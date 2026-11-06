@@ -6,6 +6,46 @@ import { DEFAULT_STATUSES } from '../../components/session-filters/session-filte
 import { MobileFilterDialogComponent } from './mobile-filter-dialog.component';
 
 describe('MobileFilterDialogComponent', () => {
+  it('共用殼（#2290）：h2「篩選條件」、「套用」在底部列；✕ 關窗不帶結果', () => {
+    const close = vi.fn();
+    TestBed.configureTestingModule({
+      imports: [MobileFilterDialogComponent],
+      providers: [
+        {
+          provide: DynamicDialogConfig,
+          useValue: {
+            data: {
+              campuses: [],
+              courses: [],
+              teachers: [],
+              students: [],
+              sessions: [],
+              classes: [],
+              selectedCampusIds: [],
+              selectedCourseIds: [],
+              selectedTeacherIds: [],
+              selectedClassIds: [],
+              selectedStudentIds: [],
+              selectedStatuses: [...DEFAULT_STATUSES],
+            },
+          },
+        },
+        { provide: DynamicDialogRef, useValue: { close } },
+      ],
+    });
+    const fixture = TestBed.createComponent(MobileFilterDialogComponent);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('h2')?.textContent?.trim()).toBe('篩選條件');
+    const foot = [...el.querySelectorAll('.form-dialog__footer button')].map((b) =>
+      b.textContent?.trim(),
+    );
+    expect(foot).toContain('套用');
+    el.querySelector<HTMLButtonElement>('button[aria-label="關閉"]')!.click();
+    expect(close).toHaveBeenCalledWith();
+  });
+
   // #1607：日常頁沒有「全部分校」—— 分校欄能清空，就等於能把頂欄改回全部
   it('分校欄沒有清除鈕', () => {
     TestBed.configureTestingModule({

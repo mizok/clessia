@@ -9,7 +9,6 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { TextareaModule } from 'primeng/textarea';
 import { DatePickerModule } from 'primeng/datepicker';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
@@ -17,11 +16,12 @@ import { Session, SessionsService } from '@core/sessions.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 import { format, parse } from 'date-fns';
 
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 @Component({
   selector: 'app-session-reschedule-dialog',
   imports: [
+    DialogFrameComponent,
     ReactiveFormsModule,
-    ButtonModule,
     TextareaModule,
     DatePickerModule,
     InlineNoticeComponent,

@@ -26,170 +26,161 @@ import { CampusesService, type Campus, type Classroom } from '@core/campuses.ser
  * 關掉焦點回入口由瀏覽器做。modal 在 top layer —— CDK overlay 的 popup-menu 會被蓋住，
  * 所以每間教室的「⋯」用原生 popover（也在 top layer，後開的在上）。
  */
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 @Component({
   selector: 'app-classrooms-dialog',
   standalone: true,
-  imports: [FormsModule],
+  imports: [DialogFrameComponent, FormsModule],
   template: `
     <dialog
       #dialog
       class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(520px,calc(100%-32px))] overflow-y-auto overscroll-contain rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-(--sheet-bg)"
-      aria-labelledby="classrooms-title"
+      role="dialog"
       (click)="onBackdrop($event)"
       (close)="onClosed()"
     >
       @if (campus(); as campus) {
-        <div class="flex items-center justify-between pt-4 pr-4 pb-2 pl-6">
-          <div>
-            <h2 id="classrooms-title" class="m-0 text-xl font-bold">教室：{{ campus.name }}</h2>
-            <p class="m-0 mt-0.5 text-md text-zinc-600" data-rooms>
-              @if (loadFailed()) {
-                沒有讀到教室清單。<button
-                  type="button"
-                  class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 font-semibold text-zinc-900 underline [font:inherit] wide:min-h-0"
-                  (click)="load()"
-                >
-                  重試
-                </button>
-              } @else if (rooms() === null) {
-                讀取中…
-              } @else if (rooms()!.length === 0) {
-                這個分校還沒有教室
-              } @else {
-                @for (room of rooms(); track room.id; let last = $last) {
-                  <span class="whitespace-nowrap"
-                    >{{ roomLabel(room)
-                    }}<button
-                      type="button"
-                      class="ml-0.5 inline-grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent align-middle text-zinc-700 hover:bg-zinc-100 wide:-my-1 wide:size-7"
-                      [attr.aria-label]="room.name + ' 的更多動作'"
-                      (click)="openRoomMenu($event, room)"
-                    >
-                      <i class="pi pi-ellipsis-h text-sm" aria-hidden="true"></i></button
-                    >{{ last ? '' : '、' }}</span
+        <!-- 共用殼（#2290）。A6 的副標是教室清單＋每間「⋯」（按鈕在副標裡）→ 投影進 [dialogSub] -->
+        <app-dialog-frame [title]="'教室：' + campus.name" (closed)="close()">
+          <p dialogSub class="dialog-header-inline__sub" data-rooms>
+            @if (loadFailed()) {
+              沒有讀到教室清單。<button
+                type="button"
+                class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 font-semibold text-zinc-900 underline [font:inherit] wide:min-h-0"
+                (click)="load()"
+              >
+                重試
+              </button>
+            } @else if (rooms() === null) {
+              讀取中…
+            } @else if (rooms()!.length === 0) {
+              這個分校還沒有教室
+            } @else {
+              @for (room of rooms(); track room.id; let last = $last) {
+                <span class="whitespace-nowrap"
+                  >{{ roomLabel(room)
+                  }}<button
+                    type="button"
+                    class="ml-0.5 inline-grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent align-middle text-zinc-700 hover:bg-zinc-100 wide:-my-1 wide:size-7"
+                    [attr.aria-label]="room.name + ' 的更多動作'"
+                    (click)="openRoomMenu($event, room)"
                   >
-                }
+                    <i class="pi pi-ellipsis-h text-sm" aria-hidden="true"></i></button
+                  >{{ last ? '' : '、' }}</span
+                >
               }
-            </p>
-          </div>
-          <button
-            type="button"
-            class="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 wide:size-10"
-            aria-label="關閉"
-            (click)="close()"
-          >
-            <i class="pi pi-times" aria-hidden="true"></i>
-          </button>
-        </div>
+            }
+          </p>
 
-        @if (deleting(); as room) {
-          <div
-            class="mx-6 mb-2 flex flex-wrap items-center gap-2 rounded-md bg-zinc-100 p-3 text-md max-wide:mx-4 max-wide:bg-white"
-            role="alert"
-          >
-            <span class="mr-auto"
-              >刪除「{{ room.name }}」？指定這間教室的時段會改回不指定教室。</span
+          @if (deleting(); as room) {
+            <div
+              class="flex flex-wrap items-center gap-2 rounded-md bg-zinc-100 p-3 text-md max-wide:bg-white"
+              role="alert"
             >
+              <span class="mr-auto"
+                >刪除「{{ room.name }}」？指定這間教室的時段會改回不指定教室。</span
+              >
+              <button
+                type="button"
+                class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-zinc-300 bg-white hover:border-zinc-400 hover:bg-zinc-50"
+                [disabled]="busy()"
+                (click)="deleting.set(null)"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-error-700 bg-error-700 text-white"
+                [attr.aria-disabled]="busy()"
+                (click)="remove(room)"
+              >
+                {{ busy() ? '刪除中…' : '刪除' }}
+              </button>
+            </div>
+          }
+
+          <!-- A6 .acset__body.fdlg__body：桌機兩欄（名稱、容量各半），手機一欄 -->
+          <form
+            id="classroom-form"
+            ngNoForm
+            class="grid grid-cols-2 gap-x-3 gap-y-4 max-wide:grid-cols-1"
+            (submit)="$event.preventDefault(); submit()"
+          >
+            <div class="min-w-0">
+              <label class="mb-1 block text-md font-semibold text-zinc-700" for="room-name"
+                >{{ editing() ? '教室名稱' : '新增教室' }}
+                <span class="text-error-700" aria-hidden="true">*</span></label
+              >
+              <input
+                id="room-name"
+                [attr.autofocus]="autofocus() ? '' : null"
+                type="text"
+                maxlength="50"
+                autocomplete="off"
+                placeholder="例如：C 教室"
+                class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+                [ngModel]="name()"
+                (ngModelChange)="name.set($event); error.set(null)"
+              />
+            </div>
+            <div class="min-w-0">
+              <label class="mb-1 block text-md font-semibold text-zinc-700" for="room-capacity"
+                >容納人數</label
+              >
+              <input
+                id="room-capacity"
+                type="text"
+                inputmode="numeric"
+                autocomplete="off"
+                class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+                [(ngModel)]="capacity"
+              />
+            </div>
+            <div class="col-span-full min-w-0">
+              <label class="mb-1 block text-md font-semibold text-zinc-700" for="room-equipment"
+                >設備（選填）</label
+              >
+              <input
+                id="room-equipment"
+                type="text"
+                maxlength="200"
+                autocomplete="off"
+                placeholder="例如：投影機、白板"
+                class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+                [(ngModel)]="equipment"
+              />
+            </div>
+          </form>
+
+          <!-- A6 .fdlg__foot：必填沒填不鎖死送出鈕，旁邊寫還差什麼（#723）；失敗訊息也寫這裡，填的內容不清。黏在捲動區底 -->
+          <ng-container dialogFoot>
+            <p
+              class="form-dialog__why"
+              [class.text-error-700]="!!error()"
+              [class.text-zinc-600]="!error()"
+              aria-live="polite"
+            >
+              {{ error() ?? missingHint() }}
+            </p>
             <button
               type="button"
               class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-zinc-300 bg-white hover:border-zinc-400 hover:bg-zinc-50"
               [disabled]="busy()"
-              (click)="deleting.set(null)"
+              (click)="editing() ? stopEditing() : close()"
             >
               取消
             </button>
+            <!-- 指回表單、不綁 click：欄位按 Enter 照樣送出（dialog-frame.md） -->
             <button
-              type="button"
-              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-error-700 bg-error-700 text-white"
-              [attr.aria-disabled]="busy()"
-              (click)="remove(room)"
+              type="submit"
+              form="classroom-form"
+              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-accent-vivid bg-accent-vivid hover:border-accent-vivid-2 hover:bg-accent-vivid-2"
+              [attr.aria-disabled]="!!missingHint() || busy()"
             >
-              {{ busy() ? '刪除中…' : '刪除' }}
+              {{ busy() ? (editing() ? '儲存中…' : '新增中…') : editing() ? '儲存' : '新增教室' }}
             </button>
-          </div>
-        }
-
-        <!-- A6 .acset__body.fdlg__body：桌機兩欄（名稱、容量各半），手機一欄 -->
-        <form
-          ngNoForm
-          class="grid grid-cols-2 gap-x-3 gap-y-4 px-6 pt-2 pb-6 max-wide:grid-cols-1 max-wide:px-4"
-          (submit)="$event.preventDefault(); submit()"
-        >
-          <div class="min-w-0">
-            <label class="mb-1 block text-md font-semibold text-zinc-700" for="room-name"
-              >{{ editing() ? '教室名稱' : '新增教室' }}
-              <span class="text-error-700" aria-hidden="true">*</span></label
-            >
-            <input
-              id="room-name"
-              [attr.autofocus]="autofocus() ? '' : null"
-              type="text"
-              maxlength="50"
-              autocomplete="off"
-              placeholder="例如：C 教室"
-              class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
-              [ngModel]="name()"
-              (ngModelChange)="name.set($event); error.set(null)"
-            />
-          </div>
-          <div class="min-w-0">
-            <label class="mb-1 block text-md font-semibold text-zinc-700" for="room-capacity"
-              >容納人數</label
-            >
-            <input
-              id="room-capacity"
-              type="text"
-              inputmode="numeric"
-              autocomplete="off"
-              class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
-              [(ngModel)]="capacity"
-            />
-          </div>
-          <div class="col-span-full min-w-0">
-            <label class="mb-1 block text-md font-semibold text-zinc-700" for="room-equipment"
-              >設備（選填）</label
-            >
-            <input
-              id="room-equipment"
-              type="text"
-              maxlength="200"
-              autocomplete="off"
-              placeholder="例如：投影機、白板"
-              class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
-              [(ngModel)]="equipment"
-            />
-          </div>
-        </form>
-
-        <!-- A6 .fdlg__foot：必填沒填不鎖死送出鈕，旁邊寫還差什麼（#723）；失敗訊息也寫這裡，填的內容不清。黏在捲動區底 -->
-        <div
-          class="sticky bottom-0 z-[1] flex flex-wrap items-center justify-end gap-2 bg-inherit px-6 pt-3 pb-6 max-wide:px-4 max-wide:pt-2 max-wide:pb-[calc(16px+env(safe-area-inset-bottom,0px))]"
-        >
-          <p
-            class="m-0 mr-auto text-md max-wide:basis-full"
-            [class.text-error-700]="!!error()"
-            [class.text-zinc-600]="!error()"
-            aria-live="polite"
-          >
-            {{ error() ?? missingHint() }}
-          </p>
-          <button
-            type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-zinc-300 bg-white hover:border-zinc-400 hover:bg-zinc-50"
-            [disabled]="busy()"
-            (click)="editing() ? stopEditing() : close()"
-          >
-            取消
-          </button>
-          <button
-            type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-accent-vivid bg-accent-vivid hover:border-accent-vivid-2 hover:bg-accent-vivid-2"
-            [attr.aria-disabled]="!!missingHint() || busy()"
-            (click)="submit()"
-          >
-            {{ busy() ? (editing() ? '儲存中…' : '新增中…') : editing() ? '儲存' : '新增教室' }}
-          </button>
-        </div>
+          </ng-container>
+        </app-dialog-frame>
       }
 
       <!-- 每間教室的「⋯」：原生 popover，定位在按鈕下緣靠右（openRoomMenu） -->

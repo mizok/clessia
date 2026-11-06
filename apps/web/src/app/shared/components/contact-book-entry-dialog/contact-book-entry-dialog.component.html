@@ -1,82 +1,67 @@
-<div class="entry-dialog flex flex-col gap-4 p-5">
-  <header class="entry-dialog__header flex items-start justify-between gap-3">
-    <div class="entry-dialog__title-group flex flex-col gap-1">
-      <h2 class="entry-dialog__title m-0 text-lg font-semibold text-zinc-900">
-        {{ studentName() }}
-      </h2>
-      <p class="entry-dialog__meta m-0 text-xs text-zinc-500">
-        {{ entryDate() }}
-        @if (entry(); as existing) {
-          <!-- 全部班名（#2080-1）：列上跨班只寫第一個＋N，點開在這裡看全部 -->
-          @if (existing.classNames.length) {
-            · <span data-testid="entry-classes">{{ existing.classNames.join('、') }}</span>
-          }
-          @if (existing.lastEditedByName) {
-            · 最後由 {{ existing.lastEditedByName }} 編輯
-          }
+<!-- 共用殼（#2290）：h2＝學生、副標＝日期 · 班名 · 最後編輯；簽收狀態原本在標頭右邊，移到內容區第一行 -->
+<app-dialog-frame [title]="studentName()" [sub]="sub()" (closed)="cancel()">
+  <div class="entry-dialog flex flex-col gap-4">
+    <div>
+      @if (entry(); as existing) {
+        @if (existing.isSigned) {
+          <app-status-dot tone="done">已簽收</app-status-dot>
+        } @else {
+          <app-status-dot tone="pending">未簽收</app-status-dot>
         }
-      </p>
-    </div>
-    @if (entry(); as existing) {
-      @if (existing.isSigned) {
-        <app-status-dot tone="done">已簽收</app-status-dot>
       } @else {
-        <app-status-dot tone="pending">未簽收</app-status-dot>
+        <app-status-dot tone="pending">尚未撰寫</app-status-dot>
+      }
+    </div>
+
+    @if (entry(); as existing) {
+      @if (existing.isSigned && existing.signedAt) {
+        <p
+          class="entry-dialog__signed-note m-0 rounded-md border border-solid border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600"
+        >
+          家長已於 {{ existing.signedAt | date: 'yyyy-MM-dd HH:mm' }} 簽收。改內容不會取消簽收 ——
+          家長看到的是最新版本，那一則會標「有更新」。
+          @if (existing.editedAfterSign) {
+            <b class="font-semibold text-zinc-800">這則在簽收後有修改。</b>
+          }
+        </p>
       }
     } @else {
-      <app-status-dot tone="pending">尚未撰寫</app-status-dot>
-    }
-  </header>
-
-  @if (entry(); as existing) {
-    @if (existing.isSigned && existing.signedAt) {
       <p
         class="entry-dialog__signed-note m-0 rounded-md border border-solid border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600"
       >
-        家長已於 {{ existing.signedAt | date: 'yyyy-MM-dd HH:mm' }} 簽收。改內容不會取消簽收 ——
-        家長看到的是最新版本，那一則會標「有更新」。
-        @if (existing.editedAfterSign) {
-          <b class="font-semibold text-zinc-800">這則在簽收後有修改。</b>
-        }
+        {{ emptyNote() }}
       </p>
     }
-  } @else {
-    <p
-      class="entry-dialog__signed-note m-0 rounded-md border border-solid border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600"
-    >
-      {{ emptyNote() }}
-    </p>
-  }
 
-  <div class="entry-dialog__field flex flex-col gap-2">
-    <label class="entry-dialog__label text-sm font-medium text-zinc-600" for="cb-content"
-      >內容</label
-    >
-    <textarea
-      id="cb-content"
-      pTextarea
-      [rows]="8"
-      [maxlength]="MAX_CONTENT"
-      placeholder="今天的上課狀況…"
-      class="entry-dialog__textarea w-full resize-y"
-      [ngModel]="content()"
-      (ngModelChange)="content.set($event)"
-    ></textarea>
-    <span class="entry-dialog__hint text-xs text-zinc-500">
-      每生每日一則，不分科目。共同編輯會直接覆寫並記下最後編輯者。
-    </span>
-    @if (!dirty()) {
-      <!-- #1314 CB6：儲存鈕停用時講原因（沒有字／沒改），不讓人猜為什麼按不下去 -->
-      <span
-        class="entry-dialog__hint entry-dialog__disabled-reason text-xs text-zinc-500"
-        role="status"
+    <div class="entry-dialog__field flex flex-col gap-2">
+      <label class="entry-dialog__label text-sm font-medium text-zinc-600" for="cb-content"
+        >內容</label
       >
-        {{ isNew() ? '還沒寫內容，寫了才能寫入' : '內容沒有修改，改了才能儲存' }}
+      <textarea
+        id="cb-content"
+        pTextarea
+        [rows]="8"
+        [maxlength]="MAX_CONTENT"
+        placeholder="今天的上課狀況…"
+        class="entry-dialog__textarea w-full resize-y"
+        [ngModel]="content()"
+        (ngModelChange)="content.set($event)"
+      ></textarea>
+      <span class="entry-dialog__hint text-xs text-zinc-500">
+        每生每日一則，不分科目。共同編輯會直接覆寫並記下最後編輯者。
       </span>
-    }
+      @if (!dirty()) {
+        <!-- #1314 CB6：儲存鈕停用時講原因（沒有字／沒改），不讓人猜為什麼按不下去 -->
+        <span
+          class="entry-dialog__hint entry-dialog__disabled-reason text-xs text-zinc-500"
+          role="status"
+        >
+          {{ isNew() ? '還沒寫內容，寫了才能寫入' : '內容沒有修改，改了才能儲存' }}
+        </span>
+      }
+    </div>
   </div>
-
-  <footer class="entry-dialog__footer flex justify-end gap-2">
+  <ng-container dialogFoot>
     <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
     <p-button
       [label]="isNew() ? '寫入' : '儲存'"
@@ -84,5 +69,5 @@
       [loading]="saving()"
       (onClick)="save()"
     />
-  </footer>
-</div>
+  </ng-container>
+</app-dialog-frame>

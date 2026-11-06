@@ -7,7 +7,6 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { MessageService } from 'primeng/api';
@@ -23,9 +22,10 @@ import { type MakeupCandidate, type Session, SessionsService } from '@core/sessi
  * 寫「安排」「新增」的代價不是用詞不精確，是**使用者會去找那個不存在的流程，
  * 然後以為是自己不會用**（issue #592 裁定）。
  */
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 @Component({
   selector: 'app-session-makeup-dialog',
-  imports: [FormsModule, ButtonModule, SelectModule],
+  imports: [DialogFrameComponent, FormsModule, SelectModule],
   // 沒有自己的 SCSS —— 版面全部用全域的 `session-op-form`（`styles.css:1424`），
   // 跟其他課堂操作對話框一致。空的 SCSS 檔留著只會變成孤兒。
   templateUrl: './session-makeup-dialog.component.html',

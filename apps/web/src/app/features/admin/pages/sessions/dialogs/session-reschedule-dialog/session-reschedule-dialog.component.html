@@ -1,108 +1,125 @@
-<form [formGroup]="form" (ngSubmit)="submit()" class="session-op-form">
-  @if (submitError()) {
-    <app-inline-notice
-      severity="error"
-      [detail]="submitError()"
-      (dismissed)="submitError.set(null)"
-    />
-  }
-  <div class="session-op-form__field">
-    <label for="newSessionDate" class="session-op-form__label">
-      調課日期<span class="session-op-form__required">*</span>
-    </label>
-    <p-datepicker
-      id="newSessionDate"
-      formControlName="newSessionDate"
-      [minDate]="minDate"
-      dateFormat="yy-mm-dd"
-      placeholder="選擇新日期"
-      styleClass="w-full"
-      appendTo="body"
-    />
-    @if (loadingTargetDate()) {
-      <p class="session-op-form__hint">載入中...</p>
-    } @else {
-      @if (targetCampusSessions().length > 0) {
-        <div class="mt-1 flex flex-col gap-2">
-          <p class="session-op-form__hint">
-            同分校當日已排 {{ targetCampusSessions().length }} 堂課：
-          </p>
-          @for (s of targetCampusSessions(); track s.className + s.startTime) {
-            <div
-              class="flex flex-col gap-0.5 rounded-r-sm border-l-[3px] border-l-accent-200 bg-zinc-50 px-3 py-2 text-sm leading-[1.4] text-zinc-700"
-            >
-              {{ s.startTime }}–{{ s.endTime }} {{ s.courseName }} · {{ s.className }}
-            </div>
-          }
-        </div>
-      }
-      @if (targetTeacherSessions().length > 0) {
-        <div class="mt-1 flex flex-col gap-2">
-          <p class="session-op-form__hint">
-            同老師當日另有 {{ targetTeacherSessions().length }} 堂課：
-          </p>
-          @for (s of targetTeacherSessions(); track s.className + s.startTime) {
-            <div
-              class="flex flex-col gap-0.5 rounded-r-sm border-l-[3px] border-l-accent-200 bg-zinc-50 px-3 py-2 text-sm leading-[1.4] text-zinc-700"
-            >
-              {{ s.startTime }}–{{ s.endTime }} {{ s.courseName }} · {{ s.className }}
-              @if (s.campusName) {
-                <span class="text-xs text-zinc-500">{{ s.campusName }}</span>
-              }
-            </div>
-          }
-        </div>
-      }
+<!-- 共用殼（#2290）。A6 課表走批次步驟頁，沒畫單堂的這支；標題沿用產品原本的 header -->
+<app-dialog-frame title="調課" (closed)="closeDialog()">
+  <form
+    id="session-reschedule-form"
+    [formGroup]="form"
+    (ngSubmit)="submit()"
+    class="session-op-form"
+  >
+    @if (submitError()) {
+      <app-inline-notice
+        severity="error"
+        [detail]="submitError()"
+        (dismissed)="submitError.set(null)"
+      />
     }
-  </div>
-  <div class="session-op-form__row">
     <div class="session-op-form__field">
-      <label for="newStartTime" class="session-op-form__label">
-        開始時間<span class="session-op-form__required">*</span>
+      <label for="newSessionDate" class="session-op-form__label">
+        調課日期<span class="session-op-form__required">*</span>
       </label>
       <p-datepicker
-        id="newStartTime"
-        formControlName="newStartTime"
-        [timeOnly]="true"
-        hourFormat="24"
-        placeholder="開始"
+        id="newSessionDate"
+        formControlName="newSessionDate"
+        [minDate]="minDate"
+        dateFormat="yy-mm-dd"
+        placeholder="選擇新日期"
         styleClass="w-full"
         appendTo="body"
       />
+      @if (loadingTargetDate()) {
+        <p class="session-op-form__hint">載入中...</p>
+      } @else {
+        @if (targetCampusSessions().length > 0) {
+          <div class="mt-1 flex flex-col gap-2">
+            <p class="session-op-form__hint">
+              同分校當日已排 {{ targetCampusSessions().length }} 堂課：
+            </p>
+            @for (s of targetCampusSessions(); track s.className + s.startTime) {
+              <div
+                class="flex flex-col gap-0.5 rounded-r-sm border-l-[3px] border-l-accent-200 bg-zinc-50 px-3 py-2 text-sm leading-[1.4] text-zinc-700"
+              >
+                {{ s.startTime }}–{{ s.endTime }} {{ s.courseName }} · {{ s.className }}
+              </div>
+            }
+          </div>
+        }
+        @if (targetTeacherSessions().length > 0) {
+          <div class="mt-1 flex flex-col gap-2">
+            <p class="session-op-form__hint">
+              同老師當日另有 {{ targetTeacherSessions().length }} 堂課：
+            </p>
+            @for (s of targetTeacherSessions(); track s.className + s.startTime) {
+              <div
+                class="flex flex-col gap-0.5 rounded-r-sm border-l-[3px] border-l-accent-200 bg-zinc-50 px-3 py-2 text-sm leading-[1.4] text-zinc-700"
+              >
+                {{ s.startTime }}–{{ s.endTime }} {{ s.courseName }} · {{ s.className }}
+                @if (s.campusName) {
+                  <span class="text-xs text-zinc-500">{{ s.campusName }}</span>
+                }
+              </div>
+            }
+          </div>
+        }
+      }
+    </div>
+    <div class="session-op-form__row">
+      <div class="session-op-form__field">
+        <label for="newStartTime" class="session-op-form__label">
+          開始時間<span class="session-op-form__required">*</span>
+        </label>
+        <p-datepicker
+          id="newStartTime"
+          formControlName="newStartTime"
+          [timeOnly]="true"
+          hourFormat="24"
+          placeholder="開始"
+          styleClass="w-full"
+          appendTo="body"
+        />
+      </div>
+      <div class="session-op-form__field">
+        <label for="newEndTime" class="session-op-form__label">
+          結束時間<span class="session-op-form__required">*</span>
+        </label>
+        <p-datepicker
+          id="newEndTime"
+          formControlName="newEndTime"
+          [timeOnly]="true"
+          hourFormat="24"
+          placeholder="結束"
+          styleClass="w-full"
+          appendTo="body"
+        />
+      </div>
     </div>
     <div class="session-op-form__field">
-      <label for="newEndTime" class="session-op-form__label">
-        結束時間<span class="session-op-form__required">*</span>
-      </label>
-      <p-datepicker
-        id="newEndTime"
-        formControlName="newEndTime"
-        [timeOnly]="true"
-        hourFormat="24"
-        placeholder="結束"
-        styleClass="w-full"
-        appendTo="body"
-      />
+      <label for="rescheduleReason" class="session-op-form__label">調課原因（選填）</label>
+      <textarea
+        id="rescheduleReason"
+        pTextarea
+        formControlName="reason"
+        placeholder="例如：原老師請假、學生家長要求..."
+        class="session-op-form__textarea"
+      ></textarea>
     </div>
-  </div>
-  <div class="session-op-form__field">
-    <label for="rescheduleReason" class="session-op-form__label">調課原因（選填）</label>
-    <textarea
-      id="rescheduleReason"
-      pTextarea
-      formControlName="reason"
-      placeholder="例如：原老師請假、學生家長要求..."
-      class="session-op-form__textarea"
-    ></textarea>
-  </div>
-  <div class="session-op-form__footer">
-    <p-button label="取消" severity="secondary" [text]="true" (onClick)="closeDialog()" />
-    <p-button
-      label="確認調課"
-      severity="primary"
+  </form>
+
+  <ng-container dialogFoot>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+      (click)="closeDialog()"
+    >
+      取消
+    </button>
+    <button
       type="submit"
-      [disabled]="form.invalid"
-      [loading]="isSubmitting()"
-    />
-  </div>
-</form>
+      form="session-reschedule-form"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 border-accent-vivid bg-accent-vivid text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2"
+      data-testid="op-submit"
+      [disabled]="form.invalid || isSubmitting()"
+    >
+      {{ isSubmitting() ? '處理中…' : '確認調課' }}
+    </button>
+  </ng-container>
+</app-dialog-frame>
