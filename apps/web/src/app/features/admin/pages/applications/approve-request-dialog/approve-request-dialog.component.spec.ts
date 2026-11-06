@@ -585,4 +585,16 @@ describe('核准報名：手機分步（#2396）', () => {
     expect(btn.closest('.form-dialog__footer')).not.toBeNull();
     expect(form(s.el).contains(btn)).toBe(false);
   });
+
+  // 審核席 #2401 突變 M3b：「下一步」也是 form 外的送出鈕 —— 改回 type=button＋(click) 的話 Enter 跟點鈕又分兩條路
+  it('手機第一步的「下一步」也是 type=submit form="approve-form"，不在 form 內、在殼的底部列', async () => {
+    mobile(true);
+    const s = await setup(req({ defaultFeeTemplateId: 'm1' }));
+    await s.render();
+    const next = s.el.querySelector('[data-testid="next"]')!;
+    expect(next.getAttribute('type')).toBe('submit');
+    expect(next.getAttribute('form')).toBe('approve-form');
+    expect(next.closest('.form-dialog__footer')).not.toBeNull();
+    expect(form(s.el).contains(next)).toBe(false);
+  });
 });
