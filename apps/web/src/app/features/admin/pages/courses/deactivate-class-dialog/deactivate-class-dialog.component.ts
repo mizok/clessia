@@ -1,7 +1,5 @@
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { Component, inject, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { ButtonModule } from 'primeng/button';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import { ClassesService, Class } from '@core/classes.service';
@@ -9,7 +7,7 @@ import { ClassesService, Class } from '@core/classes.service';
 @Component({
   selector: 'app-deactivate-class-dialog',
   standalone: true,
-  imports: [CommonModule, ButtonModule, DialogFrameComponent],
+  imports: [DialogFrameComponent],
   templateUrl: './deactivate-class-dialog.component.html',
 })
 export class DeactivateClassDialogComponent {
@@ -27,6 +25,25 @@ export class DeactivateClassDialogComponent {
     // 麵包屑當副標（A6 class.html genDialog：`.fdlg__sub`「分校 › 課程 › 班名」）
     return `${c.campusName ?? ''} › ${c.courseName ?? ''} › ${c.name}`;
   });
+
+  /** A6 的副標：「目前 N 位學生在籍」；開窗端沒帶人數時維持麵包屑（不寫 0） */
+  protected readonly sub = computed(() => {
+    const n = this.cls()?.enrolledCount;
+    return n === undefined ? this.breadcrumb() : `目前 ${n} 位學生在籍`;
+  });
+
+  /** 稿的選項順序與預設（第一個）；文字照稿 */
+  protected readonly modes = [
+    { value: 'cancel-future', label: '停用並停課未來課堂' },
+    { value: 'only', label: '僅停用班級' },
+  ] as const;
+  protected readonly mode = signal<'cancel-future' | 'only'>('cancel-future');
+
+  protected submit(): void {
+    if (this.loading()) return;
+    if (this.mode() === 'only') this.deactivateOnly();
+    else this.deactivateAndCancel();
+  }
 
   protected deactivateOnly(): void {
     const c = this.cls();
