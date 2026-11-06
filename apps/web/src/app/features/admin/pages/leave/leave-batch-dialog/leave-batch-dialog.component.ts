@@ -3,11 +3,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, from, map, mergeMap, of, tap, toArray } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { InputTextModule } from 'primeng/inputtext';
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 
 import { EnrollmentsService } from '@core/enrollments.service';
+import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 import { LeaveService } from '@core/leave.service';
 import { SessionsService, type Session } from '@core/sessions.service';
 import { addDaysToDateString, SystemClockService } from '@core/system-clock.service';
@@ -15,6 +15,8 @@ import { addDaysToDateString, SystemClockService } from '@core/system-clock.serv
 interface Pick {
   id: string;
   name: string;
+  /** A6 .pick__o 的 small：年級 */
+  grade: string;
 }
 
 /**
@@ -30,7 +32,7 @@ interface Pick {
 @Component({
   selector: 'app-leave-batch-dialog',
   standalone: true,
-  imports: [DialogFrameComponent, FormsModule, InputTextModule, SelectFieldComponent],
+  imports: [DialogFrameComponent, FormsModule, SelectFieldComponent],
   template: `
     <!-- 共用殼（#2290）：標題、副標照 A6 leave.html batchLeave -->
     <app-dialog-frame title="批次請假" sub="同一堂課，一次幫好幾位學生請假" (closed)="close()">
@@ -47,58 +49,80 @@ interface Pick {
             (valueChange)="onSessionChange($event)"
           />
           <!-- A6 .acset__hint -->
-          <span class="text-sm font-normal text-zinc-600">例如全班校外教學、颱風停課補假</span>
+          <p class="m-0 text-sm text-zinc-600">例如全班校外教學、颱風停課補假</p>
         </div>
 
-        <fieldset class="m-0 flex flex-col gap-1 border-0 p-0" data-testid="batch-students">
-          <legend class="flex w-full items-center gap-3 p-0 text-md font-semibold text-zinc-700">
+        <!--
+          A6：p.acset__l「學生」＋「全選」(.tlink)，下面 .pick 容器。語意照行為：一組 checkbox 要有群組（R7），
+          所以容器是 role=group、名稱指回標題，不用 fieldset／legend
+        -->
+        <div class="flex flex-col gap-1" data-testid="batch-students">
+          <p class="m-0 text-md font-semibold text-zinc-700" id="batch-students-label">
             學生
             <button
               type="button"
-              class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-[3px]"
+              class="ml-1 inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid border-transparent bg-transparent px-0 py-0.5 text-base leading-normal font-medium whitespace-nowrap text-zinc-600 hover:border-zinc-300 hover:text-zinc-900 wide:min-h-0"
               (click)="toggleAll()"
             >
               全選
             </button>
-          </legend>
-          @if (!sessionId()) {
-            <p
-              class="m-0 text-md"
-              [class.text-warning-800]="nudged()"
-              [class.text-zinc-600]="!nudged()"
-            >
-              {{
-                nudged() ? '先選一堂課，才能全選這班的學生。' : '先選一堂課，這裡會列出這班的學生。'
-              }}
-            </p>
-          } @else if (loadingStudents()) {
-            <p class="m-0 text-md text-zinc-600">讀取名單中…</p>
-          } @else if (students().length === 0) {
-            <p class="m-0 text-md text-zinc-600">這班目前沒有在學的學生。</p>
-          } @else {
-            <div class="grid grid-cols-2 gap-x-3">
+          </p>
+          <div class="grid gap-2" role="group" aria-labelledby="batch-students-label">
+            @if (!sessionId()) {
+              <!-- A6 .pick__none；催促時照 .pick__none.is-warn -->
+              <p
+                class="m-0 rounded-md bg-zinc-100 p-3 text-md"
+                [class.font-semibold]="nudged()"
+                [class.text-error-700]="nudged()"
+                [class.text-zinc-700]="!nudged()"
+              >
+                {{
+                  nudged()
+                    ? '先選一堂課，才能全選這班的學生。'
+                    : '先選一堂課，這裡會列出這班的學生。'
+                }}
+              </p>
+            } @else if (loadingStudents()) {
+              <p class="m-0 rounded-md bg-zinc-100 p-3 text-md text-zinc-700">讀取名單中…</p>
+            } @else if (students().length === 0) {
+              <p class="m-0 rounded-md bg-zinc-100 p-3 text-md text-zinc-700">
+                這班目前沒有在學的學生。
+              </p>
+            } @else {
               @for (s of students(); track s.id) {
+                <!-- A6 .pick__o：外框選項列，勾了加深；small 寫年級 -->
                 <label
-                  class="flex min-h-11 cursor-pointer items-center gap-2 text-md text-zinc-900"
+                  class="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-3 text-md text-zinc-900 has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset"
                 >
-                  <input type="checkbox" [checked]="selected().has(s.id)" (change)="toggle(s.id)" />
+                  <input
+                    type="checkbox"
+                    class="m-0 size-[18px] accent-zinc-900"
+                    [checked]="selected().has(s.id)"
+                    (change)="toggle(s.id)"
+                  />
                   {{ s.name }}
+                  <small class="ml-auto text-sm text-zinc-600">{{ s.grade }}</small>
                 </label>
               }
-            </div>
-          }
-        </fieldset>
+            }
+          </div>
+        </div>
 
-        <label class="flex flex-col gap-1 text-md font-semibold text-zinc-700">
-          原因（選填）
+        <!-- A6 .acset__l（block）＋.acset__in（手機 44、桌機 40） -->
+        <div class="min-w-0">
+          <label class="mb-1 block text-md font-semibold text-zinc-700" for="batch-reason"
+            >原因（選填）</label
+          >
           <input
-            pInputText
-            class="w-full"
+            id="batch-reason"
+            type="text"
+            autocomplete="off"
             placeholder="例如：校外教學"
+            class="h-10 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
             [ngModel]="reason()"
             (ngModelChange)="reason.set($event)"
           />
-        </label>
+        </div>
 
         @if (failures().length > 0) {
           <div class="rounded-md bg-error-100 p-3" role="alert" data-testid="batch-failures">
@@ -120,7 +144,7 @@ interface Pick {
         </p>
         <button
           type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
           [disabled]="saving()"
           (click)="close()"
         >
@@ -128,7 +152,7 @@ interface Pick {
         </button>
         <button
           type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
           data-testid="batch-submit"
           [attr.aria-disabled]="!!missingHint() || saving()"
           (click)="submit()"
@@ -219,7 +243,12 @@ export class LeaveBatchDialogComponent implements OnInit {
         next: (res) => {
           // 同一位可能有兩筆在學報名（換方案）—— 名單只列一次
           const seen = new Map<string, Pick>();
-          for (const e of res.data) seen.set(e.studentId, { id: e.studentId, name: e.studentName });
+          for (const e of res.data)
+            seen.set(e.studentId, {
+              id: e.studentId,
+              name: e.studentName,
+              grade: GRADE_LEVEL_LABELS[e.studentGrade as GradeLevel] ?? e.studentGrade ?? '',
+            });
           this.students.set([...seen.values()]);
           this.loadingStudents.set(false);
         },

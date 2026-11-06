@@ -15,7 +15,7 @@ import { MultiSelectModule } from 'primeng/multiselect';
 import { TextareaModule } from 'primeng/textarea';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { forkJoin } from 'rxjs';
 
@@ -63,7 +63,7 @@ interface FormData {
   selector: 'app-academy-exam-form-dialog',
   standalone: true,
   imports: [
-    DialogTitleDirective,
+    DialogFrameComponent,
     SelectFieldComponent,
     FormsModule,
     MultiSelectModule,
