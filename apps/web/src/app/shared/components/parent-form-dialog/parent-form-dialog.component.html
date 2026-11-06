@@ -8,6 +8,7 @@
 >
   <!-- A6 `.fdlg__body`：姓名整列、Email／手機各半欄；手機一欄 -->
   <form
+    id="parent-form"
     ngNoForm
     class="grid grid-cols-2 gap-x-3 gap-y-4 max-wide:grid-cols-1"
     (submit)="$event.preventDefault(); save()"
@@ -140,10 +141,10 @@
       取消
     </button>
     <button
-      type="button"
+      type="submit"
+      form="parent-form"
       class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
       [attr.aria-disabled]="!!missingHint() || loading()"
-      (click)="save()"
     >
       {{ loading() ? (isEditMode() ? '儲存中…' : '建立中…') : isEditMode() ? '儲存' : '建立家長' }}
     </button>
