@@ -78,14 +78,15 @@ export const DEVIATIONS = [
   {
     status: '樣式',
     a6: '(^|>)landmark:dialog\\[[^\\]]*\\]>landmark:form\\[[^\\]]*\\]$',
-    item: '^padding 8px 24px 24px → 0px$',
+    // 手機稿 8/16/24（A6 .acset__body 手機左右 16）
+    item: '^padding 8px (24|16)px 24px → 0px$',
     reason: '殼的內距在內容區外層（.dialog-frame__body），稿在 form 上，幾何相同',
     source: 'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
   },
   {
     status: '位置',
     a6: '(^|>)landmark:dialog\\[[^\\]]*\\]>landmark:form\\[[^\\]]*\\]>',
-    detail: '^相對「form」 Δx -24、Δy -(8|9)（',
+    detail: '^相對「form」 Δx -(24|16)、Δy -(8|9)（',
     reason:
       '殼的內距在內容區外層（.dialog-frame__body），稿在 form 上：子項相對 form 位移，畫面位置相同',
     source: 'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
@@ -720,7 +721,11 @@ const FORM_DIALOGS = {
     import: dlgOpen('[data-import]', 'button:has-text("匯入")', 'app-parent-import-dialog'),
   },
   // #2290 換共用殼的對話框（0950-a 家族）
-  leave: { batch: formOpen('[data-batch-leave]', 'button:has-text("批次請假")') },
+  leave: {
+    batch: formOpen('[data-batch-leave]', 'button:has-text("批次請假")'),
+    // 登記請假（#2318 勾當天的課）
+    'new-leave': dlgOpen('[data-new]', 'button:has-text("登記請假")', 'app-leave-form-dialog'),
+  },
   schools: { 'new-school': formOpen('[data-new-school]', 'button:has-text("新增學校")') },
   exams: {
     'new-exam': formOpen('[data-new]', [
@@ -1506,6 +1511,10 @@ export const PAGES = {
     // 那些是 gen_random_uuid，reset 一次就換，下一個人量到的是「找不到這個班」（10-31 實例）。
     // 課程 id seed.sql 也是隨機的；網址的 courseId 段頁面沒讀（class-detail.page.ts resolvedCourseId 沒有讀者），放佔位字串
     app: '/admin/courses/seed-course/classes/62000000-0000-0000-0000-000000000001',
+    // 產生課堂（#2290 courses）：稿 genDialog 是原生 dialog.acset.fdlg；app 是 DialogService（共用殼）。
+    // 課程頁的 gen 要先有「需介入」的班，seed 在稿的時間點沒有，量不到 —— 改在這裡量
+    a6Open: { gen: { click: '[data-gen]', root: 'dialog[open]' } },
+    appOpen: { gen: { click: 'button:has-text("產生課堂")', root: '.p-dialog:has(app-generate-sessions-dialog)' } },
     deviations: [
       noCampusSwitch('一個班只屬於一間分校，頂欄切到別的分校會跟頁面矛盾'),
       // 量的是 seed.sql 的「數學班 A」，稿是「國三數學A班」：班名不同，狀態標跟著位移
@@ -1569,7 +1578,37 @@ export const PAGES = {
     app: '/admin/dashboard',
     // 稿的今天（shared/data.js：2026-10-01 17:40，週四），同 p-schedule（#1314 10-30）
     clock: '2026-10-01T17:40:00+08:00',
+    // 櫃台代刷到班（#2314）：兩邊都是原生 showModal；桌機工具列鈕、手機托盤／dock 鈕都帶這幾個字
+    a6Open: { checkin: { click: '[data-checkin]', root: 'dialog[open]' } },
+    appOpen: { checkin: { click: 'button:has-text("櫃台代刷")', root: 'dialog[open]' } },
     deviations: [
+      // ── 櫃台代刷到班（#2314）──
+      // 學生：app-select-field（p-select）對稿的 .dd；稿的按鈕名「選擇：…」跟 app 的 trigger 錯配
+      ...selectFieldDeviations('選擇|學生（今天還沒到的）\\*').map((d) => ({ ...d, pop: 'checkin' })),
+      ...[
+        { status: '角色', a6: '>landmark:form\\[\\]>text:label\\[學生（今天還沒到的）\\]$' },
+        ...['文案', '位置', '樣式'].map((status) => ({
+          status,
+          a6: '>landmark:form\\[\\]>control:button\\[選擇：[^\\]]*\\]$',
+        })),
+      ].map((d) => ({ ...d, pop: 'checkin', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
+      // 稿的「到班時間」欄不畫：API 用伺服器時間記到班
+      ...['text:label\\[到班時間\\]', 'control:textbox\\[到班時間\\*\\]'].map((part) => ({
+        status: '缺',
+        pop: 'checkin',
+        a6: `>landmark:form\\[\\]>${part}$`,
+        reason: '到班時間一律是伺服器收到的時間，不畫可填的欄',
+        source: `${rule('R5')}「櫃台代刷到班對話框不畫「到班時間」」2026-11-05；#2314`,
+      })),
+      {
+        status: '尺寸',
+        pop: 'checkin',
+        widths: [360],
+        a6: '>landmark:dialog\\[櫃台代刷到班\\]>control:button\\[關閉\\]$',
+        detail: '^寬 39→44$',
+        reason: '可點元素基底 ≥44px（同直接報名的關閉鈕）',
+        source: `${rule('R3')}`,
+      },
       {
         // #2057（保留類，已合）：改時段改成「從某天起」，不再是整期一起改（#2246 放回捷徑時照用）
         status: '文案',
@@ -1890,6 +1929,47 @@ export const PAGES = {
         reason: '對話框手機內容左右 16（共用殼），稿 24',
         source: `${rule('R5', '「對話框手機內容左右 16」2026-11-05')}`,
       },
+      // 登記請假（#2318）：app 的日期、要請假的課、原因三格同層同子元素數，被工具合成一列（README「列是資料」的 div 格線規則）；
+      // 稿同樣的三格沒觸發，於是「要請假的課」與空狀態那句報缺、app 報多一列 —— 內容與樣式照稿（.pick、.pick__none）
+      ...[
+        {
+          status: '缺',
+          a6: '>landmark:dialog\\[登記請假\\]>text:p\\[(要請假的課|先選學生，這裡會列出他那天的課。)\\]$',
+        },
+        { status: '多', app: '>landmark:dialog\\[登記請假\\]>row(>.*)?$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-leave',
+        reason: '工具限制：同層三格被當成資料列，配對錯開',
+        source: 'tools/a6-conformance/README.md（part key：列是資料）',
+      })),
+      // 登記請假（#2318）：手機內容左右 16（殼的規格，稿 24），欄位寬 +16
+      {
+        status: '尺寸',
+        widths: [360],
+        pop: 'new-leave',
+        a6: '>landmark:dialog\\[登記請假\\]>(text:label|control:textbox)\\[[^\\]]*\\]$',
+        detail: '^寬 312→328$',
+        reason: '對話框手機內容左右 16（共用殼），稿 24',
+        source: `${rule('R5', '「對話框手機內容左右 16」2026-11-05')}`,
+      },
+      // 登記請假（#2318）：分校、年級兩個篩選（縮小學生搜尋）現況有、稿沒有，不刪；下面的欄位跟著往下
+      ...[
+        {
+          status: '多',
+          app: '>landmark:dialog\\[登記請假\\]>(text:label\\[(分校|年級)\\]|control:combobox\\[[^\\]]*\\])$',
+        },
+        {
+          status: '位置',
+          a6: '>landmark:dialog\\[登記請假\\]>',
+          detail: '連帶自待修「control:combobox\\[',
+        },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-leave',
+        reason: '現況有、稿沒畫：學生欄上的分校、年級篩選（縮小同名學生的搜尋），不刪',
+        source: `${rule('R2')}`,
+      })),
       {
         // 稿的請假用今天起算的相對日期（leave.html D(n)），所以永遠有今天、明天的章；
         // 本機 seed 的請假是 reset 當天起算，「待處理」分頁今天以後沒有，app 顯示空狀態

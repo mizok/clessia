@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { STUDENT_LIST_SQL, type StudentListResult } from '../lib/student-list-sql';
+import { TEACHER_ROSTER_SQL } from '../lib/teacher-roster-sql';
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
 import studentsRoute from './students';
 
@@ -53,7 +54,11 @@ const seed = () =>
 
 async function list(
   path: string,
-  { pool, scope = null }: { pool?: { query: ReturnType<typeof vi.fn> }; scope?: string[] | null },
+  {
+    pool,
+    scope = null,
+    teacher = false,
+  }: { pool?: { query: ReturnType<typeof vi.fn> }; scope?: string[] | null; teacher?: boolean },
 ) {
   const app = new Hono();
   app.use('*', async (c, next) => {
@@ -61,8 +66,8 @@ async function list(
     set('supabase', seed().client);
     set('orgId', ORG);
     set('userId', 'admin-a');
-    set('roles', ['admin']);
-    set('permissions', ['*']);
+    set('roles', [teacher ? 'teacher' : 'admin']);
+    set('permissions', teacher ? [] : ['*']);
     set('campusScope', scope);
     if (pool) set('auth', { pool });
     await next();
@@ -168,5 +173,59 @@ describe('GET /api/students 先走 SQL（#1595 P2 ② 刀 1a）', () => {
     expect(p.slice(10, 12)).toEqual([5, 10]);
     const d = await params('/?withToday=false', null);
     expect(d.slice(3, 8)).toEqual([null, null, false, false, false]);
+  });
+
+  it('老師（刀 2）：先一支老師範圍 SQL，現任班才算（前任不算）、在籍學生只取現任班', async () => {
+    const pool = {
+      query: vi.fn().mockImplementation(async (sql: string) =>
+        sql === TEACHER_ROSTER_SQL
+          ? {
+              rows: [
+                {
+                  result: {
+                    staffId: 'staff-t',
+                    schedules: [
+                      { class_id: 'k-now', effective_from: '2026-01-01', effective_to: null },
+                      {
+                        class_id: 'k-old',
+                        effective_from: '2025-01-01',
+                        effective_to: '2025-06-30',
+                      },
+                    ],
+                    enrollments: [
+                      { student_id: 's1', class_id: 'k-now' },
+                      { student_id: 's2', class_id: 'k-old' },
+                    ],
+                  },
+                },
+              ],
+            }
+          : { rows: [{ result: SQL_RESULT }] },
+      ),
+    };
+    const { status } = await list('/?withToday=false', { pool, teacher: true });
+    expect(status).toBe(200);
+    expect(pool.query.mock.calls[0]![1]).toEqual([ORG, 'admin-a']);
+    const listParams = pool.query.mock.calls[1]![1] as unknown[];
+    expect(listParams[2]).toEqual(['k-now']);
+    expect(listParams[12]).toBe(false); // 老師不帶電話
+  });
+
+  it('老師範圍 SQL 失敗 → 500，不退回 REST', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const pool = { query: vi.fn().mockRejectedValue(new Error('x')) };
+    expect((await list('/?withToday=false', { pool, teacher: true })).status).toBe(500);
+  });
+
+  it('老師沒有 staff 列 → 403（同 REST 那條）', async () => {
+    const pool = {
+      query: vi
+        .fn()
+        .mockResolvedValue({
+          rows: [{ result: { staffId: null, schedules: [], enrollments: [] } }],
+        }),
+    };
+    expect((await list('/?withToday=false', { pool, teacher: true })).status).toBe(403);
+    expect(pool.query).toHaveBeenCalledTimes(1);
   });
 });

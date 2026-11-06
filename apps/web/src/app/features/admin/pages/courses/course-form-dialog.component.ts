@@ -23,7 +23,7 @@ import {
 } from '@core/courses.service';
 import { Campus } from '@core/campuses.service';
 import { Subject } from '@core/subjects.service';
-import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 
 @Component({
@@ -31,7 +31,7 @@ import { SelectFieldComponent } from '@shared/components/select-field/select-fie
   standalone: true,
   imports: [
     CommonModule,
-    DialogTitleDirective,
+    DialogFrameComponent,
     FormsModule,
     MultiSelectModule,
     SelectFieldComponent,

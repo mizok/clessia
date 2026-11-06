@@ -288,7 +288,7 @@ describe('LeavePage', () => {
 
     expect(dialogServiceMock.open).toHaveBeenCalledWith(
       LeaveFormDialogComponent,
-      expect.objectContaining({ data: { leave: activeRecord } }),
+      expect.objectContaining({ data: { leave: activeRecord, pickSessions: true } }),
     );
     // 重載列表一支＋重取兩個分頁張數與今天進行中的假三支
     expect(leaveServiceMock.list.mock.calls.length).toBe(listCalls + 4);
@@ -482,7 +482,7 @@ describe('LeavePage', () => {
       q('edit')!.click();
       expect(dialogServiceMock.open).toHaveBeenCalledWith(
         LeaveFormDialogComponent,
-        expect.objectContaining({ data: { leave: record } }),
+        expect.objectContaining({ data: { leave: record, pickSessions: true } }),
       );
 
       q('cancel')!.click();

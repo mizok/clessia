@@ -837,10 +837,9 @@ export class SessionsPage implements OnInit {
   // ── Single-session actions ─────────────────────────────────────────────
   protected openReschedule(session: Session): void {
     const ref = this.dialogService.open(SessionRescheduleDialogComponent, {
-      header: '調課',
-      width: '400px',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       data: { session },
-      styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
     });
     ref?.onClose.subscribe((result) => {
@@ -850,10 +849,9 @@ export class SessionsPage implements OnInit {
 
   protected openSubstitute(session: Session): void {
     const ref = this.dialogService.open(SessionSubstituteDialogComponent, {
-      header: '安排代課',
-      width: '400px',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       data: { session },
-      styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
     });
     ref?.onClose.subscribe((result) => {
@@ -863,10 +861,9 @@ export class SessionsPage implements OnInit {
 
   protected openCancelDialog(session: Session): void {
     const ref = this.dialogService.open(SessionCancelDialogComponent, {
-      header: '停課',
-      width: '400px',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       data: { session },
-      styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
     });
     ref?.onClose.subscribe((result?: { result: string } | string) => {
@@ -905,10 +902,9 @@ export class SessionsPage implements OnInit {
   protected openAssignSingle(session: Session): void {
     const eligibleTeachers = this.getEligibleTeachersForSession(session);
     const ref = this.dialogService.open(SessionAssignDialogComponent, {
-      header: '指派老師',
-      width: '400px',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       data: { session, ...(eligibleTeachers.length > 0 ? { teachers: eligibleTeachers } : {}) },
-      styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
     });
     ref?.onClose.subscribe((result) => {
@@ -1423,14 +1419,11 @@ export class SessionsPage implements OnInit {
   // ── Detail popup ───────────────────────────────────────────────────────
   protected openDetail(session: Session): void {
     this.dialogService.open(SessionDetailDialogComponent, {
-      // 這支的 header **會渲染**（沒有 showHeader: false），內容區原本又有一行
-      // 「課堂異動紀錄」的 eyebrow，兩個標題疊在一起。留比較精確的那個講法，
-      // 並且刻意**不**跟頁面層那顆「操作紀錄」按鈕同名 —— 那顆開的是全部課堂的
-      // 操作紀錄，這個只有這一堂，同名會把有意義的差異抹平（#448）
-      header: '課堂異動紀錄',
-      width: '400px',
+      // 標題「課堂異動紀錄」在共用殼裡（#2290）。刻意**不**跟頁面層那顆「操作紀錄」按鈕同名 ——
+      // 那顆開的是全部課堂的操作紀錄，這個只有這一堂，同名會把有意義的差異抹平（#448）
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       data: { session, loadingChanges: true, changes: [] },
-      styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
     });
   }
@@ -1441,8 +1434,8 @@ export class SessionsPage implements OnInit {
    */
   protected openMakeup(session: Session): void {
     const ref = this.dialogService.open(SessionMakeupDialogComponent, {
-      header: '指定補課',
-      width: '420px',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       modal: true,
       appendTo: this.overlayContainer ?? 'body',
       data: { session },

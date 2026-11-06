@@ -484,7 +484,7 @@ describe('StudentDetailPage', () => {
       expect(dialogOpen).toHaveBeenCalledWith(
         LeaveFormDialogComponent,
         expect.objectContaining({
-          data: { student: { id: seedStudentId, name: '出勤測試學生01' } },
+          data: { student: { id: seedStudentId, name: '出勤測試學生01' }, pickSessions: true },
           // 動作列 sticky 的底部留白交給動作列（#1768）
           contentStyle: LEAVE_DIALOG_CONTENT_STYLE,
         }),

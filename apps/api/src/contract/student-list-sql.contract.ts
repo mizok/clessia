@@ -4,7 +4,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createAuth } from '../auth';
 import { createChildDb } from '../lib/child-db';
 import { loadStudentListViaBuilder } from '../lib/student-list-builder';
-import { STUDENT_LIST_SQL, studentListParamsFromArgs } from '../lib/student-list-sql';
+import { STUDENT_LIST_SQL } from '../lib/student-list-sql';
+import { TEACHER_ROSTER_SQL } from '../lib/teacher-roster-sql';
+import { STUDENT_TODAY_SQL } from '../lib/student-today-sql';
+import { restBackedSummaryPool } from '../test-utils/rest-backed-summary-pool';
 import { PERMISSIONS } from '../lib/permissions';
 import { createServiceClientFromEnv } from '../lib/supabase';
 
@@ -46,6 +49,8 @@ const ctx = {
   orgId: '',
   adminUser: '',
   teacherUser: '',
+  /** 刀 2 的兩位老師（只有退班生／只有待繳費生），見「老師名冊的邊界」那條 */
+  edgeTeachers: [] as string[],
   teacher: false,
   campusScope: null as string[] | null,
   usePool: true,
@@ -71,25 +76,16 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('studentScope', null);
       set('childDb', createChildDb(supabase as never, null, ctx.orgId));
       set('campusScope', ctx.teacher ? null : ctx.campusScope);
-      // 兩側都給 pool（#2303 之後今日到班沒有 pool 就 500）。builder 側只把**列表那一句**換成 builder 版，
-      // 其餘 SQL（今日到班）照常打真 DB —— 兩側唯一的差別就是 STUDENT_LIST_SQL 對 builder
+      // 兩側都給 pool（#2303 之後今日到班沒有 pool 就 500）。builder 側只把本單改寫的兩句換回 REST 鏈
       const real = (sql: string, v: unknown[]) => pool!.query(sql, v);
       set('auth', {
         pool: {
           query: ctx.usePool
             ? real
             : async (sql: string, v: unknown[]) =>
-                sql === STUDENT_LIST_SQL
-                  ? {
-                      rows: [
-                        {
-                          result: await loadStudentListViaBuilder(
-                            supabase as never,
-                            studentListParamsFromArgs(v),
-                          ),
-                        },
-                      ],
-                    }
+                // 老師範圍（刀 2）與列表（刀 1a／1b）兩句翻回改寫前的 REST 鏈（同單元測試的替身），其餘打真 DB
+                sql === STUDENT_LIST_SQL || sql === TEACHER_ROSTER_SQL || sql === STUDENT_TODAY_SQL
+                  ? restBackedSummaryPool(supabase as never).query(sql, v)
                   : real(sql, v),
           // authPoolCleanup 每個請求都會呼叫 end，而這裡所有請求共用同一個 pool
           end: async () => undefined,
@@ -122,6 +118,8 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     (await q<{ id: string }>(`${sql} returning id`, values))[0]!.id;
   const campus: Record<'c1' | 'c2', string> = { c1: '', c2: '' };
   let otherOrg = '';
+  /** 別 org 的分校（逐堂點名）：指定它當 campusId 時，模式不能讀到它的設定 */
+  let campusOther = '';
   const otherIds: string[] = [];
   const parentUsers: string[] = [];
 
@@ -129,11 +127,12 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     const [admin] = await q<{ user_id: string }>(
       "select user_id from user_roles where role = 'admin' order by user_id limit 1",
     );
-    const [teacher] = await q<{ user_id: string }>(
+    const [teacher, ...edgeTeachers] = await q<{ user_id: string }>(
       `select r.user_id from user_roles r where r.role = 'teacher'
          and not exists (select 1 from user_roles a where a.user_id = r.user_id and a.role = 'admin')
-       order by r.user_id limit 1`,
+       order by r.user_id limit 3`,
     );
+    ctx.edgeTeachers = edgeTeachers.map((t) => t.user_id);
     ctx.adminUser = admin!.user_id;
     ctx.teacherUser = teacher!.user_id;
     ctx.orgId = await one("insert into organizations (name) values ('#1595 P2② 契約：名冊')", []);
@@ -165,6 +164,34 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
        values ($1, 1, '18:00', '19:00', $2, '2026-01-01')`,
       [klass['c1'], staff],
     );
+    // 刀 2：二校那班是**前任**（時段已結束）—— 現任／前任判錯，w（二校在籍）就會進老師名冊
+    await q(
+      `insert into schedules (class_id, weekday, start_time, end_time, teacher_id, effective_from, effective_to)
+       values ($1, 2, '18:00', '19:00', $2, '2025-09-01', '2026-01-31')`,
+      [klass['c2'], staff],
+    );
+    // 別 org 的班，時段卻掛本 org 這位老師（FK 不擋）：任課班要經 classes.org_id 收，同 loadTenure
+    const campusB = await one(
+      "insert into campuses (org_id, name, attendance_mode) values ($1, '別 org 分校', 'per_session')",
+      [otherOrg],
+    );
+    campusOther = campusB;
+    const subjectB = await one("insert into subjects (org_id, name) values ($1, '數學')", [
+      otherOrg,
+    ]);
+    const courseB = await one(
+      "insert into courses (org_id, campus_id, name, subject_id) values ($1, $2, '別 org 課', $3)",
+      [otherOrg, campusB, subjectB],
+    );
+    const classB = await one(
+      "insert into classes (org_id, campus_id, course_id, name) values ($1, $2, $3, '別 org 班')",
+      [otherOrg, campusB, courseB],
+    );
+    await q(
+      `insert into schedules (class_id, weekday, start_time, end_time, teacher_id, effective_from)
+       values ($1, 3, '18:00', '19:00', $2, '2026-01-01')`,
+      [classB, staff],
+    );
     const school = async (org: string, name: string, level: string | null) =>
       one('insert into schools (org_id, name, level) values ($1, $2, $3::school_level)', [
         org,
@@ -195,7 +222,7 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
       onlyC2: await student('只在二校', 'P6', null),
       w: await student('一校退班', 'S1', null),
       p2: await student('待繳費', 'J3', null),
-      none: await student('沒報名', 'P1', null),
+      none: await student('只在別 org 班', 'P1', null),
     };
     const enroll = async (studentId: string, classId: string, status = 'active') =>
       q(
@@ -209,6 +236,53 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     await enroll(s.w, klass['c1']!, 'withdrawal');
     await enroll(s.w, klass['c2']!);
     await enroll(s.p2, klass['c1']!, 'pending_payment');
+    await enroll(s.none, classB);
+
+    // 刀 2 老師名冊的邊界：
+    // - 老師 2：現任班 c3（在二校：只在二校的那位才不會因此進一校範圍）只有一位**退班**生、一校那班是**前任** —— 該是空名冊（提早回空，today 是 null）
+    // - 老師 3：現任班 c4 只有一位**待繳費**生 —— 該看得到他
+    const edgeCourse = await one(
+      "insert into courses (org_id, campus_id, name, subject_id) values ($1, $2, '邊界課', $3)",
+      [ctx.orgId, campus.c1, subject],
+    );
+    const [c3, c4] = [
+      await one(
+        "insert into classes (org_id, campus_id, course_id, name) values ($1, $2, $3, '班 c3')",
+        [ctx.orgId, campus.c2, edgeCourse],
+      ),
+      await one(
+        "insert into classes (org_id, campus_id, course_id, name) values ($1, $2, $3, '班 c4')",
+        [ctx.orgId, campus.c1, edgeCourse],
+      ),
+    ];
+    for (const [i, current, past] of [
+      [0, c3, klass['c1']],
+      [1, c4, null],
+    ] as const) {
+      const st = await one(
+        "insert into staff (org_id, user_id, display_name) values ($1, $2, '邊界老師')",
+        [ctx.orgId, ctx.edgeTeachers[i]],
+      );
+      await q(
+        `insert into schedules (class_id, weekday, start_time, end_time, teacher_id, effective_from)
+         values ($1, 4, '18:00', '19:00', $2, '2026-01-01')`,
+        [current, st],
+      );
+      if (past)
+        await q(
+          `insert into schedules (class_id, weekday, start_time, end_time, teacher_id, effective_from, effective_to)
+           values ($1, 5, '18:00', '19:00', $2, '2025-09-01', '2026-01-31')`,
+          [past, st],
+        );
+    }
+    await enroll(s.onlyC2, c3, 'withdrawal');
+    // 別 org 的在籍報名掛在老師 2 的現任班（FK 不擋）：老師範圍的報名要限本 org，否則他的名冊不再是空的
+    await q(
+      `insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from)
+       values ($1, $2, $3, 'active', 'monthly', 1000, '2026-01-01')`,
+      [otherOrg, c3, s.w],
+    );
+    await enroll(s.b, c4, 'pending_payment');
 
     const card = (studentId: string, issuedAt: string, revoked = false) =>
       q(
@@ -252,11 +326,28 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     await q("update organizations set attendance_mode = 'daily_checkin' where id = $1", [
       ctx.orgId,
     ]);
+    // 到課時間的 fixture 要跟「幾點跑」無關（classifyToday 沒有寬限：到課時間一到就是沒到）：
+    // 一校那班今天的課堂 23:59、掛的活動 00:00 —— 到課時間從活動取 → 00:00，沒打卡的一律「沒到」；
+    // 讀不到活動的話會變 23:59「還沒到」。只有 23:58–24:00 跑會分不出來
+    const event = await one(
+      `insert into events (org_id, event_type, title, campus_id, event_date, start_time, end_time)
+       values ($1, 'session', '今日活動', $2, $3, '00:00', '00:30')`,
+      [ctx.orgId, campus.c1, today],
+    );
+    await q(
+      `insert into sessions (org_id, class_id, session_date, start_time, end_time, status, assignment_status, event_id)
+       values ($1, $2, $3, '23:59', '23:59', 'scheduled', 'unassigned', $4)`,
+      [ctx.orgId, klass['c1'], today, event],
+    );
+    // 別 org 的課堂掛在一校那班（FK 不擋），23:58：同一班多堂時後面那堂蓋過到課時間（sessionByClass），
+    // 課堂少了 org 條件，沒打卡的就從「沒到」變「還沒到」
     await q(
       `insert into sessions (org_id, class_id, session_date, start_time, end_time, status, assignment_status)
-       values ($1, $2, $3, '00:00', '00:30', 'scheduled', 'unassigned')`,
-      [ctx.orgId, klass['c1'], today],
+       values ($1, $2, $3, '23:58', '23:59', 'scheduled', 'unassigned')`,
+      [otherOrg, klass['c1'], today],
     );
+    // 二校設成逐堂點名（機構是日到班）：指定二校時沒有今日到班
+    await q("update campuses set attendance_mode = 'per_session' where id = $1", [campus.c2]);
     await q(
       'insert into daily_checkins (org_id, student_id, checkin_date, checked_in_at) values ($1, $2, $3, now())',
       [ctx.orgId, s.a, today],
@@ -292,11 +383,15 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
         'delete from parents where org_id = $1',
         'delete from checkin_cards where org_id = $1',
         'delete from daily_checkins where org_id = $1',
+        'delete from sessions where class_id in (select id from classes where org_id = $1)',
         'delete from sessions where org_id = $1',
-        'delete from enrollments where org_id = $1',
+        'delete from events where org_id = $1',
+        // 別 org 的報名會掛在本 org 的學生上（老師 2 的 fixture），連同一起刪
+        'delete from enrollments where org_id = $1 or student_id in (select id from students where org_id = $1)',
         'delete from students where org_id = $1',
         'delete from schools where org_id = $1',
         'delete from schedules where class_id in (select id from classes where org_id = $1)',
+        'delete from schedules where teacher_id in (select id from staff where org_id = $1)',
         'delete from classes where org_id = $1',
         'delete from courses where org_id = $1',
         'delete from subjects where org_id = $1',
@@ -448,6 +543,7 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
         .map((r) => r.name)
         .sort();
     expect(await names('today=arrived')).toEqual(['甲']);
+    // 到課時間取活動的 00:00（不是課堂的 23:59）→ 沒打卡的一律「沒到」
     expect((await names('today=missing')).length).toBeGreaterThan(3);
     expect(await names(`search=${PHONE}03`)).toEqual(['乙']);
     expect(await names(`search=${encodeURIComponent('甲媽')}`)).toEqual(['甲']);
@@ -515,6 +611,107 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     } finally {
       spy.mockRestore();
       ctx.campusScope = null;
+    }
+  });
+
+  it('老師名冊的邊界（刀 2）：只有退班生的現任班＝空、只有待繳費生的現任班看得到，兩條路相同', async () => {
+    const main = ctx.teacherUser;
+    ctx.teacher = true;
+    try {
+      const seen: string[][] = [];
+      for (const user of ctx.edgeTeachers) {
+        ctx.teacherUser = user;
+        for (const url of ['/api/students', '/api/students?withToday=false']) {
+          const viaSql = await hit(url, true);
+          expect(viaSql).toEqual(await hit(url, false));
+        }
+        seen.push(
+          ((await hit('/api/students', true)).body['data'] as Array<{ name: string }>).map(
+            (r) => r.name,
+          ),
+        );
+      }
+      expect(seen).toEqual([[], ['乙']]);
+    } finally {
+      ctx.teacherUser = main;
+      ctx.teacher = false;
+    }
+  });
+
+  it('今日到班只算老師自己任課班的課（#1100 #51）：老師 3 的學生今天只在別人的班有課 → null', async () => {
+    const main = ctx.teacherUser;
+    ctx.teacher = true;
+    ctx.teacherUser = ctx.edgeTeachers[1]!;
+    try {
+      const { body } = await hit('/api/students', true);
+      const rows = body['data'] as Array<{ name: string; todayStatus?: unknown }>;
+      expect(rows.map((r) => r.name)).toEqual(['乙']);
+      expect(rows[0]!.todayStatus).toBeNull();
+      // 對照：管理員看乙，今天一校那班有課 → 有狀態（不是 null），上一條才不是無腦通過
+      ctx.teacher = false;
+      const admin = (await hit(`/api/students?search=${encodeURIComponent('乙')}`, true)).body;
+      expect((admin['data'] as Array<{ todayStatus?: unknown }>)[0]!.todayStatus).not.toBeNull();
+    } finally {
+      ctx.teacherUser = main;
+      ctx.teacher = false;
+    }
+  });
+
+  it('點名模式：指定分校看分校設定（二校逐堂點名 → 沒有今日到班），別 org 的分校設定讀不到', async () => {
+    const today = async (qs: string) =>
+      ((await hit(`/api/students?${qs}`, true)).body['summary'] as { today: unknown } | undefined)
+        ?.today;
+    expect(await today(`campusId=${campus.c1}`)).not.toBeNull();
+    expect(await today(`campusId=${campus.c2}`)).toBeNull();
+    // 別 org 的分校：當成機構預設（日到班）算 —— 名單是空的，但今日到班有算（不是 null）
+    expect(await today(`campusId=${campusOther}`)).toEqual({
+      any: 0,
+      arrived: 0,
+      not_yet: 0,
+      missing: 0,
+      on_leave: 0,
+    });
+  });
+
+  it('第一頁（含今日到班）也不碰 REST：受限管理員、老師（舊碼：模式＋課堂 2–3 支）', async () => {
+    const realFetch = globalThis.fetch;
+    let rest = 0;
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      if (String(input instanceof Request ? input.url : input).includes('/rest/v1/')) rest += 1;
+      return realFetch(input, init);
+    });
+    try {
+      ctx.campusScope = [campus.c1];
+      const a = await hit('/api/students', true);
+      ctx.campusScope = null;
+      ctx.teacher = true;
+      const t = await hit('/api/students', true);
+      expect([a.status, t.status]).toEqual([200, 200]);
+      expect((a.body['summary'] as { today: unknown }).today).not.toBeNull();
+      expect(rest).toBe(0);
+    } finally {
+      spy.mockRestore();
+      ctx.campusScope = null;
+      ctx.teacher = false;
+    }
+  });
+
+  it('老師的列表不碰 REST（舊碼：staff → schedules → enrollments 三波）', async () => {
+    const realFetch = globalThis.fetch;
+    let rest = 0;
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      if (String(input instanceof Request ? input.url : input).includes('/rest/v1/')) rest += 1;
+      return realFetch(input, init);
+    });
+    try {
+      ctx.teacher = true;
+      const res = await hit('/api/students?withToday=false', true);
+      expect(res.status).toBe(200);
+      expect((res.body['data'] as unknown[]).length).toBeGreaterThan(0);
+      expect(rest).toBe(0);
+    } finally {
+      spy.mockRestore();
+      ctx.teacher = false;
     }
   });
 

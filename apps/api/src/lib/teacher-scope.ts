@@ -125,8 +125,19 @@ export async function loadTenure(
     .eq('classes.org_id', orgId)
     .eq('teacher_id', teacherStaffId);
 
+  return tenureFromSchedules(unwrap<Record<string, unknown>>(result, '查詢任課班級'), today);
+}
+
+/**
+ * 判準本體：把這位老師的時段列（`class_id`、`effective_from`、`effective_to`）分成現任／前任。
+ * REST（`loadTenure`）與 pg（`lib/teacher-roster-sql.ts`）兩條路都只撈原料、都走這一份（#1928 乙′）
+ */
+export function tenureFromSchedules(
+  schedules: readonly Record<string, unknown>[],
+  today: string = getCurrentTaipeiDateString(),
+): TeachingTenure {
   const byClass = new Map<string, Array<Record<string, unknown>>>();
-  for (const row of unwrap<Record<string, unknown>>(result, '查詢任課班級')) {
+  for (const row of schedules) {
     const id = row['class_id'] as string;
     byClass.set(id, [...(byClass.get(id) ?? []), row]);
   }
