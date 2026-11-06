@@ -4,7 +4,9 @@
 -->
 @if (classData; as classInfo) {
   <!-- 共用殼（#2290）：班名當 h2（可及名稱）、年級與上限當副標 -->
-  <app-dialog-frame [title]="classInfo.name" [sub]="subtitle(classInfo)" (closed)="close()">
+  <app-dialog-frame [title]="classInfo.name" (closed)="close()">
+    <!-- #2396 B：哪個班 -->
+    <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ subtitle(classInfo) }}</p>
     <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
       <span
         class="inline-flex overflow-hidden rounded-md border border-zinc-300"

@@ -1,5 +1,7 @@
 <!-- 共用殼（#2290）。內容照 A6 class.html:249-256（A2.form）：一個「停用方式」radio＋單一送出（#2361） -->
-<app-dialog-frame [title]="'停用「' + (cls()?.name ?? '') + '」'" [sub]="sub()" (closed)="cancel()">
+<app-dialog-frame [title]="'停用「' + (cls()?.name ?? '') + '」'" (closed)="cancel()">
+  <!-- #2396 C：目前幾位在籍（做決定要看的，搬進內容區） -->
+  <p class="m-0 text-base text-zinc-700" data-part="dialog-context">{{ sub() }}</p>
   <!-- 稿的 A2.form 把欄位包在 form 裡；送出鈕在殼的底部列，用 form 屬性指回（dialog-frame.md） -->
   <form
     id="deactivate-form"

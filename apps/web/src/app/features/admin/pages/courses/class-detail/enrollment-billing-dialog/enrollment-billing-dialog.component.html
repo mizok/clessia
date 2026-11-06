@@ -1,11 +1,7 @@
 <!-- 共用殼（#2290） -->
-<app-dialog-frame
-  title="計費設定"
-  [sub]="
-    enrollment.studentName + ' —— 計費模式是每位學生自己的選擇，同一班可以有月繳生也有期繳生。'
-  "
-  (closed)="cancel()"
->
+<app-dialog-frame title="計費設定" (closed)="cancel()">
+  <!-- #2396 B：是誰（副標的說明句刪） -->
+  <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ enrollment.studentName }}</p>
   <div class="flex flex-col gap-4">
     <div class="flex flex-col gap-2">
       <label class="text-sm font-medium text-zinc-600" for="eb-mode">計費模式</label>

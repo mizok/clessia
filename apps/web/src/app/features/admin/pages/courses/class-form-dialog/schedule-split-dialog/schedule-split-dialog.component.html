@@ -1,9 +1,9 @@
 <!-- 共用殼（#2290）：說明句當副標；✕＝取消 -->
-<app-dialog-frame
-  title="從某日起改時段"
-  [sub]="'原本的「' + oldLabel + '」上到 ' + oldEndLabel() + '，之後改成下面的時間。'"
-  (closed)="cancel()"
->
+<app-dialog-frame title="從某日起改時段" (closed)="cancel()">
+  <!-- #2396 C：改哪一段（做決定要看的，搬進內容區） -->
+  <p class="m-0 text-base text-zinc-700" data-part="dialog-context">
+    原本的「{{ oldLabel }}」上到 {{ oldEndLabel() }}，之後改成下面的時間。
+  </p>
   <div class="flex flex-col gap-3">
     <label class="flex flex-col gap-1 text-sm text-zinc-700">
       從哪天起
