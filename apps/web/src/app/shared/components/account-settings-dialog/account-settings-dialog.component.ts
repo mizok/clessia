@@ -49,9 +49,6 @@ export class AccountSettingsDialogComponent {
   /** A6 `.acset__in`：桌機 36、手機 44（稿自己的 ≤860 規則）；焦點框 zinc-900 */
   protected readonly inputClass =
     'h-11 min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-lg text-zinc-900 focus:border-zinc-900 focus:outline-none disabled:opacity-60 wide:h-9 wide:text-base';
-  /** A6 `.btn.btn--sm`（30、12px／600）；手機 44（R3） */
-  protected readonly smallBtnClass =
-    'inline-flex h-11 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-3 text-sm leading-normal font-semibold whitespace-nowrap hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-[30px]';
 
   protected readonly savingField = signal<FieldKey | null>(null);
   protected readonly fieldError = signal<{ field: FieldKey; msg: string } | null>(null);
