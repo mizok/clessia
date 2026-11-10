@@ -1420,6 +1420,8 @@ export const PAGES = {
     a6Open: opensOf('parents', 'a6Open'),
     appOpen: opensOf('parents', 'appOpen'),
     deviations: [
+      // #2396 ③：新增家長的說明句刪（A）
+      ...noSubDeviations('new-parent', '新增家長', '建立後[^\\]]*', { deleted: true }),
       // 家長詳情、匯入（#2290 換殼）：標頭是共用殼的（h2 20px＋✕ 桌機 40），稿各對話框的標頭高低不一
       ...[
         {
@@ -2154,6 +2156,8 @@ export const PAGES = {
     a6Open: opensOf('leave', 'a6Open'),
     appOpen: opensOf('leave', 'appOpen'),
     deviations: [
+      // #2396 ③：登記請假（勾堂）的說明句刪（A）
+      ...noSubDeviations('new-leave', '登記請假', '送出後[^\\]]*', { deleted: true }),
       // 登記請假手機分兩步（#2396，R5「手機重量級對話框分步／收合」）：手機只量得到第一步（選學生）。
       // 第二步的「請假日期」「原因」藏起來 → 缺；稿的這兩個標籤被工具依 DOM 順序配到第一步的「分校」「年級」
       // → 文案／位置／樣式；底部列跟著位移。工具限制：手機量不到第二步（要加「選學生→下一步」的 prep 才量得到）
@@ -2419,6 +2423,10 @@ export const PAGES = {
     a6Open: { leave: { click: '#leave', root: 'dialog.fdlg' } },
     appOpen: { leave: { click: 'button:has-text("幫孩子請假")', root: 'dialog[open]' } },
     deviations: [
+      // #2396 ③：孩子名搬進內容區第一行（B），「這段時間的課都會標成請假」刪（A）；稿的 form 帶內距、又被推下去（同教室）
+      ...noSubDeviations('leave', '登記請假', '\\{名\\}[^\\]]*', {
+        extra: [{ status: '位置', a6: '>landmark:dialog\\[登記請假\\]>landmark:form\\[\\]$' }],
+      }),
       {
         // 到班打卡但不是上課的紀錄照樣列出並標「非課堂」（使用者 11-02 照計畫席建議裁定：保留）
         status: '多',
@@ -3740,6 +3748,8 @@ export const PAGES = {
     app: '/teacher/schedule',
     state: path.join(cache, 'state-teacher.json'),
     deviations: [
+      // #2396 ③：到班名單的「日期 班 · 分校」搬進內容區第一行（B），說明句「日到班：…」刪（A）
+      ...noSubDeviations('arrivals', '到班名單', '[^\\]]*日到班[^\\]]*'),
       {
         // 拿掉的話 app 的週列會跑到 main 底下、跟稿的課卡搶配對（app 的 main 包住色面與工具列，#1591）
         status: '多',
@@ -3794,6 +3804,10 @@ export const PAGES = {
     // 稿的今天（shared/stress.js：2026-10-01 17:40，週四）：不釘的話「今天」底線、哪天有課、
     // 上課中都隨量測當天跑（#1967）
     clock: '2026-10-01T17:40:00+08:00',
+    deviations: [
+      // #2396 ③：課堂詳情的日期時間搬進內容區第一行（B）
+      ...noSubDeviations('detail', '[^\\]]*', '[^\\]]*#[^\\]]*'),
+    ],
   },
   'p-grades': {
     a6: 'p-grades.html',
@@ -4012,6 +4026,8 @@ export const PAGES = {
     state: PARENT_STATE,
     prep: PARENT_PREP,
     deviations: [
+      // #2396 ③：課堂、課程詳情的日期／時段搬進內容區第一行（B）
+      ...['ses', 'rec'].flatMap((pop) => noSubDeviations(pop, '[^\\]]*', '[^\\]]*#[^\\]]*')),
       {
         // 稿的「今天」有課；量測當天張宇軒沒課 → 寫下一堂（兩邊同一套句子）
         status: '文案',
@@ -4098,6 +4114,8 @@ export const PAGES = {
     state: path.join(cache, 'state-teacher.json'),
     // 篩選換成 A6 下拉（app-select-field），結構不同、外觀對齊 —— 同 p-grades
     deviations: [
+      // #2396 ③：學生面板的「年級 · 學校 · 班」搬進內容區第一行（B）
+      ...noSubDeviations('panel', '\\{名\\}新', '[^\\]]*·[^\\]]*'),
       ...selectFieldDeviations('班級'),
       {
         // 稿的班 17～26 人（兩位數），seed 的班 1～10 人：數字變窄，「人」跟著左移

@@ -2,7 +2,7 @@
 <app-dialog-frame [title]="isEditing() ? '編輯基本資料' : '新增考試'" (closed)="cancel()">
   <!-- #2396 B：編輯時寫是哪一場（新增時的說明句刪） -->
   @if (isEditing()) {
-    <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ formData().name }}</p>
+    <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">{{ formData().name }}</p>
   }
   <!-- 編輯要先拿到考試資料才畫表單；新增時表單先出來，只有班級選項晚一點到 -->
   @if (loading() && isEditing()) {

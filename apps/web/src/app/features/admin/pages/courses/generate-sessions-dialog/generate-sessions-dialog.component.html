@@ -2,7 +2,7 @@
 <app-dialog-frame title="產生課堂" (closed)="cancel()">
   <!-- #2396 B：分校 › 課程 › 班 -->
   @if (breadcrumb()) {
-    <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ breadcrumb() }}</p>
+    <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">{{ breadcrumb() }}</p>
   }
   <div class="flex flex-col gap-4">
     @if (step() === 'result') {

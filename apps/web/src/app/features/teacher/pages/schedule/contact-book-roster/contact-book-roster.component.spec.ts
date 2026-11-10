@@ -78,11 +78,11 @@ describe('ContactBookRosterComponent', () => {
     expect(f.nativeElement.querySelectorAll('.skeleton-list .skeleton').length).toBeGreaterThan(0);
   });
 
-  it('共用殼：h2 是班名、副標是日期＋聯絡簿；✕ 關掉面板（#2290）', async () => {
+  it('共用殼：h2 是班名、日期＋聯絡簿在內容區第一行（#2396）；✕ 關掉面板（#2290）', async () => {
     await render();
     const host = fixture.nativeElement as HTMLElement;
     expect(host.querySelector('h2')!.textContent?.trim()).toBe(INPUT.className);
-    expect(host.querySelector('.dialog-header-inline__sub')!.textContent).toContain('聯絡簿');
+    expect(host.querySelector('[data-part="dialog-context"]')!.textContent).toContain('聯絡簿');
     host.querySelector<HTMLButtonElement>('button[aria-label="關閉"]')!.click();
     expect(TestBed.inject(DynamicDialogRef).close).toHaveBeenCalledWith(false);
   });

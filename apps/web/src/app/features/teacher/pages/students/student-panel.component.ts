@@ -49,7 +49,11 @@ interface PanelData {
   imports: [DialogFrameComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-dialog-frame [title]="student().name" [sub]="subtitle()" (closed)="closed.emit()">
+    <app-dialog-frame [title]="student().name" (closed)="closed.emit()">
+      <!-- #2396 B：年級 · 學校 · 班 -->
+      @if (subtitle(); as context) {
+        <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">{{ context }}</p>
+      }
       @switch (state()) {
         @case ('loading') {
           <p class="m-0 text-md text-zinc-600" aria-live="polite">載入中…</p>

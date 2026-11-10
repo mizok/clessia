@@ -64,8 +64,8 @@ export class AttendanceRosterPanelComponent implements OnInit {
   private initialStatus = new Map<string, 'present' | 'absent'>();
 
   protected readonly session = this.config.data as RosterPanelSession;
-  /** 殼的副標：日期 · 時段 */
-  protected readonly sub = [this.session.eventDate, this.session.timeRange]
+  /** 內容區第一行：日期 · 時段（#2396 B） */
+  protected readonly context = [this.session.eventDate, this.session.timeRange]
     .filter(Boolean)
     .join(' · ');
 

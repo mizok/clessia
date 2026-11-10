@@ -1,9 +1,6 @@
-<!-- 共用殼（#2290）：A6 `.fdlg` 標題列（parents.html parentForm）h2＋副標＋關閉 -->
+<!-- 共用殼（#2290）：A6 `.fdlg` 標題列（parents.html parentForm）h2＋關閉（稿的副標說明句不放，#2396） -->
 <app-dialog-frame
   [title]="isEditMode() ? '編輯家長' : '新增家長'"
-  [sub]="
-    isEditMode() ? '帳號狀態在清單的 ⋯ 裡改' : '建立後會產生一次性登入連結，請家長當場用手機掃'
-  "
   (closed)="cancel()"
 >
   <!-- A6 `.fdlg__body`：姓名整列、Email／手機各半欄；手機一欄 -->

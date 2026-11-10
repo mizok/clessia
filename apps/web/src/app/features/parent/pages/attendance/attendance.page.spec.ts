@@ -629,7 +629,7 @@ describe('AttendancePage', () => {
       expect(leaveButton()).toBeDefined();
     });
 
-    it('打開：對話框裡是共用表單，學生固定是目前的孩子（不出學生欄），副標寫孩子名', async () => {
+    it('打開：對話框裡是共用表單，學生固定是目前的孩子（不出學生欄），孩子名在內容區第一行', async () => {
       withChild();
       leaveButton()!.click();
       await Promise.resolve();
@@ -637,7 +637,9 @@ describe('AttendancePage', () => {
       const dialog = el().querySelector('dialog')!;
       expect(dialog.open).toBe(true);
       expect(dialog.textContent).toContain('登記請假');
-      expect(dialog.textContent).toContain('測試孩子 · 這段時間的課都會標成請假');
+      // #2396：孩子名在內容區第一行，說明句「這段時間的課都會標成請假」刪
+      expect(dialog.querySelector('[data-part="dialog-context"]')?.textContent?.trim()).toBe('測試孩子');
+      expect(dialog.textContent).not.toContain('這段時間的課都會標成請假');
       expect(dialog.querySelector('app-leave-form-dialog')).not.toBeNull();
       expect(dialog.querySelector('app-student-autocomplete')).toBeNull();
     });

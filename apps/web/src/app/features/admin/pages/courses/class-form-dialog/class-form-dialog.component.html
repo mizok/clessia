@@ -2,7 +2,7 @@
 <app-dialog-frame [title]="dialogTitle()" (closed)="cancel()">
   <!-- #2396 B：分校 · 課程 -->
   @if (subtitle(); as context) {
-    <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ context }}</p>
+    <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">{{ context }}</p>
   }
   <!-- A6 `.fdlg__body`：兩欄 grid，班名／人數各半欄，其餘整列；手機一欄 -->
   <div class="grid grid-cols-2 gap-x-3 gap-y-4 max-wide:grid-cols-1">

@@ -326,9 +326,12 @@
   @if (detail(); as d) {
     <app-dialog-frame
       [title]="detailHead(d).title"
-      [sub]="detailHead(d).sub"
       (closed)="closeDetail()"
     >
+      <!-- #2396 B：哪天／哪個時段 -->
+      @if (detailHead(d).sub; as context) {
+        <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">{{ context }}</p>
+      }
       @switch (d.kind) {
         @case ('session') {
           <dl class="m-0 grid grid-cols-[6em_minmax(0,1fr)] gap-x-3 gap-y-2 text-base">
