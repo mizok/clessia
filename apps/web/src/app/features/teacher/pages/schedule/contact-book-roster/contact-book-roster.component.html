@@ -1,5 +1,7 @@
-<!-- 共用殼 app-dialog-frame（#2290）：A6 t-schedule `dlg()`（h2＋副標＋✕、sticky 底部） -->
-<app-dialog-frame [title]="input.className" [sub]="input.entryDate + '　聯絡簿'" (closed)="close()">
+<!-- 共用殼 app-dialog-frame（#2290）：A6 t-schedule `dlg()`（h2＋✕；副標進內容區第一行（#2396）、sticky 底部） -->
+<app-dialog-frame [title]="input.className" (closed)="close()">
+  <!-- #2396 B：哪天 -->
+  <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">{{ input.entryDate }}　聯絡簿</p>
   @if (loading()) {
     <app-skeleton label="聯絡簿名單載入中" [count]="3" />
   } @else if (loadError()) {

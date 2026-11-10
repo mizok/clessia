@@ -182,9 +182,12 @@
   @if (selected(); as s) {
     <app-dialog-frame
       [title]="s.className ?? ''"
-      [sub]="`${formatMd(s.date)}（${weekdayOf(s.date)}）${hhmm(s.startTime)}–${hhmm(s.endTime)}`"
       (closed)="closeDetail()"
     >
+      <!-- #2396 B：哪天 -->
+      <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">
+        {{ formatMd(s.date) }}（{{ weekdayOf(s.date) }}）{{ hhmm(s.startTime) }}–{{ hhmm(s.endTime) }}
+      </p>
       <dl class="m-0 grid grid-cols-[5.5em_minmax(0,1fr)] gap-x-3 gap-y-2 text-base">
         <dt class="text-zinc-600">老師</dt>
         <dd class="m-0">

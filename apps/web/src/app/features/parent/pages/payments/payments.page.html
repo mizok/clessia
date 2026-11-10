@@ -223,7 +223,8 @@
           <h2 class="payments__detail-title m-0 text-lg font-semibold">
             帳單 #{{ invoice.invoiceNo ?? invoice.id.slice(0, 8) }}
           </h2>
-          <p class="payments__detail-status m-0 text-sm text-zinc-500">
+          <!-- #2396 C：帳單狀態是內容本體，用內容段落的字（不是副標的灰小字） -->
+          <p class="payments__detail-status m-0 text-base text-zinc-700">
             {{ statusLabels[invoice.status] }}
           </p>
 
