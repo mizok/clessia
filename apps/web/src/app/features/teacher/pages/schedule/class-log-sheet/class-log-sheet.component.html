@@ -1,5 +1,7 @@
-<!-- 共用殼 app-dialog-frame（#2290）：A6 t-schedule `dlg()`（h2＋副標＋✕、sticky 底部） -->
-<app-dialog-frame [title]="input.className" [sub]="input.logDate" (closed)="close()">
+<!-- 共用殼 app-dialog-frame（#2290）：A6 t-schedule `dlg()`（h2＋✕；副標進內容區第一行（#2396）、sticky 底部） -->
+<app-dialog-frame [title]="input.className" (closed)="close()">
+  <!-- #2396 B：哪天 -->
+  <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ input.logDate }}</p>
   <!--
     同一班同一天兩場課會開到同一篇（class_logs 的鍵不含時段）。
     第二場的老師必須知道自己在編輯既有內容 —— 但真正的防線是上面已經

@@ -390,7 +390,7 @@ describe('家長端課表 ScheduleComponent', () => {
     const h2 = d.querySelector('h2')!;
     expect(h2.textContent).toContain('國三英文 A 班');
     expect(d.getAttribute('aria-labelledby')).toBe(h2.id);
-    expect(d.querySelector('.dialog-header-inline__sub')!.textContent).toMatch(
+    expect(d.querySelector('[data-part="dialog-context"]')!.textContent?.trim()).toMatch(
       /^\d+\/\d+（週.）\d\d:\d\d–\d\d:\d\d$/,
     );
     const foot = d.querySelector('.form-dialog__footer')!;

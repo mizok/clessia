@@ -1,5 +1,8 @@
-<!-- 共用殼（#2290）：h2＝班名、副標＝日期 · 時段 -->
-<app-dialog-frame [title]="session.className" [sub]="sub" (closed)="close()">
+<!-- 共用殼（#2290）：h2＝班名；日期 · 時段在內容區第一行（#2396 B） -->
+<app-dialog-frame [title]="session.className" (closed)="close()">
+  @if (context) {
+    <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ context }}</p>
+  }
   <div class="roster-panel flex flex-col">
     @if (notice()) {
       <app-inline-notice

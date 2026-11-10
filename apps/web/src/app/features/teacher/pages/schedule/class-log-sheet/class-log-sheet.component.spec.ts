@@ -123,11 +123,11 @@ describe('ClassLogSheetComponent', () => {
     });
   });
 
-  it('共用殼：h2 是班名、副標是日期；存檔在 sticky 底部；✕ 關閉不回報有存（#2290）', async () => {
+  it('共用殼：h2 是班名、日期在內容區第一行（#2396）；存檔在 sticky 底部；✕ 關閉不回報有存（#2290）', async () => {
     await render();
     const host = fixture.nativeElement as HTMLElement;
     expect(host.querySelector('h2')!.textContent?.trim()).toBe(INPUT.className);
-    expect(host.querySelector('.dialog-header-inline__sub')!.textContent?.trim()).toBe(
+    expect(host.querySelector('[data-part="dialog-context"]')!.textContent?.trim()).toBe(
       INPUT.logDate,
     );
     expect(host.querySelector('.form-dialog__footer')!.textContent).toContain('存檔');

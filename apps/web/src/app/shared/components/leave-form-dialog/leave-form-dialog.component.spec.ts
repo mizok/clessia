@@ -338,12 +338,12 @@ describe('LeaveFormDialogComponent 嵌入（家長端）', () => {
     return { f, c, closed };
   }
 
-  // #2290：嵌在家長端原生 <dialog> 裡 —— 標題「登記請假」、副標寫孩子，✕ 等同取消（closed 送 null）
-  it('嵌入：標題登記請假、副標寫孩子，按關閉＝取消', async () => {
+  // #2290：嵌在家長端原生 <dialog> 裡 —— 標題「登記請假」、孩子寫在內容區第一行（#2396），✕ 等同取消（closed 送 null）
+  it('嵌入：標題登記請假、孩子寫在內容區第一行，按關閉＝取消', async () => {
     const { f, closed } = await setup(vi.fn());
     const el = f.nativeElement as HTMLElement;
     expect(el.querySelector('app-dialog-frame h2')?.textContent?.trim()).toBe('登記請假');
-    expect(el.querySelector('.dialog-header-inline__sub')?.textContent).toContain('林子晴');
+    expect(el.querySelector('[data-part="dialog-context"]')?.textContent).toContain('林子晴');
     el.querySelector<HTMLButtonElement>('.dialog-header-inline__close')!.click();
     expect(closed).toHaveBeenCalledWith(null);
   });
@@ -533,7 +533,8 @@ describe('LeaveFormDialogComponent 勾堂（管理端，#2318）', () => {
     expect(boxes.map((b) => b.disabled)).toEqual([false, true, true, false]);
     expect(el.textContent).toContain('停課');
     expect(el.textContent).toContain('已請假');
-    expect(el.textContent).toContain('送出後，勾的課出缺席會標成請假');
+    // 說明句（A 類）刪了，不寫在副標、也不搬進內容區（#2396）
+    expect(el.textContent).not.toContain('送出後，勾的課出缺席會標成請假');
 
     dialog.toggle('s4');
     dialog.submit();

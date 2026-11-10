@@ -1,5 +1,6 @@
-<!-- 共用殼（#2290）：h2＝學生、副標＝日期 · 班名 · 最後編輯；簽收狀態原本在標頭右邊，移到內容區第一行 -->
-<app-dialog-frame [title]="studentName()" [sub]="sub()" (closed)="cancel()">
+<!-- 共用殼（#2290）：h2＝學生；日期 · 班名 · 最後編輯在內容區第一行（#2396 B），簽收狀態在它下面 -->
+<app-dialog-frame [title]="studentName()" (closed)="cancel()">
+  <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ context() }}</p>
   <div class="entry-dialog flex flex-col gap-4">
     <div>
       @if (entry(); as existing) {

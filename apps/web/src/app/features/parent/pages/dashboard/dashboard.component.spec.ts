@@ -320,7 +320,7 @@ describe('DashboardComponent（A6 p-dashboard）', () => {
     fixture.detectChanges();
     const h2 = dialog.querySelector('h2')!;
     expect(dialog.getAttribute('aria-labelledby')).toBe(h2.id);
-    expect(dialog.querySelector('.dialog-header-inline__sub')!.textContent).toMatch(
+    expect(dialog.querySelector('[data-part="dialog-context"]')!.textContent?.trim()).toMatch(
       /\d\d:\d\d–\d\d:\d\d$/,
     );
     const foot = dialog.querySelector('.form-dialog__footer')!;

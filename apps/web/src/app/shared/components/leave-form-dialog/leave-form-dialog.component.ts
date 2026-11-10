@@ -71,10 +71,11 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
   standalone: true,
   imports: [DialogFrameComponent, FormsModule, SelectModule, StudentAutocompleteComponent],
   template: `
-    <!-- 共用殼（#2290）：管理端標題讀開窗端的 header；家長端嵌在原生 <dialog> 裡，副標寫孩子 -->
-    <app-dialog-frame [title]="title" [sub]="sub()" (closed)="cancel()">
-      <!-- 嵌入（家長端）時學生寫在外框的副標，這裡不出學生欄（A6 forms.leave） -->
-      @if (student()) {
+    <!-- 共用殼（#2290）：管理端標題讀開窗端的 header；家長端嵌在原生 <dialog> 裡，孩子寫在內容區第一行 -->
+    <app-dialog-frame [title]="title" (closed)="cancel()">
+      <!-- 嵌入（家長端）時學生寫在內容區第一行（#2396 B；A6 forms.leave 寫在副標），這裡不出學生欄 -->
+      @if (student(); as s) {
+        <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ s.name }}</p>
       } @else if (fixedStudentName(); as fixedName) {
         <div class="flex w-full flex-col gap-1.5">
           <label class="text-sm font-medium text-zinc-700">學生</label>
@@ -312,13 +313,6 @@ export class LeaveFormDialogComponent implements OnInit {
 
   /** 殼的標題：管理端讀開窗端的 header（登記／編輯請假），家長端嵌入時是「登記請假」 */
   protected readonly title: string = (this.config?.header as string | undefined) ?? '登記請假';
-  /** 嵌入（家長端）時學生不出欄位，寫在副標（A6 forms.leave） */
-  protected readonly sub = computed(() => {
-    const s = this.student();
-    if (s) return `${s.name} · 這段時間的課都會標成請假`;
-    return this.mode() === 'sessions' ? '送出後，勾的課出缺席會標成請假' : '';
-  });
-
   // 預帶學生（學生檔案的「登記請假」）：`data.student` 有值就跟編輯一樣學生唯讀，不給選
   protected presetStudent(): { id: string; name: string } | null {
     return this.config?.data?.student ?? this.student();

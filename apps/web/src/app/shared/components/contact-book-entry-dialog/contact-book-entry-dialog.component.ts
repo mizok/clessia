@@ -95,8 +95,8 @@ export class ContactBookEntryDialogComponent {
   protected readonly entryDate = computed(
     () => this.entry()?.entryDate ?? this.draft()?.entryDate ?? '',
   );
-  /** 殼的副標：日期 · 全部班名（#2080-1：列上跨班只寫第一個＋N，點開看全部）· 最後編輯者 */
-  protected readonly sub = computed(() => {
+  /** 內容區第一行（#2396 B）：日期 · 全部班名（#2080-1：列上跨班只寫第一個＋N，點開看全部）· 最後編輯者 */
+  protected readonly context = computed(() => {
     const e = this.entry();
     return [
       this.entryDate(),

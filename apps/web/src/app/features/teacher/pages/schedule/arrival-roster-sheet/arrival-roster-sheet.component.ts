@@ -48,11 +48,10 @@ export class ArrivalRosterSheetComponent {
 
   protected readonly input = this.config.data as ArrivalRosterInput;
 
-  /** 殼的副標（A6：`M/d 開始 班名 · 分校 · 日到班：…`） */
-  protected readonly sub = [
+  /** 內容區第一行（#2396：A6 副標的 `M/d 開始 班名 · 分校`；說明句「日到班：…」刪） */
+  protected readonly context = [
     `${formatDate(this.input.eventDate, 'M/d', 'en-US')} ${this.input.startTime ?? ''} ${this.input.className}`,
     this.input.campusName,
-    '日到班：掃碼就算今天的課都到了',
   ]
     .filter(Boolean)
     .join(' · ');

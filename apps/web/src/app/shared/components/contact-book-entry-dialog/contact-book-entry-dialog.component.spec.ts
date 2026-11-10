@@ -58,15 +58,15 @@ describe('ContactBookEntryDialogComponent', () => {
   it('全部班名寫在日期後面；沒有班就不出現', async () => {
     await setup({ ...signedEntry, classNames: ['三年甲班', '作文班'] });
     const el = fixture.nativeElement as HTMLElement;
-    // 換殼後寫在副標（#2290）
-    expect(el.querySelector('.dialog-header-inline__sub')?.textContent).toContain(
+    // 換殼後寫在副標（#2290），#2396 起在內容區第一行
+    expect(el.querySelector('[data-part="dialog-context"]')?.textContent).toContain(
       '· 三年甲班、作文班',
     );
   });
 
   it('沒有班名：不出現班名那一段', async () => {
     await setup(signedEntry);
-    const sub = (fixture.nativeElement as HTMLElement).querySelector('.dialog-header-inline__sub');
+    const sub = (fixture.nativeElement as HTMLElement).querySelector('[data-part="dialog-context"]');
     expect(sub?.textContent).not.toContain('、');
   });
 
