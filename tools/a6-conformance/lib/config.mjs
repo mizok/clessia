@@ -473,21 +473,10 @@ const SELECT_FIELD_SOURCE =
 const NO_SUB_SOURCE = `${rule('R5')}「彈窗與抽屜不放副標」2026-11-06；#2396`;
 const noSubDeviations = (pop, title, sub, { deleted = false, extra = [] } = {}) =>
   [
-    {
-      status: '位置',
-      a6: `>landmark:dialog\\[${title}\\]>(heading:h2\\[${title}\\]|control:button\\[關閉\\])$`,
-    },
-    {
-      status: '尺寸',
-      a6: `>landmark:dialog\\[${title}\\]>heading:h2\\[${title}\\]$`,
-      detail: '^寬 ',
-    },
+    { status: '位置', a6: `>landmark:dialog\\[${title}\\]>(heading:h2\\[${title}\\]|control:button\\[關閉\\])$` },
+    { status: '尺寸', a6: `>landmark:dialog\\[${title}\\]>heading:h2\\[${title}\\]$`, detail: '^寬 ' },
     // 副標進了內容區（或刪掉後內容區上移／下移）：同一個彈出物裡的部件只上下位移、不左右偏
-    {
-      status: '位置',
-      a6: `>landmark:dialog\\[${title}\\]>`,
-      detail: '^相對「[^」]*」 Δx 0、Δy [+-]\\d+（',
-    },
+    { status: '位置', a6: `>landmark:dialog\\[${title}\\]>`, detail: '^相對「[^」]*」 Δx 0、Δy [+-]\\d+（' },
     ...(sub
       ? (deleted ? ['缺'] : ['位置', '尺寸', '樣式', '文案']).map((status) => ({
           status,
@@ -831,12 +820,7 @@ export const PAGES = {
       // 寬 520（稿 .acset 480，寬三種）／手機內容左右 16（稿 24）：整欄寬的部件變寬，靠右的儲存鈕跟著位移
       ...[
         { status: '尺寸', widths: [1440], detail: '^寬 (432→472|400→440)$' },
-        {
-          status: '位置',
-          widths: [1440],
-          a6: '>control:button\\[儲存\\](~\\d)?$',
-          detail: '^相對「帳號設定」 Δx \\+40、',
-        },
+        { status: '位置', widths: [1440], a6: '>control:button\\[儲存\\](~\\d)?$', detail: '^相對「帳號設定」 Δx \\+40、' },
       ].map((d) => ({
         a6: '^pop\\[acset\\]>',
         ...d,
@@ -846,12 +830,7 @@ export const PAGES = {
       })),
       ...[
         { status: '尺寸', widths: [360], detail: '^寬 (312→328|280→296)$' },
-        {
-          status: '位置',
-          widths: [360],
-          a6: '>control:button\\[儲存\\](~\\d)?$',
-          detail: '^相對「帳號設定」 Δx \\+8、',
-        },
+        { status: '位置', widths: [360], a6: '>control:button\\[儲存\\](~\\d)?$', detail: '^相對「帳號設定」 Δx \\+8、' },
       ].map((d) => ({
         a6: '^pop\\[acset\\]>',
         ...d,
@@ -861,16 +840,8 @@ export const PAGES = {
       })),
       // 量的帳號是管理員：有「對外暱稱」一欄（#1665，稿沒畫、R2 保留），下面各欄跟著下移
       ...[
-        {
-          status: '多',
-          app: '>landmark:dialog\\[帳號設定\\]>(text:label\\[對外暱稱\\]|text:p\\[公開課程目錄[^\\]]*\\]|control:button\\[儲存\\]~5)$',
-        },
-        {
-          status: '位置',
-          widths: [1440],
-          a6: '>landmark:dialog\\[帳號設定\\]>(text:label\\[(生日|Email|電話)\\]|text:p\\[補習班用這個Email[^\\]]*\\])$',
-          detail: '^相對「帳號設定」 Δx 0、Δy \\+10\\d（',
-        },
+        { status: '多', app: '>landmark:dialog\\[帳號設定\\]>(text:label\\[對外暱稱\\]|text:p\\[公開課程目錄[^\\]]*\\]|control:button\\[儲存\\]~5)$' },
+        { status: '位置', widths: [1440], a6: '>landmark:dialog\\[帳號設定\\]>(text:label\\[(生日|Email|電話)\\]|text:p\\[補習班用這個Email[^\\]]*\\])$', detail: '^相對「帳號設定」 Δx 0、Δy \\+10\\d（' },
       ].map((d) => ({
         ...d,
         pop: 'acset',
@@ -882,8 +853,7 @@ export const PAGES = {
         status,
         pop: 'acset',
         a6: '>landmark:region\\[家長身份\\]>text:p\\[已啟用\\]$',
-        reason:
-          '資料：量測帳號沒有家長身份，顯示「請洽補習班行政」那一句（有家長身份時照稿 ✓ 已啟用，spec 守）',
+        reason: '資料：量測帳號沒有家長身份，顯示「請洽補習班行政」那一句（有家長身份時照稿 ✓ 已啟用，spec 守）',
         source: `${rule('R2')}；#1844；#2390`,
       })),
       // 帳號設定：寬照 #2290「寬三種」用 520（稿 .acset 480），✕ 跟著右移 40
@@ -1731,9 +1701,7 @@ export const PAGES = {
       ...noSubDeviations('import', 'Excel匯入名冊', '[^\\]]*每列一位學生[^\\]]*'),
       ...noSubDeviations('off', '停用「[^」\\]]*」', '目前#位學生在籍', {
         // 稿的 form 帶內距、副標又搬進內容區：form 同時左右與上下位移（同教室）
-        extra: [
-          { status: '位置', a6: '>landmark:dialog\\[停用「[^」\\]]*」\\]>landmark:form\\[\\]$' },
-        ],
+        extra: [{ status: '位置', a6: '>landmark:dialog\\[停用「[^」\\]]*」\\]>landmark:form\\[\\]$' }],
       }),
       // 加入學生、Excel 匯入的關閉鈕：手機 44×44（稿 34／35 寬）
       ...['add', 'import'].flatMap((pop) =>
@@ -2581,9 +2549,7 @@ export const PAGES = {
     deviations: [
       // 教室：清單從副標搬進內容區第一行（#2396 D 類），下面的新增教室表單跟著下移
       ...noSubDeviations('rooms', '教室：\\{分校\\}', '[^\\]]*教室[^\\]]*', {
-        extra: [
-          { status: '位置', a6: '>landmark:dialog\\[教室：\\{分校\\}\\]>landmark:form\\[\\]$' },
-        ],
+        extra: [{ status: '位置', a6: '>landmark:dialog\\[教室：\\{分校\\}\\]>landmark:form\\[\\]$' }],
       }),
       noCampusSwitch('這頁就是分校清單本身'),
       ...[
