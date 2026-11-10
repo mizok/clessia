@@ -1,4 +1,5 @@
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
+import { DialogStepsComponent } from '@shared/components/dialog-steps/dialog-steps.component';
 import { Component, OnInit, inject, signal, computed, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -45,6 +46,7 @@ import {
   standalone: true,
   imports: [
     DialogFrameComponent,
+    DialogStepsComponent,
     FormsModule,
     ButtonModule,
     InputTextModule,
@@ -219,6 +221,13 @@ export class StudentPickerDialogComponent implements OnInit {
    * （不用切到繳費頁把那 30 個人再找一次）。
    */
   protected readonly step = signal<'selecting' | 'reviewing' | 'result'>('selecting');
+  /** 步驟標示（#2396 dialog-frame.md「操作量分級」L3）：手機內容區第一行 */
+  protected readonly stepNo = computed(() =>
+    this.step() === 'selecting' ? 1 : this.step() === 'reviewing' ? 2 : 3,
+  );
+  protected readonly stepLabel = computed(
+    () => ({ selecting: '選學生', reviewing: '確認與計費', result: '完成' })[this.step()],
+  );
 
   /** 已經開過帳的學生 —— 重試與補開都不該對同一個人開第二張 */
   private readonly invoicedStudentIds = signal<ReadonlySet<string>>(new Set<string>());

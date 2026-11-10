@@ -196,6 +196,40 @@ describe('StudentPickerDialogComponent', () => {
     expect(fixture.componentInstance['confirmError']()).toBe('超過班級人數上限，請減少加入人數');
   });
 
+  // #2396 dialog-frame.md「操作量分級」L3：步驟標示在內容區第一行；回上一步只在底部列（內容區不再放「返回選擇」）
+  it('步驟標示：第 1／3 步 選學生 → 第 2／3 步 確認與計費；第二步內容區沒有「返回選擇」', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const steps = () =>
+      el.querySelector('app-dialog-steps')!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(steps()).toBe('第 1／3 步 · 選學生');
+    pick('student-1');
+    fixture.detectChanges();
+    expect(steps()).toBe('第 2／3 步 · 確認與計費');
+    expect(el.textContent).not.toContain('返回選擇');
+    const back = [...el.querySelectorAll('.form-dialog__footer button')].find((b) =>
+      b.textContent?.includes('上一步'),
+    ) as HTMLButtonElement;
+    back.click();
+    fixture.detectChanges();
+    expect(steps()).toBe('第 1／3 步 · 選學生');
+  });
+
+  // dialog-frame.md「內容區第一行的先後」（計畫席 11-10，#2404）：步驟標示在前、班名緊接其後，都是 text-sm zinc-600
+  it('步驟標示在班名之前，兩行都是 text-sm zinc-600', () => {
+    (fixture.componentInstance as any).className = '數學班A';
+    fixture.componentRef.changeDetectorRef.markForCheck();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const steps = el.querySelector('app-dialog-steps p')!;
+    const ctx = el.querySelector('[data-part="dialog-context"]')!;
+    expect(ctx.textContent!.trim()).toBe('數學班A');
+    expect(steps.compareDocumentPosition(ctx) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    for (const p of [steps, ctx]) {
+      expect(p.classList).toContain('text-sm');
+      expect(p.classList).toContain('text-zinc-600');
+    }
+  });
+
   describe('立即開帳的預設值 —— 看選了幾個人', () => {
     // 選一個是櫃檯現場（那個人就站在前面，接下來就是收錢）
     it('選一個人預設要開帳', () => {
