@@ -85,143 +85,192 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
     <!-- 共用殼（#2290）：管理端標題讀開窗端的 header；家長端嵌在原生 <dialog> 裡，副標寫孩子 -->
     <app-dialog-frame [title]="title" [sub]="sub()" (closed)="cancel()">
       <!-- 手機分兩步（#2396 L3，dialog-frame.md「操作量分級」）：①學生 ②請假內容；學生固定（家長端、編輯、
-           預帶）就沒有第一步、單頁。送出鈕在殼的底部列 → type=submit form="leave-form"，Enter 與點鈕同一條路 -->
+           預帶）就沒有第一步、單頁。送出用的空 form 不包住欄位 —— 包了會多一層結構、跟 A6 對不上；
+           輸入框帶 form="leave-form" 歸到這裡，Enter 一樣送出它；底部鈕 type=submit form="leave-form" -->
       <form
         ngNoForm
         id="leave-form"
-        class="contents"
+        class="hidden"
         (submit)="$event.preventDefault(); onSubmit()"
-      >
-        @if (hasStudentStep()) {
-          <app-dialog-steps
-            [current]="step()"
-            [total]="2"
-            [label]="step() === 1 ? '學生' : '請假內容'"
-          />
-        }
-        <!-- 嵌入（家長端）時學生寫在外框的副標，這裡不出學生欄（A6 forms.leave） -->
-        @if (student()) {
-        } @else if (fixedStudentName(); as fixedName) {
+      ></form>
+      @if (hasStudentStep()) {
+        <app-dialog-steps
+          [current]="step()"
+          [total]="2"
+          [label]="step() === 1 ? '學生' : '請假內容'"
+        />
+      }
+      <!-- 嵌入（家長端）時學生寫在外框的副標，這裡不出學生欄（A6 forms.leave） -->
+      @if (student()) {
+      } @else if (fixedStudentName(); as fixedName) {
+        <div class="flex w-full flex-col gap-1.5">
+          <label class="text-sm font-medium text-zinc-700">學生</label>
+          <strong>{{ fixedName }}</strong>
+        </div>
+      } @else {
+        <div class="contents" [class.max-wide:hidden]="step() !== 1" data-step="1">
+          <div class="grid grid-cols-2 gap-3">
+            <div class="flex flex-col gap-1.5">
+              <label class="text-sm font-medium text-zinc-700">分校</label>
+              <p-select
+                [(ngModel)]="selectedCampusId"
+                [options]="campusOptions()"
+                optionLabel="label"
+                optionValue="value"
+                placeholder="全部分校"
+                styleClass="w-full"
+                (onChange)="onFilterChange()"
+              />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label class="text-sm font-medium text-zinc-700">年級</label>
+              <p-select
+                [(ngModel)]="selectedGrade"
+                [options]="gradeOptions"
+                optionLabel="label"
+                optionValue="value"
+                placeholder="全部年級"
+                styleClass="w-full"
+                (onChange)="onFilterChange()"
+              />
+            </div>
+          </div>
+
           <div class="flex w-full flex-col gap-1.5">
-            <label class="text-sm font-medium text-zinc-700">學生</label>
-            <strong>{{ fixedName }}</strong>
+            <label class="text-sm font-medium text-zinc-700"
+              >學生 <span class="text-error-600">*</span></label
+            >
+            <!-- 跟儀表板「登記請假」同一組（#2318）：建議列寫分校 · 家長，家長名也找得到 -->
+            <app-student-autocomplete
+              [value]="selectedStudent"
+              (valueChange)="onStudent($event)"
+              [suggestions]="studentSuggestions()"
+              [showContact]="true"
+              (queryChange)="searchStudents($event)"
+            />
+          </div>
+        </div>
+      }
+
+      <div
+        class="contents"
+        [class.max-wide:hidden]="hasStudentStep() && step() !== 2"
+        data-step="2"
+      >
+        @if (mode() === 'sessions') {
+          <!-- A6 leave.html newLeave（#2318）：請假日期 → 那天的課（勾選，預設全勾）→ 原因 -->
+          <!-- 稿的這幾欄直接在 acset__body 裡（殼的內容區），不包 form、不多包一層 -->
+          <div class="min-w-0">
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="leave-day"
+              >請假日期 <span class="text-error-700" aria-hidden="true">*</span></label
+            >
+            <input
+              id="leave-day"
+              form="leave-form"
+              type="date"
+              class="h-10 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+              [value]="day()"
+              (input)="onDay($any($event.target).value)"
+            />
+          </div>
+          <div class="min-w-0" data-testid="leave-pick">
+            <p class="m-0 mb-1 text-md font-semibold text-zinc-700" id="leave-pick-label">
+              要請假的課
+            </p>
+            <!-- A6 .pick：清單與空狀態都在這一層（標題在外面） -->
+            <div class="flex flex-col gap-2">
+              @if (!studentId()) {
+                <!-- A6 .pick__none -->
+                <p class="m-0 rounded-md bg-zinc-100 p-3 text-md text-zinc-700">
+                  先選學生，這裡會列出他那天的課。
+                </p>
+              } @else if (dayState() === 'loading') {
+                <p class="m-0 text-md text-zinc-600" role="status">載入這天的課…</p>
+              } @else if (dayState() === 'error') {
+                <p class="m-0 text-md text-error-700">讀不到這天的課，請換個日期或稍後再試。</p>
+              } @else if (daySessions().length === 0) {
+                <p class="m-0 rounded-md bg-zinc-100 p-3 text-md text-zinc-700">
+                  該日無排課。{{ studentLabel() }}在 {{ dayLabel() }} 沒有課，換一天試試。
+                </p>
+              } @else {
+                <div class="contents" role="group" aria-labelledby="leave-pick-label">
+                  @for (s of daySessions(); track s.sessionId) {
+                    <label
+                      class="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-3 has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset has-disabled:cursor-not-allowed has-disabled:text-zinc-500"
+                    >
+                      <input
+                        type="checkbox"
+                        class="m-0 size-[18px] accent-zinc-900"
+                        [checked]="picked().has(s.sessionId)"
+                        [disabled]="!!blockedReason(s)"
+                        (change)="toggle(s.sessionId)"
+                      />
+                      <span class="font-semibold">{{ s.className }}</span>
+                      <small class="ml-auto text-sm text-zinc-600 tabular-nums"
+                        >{{ s.startTime?.slice(0, 5) }}–{{ s.endTime?.slice(0, 5) }}</small
+                      >
+                      @if (blockedReason(s); as why) {
+                        <span class="text-sm text-zinc-600">{{ why }}</span>
+                      }
+                    </label>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+          <div class="min-w-0">
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="leave-reason"
+              >原因（選填）</label
+            >
+            <input
+              id="leave-reason"
+              form="leave-form"
+              type="text"
+              [(ngModel)]="reason"
+              placeholder="請假原因"
+              autocomplete="off"
+              class="h-10 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+            />
           </div>
         } @else {
-          <div class="contents" [class.max-wide:hidden]="step() !== 1" data-step="1">
-            <div class="grid grid-cols-2 gap-3">
-              <div class="flex flex-col gap-1.5">
-                <label class="text-sm font-medium text-zinc-700">分校</label>
-                <p-select
-                  [(ngModel)]="selectedCampusId"
-                  [options]="campusOptions()"
-                  optionLabel="label"
-                  optionValue="value"
-                  placeholder="全部分校"
-                  styleClass="w-full"
-                  (onChange)="onFilterChange()"
+          <!-- A6 forms.leave：四個欄各自有標籤，桌機兩兩並排、手機一欄一列 -->
+          <!-- ngNoForm：A6 的欄位包在 <form> 裡，但這裡的 ngModel 是 standalone，不要 NgForm -->
+          <form
+            ngNoForm
+            class="grid grid-cols-1 gap-x-3 gap-y-4 wide:grid-cols-2"
+            (submit)="$event.preventDefault()"
+          >
+            @for (f of dateFields; track f.key) {
+              <!-- A6 .acset__f／.acset__l：標籤是 block＋下距 4，欄位是一般的 inline-block（不包 flex） -->
+              <div class="min-w-0">
+                <label
+                  class="mb-1 block text-md font-semibold text-zinc-700"
+                  [attr.for]="'leave-' + f.key"
+                  >{{ f.label }}
+                  @if (f.required) {
+                    <span class="text-error-700" aria-hidden="true">*</span>
+                  }
+                </label>
+                <!-- A6 forms.leave：原生 date／time 欄（.acset__in），手機 44 高、字 16 -->
+                <input
+                  [id]="'leave-' + f.key"
+                  form="leave-form"
+                  [type]="f.time ? 'time' : 'date'"
+                  class="h-10 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+                  [value]="toInput(this[f.key], f.time)"
+                  [min]="f.key === 'endDate' ? toInput(startDate, false) : ''"
+                  (input)="setField(f.key, fromInput($any($event.target).value, f.time))"
                 />
               </div>
-              <div class="flex flex-col gap-1.5">
-                <label class="text-sm font-medium text-zinc-700">年級</label>
-                <p-select
-                  [(ngModel)]="selectedGrade"
-                  [options]="gradeOptions"
-                  optionLabel="label"
-                  optionValue="value"
-                  placeholder="全部年級"
-                  styleClass="w-full"
-                  (onChange)="onFilterChange()"
-                />
-              </div>
-            </div>
-
-            <div class="flex w-full flex-col gap-1.5">
-              <label class="text-sm font-medium text-zinc-700"
-                >學生 <span class="text-error-600">*</span></label
-              >
-              <!-- 跟儀表板「登記請假」同一組（#2318）：建議列寫分校 · 家長，家長名也找得到 -->
-              <app-student-autocomplete
-                [value]="selectedStudent"
-                (valueChange)="onStudent($event)"
-                [suggestions]="studentSuggestions()"
-                [showContact]="true"
-                (queryChange)="searchStudents($event)"
-              />
-            </div>
-          </div>
-        }
-
-        <div
-          class="contents"
-          [class.max-wide:hidden]="hasStudentStep() && step() !== 2"
-          data-step="2"
-        >
-          @if (mode() === 'sessions') {
-            <!-- A6 leave.html newLeave（#2318）：請假日期 → 那天的課（勾選，預設全勾）→ 原因 -->
-            <!-- 稿的這幾欄直接在 acset__body 裡（殼的內容區），不包 form、不多包一層 -->
-            <div class="min-w-0">
-              <label class="mb-1 block text-md font-semibold text-zinc-700" for="leave-day"
-                >請假日期 <span class="text-error-700" aria-hidden="true">*</span></label
-              >
-              <input
-                id="leave-day"
-                type="date"
-                class="h-10 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
-                [value]="day()"
-                (input)="onDay($any($event.target).value)"
-              />
-            </div>
-            <div class="min-w-0" data-testid="leave-pick">
-              <p class="m-0 mb-1 text-md font-semibold text-zinc-700" id="leave-pick-label">
-                要請假的課
-              </p>
-              <!-- A6 .pick：清單與空狀態都在這一層（標題在外面） -->
-              <div class="flex flex-col gap-2">
-                @if (!studentId()) {
-                  <!-- A6 .pick__none -->
-                  <p class="m-0 rounded-md bg-zinc-100 p-3 text-md text-zinc-700">
-                    先選學生，這裡會列出他那天的課。
-                  </p>
-                } @else if (dayState() === 'loading') {
-                  <p class="m-0 text-md text-zinc-600" role="status">載入這天的課…</p>
-                } @else if (dayState() === 'error') {
-                  <p class="m-0 text-md text-error-700">讀不到這天的課，請換個日期或稍後再試。</p>
-                } @else if (daySessions().length === 0) {
-                  <p class="m-0 rounded-md bg-zinc-100 p-3 text-md text-zinc-700">
-                    該日無排課。{{ studentLabel() }}在 {{ dayLabel() }} 沒有課，換一天試試。
-                  </p>
-                } @else {
-                  <div class="contents" role="group" aria-labelledby="leave-pick-label">
-                    @for (s of daySessions(); track s.sessionId) {
-                      <label
-                        class="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-3 has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset has-disabled:cursor-not-allowed has-disabled:text-zinc-500"
-                      >
-                        <input
-                          type="checkbox"
-                          class="m-0 size-[18px] accent-zinc-900"
-                          [checked]="picked().has(s.sessionId)"
-                          [disabled]="!!blockedReason(s)"
-                          (change)="toggle(s.sessionId)"
-                        />
-                        <span class="font-semibold">{{ s.className }}</span>
-                        <small class="ml-auto text-sm text-zinc-600 tabular-nums"
-                          >{{ s.startTime?.slice(0, 5) }}–{{ s.endTime?.slice(0, 5) }}</small
-                        >
-                        @if (blockedReason(s); as why) {
-                          <span class="text-sm text-zinc-600">{{ why }}</span>
-                        }
-                      </label>
-                    }
-                  </div>
-                }
-              </div>
-            </div>
-            <div class="min-w-0">
+            }
+            <div class="min-w-0 wide:col-span-2">
               <label class="mb-1 block text-md font-semibold text-zinc-700" for="leave-reason"
                 >原因（選填）</label
               >
+              <!-- A6 是單行文字欄 -->
               <input
                 id="leave-reason"
+                form="leave-form"
                 type="text"
                 [(ngModel)]="reason"
                 placeholder="請假原因"
@@ -229,62 +278,20 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
                 class="h-10 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
               />
             </div>
-          } @else {
-            <!-- A6 forms.leave：四個欄各自有標籤，桌機兩兩並排、手機一欄一列 -->
-            <!-- ngNoForm：A6 的欄位包在 <form> 裡，但這裡的 ngModel 是 standalone，不要 NgForm -->
-            <!-- 外層已是整個對話框的 form（leave-form），這裡不再巢狀 form -->
-            <div class="grid grid-cols-1 gap-x-3 gap-y-4 wide:grid-cols-2">
-              @for (f of dateFields; track f.key) {
-                <!-- A6 .acset__f／.acset__l：標籤是 block＋下距 4，欄位是一般的 inline-block（不包 flex） -->
-                <div class="min-w-0">
-                  <label
-                    class="mb-1 block text-md font-semibold text-zinc-700"
-                    [attr.for]="'leave-' + f.key"
-                    >{{ f.label }}
-                    @if (f.required) {
-                      <span class="text-error-700" aria-hidden="true">*</span>
-                    }
-                  </label>
-                  <!-- A6 forms.leave：原生 date／time 欄（.acset__in），手機 44 高、字 16 -->
-                  <input
-                    [id]="'leave-' + f.key"
-                    [type]="f.time ? 'time' : 'date'"
-                    class="h-10 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
-                    [value]="toInput(this[f.key], f.time)"
-                    [min]="f.key === 'endDate' ? toInput(startDate, false) : ''"
-                    (input)="setField(f.key, fromInput($any($event.target).value, f.time))"
-                  />
-                </div>
-              }
-              <div class="min-w-0 wide:col-span-2">
-                <label class="mb-1 block text-md font-semibold text-zinc-700" for="leave-reason"
-                  >原因（選填）</label
-                >
-                <!-- A6 是單行文字欄 -->
-                <input
-                  id="leave-reason"
-                  type="text"
-                  [(ngModel)]="reason"
-                  placeholder="請假原因"
-                  autocomplete="off"
-                  class="h-10 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
-                />
-              </div>
-            </div>
-          }
-          <!-- 跨日、指定時段（現況有、A6 沒畫，R2 不刪）：收成一個連結。編輯時維持原本的模式 -->
-          @if (pickSessions && !editing) {
-            <button
-              type="button"
-              class="mt-1 inline-flex min-h-11 cursor-pointer items-center self-start border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-[3px]"
-              data-testid="leave-mode-toggle"
-              (click)="switchMode()"
-            >
-              {{ mode() === 'sessions' ? '改用日期區間（跨日、指定時段）' : '改回勾選當天的課' }}
-            </button>
-          }
-        </div>
-      </form>
+          </form>
+        }
+        <!-- 跨日、指定時段（現況有、A6 沒畫，R2 不刪）：收成一個連結。編輯時維持原本的模式 -->
+        @if (pickSessions && !editing) {
+          <button
+            type="button"
+            class="mt-1 inline-flex min-h-11 cursor-pointer items-center self-start border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-[3px]"
+            data-testid="leave-mode-toggle"
+            (click)="switchMode()"
+          >
+            {{ mode() === 'sessions' ? '改用日期區間（跨日、指定時段）' : '改回勾選當天的課' }}
+          </button>
+        }
+      </div>
 
       <!--
         A6 form() 的底部：必填沒填時送出鈕不鎖死，旁邊一行寫還差什麼（#723：disabled 會把「為什麼不行」藏起來）；

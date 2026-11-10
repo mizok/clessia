@@ -217,6 +217,13 @@ describe('LeaveFormDialogComponent', () => {
         expect(form().contains(b)).toBe(false);
       }
     });
+
+    it('送出用的 form 不包住欄位（結構照 A6）；日期、原因欄帶 form="leave-form"，Enter 送到它', () => {
+      expect(form().children).toHaveLength(0);
+      const fields = el().querySelectorAll<HTMLInputElement>('#leave-startDate, #leave-reason');
+      expect(fields.length).toBe(2);
+      for (const f of fields) expect(f.form).toBe(form());
+    });
   });
 
   // A6 form()：送出鈕不鎖死，旁邊一行寫還差什麼；填好就消失
