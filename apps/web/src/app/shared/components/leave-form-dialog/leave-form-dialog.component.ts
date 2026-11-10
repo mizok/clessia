@@ -75,7 +75,7 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
     <app-dialog-frame [title]="title" (closed)="cancel()">
       <!-- 嵌入（家長端）時學生寫在內容區第一行（#2396 B；A6 forms.leave 寫在副標），這裡不出學生欄 -->
       @if (student(); as s) {
-        <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ s.name }}</p>
+        <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">{{ s.name }}</p>
       } @else if (fixedStudentName(); as fixedName) {
         <div class="flex w-full flex-col gap-1.5">
           <label class="text-sm font-medium text-zinc-700">學生</label>

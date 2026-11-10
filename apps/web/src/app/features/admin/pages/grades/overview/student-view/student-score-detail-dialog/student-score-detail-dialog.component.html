@@ -10,7 +10,7 @@
   <!-- 共用殼（#2290）：A6 `.acset.gdlg` 標題列、sticky 底部；左右內距交給殼的內容區 -->
   <app-dialog-frame [title]="s.name + ' 的成績'" (closed)="close()">
     <!-- #2396 B：是誰 -->
-    <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ subtitle(s) }}</p>
+    <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">{{ subtitle(s) }}</p>
     <!-- 左右內距在殼的內容區（--dlg-pad-x），各段只留上下 -->
     <div class="flex flex-col">
       @if (loadingSummary()) {

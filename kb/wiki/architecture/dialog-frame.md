@@ -3,7 +3,7 @@ title: 對話框與貼底面板的共用規則（app-dialog-frame）
 summary: 全站對話框收斂成共用殼 app-dialog-frame（h2＋副標＋關閉、內距、sticky 底部、手機貼底抽屜的底部留白）；寬三種 --dlg-w-sm/md/lg、左右內距 --dlg-pad-x（24／手機 16）、貼底底部留白 --sheet-foot-gap＋safe-area 只墊一次；進退場時長走 --motion-* token，減少動態時只淡入淡出。手機操作量分級（L1～L4：選填收合、抽屜內分步 app-dialog-steps、整頁），送出鈕一律在 sticky 底部列。#2290 第 3 步分批遷移中。
 category: architecture
 status: developing
-updated: 2026-11-06
+updated: 2026-11-10
 tags: [architecture, dialog, a6, motion, accessibility]
 ---
 
@@ -65,6 +65,7 @@ tags: [architecture, dialog, a6, motion, accessibility]
 **L3 分步怎麼寫**：
 
 - 一步一件事；**內容區第一行**放 `<app-dialog-steps [current] [total] [label]>`（「第 2／3 步 · 計費」，只在手機顯示、`aria-live`）
+- **內容區第一行的先後**（計畫席 11-10 裁，#2404）：步驟標示（導覽）在前，B 類識別資訊（是誰／哪天／哪班，`data-part="dialog-context"`，副標拆掉後搬進內容區的那行）緊接其後，兩者都有時各一行；只有一個時就它是第一行。**`dialog-context` 那行一律 `text-sm text-zinc-600`**，不分有沒有步驟標示（計畫席 11-10 裁）
 - 底部列：第一步左「取消」；之後左「上一步」（次要）、右「下一步」（橘 cta —— A6 `DIRECTION.md:17`「步驟頁『下一步』是橘」）；最後一步主鈕寫動作名
 - **只在手機分步、桌機單頁**：每段都渲染，手機用 `max-wide:hidden` 藏起不是目前那步的段落；上一步／下一步只在 `max-wide:` 出現，桌機只有原本的送出。表單狀態只有一份
 - 驗證：按「下一步」只驗這一步，沒過寫在底部列左側「還沒填：…」，不前進

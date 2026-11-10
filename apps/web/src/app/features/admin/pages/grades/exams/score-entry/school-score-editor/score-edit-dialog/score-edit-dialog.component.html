@@ -2,7 +2,7 @@
 <app-dialog-frame [title]="data?.studentName ?? '學生'" (closed)="close()">
   <!-- #2396 B：年級 -->
   @if (formatGrade(data?.studentGrade ?? null); as grade) {
-    <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ grade }}</p>
+    <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">{{ grade }}</p>
   }
   @if (isDirty()) {
     <p

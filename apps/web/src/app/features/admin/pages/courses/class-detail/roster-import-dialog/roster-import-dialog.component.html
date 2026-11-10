@@ -2,7 +2,7 @@
 <app-dialog-frame title="Excel 匯入名冊" (closed)="close()">
   <!-- #2396 B：哪個班（說明句刪，上傳步驟本來就寫了欄位） -->
   @if (className) {
-    <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ className }}</p>
+    <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">{{ className }}</p>
   }
   @switch (step()) {
     <!-- ── 步驟一：上傳 ────────────────────────────────────────────── -->

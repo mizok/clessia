@@ -155,7 +155,7 @@ node tools/a6-conformance/run.mjs compare billing schedule --base main --head <P
    每條必須有 `reason` 與 `source`（kb 頁:行、issue 留言），報告逐條印出來。
 5. **待修**：其餘。**目標是每頁歸零**。
 
-偏離條目的寫法（欄位都是 regex 字串，`status` 必填）：
+偏離條目的寫法（`detail`／`a6`／`app`／`host` 是 regex 字串；**`status`、`pop`、`kind` 是全等比對**，要涵蓋幾種狀態就各寫一條；`status` 必填）：
 
 ```js
 { status: '尺寸', kind: 'control', widths: [360], detail: '^高 \\d+→(4[4-9]|[5-9]\\d)',
