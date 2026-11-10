@@ -473,10 +473,21 @@ const SELECT_FIELD_SOURCE =
 const NO_SUB_SOURCE = `${rule('R5')}「彈窗與抽屜不放副標」2026-11-06；#2396`;
 const noSubDeviations = (pop, title, sub, { deleted = false, extra = [] } = {}) =>
   [
-    { status: '位置', a6: `>landmark:dialog\\[${title}\\]>(heading:h2\\[${title}\\]|control:button\\[關閉\\])$` },
-    { status: '尺寸', a6: `>landmark:dialog\\[${title}\\]>heading:h2\\[${title}\\]$`, detail: '^寬 ' },
+    {
+      status: '位置',
+      a6: `>landmark:dialog\\[${title}\\]>(heading:h2\\[${title}\\]|control:button\\[關閉\\])$`,
+    },
+    {
+      status: '尺寸',
+      a6: `>landmark:dialog\\[${title}\\]>heading:h2\\[${title}\\]$`,
+      detail: '^寬 ',
+    },
     // 副標進了內容區（或刪掉後內容區上移／下移）：同一個彈出物裡的部件只上下位移、不左右偏
-    { status: '位置', a6: `>landmark:dialog\\[${title}\\]>`, detail: '^相對「[^」]*」 Δx 0、Δy [+-]\\d+（' },
+    {
+      status: '位置',
+      a6: `>landmark:dialog\\[${title}\\]>`,
+      detail: '^相對「[^」]*」 Δx 0、Δy [+-]\\d+（',
+    },
     ...(sub
       ? (deleted ? ['缺'] : ['位置', '尺寸', '樣式', '文案']).map((status) => ({
           status,
@@ -820,7 +831,12 @@ export const PAGES = {
       // 寬 520（稿 .acset 480，寬三種）／手機內容左右 16（稿 24）：整欄寬的部件變寬，靠右的儲存鈕跟著位移
       ...[
         { status: '尺寸', widths: [1440], detail: '^寬 (432→472|400→440)$' },
-        { status: '位置', widths: [1440], a6: '>control:button\\[儲存\\](~\\d)?$', detail: '^相對「帳號設定」 Δx \\+40、' },
+        {
+          status: '位置',
+          widths: [1440],
+          a6: '>control:button\\[儲存\\](~\\d)?$',
+          detail: '^相對「帳號設定」 Δx \\+40、',
+        },
       ].map((d) => ({
         a6: '^pop\\[acset\\]>',
         ...d,
@@ -830,7 +846,12 @@ export const PAGES = {
       })),
       ...[
         { status: '尺寸', widths: [360], detail: '^寬 (312→328|280→296)$' },
-        { status: '位置', widths: [360], a6: '>control:button\\[儲存\\](~\\d)?$', detail: '^相對「帳號設定」 Δx \\+8、' },
+        {
+          status: '位置',
+          widths: [360],
+          a6: '>control:button\\[儲存\\](~\\d)?$',
+          detail: '^相對「帳號設定」 Δx \\+8、',
+        },
       ].map((d) => ({
         a6: '^pop\\[acset\\]>',
         ...d,
@@ -840,8 +861,16 @@ export const PAGES = {
       })),
       // 量的帳號是管理員：有「對外暱稱」一欄（#1665，稿沒畫、R2 保留），下面各欄跟著下移
       ...[
-        { status: '多', app: '>landmark:dialog\\[帳號設定\\]>(text:label\\[對外暱稱\\]|text:p\\[公開課程目錄[^\\]]*\\]|control:button\\[儲存\\]~5)$' },
-        { status: '位置', widths: [1440], a6: '>landmark:dialog\\[帳號設定\\]>(text:label\\[(生日|Email|電話)\\]|text:p\\[補習班用這個Email[^\\]]*\\])$', detail: '^相對「帳號設定」 Δx 0、Δy \\+10\\d（' },
+        {
+          status: '多',
+          app: '>landmark:dialog\\[帳號設定\\]>(text:label\\[對外暱稱\\]|text:p\\[公開課程目錄[^\\]]*\\]|control:button\\[儲存\\]~5)$',
+        },
+        {
+          status: '位置',
+          widths: [1440],
+          a6: '>landmark:dialog\\[帳號設定\\]>(text:label\\[(生日|Email|電話)\\]|text:p\\[補習班用這個Email[^\\]]*\\])$',
+          detail: '^相對「帳號設定」 Δx 0、Δy \\+10\\d（',
+        },
       ].map((d) => ({
         ...d,
         pop: 'acset',
@@ -853,7 +882,8 @@ export const PAGES = {
         status,
         pop: 'acset',
         a6: '>landmark:region\\[家長身份\\]>text:p\\[已啟用\\]$',
-        reason: '資料：量測帳號沒有家長身份，顯示「請洽補習班行政」那一句（有家長身份時照稿 ✓ 已啟用，spec 守）',
+        reason:
+          '資料：量測帳號沒有家長身份，顯示「請洽補習班行政」那一句（有家長身份時照稿 ✓ 已啟用，spec 守）',
         source: `${rule('R2')}；#1844；#2390`,
       })),
       // 帳號設定：寬照 #2290「寬三種」用 520（稿 .acset 480），✕ 跟著右移 40
@@ -1410,6 +1440,8 @@ export const PAGES = {
     a6Open: opensOf('parents', 'a6Open'),
     appOpen: opensOf('parents', 'appOpen'),
     deviations: [
+      // #2396 ③：新增家長的說明句刪（A）
+      ...noSubDeviations('new-parent', '新增家長', '建立後[^\\]]*', { deleted: true }),
       // 家長詳情、匯入（#2290 換殼）：標頭是共用殼的（h2 20px＋✕ 桌機 40），稿各對話框的標頭高低不一
       ...[
         {
@@ -1699,7 +1731,9 @@ export const PAGES = {
       ...noSubDeviations('import', 'Excel匯入名冊', '[^\\]]*每列一位學生[^\\]]*'),
       ...noSubDeviations('off', '停用「[^」\\]]*」', '目前#位學生在籍', {
         // 稿的 form 帶內距、副標又搬進內容區：form 同時左右與上下位移（同教室）
-        extra: [{ status: '位置', a6: '>landmark:dialog\\[停用「[^」\\]]*」\\]>landmark:form\\[\\]$' }],
+        extra: [
+          { status: '位置', a6: '>landmark:dialog\\[停用「[^」\\]]*」\\]>landmark:form\\[\\]$' },
+        ],
       }),
       // 加入學生、Excel 匯入的關閉鈕：手機 44×44（稿 34／35 寬）
       ...['add', 'import'].flatMap((pop) =>
@@ -2144,6 +2178,8 @@ export const PAGES = {
     a6Open: opensOf('leave', 'a6Open'),
     appOpen: opensOf('leave', 'appOpen'),
     deviations: [
+      // #2396 ③：登記請假（勾堂）的說明句刪（A）
+      ...noSubDeviations('new-leave', '登記請假', '送出後[^\\]]*', { deleted: true }),
       // 批次請假的課堂：app-select-field 對稿的 .dd（#2325，全站同一套）
       ...selectFieldInDialog('batch', '課堂', '選擇'),
       // 批次請假（#2325）：手機內容左右 16（共用殼的規格，稿 24），內容區的段落與欄位寬 +16
@@ -2393,6 +2429,10 @@ export const PAGES = {
     a6Open: { leave: { click: '#leave', root: 'dialog.fdlg' } },
     appOpen: { leave: { click: 'button:has-text("幫孩子請假")', root: 'dialog[open]' } },
     deviations: [
+      // #2396 ③：孩子名搬進內容區第一行（B），「這段時間的課都會標成請假」刪（A）；稿的 form 帶內距、又被推下去（同教室）
+      ...noSubDeviations('leave', '登記請假', '\\{名\\}[^\\]]*', {
+        extra: [{ status: '位置', a6: '>landmark:dialog\\[登記請假\\]>landmark:form\\[\\]$' }],
+      }),
       {
         // 到班打卡但不是上課的紀錄照樣列出並標「非課堂」（使用者 11-02 照計畫席建議裁定：保留）
         status: '多',
@@ -2541,7 +2581,9 @@ export const PAGES = {
     deviations: [
       // 教室：清單從副標搬進內容區第一行（#2396 D 類），下面的新增教室表單跟著下移
       ...noSubDeviations('rooms', '教室：\\{分校\\}', '[^\\]]*教室[^\\]]*', {
-        extra: [{ status: '位置', a6: '>landmark:dialog\\[教室：\\{分校\\}\\]>landmark:form\\[\\]$' }],
+        extra: [
+          { status: '位置', a6: '>landmark:dialog\\[教室：\\{分校\\}\\]>landmark:form\\[\\]$' },
+        ],
       }),
       noCampusSwitch('這頁就是分校清單本身'),
       ...[
@@ -3699,6 +3741,8 @@ export const PAGES = {
     app: '/teacher/schedule',
     state: path.join(cache, 'state-teacher.json'),
     deviations: [
+      // #2396 ③：到班名單的「日期 班 · 分校」搬進內容區第一行（B），說明句「日到班：…」刪（A）
+      ...noSubDeviations('arrivals', '到班名單', '[^\\]]*日到班[^\\]]*'),
       {
         // 拿掉的話 app 的週列會跑到 main 底下、跟稿的課卡搶配對（app 的 main 包住色面與工具列，#1591）
         status: '多',
@@ -3753,6 +3797,10 @@ export const PAGES = {
     // 稿的今天（shared/stress.js：2026-10-01 17:40，週四）：不釘的話「今天」底線、哪天有課、
     // 上課中都隨量測當天跑（#1967）
     clock: '2026-10-01T17:40:00+08:00',
+    deviations: [
+      // #2396 ③：課堂詳情的日期時間搬進內容區第一行（B）
+      ...noSubDeviations('detail', '[^\\]]*', '[^\\]]*#[^\\]]*'),
+    ],
   },
   'p-grades': {
     a6: 'p-grades.html',
@@ -3971,6 +4019,8 @@ export const PAGES = {
     state: PARENT_STATE,
     prep: PARENT_PREP,
     deviations: [
+      // #2396 ③：課堂、課程詳情的日期／時段搬進內容區第一行（B）
+      ...['ses', 'rec'].flatMap((pop) => noSubDeviations(pop, '[^\\]]*', '[^\\]]*#[^\\]]*')),
       {
         // 稿的「今天」有課；量測當天張宇軒沒課 → 寫下一堂（兩邊同一套句子）
         status: '文案',
@@ -4057,6 +4107,8 @@ export const PAGES = {
     state: path.join(cache, 'state-teacher.json'),
     // 篩選換成 A6 下拉（app-select-field），結構不同、外觀對齊 —— 同 p-grades
     deviations: [
+      // #2396 ③：學生面板的「年級 · 學校 · 班」搬進內容區第一行（B）
+      ...noSubDeviations('panel', '\\{名\\}新', '[^\\]]*·[^\\]]*'),
       ...selectFieldDeviations('班級'),
       {
         // 稿的班 17～26 人（兩位數），seed 的班 1～10 人：數字變窄，「人」跟著左移
