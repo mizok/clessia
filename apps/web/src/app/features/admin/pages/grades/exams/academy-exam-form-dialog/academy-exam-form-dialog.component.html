@@ -148,14 +148,19 @@
       <!-- 手機 L2（#2396，dialog-frame.md「操作量分級」）：選填收「更多設定」，手機預設收合；
            桌機一律展開、summary 不出現 —— 裡面的 grid 同外層，版面跟原本一樣 -->
       <details
-        class="col-span-full min-w-0"
+        class="group col-span-full min-w-0"
         data-testid="exam-more"
         [open]="moreOpen()"
         (toggle)="moreOpen.set($any($event.target).open)"
       >
         <summary
-          class="flex min-h-11 cursor-pointer items-center text-md font-semibold text-zinc-700 wide:hidden"
+          class="flex min-h-11 cursor-pointer items-center gap-2 text-md font-semibold text-zinc-700 wide:hidden"
         >
+          <!-- summary 是 flex，原生三角不出現：自己畫一個，展開時轉向下 -->
+          <i
+            class="pi pi-chevron-right text-xs transition-transform group-open:rotate-90 motion-reduce:transition-none"
+            aria-hidden="true"
+          ></i>
           更多設定（3 項）
         </summary>
         <div class="grid grid-cols-2 gap-x-3 gap-y-4 max-wide:grid-cols-1 max-wide:pt-2">
