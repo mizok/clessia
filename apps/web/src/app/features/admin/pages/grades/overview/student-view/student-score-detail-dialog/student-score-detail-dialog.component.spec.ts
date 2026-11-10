@@ -220,18 +220,18 @@ describe('StudentScoreDetailDialogComponent', () => {
     expect(h2?.textContent?.trim()).toBe('王小明 的成績');
     expect(h2?.id).toMatch(/^dialog-title-/);
     expect(
-      (fixture.nativeElement as HTMLElement).querySelector('.dialog-header-inline__sub')
+      (fixture.nativeElement as HTMLElement).querySelector('[data-part="dialog-context"]')
         ?.textContent,
     ).toContain('國一');
   });
 
   // #2291：手機標頭上方的綠色格狀圖示是舊版的 jdenticon 頭像（稿沒有）；標頭只留 h2、副標、關閉鈕
-  it('標頭只有 h2、副標與關閉鈕 —— 沒有頭像', () => {
+  it('標頭只有 h2 與關閉鈕 —— 沒有頭像、沒有副標（#2396：是誰搬進內容區第一行）', () => {
     fixture.detectChanges();
     const head = (fixture.nativeElement as HTMLElement).querySelector('.dialog-header-inline')!;
     expect(head.querySelector('app-jdenticon-avatar, svg, img, canvas')).toBeNull();
     const parts = [...head.querySelectorAll('h2, p, button')].map((e) => e.tagName);
-    expect(parts).toEqual(['H2', 'P', 'BUTTON']);
+    expect(parts).toEqual(['H2', 'BUTTON']);
     expect(head.querySelector('button')?.getAttribute('aria-label')).toBe('關閉');
   });
 

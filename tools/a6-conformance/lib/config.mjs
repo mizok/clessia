@@ -481,12 +481,14 @@ const SELECT_FIELD_SOURCE =
  * `title`＝h2 名稱的 regex 片段；`sub`＝稿副標段落 `text:p[…]` 名稱的 regex 片段（A 類刪掉的不給）
  */
 const NO_SUB_SOURCE = `${rule('R5')}「彈窗與抽屜不放副標」2026-11-06；#2396`;
-const noSubDeviations = (pop, title, sub, extra = []) =>
+const noSubDeviations = (pop, title, sub, { deleted = false, extra = [] } = {}) =>
   [
     { status: '位置', a6: `>landmark:dialog\\[${title}\\]>(heading:h2\\[${title}\\]|control:button\\[關閉\\])$` },
     { status: '尺寸', a6: `>landmark:dialog\\[${title}\\]>heading:h2\\[${title}\\]$`, detail: '^寬 ' },
+    // 副標進了內容區（或刪掉後內容區上移／下移）：同一個彈出物裡的部件只上下位移、不左右偏
+    { status: '位置', a6: `>landmark:dialog\\[${title}\\]>`, detail: '^相對「[^」]*」 Δx 0、Δy [+-]\\d+（' },
     ...(sub
-      ? ['位置', '尺寸', '樣式'].map((status) => ({
+      ? (deleted ? ['缺'] : ['位置', '尺寸', '樣式', '文案']).map((status) => ({
           status,
           a6: `>landmark:dialog\\[${title}\\]>text:p\\[${sub}\\]$`,
         }))
@@ -495,7 +497,9 @@ const noSubDeviations = (pop, title, sub, extra = []) =>
   ].map((d) => ({
     ...d,
     pop,
-    reason: '彈窗不放副標：稿的副標搬進內容區或刪掉，標頭變矮、h2 不再被撐寬',
+    reason: deleted
+      ? '彈窗不放副標：說明句（A 類）刪掉，標頭變矮、h2 不再被撐寬'
+      : '彈窗不放副標：稿的副標搬進內容區，標頭變矮、h2 不再被撐寬、內容跟著位移',
     source: NO_SUB_SOURCE,
   }));
 const selectFieldDeviations = (names) =>
@@ -1543,6 +1547,9 @@ export const PAGES = {
     a6Open: opensOf('courses', 'a6Open'),
     appOpen: opensOf('courses', 'appOpen'),
     deviations: [
+      // #2396 ②：新增課程的說明句刪（A）；新增班級的「分校 · 課程」搬進內容區（B）
+      ...noSubDeviations('new-course', '新增課程', '課程是[^\\]]*', { deleted: true }),
+      ...noSubDeviations('new-class', '新增班級', '[^\\]]*'),
       // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 grades-class #1762 那條
       ...['尺寸', '樣式', '位置'].map((status) => ({
         status,
@@ -1696,6 +1703,14 @@ export const PAGES = {
       },
     },
     deviations: [
+      // #2396 ②：副標搬進內容區（B／C）或刪掉（A）
+      ...noSubDeviations('gen', '產生課堂', '\\{分校\\} ›[^\\]]*'),
+      ...noSubDeviations('add', '加入學生', '[^\\]]*加入後狀態[^\\]]*'),
+      ...noSubDeviations('import', 'Excel匯入名冊', '[^\\]]*每列一位學生[^\\]]*'),
+      ...noSubDeviations('off', '停用「[^」\\]]*」', '目前#位學生在籍', {
+        // 稿的 form 帶內距、副標又搬進內容區：form 同時左右與上下位移（同教室）
+        extra: [{ status: '位置', a6: '>landmark:dialog\\[停用「[^」\\]]*」\\]>landmark:form\\[\\]$' }],
+      }),
       // 加入學生、Excel 匯入的關閉鈕：手機 44×44（稿 34／35 寬）
       ...['add', 'import'].flatMap((pop) =>
         [
@@ -2535,9 +2550,9 @@ export const PAGES = {
     },
     deviations: [
       // 教室：清單從副標搬進內容區第一行（#2396 D 類），下面的新增教室表單跟著下移
-      ...noSubDeviations('rooms', '教室：\\{分校\\}', '[^\\]]*教室[^\\]]*', [
-        { status: '位置', a6: '>landmark:dialog\\[教室：\\{分校\\}\\]>landmark:form\\[\\]$' },
-      ]),
+      ...noSubDeviations('rooms', '教室：\\{分校\\}', '[^\\]]*教室[^\\]]*', {
+        extra: [{ status: '位置', a6: '>landmark:dialog\\[教室：\\{分校\\}\\]>landmark:form\\[\\]$' }],
+      }),
       noCampusSwitch('這頁就是分校清單本身'),
       ...[
         { status: '位置', detail: '^相對' },
@@ -3083,6 +3098,8 @@ export const PAGES = {
     a6Open: opensOf('exams', 'a6Open'),
     appOpen: opensOf('exams', 'appOpen'),
     deviations: [
+      // #2396 ②：新增考試的說明句刪（A）
+      ...noSubDeviations('new-exam', '新增考試', '建好之後[^\\]]*', { deleted: true }),
       {
         // G1b 之後：手機班名連結撐 44（觸控下限），「# ／# 已登錄」整格（span~2）Δy 跟著 +N 已歸連帶；
         // 裡面的粗體數字工具只拿它跟「所在列」比、不跟父層比，連帶傳不下來，同一個 Δy 在這裡補上
@@ -3179,6 +3196,8 @@ export const PAGES = {
       complete: { click: 'button:has-text("標記完成")', root: 'dialog[open]' },
     },
     deviations: [
+      // #2396 ②：加入其他學生的說明句刪（A）
+      ...noSubDeviations('add', '加入其他學生', '不在這個班[^\\]]*', { deleted: true }),
       // 標記完成：「X／Y 已登錄」從副標搬進內容區（#2396 C 類）
       ...noSubDeviations('complete', '標記完成', '#／#已登錄[^\\]]*'),
       noCampusSwitch('看的是一場考試；班可能跨分校，誰能看由後端權限擋'),
@@ -3290,6 +3309,8 @@ export const PAGES = {
       ...opensOf('grades-student', 'appOpen'),
     },
     deviations: [
+      // #2396 ②：成績明細的「年級 · 學校」搬進內容區第一行（B）
+      ...noSubDeviations('detail', '\\{名\\}的成績', '[^\\]]*·[^\\]]*'),
       ...xpSheet('gexp'),
       // 「全部學生 N 位」不畫：匯出的「全部」是 API 端範圍（scores.ts resolveScoreScope），跟畫面清單口徑不同
       ...[

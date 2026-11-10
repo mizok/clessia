@@ -1,10 +1,12 @@
 <!-- 共用殼（#2290）：標題原本是開窗端的 PrimeNG header；各步驟的動作列收成一個 dialogFoot（投影只吃最上層節點） -->
-<app-dialog-frame
-  title="加入學生"
-  [sub]="(className ? className + ' · ' : '') + '勾選要加入的學生，下一步確認並可一起開帳單'"
-  (closed)="cancel()"
->
+<app-dialog-frame title="加入學生" (closed)="cancel()">
+  <!-- 內容區第一行的先後（dialog-frame.md）：步驟標示（導覽）在前，B 類識別資訊（哪個班）緊接其後；
+       兩者都有時各一行、都用 text-sm zinc-600 -->
   <app-dialog-steps [current]="stepNo()" [total]="3" [label]="stepLabel()" />
+  <!-- #2396 B：哪個班（說明句刪） -->
+  @if (className) {
+    <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">{{ className }}</p>
+  }
   @if (step() === 'selecting') {
     <!-- Command Bar -->
     <div class="shrink-0 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">

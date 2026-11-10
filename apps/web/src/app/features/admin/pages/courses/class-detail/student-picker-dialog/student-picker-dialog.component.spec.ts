@@ -214,6 +214,22 @@ describe('StudentPickerDialogComponent', () => {
     expect(steps()).toBe('第 1／3 步 · 選學生');
   });
 
+  // dialog-frame.md「內容區第一行的先後」（計畫席 11-10，#2404）：步驟標示在前、班名緊接其後，都是 text-sm zinc-600
+  it('步驟標示在班名之前，兩行都是 text-sm zinc-600', () => {
+    (fixture.componentInstance as any).className = '數學班A';
+    fixture.componentRef.changeDetectorRef.markForCheck();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const steps = el.querySelector('app-dialog-steps p')!;
+    const ctx = el.querySelector('[data-part="dialog-context"]')!;
+    expect(ctx.textContent!.trim()).toBe('數學班A');
+    expect(steps.compareDocumentPosition(ctx) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    for (const p of [steps, ctx]) {
+      expect(p.classList).toContain('text-sm');
+      expect(p.classList).toContain('text-zinc-600');
+    }
+  });
+
   describe('立即開帳的預設值 —— 看選了幾個人', () => {
     // 選一個是櫃檯現場（那個人就站在前面，接下來就是收錢）
     it('選一個人預設要開帳', () => {
