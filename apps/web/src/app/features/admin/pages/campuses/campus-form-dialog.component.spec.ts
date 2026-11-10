@@ -67,6 +67,10 @@ function setup(permissions: string[], campus: Campus | null = CAMPUS) {
  * #1073：分校的帳戶資訊覆寫。改它要 `manage_finance`（改帳號＝改家長匯款的去向）——
  * 沒有那個權限的管理員看不到欄位，送出的 body 也不帶這個 key（帶了 API 會 403，整張表單存不了）。
  */
+// setup() 把 matchMedia stub 成永遠 true；不還原的話同一個 worker 之後的 spec 都以為是手機
+// （dialog-steps 的「沒有 matchMedia 當桌機」因此隨執行順序紅，#2396 L4 驗證時撞到）
+afterEach(() => vi.unstubAllGlobals());
+
 describe('CampusFormDialogComponent —— 帳戶資訊（#1073）', () => {
   it('有 manage_finance：看得到欄位（帶分校目前的值），儲存送 paymentInfo', () => {
     const { el, update, save } = setup(['manage_finance']);
