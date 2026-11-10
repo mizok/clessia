@@ -486,6 +486,46 @@ describe('ClassFormDialogComponent', () => {
   });
 
   /** #1118：家長端推薦加選的人工標記 —— 門檻跟班級本身一樣（manage_courses），永遠送 */
+  describe('hasChanges（#2396 L4 整頁的離開保護）', () => {
+    const existing = {
+      id: 'class-1',
+      name: '舊班',
+      maxStudents: 20,
+      nextClassId: null,
+      isActive: true,
+      schedules: [
+        { id: 'sch-1', weekday: 1, startTime: '09:00:00', endTime: '11:00:00', teacherId: null },
+      ],
+    };
+    const recreate = (cls: Record<string, unknown> | null) => {
+      TestBed.inject(DynamicDialogConfig).data.cls = cls;
+      fixture = TestBed.createComponent(ClassFormDialogComponent);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+    };
+    afterEach(() => {
+      TestBed.inject(DynamicDialogConfig).data.cls = null;
+    });
+
+    it('新增：一開沒改過；改班名、改時段各算改過', () => {
+      recreate(null);
+      expect(component.hasChanges()).toBe(false);
+      (component as any).updateForm('name', 'A 班');
+      expect(component.hasChanges()).toBe(true);
+      recreate(null);
+      (component as any).updateScheduleEntry(0, 'startTime', '18:00');
+      expect(component.hasChanges()).toBe(true);
+    });
+
+    it('編輯：讀完詳情（時段換成伺服器版、key 重編）不算改過', () => {
+      recreate(existing);
+      expect(classesServiceMock.get).toHaveBeenCalledWith('class-1');
+      expect(component.hasChanges()).toBe(false);
+      (component as any).isRecommended.set(true);
+      expect(component.hasChanges()).toBe(true);
+    });
+  });
+
   it('推薦加選：預設關，打開後送出帶 isRecommended: true', () => {
     expect(fixture.nativeElement.textContent).toContain('家長端推薦加選');
     expect((component as any).isRecommended()).toBe(false);
