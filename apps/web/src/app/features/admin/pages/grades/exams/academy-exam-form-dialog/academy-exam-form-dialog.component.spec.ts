@@ -499,29 +499,35 @@ describe('AcademyExamFormDialogComponent', () => {
       expect(more().open).toBe(true);
     });
 
-    it('手機編輯：選填有值（不是預設）就展開，不藏資料', async () => {
+    // 三個條件各自守一則（#2409 二讀：只靠範圍說明觸發時，拿掉另兩個條件 spec 不會紅）
+    const editExam = (over: Record<string, unknown>) => ({
+      data: {
+        id: 'exam-1',
+        name: '月考',
+        examType: 'quiz',
+        status: 'active',
+        subjectId: 's1',
+        campusId: 'c1',
+        examDate: '2026-03-20',
+        totalScore: 100,
+        passScore: null,
+        scopeNote: '',
+        classes: [{ classId: 'cls-1', className: 'A班' }],
+        summary: { recordedCount: 0, expectedCount: 10 },
+        ...over,
+      },
+    });
+    it.each([
+      ['只改滿分', { totalScore: 50 }, true],
+      ['只填及格分數', { passScore: 60 }, true],
+      ['只填範圍說明', { scopeNote: '第 3 章' }, true],
+      ['全是預設', {}, false],
+    ])('手機編輯：%s → 更多設定 open=%s（有值就展開，不藏資料）', async (_label, over, open) => {
       narrow(true);
-      academyExamsServiceMock.get.mockReturnValueOnce(
-        of({
-          data: {
-            id: 'exam-1',
-            name: '月考',
-            examType: 'quiz',
-            status: 'active',
-            subjectId: 's1',
-            campusId: 'c1',
-            examDate: '2026-03-20',
-            totalScore: 100,
-            passScore: null,
-            scopeNote: '第 3 章',
-            classes: [{ classId: 'cls-1', className: 'A班' }],
-            summary: { recordedCount: 0, expectedCount: 10 },
-          },
-        }),
-      );
+      academyExamsServiceMock.get.mockReturnValueOnce(of(editExam(over)));
       await createComponent({ data: { mode: 'edit', examId: 'exam-1' } });
       fixture.detectChanges();
-      expect(more().open).toBe(true);
+      expect(more().open).toBe(open);
     });
 
     it('手機：卡在收起來的滿分時，按送出會打開「更多設定」、不送出', async () => {
