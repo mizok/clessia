@@ -120,7 +120,7 @@ describe('ClassScoresDialogComponent', () => {
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('app-dialog-frame h2')?.textContent?.trim()).toBe('A班');
-    expect(el.querySelector('.dialog-header-inline__sub')?.textContent?.trim()).toBe(
+    expect(el.querySelector('[data-part="dialog-context"]')?.textContent?.trim()).toBe(
       '國一 · 上限 20 人',
     );
     el.querySelector<HTMLButtonElement>('.dialog-header-inline__close')!.click();

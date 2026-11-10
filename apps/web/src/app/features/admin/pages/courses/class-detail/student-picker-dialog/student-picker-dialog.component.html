@@ -1,9 +1,9 @@
 <!-- 共用殼（#2290）：標題原本是開窗端的 PrimeNG header；各步驟的動作列收成一個 dialogFoot（投影只吃最上層節點） -->
-<app-dialog-frame
-  title="加入學生"
-  [sub]="(className ? className + ' · ' : '') + '勾選要加入的學生，下一步確認並可一起開帳單'"
-  (closed)="cancel()"
->
+<app-dialog-frame title="加入學生" (closed)="cancel()">
+  <!-- #2396 B：哪個班（說明句刪） -->
+  @if (className) {
+    <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ className }}</p>
+  }
   @if (step() === 'selecting') {
     <!-- Command Bar -->
     <div class="shrink-0 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">

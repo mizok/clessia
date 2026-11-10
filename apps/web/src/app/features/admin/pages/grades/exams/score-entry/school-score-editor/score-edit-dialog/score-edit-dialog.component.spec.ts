@@ -62,7 +62,7 @@ describe('ScoreEditDialogComponent', () => {
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('app-dialog-frame h2')?.textContent?.trim()).toBe('王小明');
-    expect(el.querySelector('.dialog-header-inline__sub')?.textContent?.trim()).toBe('國一');
+    expect(el.querySelector('[data-part="dialog-context"]')?.textContent?.trim()).toBe('國一');
     expect(el.querySelector('.form-dialog__footer')?.textContent).toContain('儲存');
   });
 

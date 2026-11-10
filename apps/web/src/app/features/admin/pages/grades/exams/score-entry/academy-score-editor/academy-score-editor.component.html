@@ -38,11 +38,7 @@
   >
     <!-- 打開時才建殼：p-dialog 的投影內容在關著時就建好，appDialogTitle 那時找不到外框，名稱會是空的 -->
     @if (addingStudent()) {
-      <app-dialog-frame
-        title="加入其他學生"
-        sub="不在這個班、但這次一起考的學生（例如插班、補考）"
-        (closed)="addingStudent.set(false)"
-      >
+      <app-dialog-frame title="加入其他學生" (closed)="addingStudent.set(false)">
         <app-student-autocomplete
           [suggestions]="studentSuggestions()"
           (queryChange)="onStudentQuery($event)"
