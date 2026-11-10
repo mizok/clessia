@@ -110,6 +110,16 @@ describe('RosterImportDialogComponent', () => {
       fixture.componentRef.changeDetectorRef.markForCheck();
       fixture.detectChanges();
     };
+    // 點底部列的「上一步」鈕（不直接呼叫方法：鈕綁錯函式也要測得出來，#2406 突變 R1）
+    const clickBack = () => {
+      const btn = [
+        ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
+          '.form-dialog__footer button',
+        ),
+      ].find((b) => b.textContent!.trim() === '上一步')!;
+      btn.click();
+      render();
+    };
     const footerLabels = () =>
       [
         ...(fixture.nativeElement as HTMLElement).querySelectorAll('.form-dialog__footer button'),
@@ -130,8 +140,7 @@ describe('RosterImportDialogComponent', () => {
       expect(steps()).toBe('第 3／4 步 · 確認名單');
       expect(footerLabels()).not.toContain('重新選檔');
 
-      component['backFromReview']();
-      render();
+      clickBack();
       expect(component['step']()).toBe('schools');
       expect(component['schoolChoice']()['不存在國中']).toBe(SCHOOLS[0]!.id);
       expect(component['rows']()).toHaveLength(1);
@@ -142,8 +151,7 @@ describe('RosterImportDialogComponent', () => {
       seedRows([row(1, '陳大同', '文山國中')]);
       render();
       expect(steps()).toBe('第 3／4 步 · 確認名單');
-      component['backFromReview']();
-      render();
+      clickBack();
       expect(component['step']()).toBe('upload');
       expect(component['rows']()).toHaveLength(0);
     });
