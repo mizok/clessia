@@ -99,6 +99,64 @@ describe('RosterImportDialogComponent', () => {
     expect(batchMatchMock).not.toHaveBeenCalled();
   });
 
+  // #2396 dialog-frame.md「操作量分級」L3：固定 4 步的步驟標示；底部列「上一步」取代「重新選檔」
+  describe('步驟標示與上一步（#2396）', () => {
+    const steps = () =>
+      (fixture.nativeElement as HTMLElement)
+        .querySelector('app-dialog-steps')!
+        .textContent!.replace(/\s+/g, ' ')
+        .trim();
+    const render = () => {
+      fixture.componentRef.changeDetectorRef.markForCheck();
+      fixture.detectChanges();
+    };
+    // 點底部列的「上一步」鈕（不直接呼叫方法：鈕綁錯函式也要測得出來，#2406 突變 R1）
+    const clickBack = () => {
+      const btn = [
+        ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
+          '.form-dialog__footer button',
+        ),
+      ].find((b) => b.textContent!.trim() === '上一步')!;
+      btn.click();
+      render();
+    };
+    const footerLabels = () =>
+      [
+        ...(fixture.nativeElement as HTMLElement).querySelectorAll('.form-dialog__footer button'),
+      ].map((b) => b.textContent!.trim());
+
+    it('經過對應學校：確認名單的上一步回對應學校，學校的選擇保留', async () => {
+      await setup();
+      expect(steps()).toBe('第 1／4 步 · 選檔');
+      seedRows([row(1, '陳大同', '不存在國中')]);
+      render();
+      expect(steps()).toBe('第 2／4 步 · 對應學校');
+      expect(footerLabels()).toContain('上一步');
+      expect(footerLabels()).not.toContain('重新選檔');
+
+      component['onSchoolChoice']('不存在國中', SCHOOLS[0]!.id);
+      component['runMatch']();
+      render();
+      expect(steps()).toBe('第 3／4 步 · 確認名單');
+      expect(footerLabels()).not.toContain('重新選檔');
+
+      clickBack();
+      expect(component['step']()).toBe('schools');
+      expect(component['schoolChoice']()['不存在國中']).toBe(SCHOOLS[0]!.id);
+      expect(component['rows']()).toHaveLength(1);
+    });
+
+    it('學校都對得上（跳過對應學校）：直接第 3／4 步，上一步回選檔', async () => {
+      await setup();
+      seedRows([row(1, '陳大同', '文山國中')]);
+      render();
+      expect(steps()).toBe('第 3／4 步 · 確認名單');
+      clickBack();
+      expect(component['step']()).toBe('upload');
+      expect(component['rows']()).toHaveLength(0);
+    });
+  });
+
   // 這是整個功能的關鍵：後端拿 schools.name 完全相符去查，送簡稱進去每列都會 not_found
   it('送出比對時把學校簡稱換成系統裡的全名', async () => {
     await setup();
