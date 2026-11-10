@@ -128,10 +128,108 @@ describe('LeaveFormDialogComponent', () => {
     });
   });
 
+  /**
+   * #2396 L3（dialog-frame.md「操作量分級」）：管理端新增、要選學生時，手機分兩步 ①學生 ②請假內容；桌機單頁。
+   * 送出鈕在殼的底部列：type=submit form="leave-form"，點鈕與 Enter 都只走 form 的 submit。
+   */
+  describe('手機分步（#2396）', () => {
+    const mobile = (on: boolean) =>
+      vi.stubGlobal(
+        'matchMedia',
+        vi.fn(() => ({ matches: on })),
+      );
+    afterEach(() => vi.unstubAllGlobals());
+    const el = () => fixture.nativeElement as HTMLElement;
+    const q = (id: string) => el().querySelector<HTMLElement>(`[data-testid="${id}"]`);
+    const step = (n: number) => el().querySelector(`[data-step="${n}"]`)!;
+    const form = () => el().querySelector<HTMLFormElement>('#leave-form')!;
+    const fill = () => {
+      const dialog = component as any;
+      dialog.startDate = new Date('2026-04-02');
+      dialog.endDate = new Date('2026-04-03');
+      dialog.reason = '家庭事假';
+    };
+    // 走元件選學生的路（onStudent）。實際是自動完成的事件觸發、整個畫面會被標成要刷新；
+    // 測試直接呼叫時只有 studentId 這個 signal 變，補 markForCheck 模擬事件（不然只做局部刷新、NG0100）
+    const pickStudent = () => {
+      (component as any).onStudent({ id: 'student-1', name: '甲', grade: 'J1', school: 'x' });
+      fixture.componentRef.changeDetectorRef.markForCheck();
+    };
+
+    it('沒選學生不前進、只列這一步缺的；選了才到第二步，上一步回來保留學生', () => {
+      mobile(true);
+      fixture.detectChanges();
+      expect(el().textContent).toContain('第 1／2 步 · 學生');
+      expect(step(1).classList).not.toContain('max-wide:hidden');
+      expect(step(2).classList).toContain('max-wide:hidden');
+
+      form().requestSubmit();
+      fixture.detectChanges();
+      expect((component as any).step()).toBe(1);
+      expect(q('leave-hint-step')!.textContent!.trim()).toBe('還沒填：學生');
+
+      pickStudent();
+      fixture.detectChanges();
+      q('leave-next')!.click();
+      fixture.detectChanges();
+      expect((component as any).step()).toBe(2);
+      expect(el().textContent).toContain('第 2／2 步 · 請假內容');
+      expect(step(1).classList).toContain('max-wide:hidden');
+      expect(step(2).classList).not.toContain('max-wide:hidden');
+      expect(leaveServiceMock.create).not.toHaveBeenCalled();
+
+      q('leave-back')!.click();
+      fixture.detectChanges();
+      expect((component as any).step()).toBe(1);
+      expect((component as any).selectedStudent.id).toBe('student-1');
+    });
+
+    it('手機兩步走完與桌機一次送出，送出內容相同（各一次）', () => {
+      mobile(true);
+      pickStudent();
+      fill();
+      fixture.detectChanges();
+      form().requestSubmit(); // 手機第一步：Enter＝下一步
+      fixture.detectChanges();
+      expect(leaveServiceMock.create).not.toHaveBeenCalled();
+      q('leave-submit')!.click();
+      expect(leaveServiceMock.create).toHaveBeenCalledTimes(1);
+      const mobileCall = leaveServiceMock.create.mock.calls[0];
+
+      leaveServiceMock.create.mockClear();
+      (component as any).step.set(1);
+      (component as any).saving.set(false);
+      mobile(false);
+      fixture.detectChanges();
+      form().requestSubmit(); // 桌機：Enter＝送出
+      expect(leaveServiceMock.create).toHaveBeenCalledTimes(1);
+      expect(leaveServiceMock.create.mock.calls[0]).toEqual(mobileCall);
+    });
+
+    it('「下一步」「送出請假」都是 type=submit form="leave-form"、在殼的底部列、不在 form 內', () => {
+      mobile(true);
+      fixture.detectChanges();
+      for (const id of ['leave-next', 'leave-submit']) {
+        const b = q(id)!;
+        expect(b.getAttribute('type')).toBe('submit');
+        expect(b.getAttribute('form')).toBe('leave-form');
+        expect(b.closest('.form-dialog__footer')).not.toBeNull();
+        expect(form().contains(b)).toBe(false);
+      }
+    });
+
+    it('送出用的 form 不包住欄位（結構照 A6）；日期、原因欄帶 form="leave-form"，Enter 送到它', () => {
+      expect(form().children).toHaveLength(0);
+      const fields = el().querySelectorAll<HTMLInputElement>('#leave-startDate, #leave-reason');
+      expect(fields.length).toBe(2);
+      for (const f of fields) expect(f.form).toBe(form());
+    });
+  });
+
   // A6 form()：送出鈕不鎖死，旁邊一行寫還差什麼；填好就消失
   it('還沒填：列出缺的必填欄；送出鈕不 disabled（aria-disabled）', () => {
     const el = fixture.nativeElement as HTMLElement;
-    const why = () => el.querySelector('[aria-live="polite"]')!.textContent!.trim();
+    const why = () => el.querySelector('[data-testid="leave-hint"]')!.textContent!.trim();
     expect(why()).toBe('還沒填：學生、開始日期、結束日期');
     const go = [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('送出請假'))!;
     expect(go.disabled).toBe(false);
@@ -616,6 +714,37 @@ describe('LeaveFormDialogComponent 勾堂（管理端，#2318）', () => {
     expect(
       (fixture.nativeElement as HTMLElement).querySelector('[data-testid="leave-mode-toggle"]'),
     ).toBeNull();
+  });
+
+  it('學生固定（編輯）：不分步、沒有步驟標示與下一步', async () => {
+    const leave = {
+      id: 'leave-8',
+      studentId: 'stu-1',
+      studentName: '陳大同',
+      startDate: '2027-03-15',
+      endDate: '2027-03-16',
+      startTime: null,
+      endTime: null,
+      reason: null,
+      sessionIds: [],
+    };
+    const { fixture } = await setup({ leave, pickSessions: true });
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('app-dialog-steps')).toBeNull();
+    expect(el.querySelector('[data-testid="leave-next"]')).toBeNull();
+    expect(el.querySelector('[data-step="2"]')!.classList).not.toContain('max-wide:hidden');
+  });
+
+  // 審核席 #2405 突變 N8：勾課模式的請假日期、原因也要歸到送出用的 form（Enter 才送得出）
+  it('勾課模式：請假日期、原因欄的 form owner 是 #leave-form', async () => {
+    const { fixture, dialog } = await setup({ pickSessions: true });
+    expect(dialog.mode()).toBe('sessions');
+    const el = fixture.nativeElement as HTMLElement;
+    const form = el.querySelector('#leave-form');
+    expect(form).not.toBeNull();
+    for (const id of ['#leave-day', '#leave-reason']) {
+      expect(el.querySelector<HTMLInputElement>(id)!.form).toBe(form);
+    }
   });
 
   it('沒給 pickSessions（家長端）：維持日期區間', async () => {
