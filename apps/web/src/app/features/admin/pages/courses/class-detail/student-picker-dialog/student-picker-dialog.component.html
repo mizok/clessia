@@ -1,8 +1,11 @@
 <!-- 共用殼（#2290）：標題原本是開窗端的 PrimeNG header；各步驟的動作列收成一個 dialogFoot（投影只吃最上層節點） -->
 <app-dialog-frame title="加入學生" (closed)="cancel()">
+  <!-- 內容區第一行的先後（dialog-frame.md）：步驟標示（導覽）在前，B 類識別資訊（哪個班）緊接其後；
+       兩者都有時各一行、都用 text-sm zinc-600 -->
+  <app-dialog-steps [current]="stepNo()" [total]="3" [label]="stepLabel()" />
   <!-- #2396 B：哪個班（說明句刪） -->
   @if (className) {
-    <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ className }}</p>
+    <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">{{ className }}</p>
   }
   @if (step() === 'selecting') {
     <!-- Command Bar -->
@@ -100,15 +103,8 @@
     <!-- Footer -->
   } @else if (step() === 'reviewing') {
     <!-- Step 2: Review -->
+    <!-- 「返回選擇」拿掉：底部列已有「上一步」（#2396：同一個動作不在內容區再放一次） -->
     <div class="flex shrink-0 items-center gap-3 border-b border-zinc-100 pb-3">
-      <button
-        type="button"
-        class="relative -my-3 flex min-h-11 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-sm text-zinc-500 [transition:color_0.12s] hover:text-zinc-800"
-        (click)="goBack()"
-      >
-        <i class="pi pi-arrow-left"></i>
-        返回選擇
-      </button>
       <span class="text-sm font-semibold text-zinc-700">確認加入 {{ selectedCount() }} 位學生</span>
     </div>
 
