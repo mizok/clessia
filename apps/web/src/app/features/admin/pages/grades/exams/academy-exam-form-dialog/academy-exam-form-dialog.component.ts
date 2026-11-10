@@ -17,6 +17,7 @@ import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
+import { dialogStepsActive } from '@shared/components/dialog-steps/dialog-steps.component';
 import { forkJoin } from 'rxjs';
 
 import {
@@ -159,6 +160,13 @@ export class AcademyExamFormDialogComponent implements OnInit {
     );
   });
 
+  /**
+   * 手機 L2（#2396，dialog-frame.md「操作量分級」）：滿分、及格分數、範圍說明收進「更多設定」。
+   * 手機預設收合；桌機一律展開（summary 只在手機出現，版面同原本）；編輯時這三欄有值（不是預設）就展開。
+   * ponytail: 只在開窗那一刻看寬度；開著視窗從手機拉寬到桌機、而且是收著的，要點一下才看得到（罕見，不追 resize）
+   */
+  protected readonly moreOpen = signal(!dialogStepsActive());
+
   private readonly nameInput = viewChild<ElementRef<HTMLInputElement>>('nameInput');
 
   constructor() {
@@ -222,6 +230,8 @@ export class AcademyExamFormDialogComponent implements OnInit {
               scopeNote: d.scopeNote ?? '',
               classIds: d.classes.map((c) => c.classId),
             });
+            if (d.totalScore !== 100 || d.passScore !== null || d.scopeNote)
+              this.moreOpen.set(true);
             this.loading.set(false);
           },
           error: () => {
@@ -281,6 +291,9 @@ export class AcademyExamFormDialogComponent implements OnInit {
   }
 
   protected save(): void {
+    // 卡在收起來的欄位（滿分、及格分數）時打開「更多設定」，不讓人對著看不到的欄位找原因
+    const hint = this.missingHint();
+    if (hint?.startsWith('滿分') || hint?.startsWith('及格')) this.moreOpen.set(true);
     if (!this.canSave() || this.saving()) return;
     const f = this.formData();
     const examDate = f.examDate;

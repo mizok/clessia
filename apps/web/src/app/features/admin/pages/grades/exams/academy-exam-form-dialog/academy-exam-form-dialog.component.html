@@ -145,58 +145,76 @@
         }
       </div>
 
-      <!-- Total Score -->
-      <div class="min-w-0">
-        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-total">滿分</label>
-        <!-- A6 `money` 欄：文字框＋數字鍵盤；稿的「NT$」前綴是共用欄型帶過來的，分數不加 -->
-        <input
-          id="exam-total"
-          type="text"
-          inputmode="numeric"
-          maxlength="4"
-          autocomplete="off"
-          class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
-          [value]="formData().totalScore ?? ''"
-          (input)="onScoreInput('totalScore', $any($event.target))"
-          [disabled]="lockTotalScore()"
-        />
-      </div>
-
-      <!-- Pass Score -->
-      <div class="min-w-0">
-        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-pass"
-          >及格分數</label
+      <!-- 手機 L2（#2396，dialog-frame.md「操作量分級」）：選填收「更多設定」，手機預設收合；
+           桌機一律展開、summary 不出現 —— 裡面的 grid 同外層，版面跟原本一樣 -->
+      <details
+        class="col-span-full min-w-0"
+        data-testid="exam-more"
+        [open]="moreOpen()"
+        (toggle)="moreOpen.set($any($event.target).open)"
+      >
+        <summary
+          class="flex min-h-11 cursor-pointer items-center text-md font-semibold text-zinc-700 wide:hidden"
         >
-        <input
-          id="exam-pass"
-          type="text"
-          inputmode="numeric"
-          maxlength="4"
-          autocomplete="off"
-          class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
-          [value]="formData().passScore ?? ''"
-          (input)="onScoreInput('passScore', $any($event.target))"
-          [disabled]="lockPassScore()"
-        />
-        <span class="mt-1 block text-xs text-zinc-500">留空＝總分的 60%</span>
-      </div>
+          更多設定（3 項）
+        </summary>
+        <div class="grid grid-cols-2 gap-x-3 gap-y-4 max-wide:grid-cols-1 max-wide:pt-2">
+          <!-- Total Score -->
+          <div class="min-w-0">
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-total"
+              >滿分</label
+            >
+            <!-- A6 `money` 欄：文字框＋數字鍵盤；稿的「NT$」前綴是共用欄型帶過來的，分數不加 -->
+            <input
+              id="exam-total"
+              type="text"
+              inputmode="numeric"
+              maxlength="4"
+              autocomplete="off"
+              class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
+              [value]="formData().totalScore ?? ''"
+              (input)="onScoreInput('totalScore', $any($event.target))"
+              [disabled]="lockTotalScore()"
+            />
+          </div>
 
-      <!-- Scope Note -->
-      <div class="col-span-full min-w-0">
-        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-scope"
-          >範圍說明</label
-        >
-        <textarea
-          id="exam-scope"
-          pTextarea
-          [ngModel]="formData().scopeNote"
-          (ngModelChange)="updateField('scopeNote', $event)"
-          [rows]="3"
-          placeholder="例如：第 3 章 ~ 第 5 章（選填）"
-          [disabled]="lockScopeNote()"
-          class="w-full"
-        ></textarea>
-      </div>
+          <!-- Pass Score -->
+          <div class="min-w-0">
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-pass"
+              >及格分數</label
+            >
+            <input
+              id="exam-pass"
+              type="text"
+              inputmode="numeric"
+              maxlength="4"
+              autocomplete="off"
+              class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
+              [value]="formData().passScore ?? ''"
+              (input)="onScoreInput('passScore', $any($event.target))"
+              [disabled]="lockPassScore()"
+            />
+            <span class="mt-1 block text-xs text-zinc-500">留空＝總分的 60%</span>
+          </div>
+
+          <!-- Scope Note -->
+          <div class="col-span-full min-w-0">
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-scope"
+              >範圍說明</label
+            >
+            <textarea
+              id="exam-scope"
+              pTextarea
+              [ngModel]="formData().scopeNote"
+              (ngModelChange)="updateField('scopeNote', $event)"
+              [rows]="3"
+              placeholder="例如：第 3 章 ~ 第 5 章（選填）"
+              [disabled]="lockScopeNote()"
+              class="w-full"
+            ></textarea>
+          </div>
+        </div>
+      </details>
     </form>
   }
   <!-- A6 `.fdlg__foot`：必填沒填不鎖死送出鈕，左邊寫還差什麼 -->
