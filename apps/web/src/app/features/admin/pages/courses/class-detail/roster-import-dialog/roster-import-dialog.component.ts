@@ -1,4 +1,5 @@
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
+import { DialogStepsComponent } from '@shared/components/dialog-steps/dialog-steps.component';
 import { DatePipe } from '@angular/common';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -45,6 +46,7 @@ interface ReviewRow {
   selector: 'app-roster-import-dialog',
   imports: [
     DialogFrameComponent,
+    DialogStepsComponent,
     DatePipe,
     FormsModule,
     ButtonModule,
@@ -69,6 +71,15 @@ export class RosterImportDialogComponent {
 
   protected readonly maxRows = MAX_ROSTER_ROWS;
   protected readonly step = signal<Step>('upload');
+  /** 這次有沒有走「對應學校」那步（學校都唯一對上就跳過） */
+  private readonly hadSchoolStep = signal(false);
+  /** 步驟標示（#2396 dialog-frame.md「操作量分級」L3）：固定 4 步，跳過的那步不重編號 */
+  protected readonly stepNo = computed(
+    () => ({ upload: 1, schools: 2, review: 3, done: 4 })[this.step()],
+  );
+  protected readonly stepLabel = computed(
+    () => ({ upload: '選檔', schools: '對應學校', review: '確認名單', done: '完成' })[this.step()],
+  );
   protected readonly dragging = signal(false);
   protected readonly busy = signal(false);
 
@@ -236,7 +247,9 @@ export class RosterImportDialogComponent {
     );
 
     // 全部都只有唯一解就不必打擾使用者
-    if (matches.every((match) => match.resolvedId)) this.runMatch();
+    const skip = matches.every((match) => match.resolvedId);
+    this.hadSchoolStep.set(!skip);
+    if (skip) this.runMatch();
     else this.step.set('schools');
   }
 
@@ -378,6 +391,14 @@ export class RosterImportDialogComponent {
       }
     }
     return '該學生';
+  }
+
+  protected backFromReview(): void {
+    if (!this.hadSchoolStep()) return this.backToUpload();
+    this.matchResults.set([]);
+    this.submitError.set(null);
+    this.conflicts.set([]);
+    this.step.set('schools');
   }
 
   protected backToUpload(): void {
