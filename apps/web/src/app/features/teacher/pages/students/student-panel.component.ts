@@ -52,7 +52,7 @@ interface PanelData {
     <app-dialog-frame [title]="student().name" (closed)="closed.emit()">
       <!-- #2396 B：年級 · 學校 · 班 -->
       @if (subtitle(); as context) {
-        <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ context }}</p>
+        <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">{{ context }}</p>
       }
       @switch (state()) {
         @case ('loading') {

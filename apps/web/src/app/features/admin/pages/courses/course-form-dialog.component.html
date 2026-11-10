@@ -2,7 +2,7 @@
 <app-dialog-frame [title]="isEditing() ? '編輯課程' : '新增課程'" (closed)="cancel()">
   <!-- #2396 B：編輯時寫是哪個分校（新增時的說明句刪） -->
   @if (isEditing()) {
-    <p class="m-0 text-md text-zinc-600" data-part="dialog-context">
+    <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">
       {{ campusName() }} · 分校建立後不能改
     </p>
   }
