@@ -735,6 +735,18 @@ describe('LeaveFormDialogComponent 勾堂（管理端，#2318）', () => {
     expect(el.querySelector('[data-step="2"]')!.classList).not.toContain('max-wide:hidden');
   });
 
+  // 審核席 #2405 突變 N8：勾課模式的請假日期、原因也要歸到送出用的 form（Enter 才送得出）
+  it('勾課模式：請假日期、原因欄的 form owner 是 #leave-form', async () => {
+    const { fixture, dialog } = await setup({ pickSessions: true });
+    expect(dialog.mode()).toBe('sessions');
+    const el = fixture.nativeElement as HTMLElement;
+    const form = el.querySelector('#leave-form');
+    expect(form).not.toBeNull();
+    for (const id of ['#leave-day', '#leave-reason']) {
+      expect(el.querySelector<HTMLInputElement>(id)!.form).toBe(form);
+    }
+  });
+
   it('沒給 pickSessions（家長端）：維持日期區間', async () => {
     const { dialog } = await setup({});
     expect(dialog.mode()).toBe('range');
