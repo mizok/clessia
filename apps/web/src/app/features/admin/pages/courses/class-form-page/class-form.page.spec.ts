@@ -162,6 +162,13 @@ describe('ClassFormPage（#2396 L4 手機整頁）', () => {
     expect(form.staff()).toEqual(staff);
   });
 
+  it('殼補白底：底部列是 background: inherit，頁面裡不給的話透明、欄位從底下透出來', () => {
+    const { fixture } = setup({ courseId: 'course-1' });
+    expect((fixture.nativeElement as HTMLElement).classList).toContain(
+      '[&_.dialog-frame]:bg-white',
+    );
+  });
+
   it('編輯：先讀班級，課程以班級自己的 courseId 為準', () => {
     const { form } = setup({ courseId: 'seed-course', classId: 'class-9' });
     expect(classes['get']).toHaveBeenCalledWith('class-9');

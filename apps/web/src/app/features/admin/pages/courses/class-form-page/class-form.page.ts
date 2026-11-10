@@ -25,10 +25,12 @@ import { ClassFormDialogComponent } from '../class-form-dialog/class-form-dialog
     PageDialogRef,
     { provide: DynamicDialogRef, useExisting: PageDialogRef },
   ],
-  // shell 看到 .form-page 就不加內距（底部列才黏得到捲動容器底）、底色白
+  // shell 看到 .form-page 就不加內距（底部列才黏得到捲動容器底）、底色白。
+  // 殼的底部列是 `background: inherit`（對話框裡繼承 .p-dialog 的白），頁面裡外層沒有底色 ——
+  // 不給殼白底的話底部列透明、捲動中的欄位會從底下透出來
   host: {
     class:
-      'form-page flex flex-1 flex-col bg-white wide:mx-auto wide:w-full wide:max-w-(--dlg-w-lg)',
+      'form-page flex flex-1 flex-col bg-white [&_.dialog-frame]:bg-white wide:mx-auto wide:w-full wide:max-w-(--dlg-w-lg)',
   },
   template: `
     @if (ready()) {
