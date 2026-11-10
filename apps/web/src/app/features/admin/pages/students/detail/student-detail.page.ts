@@ -5,6 +5,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { RouterLink } from '@angular/router';
+import { dialogStepsActive } from '@shared/components/dialog-steps/dialog-steps.component';
 import { ButtonModule } from 'primeng/button';
 import { SkeletonModule } from 'primeng/skeleton';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -341,6 +342,11 @@ export class StudentDetailPage implements OnInit {
   protected openEditDialog(): void {
     const s = this.student();
     if (!s) return;
+    // 手機整頁（#2396 L4）：「已更新」改由頁面發 toast（回來時本頁重建，頁內 notice 會消失）
+    if (dialogStepsActive()) {
+      void this.router.navigate(['/admin/students', s.id, 'edit']);
+      return;
+    }
     const ref = this.dialogService.open(StudentFormDialogComponent, {
       width: 'var(--dlg-w-md)',
       modal: true,

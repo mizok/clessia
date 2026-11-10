@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { Popover } from 'primeng/popover';
 import { FilterPanelComponent } from '@shared/components/filter-panel/filter-panel.component';
@@ -717,6 +718,42 @@ describe('ParentsPage', () => {
       expect(parentsServiceMock.list).toHaveBeenLastCalledWith(
         expect.objectContaining({ campusId: 'campus-2', page: 1 }),
       );
+    });
+  });
+
+  describe('#2396 L4：家長頁「新增學生」手機整頁', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('手機：導到 /admin/students/new，帶 parentId 與給 toast 的家長名', () => {
+      vi.stubGlobal('matchMedia', (q: string) => ({ matches: true, media: q }));
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      (component as any).openAddStudentDialog({ id: 'par-1', name: '王大明' });
+      expect(navigate).toHaveBeenCalledWith(['/admin/students/new'], {
+        queryParams: { parentId: 'par-1' },
+        state: { parentName: '王大明' },
+      });
+    });
+
+    it('離開再回來：搜尋、狀態、頁碼還原', async () => {
+      (component as any).searchQuery.set('王');
+      (component as any).selectedStatus.set('active');
+      (component as any).currentPage.set(2);
+      fixture.destroy();
+      fixture = TestBed.createComponent(ParentsPage);
+      component = fixture.componentInstance;
+      fixture.componentRef.setInput('page', {
+        label: 'Test',
+        relativePath: '',
+        absolutePath: '',
+        role: undefined,
+        icon: '',
+        showInMenu: true,
+      });
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect((component as any).searchQuery()).toBe('王');
+      expect((component as any).selectedStatus()).toBe('active');
+      expect((component as any).currentPage()).toBe(2);
     });
   });
 });

@@ -14,7 +14,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import {
   EMPTY,
   Subject,
@@ -47,6 +47,8 @@ import { PagerComponent } from '@shared/components/pager/pager.component';
 
 // Services
 import { ParentsService, Parent, ParentStatus, PARENT_STATUS_LABELS } from '@core/parents.service';
+import { ParentsFilterStateService } from './parents-filter-state.service';
+import { dialogStepsActive } from '@shared/components/dialog-steps/dialog-steps.component';
 import { CampusContextService } from '@core/campus-context.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
@@ -115,9 +117,20 @@ export class ParentsPage implements OnInit {
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
   private readonly campusCtx = inject(CampusContextService);
 
   constructor() {
+    // 還原上次離開時的篩選（#2396 L4）；頁碼在第一次載入時套（頂欄分校那條會先把頁碼歸 1）
+    const fs = inject(ParentsFilterStateService);
+    this.searchQuery.set(fs.searchQuery);
+    this.selectedStatus.set(fs.selectedStatus);
+    let restorePage = fs.currentPage;
+    this.destroyRef.onDestroy(() => {
+      fs.searchQuery = this.searchQuery();
+      fs.selectedStatus = this.selectedStatus();
+      fs.currentPage = this.currentPage();
+    });
     // 頂欄分校（K4，#1314 盤點）：分校定下來（頂欄選的或預設那間）才載，頂欄換了回第 1 頁重載（同成績總覽 #2143）。
     // 管線（setupLoadPipeline）在 ngOnInit 接上；toObservable 第一次發出是在 effect 裡，晚於 ngOnInit
     this.campusCtx.use();
@@ -125,7 +138,8 @@ export class ParentsPage implements OnInit {
     toObservable(this.campusCtx.id)
       .pipe(filter(Boolean), takeUntilDestroyed())
       .subscribe(() => {
-        this.currentPage.set(1);
+        this.currentPage.set(restorePage);
+        restorePage = 1;
         this.loadParents();
       });
   }
@@ -485,6 +499,14 @@ export class ParentsPage implements OnInit {
   }
 
   protected openAddStudentDialog(parent: Parent): void {
+    // 手機整頁（#2396 L4）：家長名放 navigation state，給整頁存檔後的 toast
+    if (dialogStepsActive()) {
+      void this.router.navigate(['/admin/students/new'], {
+        queryParams: { parentId: parent.id },
+        state: { parentName: parent.name },
+      });
+      return;
+    }
     const ref = this.dialogService.open(StudentFormDialogComponent, {
       width: 'var(--dlg-w-md)',
       modal: true,

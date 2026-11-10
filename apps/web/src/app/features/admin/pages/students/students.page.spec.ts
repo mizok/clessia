@@ -1,4 +1,5 @@
 import { signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Popover } from 'primeng/popover';
@@ -865,7 +866,10 @@ describe('StudentsPage', () => {
       expect(lastCall()['cardIssuedToday']).toBe(true);
       expect(lastCall()['withoutCard']).toBeUndefined();
       expect((component as any).filterSummary()).toContain('今天發的卡');
-      expect((component as any).activeFilters()).toContainEqual({ key: 'card', label: '今天發的卡' });
+      expect((component as any).activeFilters()).toContainEqual({
+        key: 'card',
+        label: '今天發的卡',
+      });
       respond([row('a', '王一', 'J3')]);
 
       (component as any).onCardFilterChange('without');
@@ -939,6 +943,45 @@ describe('StudentsPage', () => {
       page().deleteStudent({ id: 'b', name: '乙' });
       expect(ids()).toEqual(['a', 'b']);
       expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
+    });
+  });
+
+  describe('#2396 L4：學生表單手機整頁', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('手機：新增、編輯導到整頁路由，不開對話框', () => {
+      vi.stubGlobal('matchMedia', (q: string) => ({ matches: true, media: q }));
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      const open = vi.spyOn(fixture.debugElement.injector.get(DialogService), 'open');
+      component.openCreateDialog();
+      component.openEditDialog({ id: 'stu-9' } as never);
+      expect(navigate.mock.calls).toEqual([
+        [['/admin/students/new']],
+        [['/admin/students', 'stu-9', 'edit']],
+      ]);
+      expect(open).not.toHaveBeenCalled();
+    });
+
+    it('離開再回來：篩選與頁碼還原', async () => {
+      (component as any).searchQuery.set('林');
+      (component as any).selectedGrade.set('junior_2');
+      (component as any).currentPage.set(3);
+      fixture.destroy();
+      fixture = TestBed.createComponent(StudentsPage);
+      component = fixture.componentInstance;
+      fixture.componentRef.setInput('page', {
+        label: 'Test',
+        relativePath: '',
+        absolutePath: '',
+        role: undefined,
+        icon: '',
+        showInMenu: true,
+      });
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect((component as any).searchQuery()).toBe('林');
+      expect((component as any).selectedGrade()).toBe('junior_2');
+      expect((component as any).currentPage()).toBe(3);
     });
   });
 });

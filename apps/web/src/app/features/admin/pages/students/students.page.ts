@@ -56,6 +56,8 @@ import {
   StudentTodayState,
   GRADE_LEVEL_LABELS,
 } from '@core/students.service';
+import { StudentsFilterStateService } from './students-filter-state.service';
+import { dialogStepsActive } from '@shared/components/dialog-steps/dialog-steps.component';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { RouteObj, RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
@@ -128,6 +130,7 @@ const taipeiTime = (iso: string): string => TAIPEI_TIME.format(new Date(iso));
 })
 export class StudentsPage implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly filterState = inject(StudentsFilterStateService);
   /** 重抓的資料平滑換上；增刪改造成的重抓帶 rows，那一列淡入或淡出（#1641 5b） */
   private readonly viewTransition = injectViewTransition();
   /** 這一輪重抓是增刪改造成的 —— 回應套上時列表帶名字（篩選、換頁不帶） */
@@ -444,6 +447,24 @@ export class StudentsPage implements OnInit {
   }
 
   ngOnInit(): void {
+    // 還原上次離開時的篩選（#2396 L4），離開時存回
+    const fs = this.filterState;
+    this.searchQuery.set(fs.searchQuery);
+    this.selectedGrade.set(fs.selectedGrade);
+    this.statusFilter.set(fs.statusFilter);
+    this.todayFilter.set(fs.todayFilter);
+    this.schoolMismatch.set(fs.schoolMismatch);
+    this.cardFilter.set(fs.cardFilter);
+    this.currentPage.set(fs.currentPage);
+    this.destroyRef.onDestroy(() => {
+      fs.searchQuery = this.searchQuery();
+      fs.selectedGrade = this.selectedGrade();
+      fs.statusFilter = this.statusFilter();
+      fs.todayFilter = this.todayFilter();
+      fs.schoolMismatch = this.schoolMismatch();
+      fs.cardFilter = this.cardFilter();
+      fs.currentPage = this.currentPage();
+    });
     // 到班卡上要印補習班名；視窗得在點擊當下開，不能等這裡（見 printCards）
     if (this.canPrintCards && this.orgSettings.status() === 'unloaded') this.orgSettings.load();
     this.setupLoadPipeline();
@@ -676,6 +697,11 @@ export class StudentsPage implements OnInit {
   }
 
   openEditDialog(student: Student): void {
+    // 手機整頁（#2396 L4）：存檔的 toast 由頁面發，回來時本頁重建、篩選由 filter-state 還原
+    if (dialogStepsActive()) {
+      void this.router.navigate(['/admin/students', student.id, 'edit']);
+      return;
+    }
     const ref = this.dialogService.open(StudentFormDialogComponent, {
       width: 'var(--dlg-w-md)',
       modal: true,
@@ -697,6 +723,10 @@ export class StudentsPage implements OnInit {
    * 明寫「待實作：手動新增學生功能尚未完成」。這支只是接線，不是新設計。
    */
   openCreateDialog(): void {
+    if (dialogStepsActive()) {
+      void this.router.navigate(['/admin/students/new']);
+      return;
+    }
     const ref = this.dialogService.open(StudentFormDialogComponent, {
       width: 'var(--dlg-w-md)',
       modal: true,
