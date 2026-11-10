@@ -1,5 +1,5 @@
 <!-- 共用殼（#2290）：✕＝關閉（回報這次開了幾張） -->
-<app-dialog-frame title="待開帳的報名" sub="已經生效、但還沒開過任何帳單" (closed)="close()">
+<app-dialog-frame title="待開帳的報名" (closed)="close()">
   @if (loading()) {
     <div class="px-4 py-8 text-center text-sm text-zinc-500">
       <p-progressSpinner strokeWidth="4" />

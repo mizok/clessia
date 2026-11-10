@@ -67,7 +67,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   selector: 'app-approve-request-dialog',
   imports: [FormsModule, InputTextModule, SelectModule, DialogFrameComponent, DialogStepsComponent],
   template: `
-    <app-dialog-frame title="核准報名" [sub]="subtitle()" (closed)="closed.emit(null)">
+    <app-dialog-frame title="核准報名" (closed)="closed.emit(null)">
+      <!-- #2396 B：是誰、報哪個（尾句「核准會建報名並開首期帳單」A 類刪） -->
+      <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ subtitle() }}</p>
       @if (loading()) {
         <p class="m-0 py-4 text-md text-zinc-600">載入價目表…</p>
       } @else {
@@ -385,7 +387,7 @@ export class ApproveRequestDialogComponent implements OnInit {
 
   protected readonly subtitle = computed(
     () =>
-      `${this.request().student.name} · ${this.request().target.name} · 核准會建報名並開首期帳單`,
+      `${this.request().student.name} · ${this.request().target.name}`,
   );
   /** 手機分步（#2396）：1 計費、2 首期帳單。桌機一直是 1、兩段都顯示 */
   protected readonly step = signal<1 | 2>(1);

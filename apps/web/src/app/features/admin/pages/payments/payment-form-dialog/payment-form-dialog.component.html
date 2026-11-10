@@ -1,5 +1,7 @@
 <!-- 共用殼（#2290）。標題寫期別（#2316）：同一位學生好幾張帳單，收之前要看得出是哪一張 -->
-<app-dialog-frame [title]="title()" [sub]="sub()" (closed)="cancel()">
+<app-dialog-frame [title]="title()" (closed)="cancel()">
+  <!-- #2396 C：應繳、已收、尚欠、到期是決定收多少要看的內容 -->
+  <p class="m-0 text-base text-zinc-700" data-part="dialog-context">{{ context() }}</p>
   <div class="flex flex-col gap-4">
     <div class="flex flex-col gap-2">
       <label class="text-sm font-medium text-zinc-600" for="pf-amount">

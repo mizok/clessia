@@ -83,10 +83,11 @@ describe('LeaveBatchDialogComponent', () => {
     fixture.detectChanges();
   });
 
-  it('共用殼（#2290）：h2 標題與副標、✕ 關窗、送出鈕在底部列', () => {
+  it('共用殼（#2290）：h2 標題、說明句不放（#2396 A）、✕ 關窗、送出鈕在底部列', () => {
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('h2')?.textContent?.trim()).toBe('批次請假');
-    expect(el.querySelector('.dialog-header-inline__sub')?.textContent).toContain('同一堂課');
+    expect(el.querySelector('.dialog-header-inline__sub')).toBeNull();
+    expect(el.textContent).not.toContain('同一堂課');
     expect(el.querySelector('.form-dialog__footer [data-testid="batch-submit"]')).not.toBeNull();
     (el.querySelector('button[aria-label="關閉"]') as HTMLButtonElement).click();
     expect(ref.close).toHaveBeenCalled();

@@ -82,7 +82,7 @@ export class PaymentFormDialogComponent {
     () => (this.isRefund() ? '記錄退費' : '記錄收款') + (this.period ? ` · ${this.period}` : ''),
   );
   /** 學生 · 應繳／已收／尚欠 · 到期（#2316：到期日放在金額旁） */
-  protected readonly sub = computed(() => {
+  protected readonly context = computed(() => {
     const inv = this.invoice();
     const n = (v: number) => v.toLocaleString('zh-TW');
     return [
