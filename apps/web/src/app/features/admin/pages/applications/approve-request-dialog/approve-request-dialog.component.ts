@@ -68,8 +68,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   imports: [FormsModule, InputTextModule, SelectModule, DialogFrameComponent, DialogStepsComponent],
   template: `
     <app-dialog-frame title="核准報名" (closed)="closed.emit(null)">
-      <!-- #2396 B：是誰、報哪個（尾句「核准會建報名並開首期帳單」A 類刪） -->
-      <p class="m-0 text-md text-zinc-600" data-part="dialog-context">{{ subtitle() }}</p>
       @if (loading()) {
         <p class="m-0 py-4 text-md text-zinc-600">載入價目表…</p>
       } @else {
@@ -87,6 +85,8 @@ const ERROR_MESSAGES: Record<string, string> = {
             [total]="2"
             [label]="step() === 1 ? '計費' : '首期帳單'"
           />
+          <!-- #2396 B：是誰、報哪個，緊接步驟標示（dialog-frame.md 內容區第一行的先後）；尾句「核准會建報名並開首期帳單」A 類刪 -->
+          <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">{{ subtitle() }}</p>
           <div class="flex flex-col gap-4" [class.max-wide:hidden]="step() !== 1" data-step="1">
             <fieldset class="m-0 flex flex-col gap-1 border-0 p-0">
               <legend class="mb-1 p-0 text-md font-semibold text-zinc-700">
