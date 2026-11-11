@@ -77,6 +77,17 @@ tags: [architecture, dialog, a6, motion, accessibility]
 - Esc／✕ 照舊關整個對話框（不是上一步）
 - 編輯、或有預帶的步驟（例：預帶學生），從下一步開始，沒有「上一步」回到預帶那步
 
+**L4 整頁怎麼寫**（#2396 issuecomment-6764246224，開課班 gate 過；學生表單沿用）：
+
+- **桌機照舊對話框，手機導到頁面路由**：開窗端在點擊當下用 `dialogStepsActive()` 判斷，手機就 `router.navigate` 到頁面（例 `/admin/courses/:courseId/classes/new`、`…/:classId/edit`；`new` 要排在 `:id` 路由前面）。路由進 `RoutesCatalog`（`showInMenu: false`），直接打網址也能用
+- **同一支表單、兩種宿主**：頁面元件只做三件事 —— 抓表單要的資料（開窗端原本塞進 `data` 的那些）、在自己的 `providers` 換上 `PageDialogRef`（`shared/utils/form-page.util.ts`，`close()`＝站內進來回上一頁、直接打網址回 `fallback`）與空的 `DynamicDialogConfig`、資料到了才渲染表單（表單在建構時讀 `config.data`）。**表單元件不分兩份、不改**，只多一個唯讀 `hasChanges()`
+- **結果不用帶回**：回到來源頁時元件重建、本來就會重抓；來源頁的篩選與展開要存在 root service（課程頁 `CoursesFilterStateService`），不然回來會重設
+- **離開保護**：路由掛 `canDeactivate: [formPageLeaveGuard]`，頁面實作 `canLeave()`：沒改過放行；改過開 `ConfirmDialogComponent`「放棄未儲存的變更？」（主鈕「放棄」才放行，「繼續編輯」與 ✕ 留下）；存檔成功（`close` 帶了結果）之後不問。對話框模式不加這層
+- **版面**：頁面宿主 host 掛 `form-page`，shell 看到它就不加內距（`.shell-content` 的 `has-[app-page-open,.form-page]`）—— 有內距的話表單底部列的 sticky 會浮在內距上方；殼（`app-dialog-frame`）照用，✕＝返回
+- **第二層對話框**：照舊由表單自己的 `DialogService` 開，疊在頁面上
+- **已知缺口：Enter 不送出**。開課班、學生表單都沒有 `<form>`、送出鈕直接綁 `(click)`，欄位按 Enter 不送出（對話框模式本來就這樣）；整頁只換載體、行為不動，所以照舊沒補。要補時照上面「有 `<form>` 的對話框」那條（計畫席 11-10 gate，#2396）
+- **conformance**：稿沒有整頁版 → R5 一列；compare 的 `appOpen.root` 寫成對話框與頁面皆可
+
 ## 動態
 
 時長只在 `styles.css` 的 `:root` 定：`--motion-enter` 200ms、`--motion-exit` 140ms、`--motion-sheet-enter` 240ms、`--motion-sheet-exit` 160ms；曲線 `--arrive`／`--leave`（#1634）。
