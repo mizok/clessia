@@ -719,7 +719,15 @@ const dlgOpen = (a6Click, appClick, host) => ({
 const FORM_DIALOGS = {
   courses: {
     'new-course': formOpen('[data-newc]', 'button:has-text("新增課程")'),
-    'new-class': formOpen('[data-newk]', 'button:has-text("新增班")'),
+    // 手機（≤860）的「新增班」導到整頁表單（#2396 L4，R5 11-10）：root 對話框與頁面皆可；
+    // 量完 closePop 點根裡的「取消」＝回上一頁（沒改過不問）
+    'new-class': {
+      ...formOpen('[data-newk]', 'button:has-text("新增班")'),
+      appOpen: {
+        root: '.p-dialog:has(.form-dialog), app-class-form-page .form-dialog',
+        click: 'button:has-text("新增班")',
+      },
+    },
     // 操作紀錄（工具列時鐘鈕）、產生課堂（「無未來排程」班的標籤鈕）。那些班收在合起來的課程裡，
     // 先按「需介入」列的「只看這幾個班」攤開（兩邊同一顆）；放最後，篩選狀態不影響前面的彈出物
     log: dlgOpen('[data-log]', 'button[aria-label="操作紀錄"]', 'app-audit-log-dialog'),

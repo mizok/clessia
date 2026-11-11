@@ -71,6 +71,7 @@ import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.com
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { CoursesFilterStateService } from './courses-filter-state.service';
+import { dialogStepsActive } from '@shared/components/dialog-steps/dialog-steps.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import { PagerComponent } from '@shared/components/pager/pager.component';
 import {
@@ -179,6 +180,7 @@ export class CoursesPage implements OnInit {
   protected readonly courseActionMenuItems = signal<MenuItem[]>([]);
   protected readonly selectedClassForMenu = signal<Class | null>(null);
   protected readonly expandedCourseIds = signal<Set<string>>(new Set());
+  private restoreExpanded: string[] = [];
 
   // ---- Selection ----
   /** 批次選取模式（A6 預設沒有勾選框）：從工具列「⋯」進入、退出會清掉勾選 */
@@ -537,6 +539,7 @@ export class CoursesPage implements OnInit {
     this.historicalDateFrom.set(s.historicalDateFrom);
     this.historicalDateTo.set(s.historicalDateTo);
     this.currentPage.set(s.currentPage);
+    this.restoreExpanded = s.expandedCourseIds;
 
     this.setupLoadPipeline();
 
@@ -568,6 +571,7 @@ export class CoursesPage implements OnInit {
       fs.historicalDateFrom = this.historicalDateFrom();
       fs.historicalDateTo = this.historicalDateTo();
       fs.currentPage = this.currentPage();
+      fs.expandedCourseIds = [...this.expandedCourseIds()];
     });
   }
 
@@ -680,7 +684,9 @@ export class CoursesPage implements OnInit {
             // 增刪改造成的重抓保留展開與勾選 —— 否則剛刪掉的那一班所在的課程整組收起來，
             // 那一列的淡出根本看不到（#1641 5b）。換條件才重設
             if (!rows) {
-              this.expandedCourseIds.set(new Set());
+              // 離開再回來（整頁表單、班級詳情，#2396 L4）的第一次載入還原當時展開的課程
+              this.expandedCourseIds.set(new Set(this.restoreExpanded));
+              this.restoreExpanded = [];
               this.selectedClassIds.set(new Set());
             }
             this.loading.set(false);
@@ -1212,6 +1218,11 @@ export class CoursesPage implements OnInit {
   }
 
   protected openCreateClassDialog(courseId: string): void {
+    // 手機整頁（#2396 L4）：回來時本頁重建、重抓，篩選與展開由 CoursesFilterStateService 還原
+    if (dialogStepsActive()) {
+      void this.router.navigate(['/admin/courses', courseId, 'classes', 'new']);
+      return;
+    }
     const course = this.courses().find((c) => c.id === courseId);
     const ref = this.dialogService.open(ClassFormDialogComponent, {
       // A6 `.cdlg`：760（時段列四欄並排）
@@ -1237,6 +1248,10 @@ export class CoursesPage implements OnInit {
   }
 
   protected openEditClassDialog(cls: Class): void {
+    if (dialogStepsActive()) {
+      void this.router.navigate(['/admin/courses', cls.courseId, 'classes', cls.id, 'edit']);
+      return;
+    }
     const course = this.courses().find((c) => c.id === cls.courseId);
     const ref = this.dialogService.open(ClassFormDialogComponent, {
       // A6 `.cdlg`：760（時段列四欄並排）

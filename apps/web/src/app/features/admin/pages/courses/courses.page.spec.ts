@@ -8,6 +8,7 @@ import { beforeAll, vi } from 'vitest';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
+import { CoursesFilterStateService } from './courses-filter-state.service';
 import { CoursesPage } from './courses.page';
 import { CampusContextService } from '@core/campus-context.service';
 import { CoursesService } from '@core/courses.service';
@@ -1442,6 +1443,55 @@ describe('CoursesPage', () => {
       page().batchDelete();
       expect(classIds()).toEqual(['a', 'b', 'c']);
       toastedError();
+    });
+  });
+
+  describe('#2396 L4：開課班表單手機整頁', () => {
+    const narrow = (matches: boolean) =>
+      vi.stubGlobal('matchMedia', (q: string) => ({ matches, media: q }) as MediaQueryList);
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('手機：新增班、編輯班改導到頁面路由，不開對話框', () => {
+      narrow(true);
+      const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+      const open = vi.spyOn(fixture.debugElement.injector.get(DialogService), 'open');
+      (component as any).openCreateClassDialog('c-1');
+      (component as any).openEditClassDialog({ id: 'k-1', courseId: 'c-1' });
+      expect(navigate.mock.calls).toEqual([
+        [['/admin/courses', 'c-1', 'classes', 'new']],
+        [['/admin/courses', 'c-1', 'classes', 'k-1', 'edit']],
+      ]);
+      expect(open).not.toHaveBeenCalled();
+    });
+
+    it('桌機：照舊開對話框', () => {
+      narrow(false);
+      const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+      const open = vi
+        .spyOn(fixture.debugElement.injector.get(DialogService), 'open')
+        .mockReturnValue(null);
+      (component as any).openCreateClassDialog('c-1');
+      expect(navigate).not.toHaveBeenCalled();
+      expect(open).toHaveBeenCalled();
+    });
+
+    it('離開再回來：第一次載入還原展開中的課程', async () => {
+      (component as any).toggleCourse('c-1');
+      fixture.destroy();
+      expect(TestBed.inject(CoursesFilterStateService).expandedCourseIds).toEqual(['c-1']);
+      fixture = TestBed.createComponent(CoursesPage);
+      component = fixture.componentInstance;
+      fixture.componentRef.setInput('page', {
+        label: '課程管理',
+        relativePath: 'courses',
+        absolutePath: '/admin/courses',
+        role: undefined,
+        icon: 'pi-users',
+        showInMenu: true,
+      });
+      await fixture.whenStable();
+      expect((component as any).isCourseCollapsed('c-1')).toBe(false);
+      TestBed.inject(CoursesFilterStateService).expandedCourseIds = [];
     });
   });
 });
