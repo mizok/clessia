@@ -275,6 +275,14 @@
     font-family: inherit;
     font-size: inherit;
   }
+  /* iOS WebKit 的原生日期欄不吃 `width: 100%`，會照自己的內建寬度撐出容器
+     （iPhone PWA 的報名表單「期望開始日期」橫向溢出，使用者 2026-11-11）。
+     `appearance: none` 之後才跟一般輸入框一樣聽容器的。桌機 Chromium／WebKit
+     本來就沒事（320–390px 量過），這條對它們只是拿掉原生外觀，框線與高度都由各頁 class 給。 */
+  input[type='date'] {
+    appearance: none;
+    min-width: 0;
+  }
 }
 @layer legacy {
   .clessia-filter-bar {
