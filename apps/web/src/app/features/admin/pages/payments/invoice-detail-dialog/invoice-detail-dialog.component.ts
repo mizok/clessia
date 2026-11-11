@@ -5,7 +5,6 @@ import { FormsModule } from '@angular/forms';
 
 import { ButtonModule } from 'primeng/button';
 import { TextareaModule } from 'primeng/textarea';
-import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
 import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
@@ -68,7 +67,6 @@ import { RtRowDirective } from '@shared/components/responsive-table/rt-row.direc
     ButtonModule,
     TextareaModule,
     InlineNoticeComponent,
-    TooltipModule,
   ],
   templateUrl: './invoice-detail-dialog.component.html',
 })
@@ -125,6 +123,10 @@ export class InvoiceDetailDialogComponent {
     () => this.invoice().items.filter((item) => item.type === 'meal').length,
   );
   protected readonly voidFormOpen = signal(false);
+  /** 標題旁「⋯」開著沒（原生 popover 的 toggle 事件回寫，給 aria-expanded） */
+  protected readonly moreOpen = signal(false);
+  private readonly moreButton = viewChild.required<ElementRef<HTMLElement>>('moreButton');
+  private readonly moreMenu = viewChild.required<ElementRef<HTMLElement>>('moreMenu');
   protected readonly voidReason = signal('');
   protected readonly voiding = signal(false);
   protected readonly voidError = signal<string | null>(null);
@@ -210,6 +212,31 @@ export class InvoiceDetailDialogComponent {
       this.invoice.set(updated);
       this.dirty.set(true);
     });
+  }
+
+  /** 「⋯」：原生 popover，定位在按鈕下緣、右緣對齊（同教室對話框） */
+  protected toggleMore(): void {
+    const menu = this.moreMenu().nativeElement;
+    if (this.moreOpen()) {
+      menu.hidePopover?.();
+      return;
+    }
+    const rect = this.moreButton().nativeElement.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.inset = 'auto';
+    menu.style.top = `${rect.bottom + 4}px`;
+    menu.style.right = `${document.documentElement.clientWidth - rect.right}px`;
+    menu.showPopover?.();
+  }
+
+  /** 選單項目傳 key 由這裡分派（ng-template／@for 裡傳方法參考會丟 this） */
+  protected runMore(action: 'refund' | 'printInvoice' | 'printReceipt' | 'void'): void {
+    // jsdom 沒有 hidePopover
+    this.moreMenu().nativeElement.hidePopover?.();
+    if (action === 'refund') this.openPaymentDialog('refund');
+    else if (action === 'printInvoice') this.printInvoice();
+    else if (action === 'printReceipt') this.printReceipt();
+    else this.openVoidForm();
   }
 
   protected openVoidForm(): void {
