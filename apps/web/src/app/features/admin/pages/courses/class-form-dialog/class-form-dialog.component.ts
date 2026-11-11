@@ -139,7 +139,38 @@ export class ClassFormDialogComponent {
   /** #1665 Q5′：新班預設開放，跟 DB 預設一致 */
   protected readonly isPublicEnrollment = signal(this.cls()?.isPublicEnrollment ?? true);
 
+  /**
+   * 整頁宿主的離開保護用（#2396 L4，`class-form.page.ts`）：跟開窗當下比有沒有改過。
+   * 時段另外記 —— 編輯讀完詳情、「從某日起改時段」存完重讀時，時段列會被伺服器的版本換掉，
+   * 那時只把時段的基準跟著換，別的欄位改過照樣算改過。`key` 每次重讀都會換，不算
+   */
+  private pristineFields = '';
+  private pristineSchedules = '';
+  private fieldsSnapshot(): string {
+    return JSON.stringify([
+      this.formData(),
+      this.startDate(),
+      this.endDate(),
+      this.defaultFeeTemplateId(),
+      this.isRecommended(),
+      this.customGrades(),
+      this.gradeLevels(),
+      this.isPublicEnrollment(),
+    ]);
+  }
+  private schedulesSnapshot(): string {
+    return JSON.stringify(this.scheduleEntries().map(({ key: _key, ...entry }) => entry));
+  }
+  hasChanges(): boolean {
+    return (
+      this.fieldsSnapshot() !== this.pristineFields ||
+      this.schedulesSnapshot() !== this.pristineSchedules
+    );
+  }
+
   constructor() {
+    this.pristineFields = this.fieldsSnapshot();
+    this.pristineSchedules = this.schedulesSnapshot();
     // 稿：桌機聚焦班名、手機不聚焦（不要一開就彈鍵盤）
     afterNextRender(() => {
       if (globalThis.matchMedia?.('(min-width: 861px)').matches)
@@ -164,6 +195,7 @@ export class ClassFormDialogComponent {
         next: (res) => {
           this.cls.set(res.data);
           this.scheduleEntries.set(this.toEntries(this.liveSchedules()));
+          this.pristineSchedules = this.schedulesSnapshot();
           this.loading.set(false);
         },
         error: () => this.loading.set(false),
@@ -746,6 +778,7 @@ export class ClassFormDialogComponent {
         next: (res) => {
           this.cls.set(res.data);
           this.scheduleEntries.set(this.toEntries(this.liveSchedules()));
+          this.pristineSchedules = this.schedulesSnapshot();
         },
       });
     });
