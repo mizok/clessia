@@ -163,15 +163,20 @@ describe('InvoiceDetailDialog 動作收法（#2396）', () => {
     expect(el.querySelector('.dialog-frame__body')!.textContent).not.toContain('記錄收款');
     el.querySelector<HTMLButtonElement>('[data-testid="invoice-record-payment"] button')!.click();
     expect(open).toHaveBeenCalledTimes(1);
+    expect(open.mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        header: '記錄收款',
+        data: expect.objectContaining({ kind: 'payment' }),
+      }),
+    );
   });
 
   it('標題旁「⋯」在 ✕ 左邊；選單有記錄退費、列印收費單、列印收據、作廢帳單，沒收款時退費與收據停用', () => {
     const { el, item } = mount();
     const head = el.querySelector('.dialog-header-inline')!;
-    expect([...head.querySelectorAll('button[aria-label]')].map((b) => b.getAttribute('aria-label'))).toEqual([
-      '帳單的更多動作',
-      '關閉',
-    ]);
+    expect(
+      [...head.querySelectorAll('button[aria-label]')].map((b) => b.getAttribute('aria-label')),
+    ).toEqual(['帳單的更多動作', '關閉']);
     expect(item('記錄退費')!.disabled).toBe(true);
     expect(item('列印收費單')!.disabled).toBe(false);
     expect(item('列印收據')!.disabled).toBe(true);
@@ -188,6 +193,30 @@ describe('InvoiceDetailDialog 動作收法（#2396）', () => {
     expect(item('列印收據')!.disabled).toBe(false);
     item('記錄退費')!.click();
     expect(open).toHaveBeenCalledTimes(1);
+    // 開的是「退費」，不是收款（#2419 二讀 V1）
+    expect(open.mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        header: '記錄退費',
+        data: expect.objectContaining({ kind: 'refund' }),
+      }),
+    );
+  });
+
+  // #2419 二讀 V2／V3／V5：兩種列印各自印對的那一份（收費單、收據不互換）
+  it('「⋯」的列印收費單印收費單、列印收據印收據', () => {
+    const { fixture, item } = mount({
+      payments: [payment] as never,
+      netPaid: 1000,
+      status: 'partial',
+    });
+    const printNode = vi
+      .spyOn(fixture.componentInstance as unknown as { printNode: () => void }, 'printNode')
+      .mockImplementation(() => undefined);
+    item('列印收費單')!.click();
+    expect(printNode).toHaveBeenLastCalledWith(expect.anything(), '收費單');
+    item('列印收據')!.click();
+    expect(printNode).toHaveBeenLastCalledWith(expect.anything(), '收據');
+    expect(printNode).toHaveBeenCalledTimes(2);
   });
 
   it('已作廢：底部列只剩「關閉」，選單沒有退費與作廢', () => {
