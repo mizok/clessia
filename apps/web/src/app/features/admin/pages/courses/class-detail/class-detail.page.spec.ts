@@ -124,6 +124,22 @@ describe('ClassDetailPage', () => {
       expect(items[1].label).toBe('恢復開班');
     });
 
+    it('編輯班級（手機，#2396 L4）：導到整頁表單，不抓、不開對話框', () => {
+      vi.stubGlobal('matchMedia', (q: string) => ({ matches: true, media: q }));
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      coursesServiceMock.get.mockClear();
+      (component as any).openEditClass();
+      vi.unstubAllGlobals();
+      expect(navigate).toHaveBeenCalledWith([
+        '/admin/courses',
+        (component as any).cls().courseId,
+        'classes',
+        seedClassId,
+        'edit',
+      ]);
+      expect(coursesServiceMock.get).not.toHaveBeenCalled();
+    });
+
     it('編輯班級：點了才抓課程與班級清單（表單要課程、下一階班級）', () => {
       (classesServiceMock as any).list = vi.fn(() => of({ data: [] }));
       (component as any).openEditClass();

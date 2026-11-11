@@ -1,5 +1,69 @@
 <!-- 共用殼（#2290）：h2 當可及名稱；狀態點原本在標頭，移到內容區第一行 -->
 <app-dialog-frame [title]="(invoice().studentName ?? '未知學生') + ' 的帳單'" (closed)="close()">
+  <!-- #2396 拆單 4（dialog-frame.md「操作量分級」）：底部列只留 1 主＋1 次，其餘動作收進標題旁「⋯」。
+       原生 popover（top layer）：開在 p-dialog 裡，CDK overlay 的 popup-menu 會被對話框蓋住 -->
+  <div dialogHeadActions class="contents">
+    <button
+      #moreButton
+      type="button"
+      class="dialog-header-inline__close size-11 wide:size-10"
+      aria-label="帳單的更多動作"
+      aria-haspopup="menu"
+      [attr.aria-expanded]="moreOpen()"
+      data-testid="invoice-more"
+      (click)="toggleMore()"
+    >
+      <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+    </button>
+    <div
+      #moreMenu
+      popover
+      role="menu"
+      aria-label="帳單的更多動作"
+      (toggle)="moreOpen.set($any($event).newState === 'open')"
+      class="m-0 min-w-40 rounded-lg border border-solid border-zinc-200 bg-white p-1 text-md text-zinc-900 shadow-[0_10px_15px_-3px_rgba(0,0,0,0.08)]"
+    >
+      @if (!isVoided()) {
+        <button
+          type="button"
+          role="menuitem"
+          class="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-3 text-left [font:inherit] hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 wide:min-h-9"
+          [disabled]="invoice().payments.length === 0"
+          (click)="runMore('refund')"
+        >
+          <i class="pi pi-reply text-sm" aria-hidden="true"></i>記錄退費
+        </button>
+      }
+      <button
+        type="button"
+        role="menuitem"
+        class="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-3 text-left [font:inherit] hover:bg-zinc-100 wide:min-h-9"
+        (click)="runMore('printInvoice')"
+      >
+        <i class="pi pi-print text-sm" aria-hidden="true"></i>列印收費單
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        class="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-3 text-left [font:inherit] hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 wide:min-h-9"
+        [disabled]="receiptNo() === null"
+        [attr.title]="receiptNo() === null ? '還沒有收款，沒有收據可印' : null"
+        (click)="runMore('printReceipt')"
+      >
+        <i class="pi pi-receipt text-sm" aria-hidden="true"></i>列印收據
+      </button>
+      @if (!isVoided() && !voidFormOpen()) {
+        <button
+          type="button"
+          role="menuitem"
+          class="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-3 text-left text-error-700 [font:inherit] hover:bg-zinc-100 wide:min-h-9"
+          (click)="runMore('void')"
+        >
+          <i class="pi pi-ban text-sm" aria-hidden="true"></i>作廢帳單
+        </button>
+      }
+    </div>
+  </div>
   <div class="flex flex-col gap-4">
     <div class="flex flex-wrap gap-2">
       <app-status-dot [tone]="statusTone()">{{
@@ -110,25 +174,6 @@
       <section class="flex flex-col gap-3">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h3 class="m-0 text-sm font-semibold text-zinc-700">收款記錄</h3>
-          @if (!isVoided()) {
-            <div class="flex flex-wrap gap-2">
-              <p-button
-                label="記錄收款"
-                icon="pi pi-plus"
-                size="small"
-                (onClick)="openPaymentDialog('payment')"
-              />
-              <p-button
-                label="記錄退費"
-                icon="pi pi-reply"
-                size="small"
-                severity="danger"
-                [outlined]="true"
-                [disabled]="invoice().payments.length === 0"
-                (onClick)="openPaymentDialog('refund')"
-              />
-            </div>
-          }
         </div>
 
         @if (invoice().payments.length === 0) {
@@ -321,18 +366,6 @@
               退款比收款多 {{ -invoice().netPaid | number }} 元 —— 淨額要歸零才能作廢。
             }
           </p>
-          <div class="flex justify-end gap-2">
-            <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancelVoid()" />
-            @if (invoice().netPaid > 0) {
-              <p-button
-                label="記錄退費"
-                icon="pi pi-reply"
-                severity="danger"
-                [outlined]="true"
-                (onClick)="openPaymentDialog('refund')"
-              />
-            }
-          </div>
         } @else {
           <p class="m-0 text-sm text-zinc-700">
             作廢後<strong>無法復原</strong>，帳單會留著但不再計入任何應收與催繳。要重新收費請另開一張新帳單。
@@ -358,40 +391,43 @@
           @if (voidError()) {
             <p class="m-0 text-sm text-error-700" role="alert">{{ voidError() }}</p>
           }
-          <div class="flex justify-end gap-2">
-            <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancelVoid()" />
-            <p-button
-              label="確認作廢"
-              severity="danger"
-              [loading]="voiding()"
-              [disabled]="!voidReason().trim()"
-              (onClick)="confirmVoid()"
-            />
-          </div>
         }
       </section>
     }
   </div>
+  <!-- 底部列最多 1 主＋1 次（dialog-frame.md「操作量分級」）：平常是 關閉＋記錄收款；
+       作廢面板開著時換成那個流程的 取消＋下一步（淨額沒歸零＝記錄退費，歸零＝確認作廢） -->
   <ng-container dialogFoot>
-    <p-button label="列印收費單" icon="pi pi-print" [outlined]="true" (onClick)="printInvoice()" />
-    <p-button
-      label="列印收據"
-      icon="pi pi-receipt"
-      [outlined]="true"
-      [disabled]="receiptNo() === null"
-      [pTooltip]="receiptNo() === null ? '還沒有收款，沒有收據可印' : ''"
-      (onClick)="printReceipt()"
-    />
-    @if (!isVoided() && !voidFormOpen()) {
-      <p-button
-        label="作廢帳單"
-        icon="pi pi-ban"
-        [text]="true"
-        severity="danger"
-        (onClick)="openVoidForm()"
-      />
+    @if (voidFormOpen()) {
+      <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancelVoid()" />
+      @if (invoice().netPaid > 0) {
+        <p-button
+          label="記錄退費"
+          icon="pi pi-reply"
+          severity="danger"
+          [outlined]="true"
+          (onClick)="openPaymentDialog('refund')"
+        />
+      } @else if (invoice().netPaid === 0) {
+        <p-button
+          label="確認作廢"
+          severity="danger"
+          [loading]="voiding()"
+          [disabled]="!voidReason().trim()"
+          (onClick)="confirmVoid()"
+        />
+      }
+    } @else {
+      <p-button label="關閉" [text]="true" severity="secondary" (onClick)="close()" />
+      @if (!isVoided()) {
+        <p-button
+          label="記錄收款"
+          icon="pi pi-plus"
+          data-testid="invoice-record-payment"
+          (onClick)="openPaymentDialog('payment')"
+        />
+      }
     }
-    <p-button label="關閉" [text]="true" severity="secondary" (onClick)="close()" />
   </ng-container>
 </app-dialog-frame>
 
