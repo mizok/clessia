@@ -1,5 +1,5 @@
 import { signal } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { vi } from 'vitest';
@@ -192,6 +192,58 @@ describe('AccountSettingsDialogComponent —— 編輯→一顆儲存（#2396）
     );
   });
 
+  // #2420 二讀：Email 確認是改寫過的路徑 —— 有改才確認、確認後一次送（含其他改過的欄）、取消不送
+  function confirmSpy(fixture: ComponentFixture<AccountSettingsDialogComponent>, ok: boolean) {
+    // 元件自己 provide DialogService（確認框疊在帳號設定上），從元件的 injector 拿那一份
+    const dialog = fixture.debugElement.injector.get(DialogService);
+    return vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ onClose: of(ok) } as unknown as ReturnType<DialogService['open']>);
+  }
+
+  it('改了 Email：先確認；確認後送一次，Email 跟其他改過的欄位一起', async () => {
+    const { fixture, http, el } = setup({ displayName: '林主任', email: 'a@x.tw', phone: '0911' });
+    await settle(fixture);
+    el.querySelector<HTMLButtonElement>('[data-testid="account-edit"]')!.click();
+    await settle(fixture);
+    const open = confirmSpy(fixture, true);
+    ci(fixture)['email'] = 'b@x.tw';
+    ci(fixture)['phone'] = '0922';
+    el.querySelector('form#account-form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open.mock.calls[0][1]).toEqual(expect.objectContaining({ header: '確認修改 Email' }));
+    const reqs = http.match((r) => r.method === 'PATCH' && r.url.endsWith('/api/me'));
+    expect(reqs).toHaveLength(1);
+    expect(reqs[0].request.body).toEqual({ email: 'b@x.tw', phone: '0922' });
+  });
+
+  it('改了 Email 但在確認時取消：不送任何東西，留在編輯', async () => {
+    const { fixture, http, el } = setup({ displayName: '林主任', email: 'a@x.tw' });
+    await settle(fixture);
+    el.querySelector<HTMLButtonElement>('[data-testid="account-edit"]')!.click();
+    await settle(fixture);
+    confirmSpy(fixture, false);
+    ci(fixture)['email'] = 'b@x.tw';
+    el.querySelector('form#account-form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    http.expectNone((r) => r.method === 'PATCH');
+    fixture.detectChanges();
+    expect(foot(el)).toEqual(['取消', '儲存']);
+  });
+
+  it('沒改 Email：不跳確認，直接送', async () => {
+    const { fixture, http, el } = setup({ displayName: '林主任', email: 'a@x.tw', phone: '0911' });
+    await settle(fixture);
+    el.querySelector<HTMLButtonElement>('[data-testid="account-edit"]')!.click();
+    await settle(fixture);
+    const open = confirmSpy(fixture, true);
+    ci(fixture)['phone'] = '0922';
+    el.querySelector('form#account-form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    expect(open).not.toHaveBeenCalled();
+    expect(
+      http.expectOne((r) => r.method === 'PATCH' && r.url.endsWith('/api/me')).request.body,
+    ).toEqual({ phone: '0922' });
+  });
+
   it('生日是原生 date：帶出 yyyy-MM-dd；改了送原值、清空送 null', async () => {
     const { fixture, http, el } = setup({ birthday: '1990-05-17', displayName: '林主任' });
     await settle(fixture);
@@ -241,7 +293,9 @@ describe('AccountSettingsDialogComponent —— 對外暱稱（#1665）', () => 
     const fixture = TestBed.createComponent(AccountSettingsDialogComponent);
     const http = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
-    http.expectOne((r) => r.method === 'GET' && r.url.endsWith('/api/me')).flush({ displayName: '王大文', nickname });
+    http
+      .expectOne((r) => r.method === 'GET' && r.url.endsWith('/api/me'))
+      .flush({ displayName: '王大文', nickname });
     await fixture.whenStable();
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
