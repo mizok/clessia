@@ -143,6 +143,25 @@ export class RoutesCatalog {
     true,
     NavigationGroup.ADMIN_ACADEMICS,
   );
+  // 開課班表單的手機整頁（#2396 L4）；桌機照舊是對話框。`classes/new` 要排在詳情前（app.routes）
+  public static readonly ADMIN_CLASS_NEW = this.register(
+    'courses/:courseId/classes/new',
+    '/admin/courses/:courseId/classes/new',
+    '新增班級',
+    UserType.ADMIN,
+    'pi-users',
+    false,
+    NavigationGroup.ADMIN_ACADEMICS,
+  );
+  public static readonly ADMIN_CLASS_EDIT = this.register(
+    'courses/:courseId/classes/:classId/edit',
+    '/admin/courses/:courseId/classes/:classId/edit',
+    '編輯班級',
+    UserType.ADMIN,
+    'pi-users',
+    false,
+    NavigationGroup.ADMIN_ACADEMICS,
+  );
   public static readonly ADMIN_CLASS_DETAIL = this.register(
     'courses/:courseId/classes/:classId',
     '/admin/courses/:courseId/classes/:classId',
