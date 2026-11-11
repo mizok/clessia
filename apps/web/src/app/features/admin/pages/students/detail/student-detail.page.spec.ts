@@ -745,4 +745,18 @@ describe('StudentDetailPage', () => {
       expect(checkinCardsMock.revoke).not.toHaveBeenCalled();
     });
   });
+
+  it('編輯資料（手機，#2396 L4）：導到整頁表單，不開對話框', () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: true, media: q }));
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    dialogOpen.mockClear();
+    (fixture.componentInstance as any).openEditDialog();
+    vi.unstubAllGlobals();
+    expect(navigate).toHaveBeenCalledWith([
+      '/admin/students',
+      (fixture.componentInstance as any).student().id,
+      'edit',
+    ]);
+    expect(dialogOpen).not.toHaveBeenCalled();
+  });
 });
