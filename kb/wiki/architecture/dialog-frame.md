@@ -1,6 +1,6 @@
 ---
 title: 對話框與貼底面板的共用規則（app-dialog-frame）
-summary: 全站對話框收斂成共用殼 app-dialog-frame（h2＋副標＋關閉、內距、sticky 底部、手機貼底抽屜的底部留白）；寬三種 --dlg-w-sm/md/lg、左右內距 --dlg-pad-x（24／手機 16）、貼底底部留白 --sheet-foot-gap＋safe-area 只墊一次；進退場時長走 --motion-* token，減少動態時只淡入淡出。手機操作量分級（L1～L4：選填收合、抽屜內分步 app-dialog-steps、整頁），送出鈕一律在 sticky 底部列。#2290 第 3 步分批遷移中。
+summary: 全站對話框收斂成共用殼 app-dialog-frame（h2＋關閉、不放副標、內距、sticky 底部、手機貼底抽屜的底部留白）；寬三種 --dlg-w-sm/md/lg、左右內距 --dlg-pad-x（24／手機 16）、貼底底部留白 --sheet-foot-gap＋safe-area 只墊一次；進退場時長走 --motion-* token，減少動態時只淡入淡出。手機操作量分級（L1～L4：選填收合、抽屜內分步 app-dialog-steps、整頁），送出鈕一律在 sticky 底部列。#2290 第 3 步分批遷移中。
 category: architecture
 status: developing
 updated: 2026-11-10
@@ -16,7 +16,10 @@ tags: [architecture, dialog, a6, motion, accessibility]
 ## 用法
 
 ```html
-<app-dialog-frame title="從某日起改時段" [sub]="說明" (closed)="cancel()">
+<app-dialog-frame title="從某日起改時段" (closed)="cancel()">
+  <p class="m-0 text-base text-zinc-700" data-part="dialog-lead">
+    原本的時段上到 12/31，之後改成下面的時間。
+  </p>
   …內容…
   <ng-container dialogFoot>
     <p class="form-dialog__why">還沒填：…</p>
@@ -26,7 +29,7 @@ tags: [architecture, dialog, a6, motion, accessibility]
 </app-dialog-frame>
 ```
 
-- 副標要放按鈕或清單（教室對話框的教室清單＋「⋯」）：投影 `<p dialogSub class="dialog-header-inline__sub">…</p>`，放在 h2 之後；字串 `sub` 照舊，兩者擇一。
+- **不放副標**（R5「彈窗與抽屜不放副標」，#2396）：殼沒有 `sub` input、也沒有副標投影槽。是誰／哪天／哪班寫內容區第一行 `data-part="dialog-context"`；做決定要讀的內容本體寫 `data-part="dialog-lead"`；說明句不寫（見下「內容區第一行的先後」）。
 - **有 `<form>` 的對話框**：送出鈕在殼的底部列、已經在 form 外面，要寫 `<button type="submit" form="<form 的 id>">`，**不綁 `(click)`**，只留 form 的 `(ngSubmit)` 一條路 —— 不指回表單，欄位按 Enter 就不送出（鍵盤退步）；兩條都留，按一次送兩次（#2362 二讀）。
 - **確認對話框**（`ConfirmDialogComponent`）：關窗結果主鈕 `true`、次要鈕 `false`、✕／Esc `undefined` —— 次要鈕本身是第二個動作時（請假「完全刪除」）用 `=== false` 分辨；只是告知、沒有第二個選擇時給 `rejectVisible: false`（學校「它已經停用了」）。訊息可用 `\n` 分行。全站已無 `p-confirmdialog`／`ConfirmationService`（#2290）。
 - 開窗端（DynamicDialog）：`width: 'var(--dlg-w-md)'`、`showHeader: false`；**不寫 `breakpoints`**（≤860 會被全站 `.p-dialog` 的 `width: 100% !important` 蓋掉，寫了也沒作用）。
@@ -36,7 +39,7 @@ tags: [architecture, dialog, a6, motion, accessibility]
 
 | 項目           | 規則                                                                                                                                                                                                                                                                                                                                                                         | 出處                            |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| 標頭           | h2 20px 粗體＋（副標 13px）＋右邊 ✕；沒有分隔線、圖示、頭像、麵包屑                                                                                                                                                                                                                                                                                                          | A6 `.acset__head`、`.fdlg__sub` |
+| 標頭           | h2 20px 粗體＋＋右邊 ✕；**不放副標**（#2396），沒有分隔線、圖示、頭像、麵包屑                                                                                                                                                                                                                                                                                                | A6 `.acset__head`；R5 11-06     |
 | 可及名稱       | h2 掛 `appDialogTitle`（殼內建）。`showHeader: false` 時 PrimeNG 不掛 `aria-labelledby`，不補就只念「對話框」                                                                                                                                                                                                                                                                | `dialog-title.directive.ts`     |
 | ✕              | `aria-label="關閉"`；手機 44、桌機 40                                                                                                                                                                                                                                                                                                                                        | A6 `.acset__x`；R3／A27         |
 | 標頭內距       | 桌機 `16 16 8 24`；手機左距 16（跟內容對齊，A6 是 24）                                                                                                                                                                                                                                                                                                                       | A6；#2290                       |
@@ -65,7 +68,7 @@ tags: [architecture, dialog, a6, motion, accessibility]
 **L3 分步怎麼寫**：
 
 - 一步一件事；**內容區第一行**放 `<app-dialog-steps [current] [total] [label]>`（「第 2／3 步 · 計費」，只在手機顯示、`aria-live`）
-- **內容區第一行的先後**（計畫席 11-10 裁，#2404）：步驟標示（導覽）在前，B 類識別資訊（是誰／哪天／哪班，`data-part="dialog-context"`，副標拆掉後搬進內容區的那行）緊接其後，兩者都有時各一行；只有一個時就它是第一行。字級（計畫席 11-10 裁）：**B 類識別資訊一律 `text-sm text-zinc-600`**，不分有沒有步驟標示；**C 類內容本體**（確認訊息、「X／Y 已登錄」、帳單狀態、停用／改時段／收款要看的說明）是做決定要讀的正文，用 **`text-base text-zinc-700`**
+- **內容區第一行的先後**（計畫席 11-10 裁，#2404）：步驟標示（導覽）在前，B 類識別資訊（是誰／哪天／哪班，副標拆掉後搬進內容區的那行）緊接其後，兩者都有時各一行；只有一個時就它是第一行。字級與 part 名（計畫席 11-10 裁）：**B 類識別資訊 `data-part="dialog-context"`、一律 `text-sm text-zinc-600`**，不分有沒有步驟標示；**C 類內容本體**（確認訊息、「X／Y 已登錄」、帳單狀態、停用／改時段／收款要看的說明）是做決定要讀的正文，用 **`text-base text-zinc-700`**、`data-part="dialog-lead"`
 - 底部列：第一步左「取消」；之後左「上一步」（次要）、右「下一步」（橘 cta —— A6 `DIRECTION.md:17`「步驟頁『下一步』是橘」）；最後一步主鈕寫動作名
 - **只在手機分步、桌機單頁**：每段都渲染，手機用 `max-wide:hidden` 藏起不是目前那步的段落；上一步／下一步只在 `max-wide:` 出現，桌機只有原本的送出。表單狀態只有一份
 - 驗證：按「下一步」只驗這一步，沒過寫在底部列左側「還沒填：…」，不前進
@@ -79,7 +82,7 @@ tags: [architecture, dialog, a6, motion, accessibility]
 - **桌機照舊對話框，手機導到頁面路由**：開窗端在點擊當下用 `dialogStepsActive()` 判斷，手機就 `router.navigate` 到頁面（例 `/admin/courses/:courseId/classes/new`、`…/:classId/edit`；`new` 要排在 `:id` 路由前面）。路由進 `RoutesCatalog`（`showInMenu: false`），直接打網址也能用
 - **同一支表單、兩種宿主**：頁面元件只做三件事 —— 抓表單要的資料（開窗端原本塞進 `data` 的那些）、在自己的 `providers` 換上 `PageDialogRef`（`shared/utils/form-page.util.ts`，`close()`＝站內進來回上一頁、直接打網址回 `fallback`）與空的 `DynamicDialogConfig`、資料到了才渲染表單（表單在建構時讀 `config.data`）。**表單元件不分兩份、不改**，只多一個唯讀 `hasChanges()`
 - **結果不用帶回**：回到來源頁時元件重建、本來就會重抓；來源頁的篩選與展開要存在 root service（課程頁 `CoursesFilterStateService`），不然回來會重設
-- **離開保護**：路由掛 `canDeactivate: [formPageLeaveGuard]`，頁面實作 `canLeave()`：沒改過放行；改過開 `ConfirmDialogComponent`「放棄未儲存的變更？」（主鈕「放棄」才放行，「繼續編輯」與 ✕ 留下）；存檔成功（`close` 帶了結果）之後不問。對話框模式不加這層
+- **離開保護**：路由掛 `canDeactivate: [formPageLeaveGuard]`，頁面實作 `canLeave()`：沒改過放行；改過開 `ConfirmDialogComponent`「放棄未儲存的變更？」（主鈕「放棄」才放行，「繼續編輯」與 ✕ 留下）；存檔成功（`close` 帶了結果）之後不問。對話框模式不加這層。**guard 在 `shared/utils/form-page-leave.guard.ts`，跟 `PageDialogRef`（`form-page.util.ts`）分兩檔**：`app.routes.ts` 靜態 import guard，帶進來的都進 initial bundle —— 同檔時 `primeng/dynamicdialog` 被拉進去，initial 896 kB 超過 800 kB 預算（#2414 build 紅）。guard 檔不 import primeng 與 `form-page.util`；`PageDialogRef` 只給 lazy 的頁面 import
 - **版面**：頁面宿主 host 掛 `form-page`，shell 看到它就不加內距（`.shell-content` 的 `has-[app-page-open,.form-page]`）—— 有內距的話表單底部列的 sticky 會浮在內距上方；殼（`app-dialog-frame`）照用，✕＝返回
 - **第二層對話框**：照舊由表單自己的 `DialogService` 開，疊在頁面上
 - **已知缺口：Enter 不送出**。開課班、學生表單都沒有 `<form>`、送出鈕直接綁 `(click)`，欄位按 Enter 不送出（對話框模式本來就這樣）；整頁只換載體、行為不動，所以照舊沒補。要補時照上面「有 `<form>` 的對話框」那條（計畫席 11-10 gate，#2396）

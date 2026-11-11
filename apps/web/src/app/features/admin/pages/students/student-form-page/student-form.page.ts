@@ -6,7 +6,8 @@ import { MessageService } from 'primeng/api';
 import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { StudentsService, type Student } from '@core/students.service';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
-import { PageDialogRef, type LeaveGuarded } from '@shared/utils/form-page.util';
+import { PageDialogRef } from '@shared/utils/form-page.util';
+import type { LeaveGuarded } from '@shared/utils/form-page-leave.guard';
 import { StudentFormDialogComponent } from '../student-form-dialog.component';
 
 /**
