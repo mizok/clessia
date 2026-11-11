@@ -2,11 +2,7 @@
   <div class="dialog-header-inline">
     <div class="dialog-header-inline__content">
       <h2 appDialogTitle class="dialog-header-inline__title">{{ title() }}</h2>
-      @if (sub()) {
-        <p class="dialog-header-inline__sub">{{ sub() }}</p>
-      }
-      <!-- 副標裡要放按鈕等元素時用（教室對話框的清單）；元素自己掛 dialog-header-inline__sub -->
-      <ng-content select="[dialogSub]" />
+      <!-- 沒有副標（R5「彈窗與抽屜不放副標」，#2396）：識別資訊、內容本體寫在內容區第一行 -->
     </div>
     <button
       type="button"

@@ -520,12 +520,6 @@
     line-height: 1.5;
     color: var(--zinc-900);
   }
-  /* A6 `.fdlg__sub` */
-  .dialog-header-inline__sub {
-    margin: 2px 0 0;
-    font-size: var(--text-md);
-    color: var(--zinc-600);
-  }
   .dialog-header-inline__close {
     display: grid;
     place-items: center;

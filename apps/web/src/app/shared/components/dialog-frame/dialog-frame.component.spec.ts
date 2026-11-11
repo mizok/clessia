@@ -7,7 +7,7 @@ import { DialogFrameComponent } from './dialog-frame.component';
   imports: [DialogFrameComponent],
   template: `
     <div role="dialog">
-      <app-dialog-frame title="拆時段" [sub]="sub" (closed)="closedCount = closedCount + 1">
+      <app-dialog-frame title="拆時段" (closed)="closedCount = closedCount + 1">
         <p data-body>內容</p>
         @if (withFoot) {
           <ng-container dialogFoot><button type="button">確定</button></ng-container>
@@ -17,25 +17,9 @@ import { DialogFrameComponent } from './dialog-frame.component';
   `,
 })
 class HostComponent {
-  sub = '';
   withFoot = true;
   closedCount = 0;
 }
-
-@Component({
-  imports: [DialogFrameComponent],
-  template: `
-    <div role="dialog">
-      <app-dialog-frame title="教室：本校">
-        <p dialogSub class="dialog-header-inline__sub" data-sub>
-          101<button type="button" aria-label="101 的更多動作">⋯</button>
-        </p>
-        <p data-body>內容</p>
-      </app-dialog-frame>
-    </div>
-  `,
-})
-class SubSlotHostComponent {}
 
 describe('DialogFrameComponent', () => {
   async function setup(patch: Partial<HostComponent> = {}) {
@@ -47,37 +31,17 @@ describe('DialogFrameComponent', () => {
     return { fixture, el: fixture.nativeElement as HTMLElement };
   }
 
-  it('標頭只有 h2、（副標）、關閉鈕；h2 是外層 dialog 的可及名稱', async () => {
-    const { el } = await setup({ sub: '原本的時段上到 12/31' });
+  it('標頭只有 h2、關閉鈕（不放副標，#2396）；h2 是外層 dialog 的可及名稱', async () => {
+    const { el } = await setup();
     const head = el.querySelector('.dialog-header-inline')!;
     expect([...head.querySelectorAll('h2, p, button')].map((e) => e.tagName)).toEqual([
       'H2',
-      'P',
       'BUTTON',
     ]);
     const h2 = head.querySelector('h2')!;
     expect(h2.textContent?.trim()).toBe('拆時段');
     expect(el.querySelector('[role=dialog]')?.getAttribute('aria-labelledby')).toBe(h2.id);
     expect(head.querySelector('button')?.getAttribute('aria-label')).toBe('關閉');
-  });
-
-  it('副標投影槽：[dialogSub] 放進標頭 h2 之後，裡面的按鈕照樣可點；不會掉進 body', async () => {
-    await TestBed.configureTestingModule({ imports: [SubSlotHostComponent] }).compileComponents();
-    const fixture = TestBed.createComponent(SubSlotHostComponent);
-    fixture.detectChanges();
-    const el = fixture.nativeElement as HTMLElement;
-    const head = el.querySelector('.dialog-header-inline__content')!;
-
-    const sub = head.querySelector('[data-sub]');
-    expect(sub).not.toBeNull();
-    expect(sub!.previousElementSibling?.tagName).toBe('H2');
-    expect(sub!.querySelector('button')?.getAttribute('aria-label')).toBe('101 的更多動作');
-    expect(el.querySelector('.dialog-frame__body [data-sub]')).toBeNull();
-  });
-
-  it('沒給副標就不渲染', async () => {
-    const { el } = await setup();
-    expect(el.querySelector('.dialog-header-inline__sub')).toBeNull();
   });
 
   it('按關閉發出 closed', async () => {
