@@ -8,7 +8,8 @@ import { CoursesService } from '@core/courses.service';
 import { StaffService } from '@core/staff.service';
 import { CampusesService } from '@core/campuses.service';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
-import { PageDialogRef, type LeaveGuarded } from '@shared/utils/form-page.util';
+import { PageDialogRef } from '@shared/utils/form-page.util';
+import type { LeaveGuarded } from '@shared/utils/form-page-leave.guard';
 import { ClassFormDialogComponent } from '../class-form-dialog/class-form-dialog.component';
 
 /**

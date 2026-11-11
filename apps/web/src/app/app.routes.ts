@@ -4,7 +4,7 @@ import { roleGuard } from '@core/role.guard';
 import { permissionGuard } from '@core/permission.guard';
 import { guestGuard } from '@core/guest.guard';
 import { RoutesCatalog, type RouteObj } from '@core/smart-enums/routes-catalog';
-import { formPageLeaveGuard } from '@shared/utils/form-page.util';
+import { formPageLeaveGuard } from '@shared/utils/form-page-leave.guard';
 
 /**
  * 公開殼子路由的 guard —— **從 `RouteObj.access` 推，不在這裡各寫一份**（#693）。
