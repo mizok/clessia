@@ -4,6 +4,7 @@ import { roleGuard } from '@core/role.guard';
 import { permissionGuard } from '@core/permission.guard';
 import { guestGuard } from '@core/guest.guard';
 import { RoutesCatalog, type RouteObj } from '@core/smart-enums/routes-catalog';
+import { formPageLeaveGuard } from '@shared/utils/form-page-leave.guard';
 
 /**
  * 公開殼子路由的 guard —— **從 `RouteObj.access` 推，不在這裡各寫一份**（#693）。
@@ -329,6 +330,16 @@ export const routes: Routes = [
               import('@features/admin/pages/courses/courses.page').then((m) => m.CoursesPage),
             data: { page: RoutesCatalog.ADMIN_COURSES },
           },
+          // 手機整頁表單（#2396 L4）：`new` 排在 `:classId` 前面，不然被當成班級 id
+          ...[RoutesCatalog.ADMIN_CLASS_NEW, RoutesCatalog.ADMIN_CLASS_EDIT].map((page) => ({
+            path: page.relativePath,
+            canDeactivate: [formPageLeaveGuard],
+            loadComponent: () =>
+              import('@features/admin/pages/courses/class-form-page/class-form.page').then(
+                (m) => m.ClassFormPage,
+              ),
+            data: { page },
+          })),
           {
             path: RoutesCatalog.ADMIN_CLASS_DETAIL.relativePath,
             loadComponent: () =>

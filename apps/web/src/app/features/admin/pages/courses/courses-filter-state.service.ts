@@ -11,4 +11,6 @@ export class CoursesFilterStateService {
   historicalDateFrom: Date | null = null;
   historicalDateTo: Date | null = null;
   currentPage = 1;
+  /** 展開中的課程（#2396 L4：手機整頁表單回來不要全收合） */
+  expandedCourseIds: string[] = [];
 }

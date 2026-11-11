@@ -4,14 +4,18 @@
       <h2 appDialogTitle class="dialog-header-inline__title">{{ title() }}</h2>
       <!-- 沒有副標（R5「彈窗與抽屜不放副標」，#2396）：識別資訊、內容本體寫在內容區第一行 -->
     </div>
-    <button
-      type="button"
-      class="dialog-header-inline__close size-11 wide:size-10"
-      aria-label="關閉"
-      (click)="closed.emit()"
-    >
-      <i class="pi pi-times" aria-hidden="true"></i>
-    </button>
+    <!-- 標題旁的「⋯」（底部列放不下的次要動作，dialog-frame.md「操作量分級」全級共通）：投影 [dialogHeadActions]，排在 ✕ 左邊 -->
+    <div class="flex shrink-0 items-center">
+      <ng-content select="[dialogHeadActions]" />
+      <button
+        type="button"
+        class="dialog-header-inline__close size-11 wide:size-10"
+        aria-label="關閉"
+        (click)="closed.emit()"
+      >
+        <i class="pi pi-times" aria-hidden="true"></i>
+      </button>
+    </div>
   </div>
   <div class="dialog-frame__body"><ng-content /></div>
   <div class="form-dialog__footer"><ng-content select="[dialogFoot]" /></div>

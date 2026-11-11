@@ -18,6 +18,7 @@ import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { forkJoin } from 'rxjs';
 import { CoursesService } from '@core/courses.service';
+import { dialogStepsActive } from '@shared/components/dialog-steps/dialog-steps.component';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { ClassesService, Class, type Schedule } from '@core/classes.service';
 import { taipeiDateString } from '@core/system-clock.service';
@@ -183,6 +184,11 @@ export class ClassDetailPage implements OnInit {
   protected openEditClass(): void {
     const cls = this.cls();
     if (!cls) return;
+    // 手機整頁（#2396 L4）：回來時本頁重建、重抓
+    if (dialogStepsActive()) {
+      void this.router.navigate(['/admin/courses', cls.courseId, 'classes', cls.id, 'edit']);
+      return;
+    }
     this.refData.loadCampuses();
     this.refData.loadTeachers();
     forkJoin([this.coursesService.get(cls.courseId), this.classesService.list({ pageSize: 0 })])
