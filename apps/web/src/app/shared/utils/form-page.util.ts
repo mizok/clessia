@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Location } from '@angular/common';
-import { Router, type CanDeactivateFn } from '@angular/router';
+import { Router } from '@angular/router';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
 
 /**
@@ -9,6 +9,9 @@ import { DynamicDialogRef } from 'primeng/dynamicdialog';
  * 同一支表單元件兩種宿主：桌機是 DynamicDialog，手機是頁面路由。表單只認得
  * `DynamicDialogRef`／`DynamicDialogConfig`，所以頁面宿主在自己的 `providers` 換上這支
  * ref —— 表單呼叫 `close()` 就是回來源頁，表單本身一行不改。
+ *
+ * 離開保護的 guard 在 `form-page-leave.guard.ts`：`app.routes` 靜態 import 那支，
+ * 這支帶 primeng 依賴、只給 lazy 的頁面 import（initial bundle 預算，#2414）。
  */
 @Injectable()
 export class PageDialogRef extends DynamicDialogRef {
@@ -26,10 +29,3 @@ export class PageDialogRef extends DynamicDialogRef {
     else void this.router.navigate(this.fallback);
   }
 }
-
-/** 頁面宿主實作這個：有改過、還沒存就問要不要放棄 */
-export interface LeaveGuarded {
-  canLeave(): boolean | Promise<boolean>;
-}
-
-export const formPageLeaveGuard: CanDeactivateFn<LeaveGuarded> = (page) => page.canLeave();

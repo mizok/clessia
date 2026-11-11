@@ -2,7 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { Location } from '@angular/common';
 import { Router, provideRouter } from '@angular/router';
 import { vi } from 'vitest';
-import { PageDialogRef, formPageLeaveGuard } from './form-page.util';
+import { PageDialogRef } from './form-page.util';
+import { formPageLeaveGuard } from './form-page-leave.guard';
 
 /** #2396 L4：整頁表單的 ref —— close 回來源頁 */
 describe('PageDialogRef', () => {
