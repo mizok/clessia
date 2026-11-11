@@ -56,7 +56,6 @@ type Mode = '' | 'per_session' | 'daily_checkin';
         <!-- 共用殼（#2290）：h2 掛 appDialogTitle，指回這個 dialog 的 aria-labelledby（所以 dialog 帶 role） -->
         <app-dialog-frame
           [title]="campus() ? '編輯分校：' + campus()!.name : '新增分校'"
-          [sub]="campus() ? '' : '建好之後就可以在這個分校開課'"
           (closed)="close()"
         >
           <form

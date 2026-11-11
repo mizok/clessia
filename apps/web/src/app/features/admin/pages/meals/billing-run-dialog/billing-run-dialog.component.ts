@@ -70,7 +70,7 @@ export class BillingRunDialogComponent {
   ];
   protected readonly mode = signal<'month' | 'period'>(this.data.mode ?? 'month');
   protected readonly modeLabel = computed(() => (this.mode() === 'period' ? '期繳開單' : '月結'));
-  protected readonly sub = computed(() =>
+  protected readonly context = computed(() =>
     this.mode() === 'period'
       ? '把這一期「期繳」報名的學費開成帳單（餐費照舊跟著月結走）。'
       : '把這個月「要收費且尚未結算」的餐費與學費加總成帳單。',

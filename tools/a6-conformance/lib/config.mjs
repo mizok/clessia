@@ -1078,6 +1078,8 @@ export const PAGES = {
       },
     },
     deviations: [
+      // #2396 ④：收款的「學生 · 應繳／已收／尚欠 · 到期」搬進內容區第一行（B＋C）
+      ...noSubDeviations('pay', '記錄收款', '\\{名\\}[^\\]]*'),
       ...xpSheet('bexp'),
       {
         // 面板照稿貼著匯出鈕右緣往下開（同一段定位）；匯出鈕本身 Δx −48 已歸偏離（工具列多了篩選與操作紀錄鈕），
@@ -1428,6 +1430,8 @@ export const PAGES = {
     a6Open: opensOf('parents', 'a6Open'),
     appOpen: opensOf('parents', 'appOpen'),
     deviations: [
+      // #2396 ④：匯入家長的欄位順序從副標搬進內容區（C，準備檔案要用）
+      ...noSubDeviations('import', '匯入家長', 'Excel[^\\]]*'),
       // #2396 ③：新增家長的說明句刪（A）
       ...noSubDeviations('new-parent', '新增家長', '建立後[^\\]]*', { deleted: true }),
       // 家長詳情、匯入（#2290 換殼）：標頭是共用殼的（h2 20px＋✕ 桌機 40），稿各對話框的標頭高低不一
@@ -1944,6 +1948,8 @@ export const PAGES = {
     a6Open: { direct: { click: '[data-direct]', root: 'dialog[open]' } },
     appOpen: { direct: { click: '[data-testid="direct-enroll"]', root: 'dialog[open]' } },
     deviations: [
+      // #2396 ④：直接報名的說明句刪（A）
+      ...noSubDeviations('direct', '直接報名', '現場報名[^\\]]*', { deleted: true }),
       // ── 直接報名對話框（#1314 EN2）──
       // 開課班：app-select-field（p-select）對稿的 .dd；學生：有建議清單＝combobox（R7，同頁面篩選）
       ...[
@@ -2164,6 +2170,8 @@ export const PAGES = {
     a6Open: opensOf('leave', 'a6Open'),
     appOpen: opensOf('leave', 'appOpen'),
     deviations: [
+      // #2396 ④：批次請假的說明句刪（A）
+      ...noSubDeviations('batch', '批次請假', '同一堂課[^\\]]*', { deleted: true }),
       // #2396 ③：登記請假（勾堂）的說明句刪（A）
       ...noSubDeviations('new-leave', '登記請假', '送出後[^\\]]*', { deleted: true }),
       // 登記請假手機分兩步（#2396，R5「手機重量級對話框分步／收合」）：手機只量得到第一步（選學生）。
@@ -2581,6 +2589,8 @@ export const PAGES = {
       'campus-form': { click: 'button:has-text("新增分校")', root: 'dialog[open]' },
     },
     deviations: [
+      // #2396 ④：新增分校的說明句刪（A）
+      ...noSubDeviations('campus-form', '新增分校', '建好之後[^\\]]*', { deleted: true }),
       // 教室：清單從副標搬進內容區第一行（#2396 D 類），下面的新增教室表單跟著下移
       ...noSubDeviations('rooms', '教室：\\{分校\\}', '[^\\]]*教室[^\\]]*', {
         extra: [{ status: '位置', a6: '>landmark:dialog\\[教室：\\{分校\\}\\]>landmark:form\\[\\]$' }],
@@ -2663,6 +2673,12 @@ export const PAGES = {
         '>landmark:main[]>landmark:region[已停用]>heading:h2[已停用]',
     },
     deviations: [
+      // #2396 ④：新增人員、權限的說明句刪（A）；稿的 form 帶內距、又被拉上去（同教室）
+      ...noSubDeviations('new-staff', '新增人員', '建立後[^\\]]*', {
+        deleted: true,
+        extra: [{ status: '位置', a6: '>landmark:dialog\\[新增人員\\]>landmark:form\\[\\]$' }],
+      }),
+      ...noSubDeviations('perm', '[^\\]]*的權限', '勾了才[^\\]]*', { deleted: true }),
       // 停用確認：確認訊息從副標搬進內容區（#2396 C 類）
       ...noSubDeviations('off', '確認停用', '確定要停用[^\\]]*'),
       // ── 停用確認（ConfirmDialog，#2290）──
@@ -2825,6 +2841,8 @@ export const PAGES = {
       },
     },
     deviations: [
+      // #2396 ④：新增價目表的說明句刪（A）
+      ...noSubDeviations('new-ft', '新增價目表', '這裡填的是定價[^\\]]*', { deleted: true }),
       // 用模板建立：A6 放在系統設定、是一選就建的 select；使用者 11-02 搬到這裡、改成 radio＋預覽＋送出鈕，
       // 11-04 收進彈窗（#2235），頁面上只剩開彈窗的那顆鈕（列表空時在空狀態裡）
       {
@@ -2947,6 +2965,8 @@ export const PAGES = {
       run: { click: 'button:has-text("月結")', root: '.p-dialog:has(app-billing-run-dialog)' },
     },
     deviations: [
+      // #2396 ④：月結「會開哪些錢」從副標搬進內容區（C）
+      ...noSubDeviations('run', '月結', '把這個月[^\\]]*'),
       {
         status: '黏住',
         a6: 'landmark:region\\[確認名單\\]$',
@@ -3188,6 +3208,21 @@ export const PAGES = {
         pop: 'new-exam',
         reason: '新增考試：開課班多選（應然）；科目、分校、範圍說明稿沒畫，保留（R2）',
         source: `${rule('R5')}「新增考試的開課班多選與保留欄位」2026-11-02（A6 exams.html:74 自己寫應然是「參加範圍（多選開課班）」、稿先畫成單選；計畫席 11-02 確認）`,
+      })),
+      // 手機 L2（#2396）：滿分、及格分數、範圍說明收進 <details>「更多設定」後，表單第一層的同形欄位外框
+      // 從 6 個變 4 個，不再過工具「≥5 個同形容器＝列」的門檻 —— 上面那條「三個下拉外框被認成一列」改成逐項報多；
+      // 版面不變（桌機 details 一律展開、裡面的 grid 同外層）。後面欄位跟著算出的位移也是同一件事
+      ...[
+        {
+          status: '多',
+          app: 'landmark:form\\[\\]>(text:span\\[(類別|科目|分校)\\]|control:combobox\\[(類別|科目\\*|分校)\\]|control:button\\[dropdown trigger\\](~[23])?)$',
+        },
+        { status: '位置', a6: 'landmark:form\\[\\]>text:label\\[(參加的開課班|滿分|及格分數)\\]$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-exam',
+        reason: '選填收進「更多設定」後欄位外框不再被認成一列（工具的列門檻），版面不變',
+        source: `${rule('R5')}「手機重量級對話框分步／收合」2026-11-06；#2396`,
       })),
       // 手機一欄：稿沒畫的科目、分校各佔一列，後面的欄位整段下移（桌機兩欄並排，連帶得起來）
       {

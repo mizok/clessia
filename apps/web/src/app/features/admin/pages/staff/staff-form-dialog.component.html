@@ -1,7 +1,6 @@
 <!-- 共用殼（#2290）：標題、副標照 A6 staff.html baseFields；編輯沒有副標（Email 是表單裡的唯讀欄位，R5 使用者 11-05） -->
 <app-dialog-frame
   [title]="isEditing() ? '編輯 ' + staff()!.displayName : '新增人員'"
-  [sub]="isEditing() ? '' : '建立後會出一次性登入連結，交給本人綁定 LINE（不設密碼）'"
   (closed)="cancel()"
 >
   <!-- A6 `.fdlg__body`：兩欄 grid；手機一欄 -->

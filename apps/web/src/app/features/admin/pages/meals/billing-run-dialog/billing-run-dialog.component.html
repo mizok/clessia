@@ -1,5 +1,5 @@
 <!-- 共用殼（#2290）。兩個狀態的底部列收成一個 dialogFoot（投影只吃最上層的節點） -->
-<app-dialog-frame [title]="modeLabel()" [sub]="sub()" (closed)="close()">
+<app-dialog-frame [title]="modeLabel()" (closed)="close()">
   @if (result(); as done) {
     <div class="flex flex-col gap-4">
       @if (done.failedStudents.length > 0) {
@@ -76,6 +76,8 @@
       }
     </div>
   } @else {
+    <!-- #2396 C：這次會把哪些錢開成帳單 -->
+    <p class="m-0 text-base text-zinc-700">{{ context() }}</p>
     <div class="flex flex-col gap-2">
       <span class="text-sm font-medium text-zinc-600" id="br-mode">開單類型</span>
       <p-selectbutton

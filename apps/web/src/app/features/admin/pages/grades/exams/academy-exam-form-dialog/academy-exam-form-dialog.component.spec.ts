@@ -467,4 +467,84 @@ describe('AcademyExamFormDialogComponent', () => {
       .mock.lastCall![1] as Record<string, unknown>;
     expect(payload['passScore']).toBeNull();
   });
+
+  // #2396 拆單 4（dialog-frame.md「操作量分級」L2）：滿分、及格分數、範圍說明收進「更多設定」
+  describe('手機選填收「更多設定」', () => {
+    const narrow = (matches: boolean) =>
+      vi.stubGlobal(
+        'matchMedia',
+        vi.fn((q: string) => ({ matches: q.includes('max-width') ? matches : !matches })),
+      );
+    afterEach(() => vi.unstubAllGlobals());
+    const more = () =>
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLDetailsElement>(
+        '[data-testid="exam-more"]',
+      )!;
+
+    it('手機新增：預設收合，三個選填欄在裡面', async () => {
+      narrow(true);
+      await createComponent();
+      const d = more();
+      expect(d.open).toBe(false);
+      expect(d.querySelector('summary')?.textContent).toContain('更多設定（3 項）');
+      for (const id of ['exam-total', 'exam-pass', 'exam-scope']) {
+        expect(d.querySelector('#' + id)).not.toBeNull();
+      }
+      expect(d.querySelector('#exam-name')).toBeNull();
+    });
+
+    it('桌機：一律展開（版面同原本）', async () => {
+      narrow(false);
+      await createComponent();
+      expect(more().open).toBe(true);
+    });
+
+    // 三個條件各自守一則（#2409 二讀：只靠範圍說明觸發時，拿掉另兩個條件 spec 不會紅）
+    const editExam = (over: Record<string, unknown>) => ({
+      data: {
+        id: 'exam-1',
+        name: '月考',
+        examType: 'quiz',
+        status: 'active',
+        subjectId: 's1',
+        campusId: 'c1',
+        examDate: '2026-03-20',
+        totalScore: 100,
+        passScore: null,
+        scopeNote: '',
+        classes: [{ classId: 'cls-1', className: 'A班' }],
+        summary: { recordedCount: 0, expectedCount: 10 },
+        ...over,
+      },
+    });
+    it.each([
+      ['只改滿分', { totalScore: 50 }, true],
+      ['只填及格分數', { passScore: 60 }, true],
+      ['只填範圍說明', { scopeNote: '第 3 章' }, true],
+      ['全是預設', {}, false],
+    ])('手機編輯：%s → 更多設定 open=%s（有值就展開，不藏資料）', async (_label, over, open) => {
+      narrow(true);
+      academyExamsServiceMock.get.mockReturnValueOnce(of(editExam(over)));
+      await createComponent({ data: { mode: 'edit', examId: 'exam-1' } });
+      fixture.detectChanges();
+      expect(more().open).toBe(open);
+    });
+
+    it('手機：卡在收起來的滿分時，按送出會打開「更多設定」、不送出', async () => {
+      narrow(true);
+      await createComponent();
+      const c = component as unknown as {
+        updateField: (k: string, v: unknown) => void;
+        save: () => void;
+      };
+      c.updateField('name', '小考');
+      c.updateField('subjectId', 's1');
+      c.updateField('classIds', ['cls-1']);
+      c.updateField('totalScore', 0);
+      c.save();
+      fixture.detectChanges();
+      expect(more().open).toBe(true);
+      expect(academyExamsServiceMock.create).not.toHaveBeenCalled();
+    });
+  });
 });
