@@ -67,6 +67,10 @@ function setup(permissions: string[], campus: Campus | null = CAMPUS) {
  * #1073：分校的帳戶資訊覆寫。改它要 `manage_finance`（改帳號＝改家長匯款的去向）——
  * 沒有那個權限的管理員看不到欄位，送出的 body 也不帶這個 key（帶了 API 會 403，整張表單存不了）。
  */
+// setup() 把 matchMedia stub 成永遠 true；不還原的話同一個 worker 之後的 spec 都以為是手機
+// （dialog-steps 的「沒有 matchMedia 當桌機」因此隨執行順序紅，#2396 L4 驗證時撞到）
+afterEach(() => vi.unstubAllGlobals());
+
 describe('CampusFormDialogComponent —— 帳戶資訊（#1073）', () => {
   it('有 manage_finance：看得到欄位（帶分校目前的值），儲存送 paymentInfo', () => {
     const { el, update, save } = setup(['manage_finance']);
@@ -98,12 +102,13 @@ describe('CampusFormDialogComponent —— 帳戶資訊（#1073）', () => {
  * 出勤模式跟機構預設同一個門檻 `manage_org_settings`（#1112）—— 沒有的人不出欄位、body 不帶 key。
  */
 describe('CampusFormDialogComponent —— A6 campusForm（#1314 SE3）', () => {
-  it('標題照稿：編輯「編輯分校：名稱」；新增「新增分校」＋副標', () => {
+  it('標題照稿：編輯「編輯分校：名稱」；新增「新增分校」，說明句不放（#2396 A）', () => {
     expect(setup([]).el.querySelector('h2')!.textContent!.trim()).toBe('編輯分校：中正');
     TestBed.resetTestingModule();
     const { el } = setup([], null);
     expect(el.querySelector('h2')!.textContent!.trim()).toBe('新增分校');
-    expect(el.textContent).toContain('建好之後就可以在這個分校開課');
+    expect(el.textContent).not.toContain('建好之後就可以在這個分校開課');
+    expect(el.querySelector('.dialog-header-inline__sub')).toBeNull();
   });
 
   it('送出鈕指回表單（順手修既有：換殼前就在 form 外）：在欄位按 Enter 送一次', () => {
