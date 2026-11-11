@@ -84,6 +84,15 @@ export class StudentFormDialogComponent {
     notes: this.student()?.notes ?? '',
   });
 
+  /** 整頁宿主的離開保護用（#2396 L4，`student-form.page.ts`）：跟開窗當下比有沒有改過 */
+  private snapshot(): string {
+    return JSON.stringify([this.formData(), this.selectedParent()]);
+  }
+  private readonly pristine = this.snapshot();
+  hasChanges(): boolean {
+    return this.snapshot() !== this.pristine;
+  }
+
   protected readonly gradeOptions = GRADE_LEVELS.map((g) => ({
     label: GRADE_LEVEL_LABELS[g],
     value: g,

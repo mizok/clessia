@@ -209,6 +209,25 @@ export class RoutesCatalog {
     true,
     NavigationGroup.ADMIN_STUDENT_AFFAIRS,
   );
+  // 學生表單的手機整頁（#2396 L4）；桌機照舊是對話框。`students/new` 要排在詳情前（app.routes）
+  public static readonly ADMIN_STUDENT_NEW = this.register(
+    'students/new',
+    '/admin/students/new',
+    '新增學生',
+    UserType.ADMIN,
+    'pi-user',
+    false,
+    NavigationGroup.ADMIN_STUDENT_AFFAIRS,
+  );
+  public static readonly ADMIN_STUDENT_EDIT = this.register(
+    'students/:id/edit',
+    '/admin/students/:id/edit',
+    '編輯學生資料',
+    UserType.ADMIN,
+    'pi-user',
+    false,
+    NavigationGroup.ADMIN_STUDENT_AFFAIRS,
+  );
   public static readonly ADMIN_STUDENT_DETAIL = this.register(
     'students/:id',
     '/admin/students/:id',
