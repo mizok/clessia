@@ -115,3 +115,113 @@ describe('InvoiceDetailDialog 聯絡家長（#1625）', () => {
     expect(el.textContent).toContain('這位學生還沒有登記家長');
   });
 });
+
+// #2396 拆單 4（dialog-frame.md「操作量分級」）：底部列最多 1 主＋1 次，其餘進標題旁「⋯」
+describe('InvoiceDetailDialog 動作收法（#2396）', () => {
+  const payment = {
+    id: 'pay-1',
+    kind: 'payment',
+    amount: 1000,
+    method: 'cash',
+    paidAt: '2026-10-05',
+    note: null,
+    receiptNo: 'R-1',
+  };
+  function mount(over: Partial<Invoice> = {}) {
+    const inv = { ...invoice, ...over } as Invoice;
+    const voidInvoice = vi.fn(() => of({ data: { ...inv, status: 'void' } }));
+    const open = vi.fn();
+    TestBed.configureTestingModule({
+      imports: [InvoiceDetailDialogComponent],
+      providers: [
+        MessageService,
+        {
+          provide: InvoicesService,
+          useValue: { get: vi.fn(() => of({ data: detail })), voidInvoice },
+        },
+        { provide: DialogService, useValue: { open } },
+        { provide: DynamicDialogRef, useValue: { close: vi.fn() } },
+        { provide: DynamicDialogConfig, useValue: { data: { invoice: inv } } },
+        { provide: SystemClockService, useValue: { todayTaipei: signal('2026-10-10') } },
+      ],
+    });
+    const fixture = TestBed.createComponent(InvoiceDetailDialogComponent);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const foot = () =>
+      [...el.querySelectorAll('.form-dialog__footer button')].map((b) => b.textContent!.trim());
+    const item = (label: string) =>
+      [...el.querySelectorAll<HTMLButtonElement>('[role="menu"] [role="menuitem"]')].find((b) =>
+        b.textContent!.includes(label),
+      );
+    return { fixture, el, foot, item, voidInvoice, open };
+  }
+
+  it('底部列只有「關閉」＋「記錄收款」；記錄收款不再放在收款記錄那一段', () => {
+    const { el, foot, open } = mount();
+    expect(foot()).toEqual(['關閉', '記錄收款']);
+    expect(el.querySelector('.dialog-frame__body')!.textContent).not.toContain('記錄收款');
+    el.querySelector<HTMLButtonElement>('[data-testid="invoice-record-payment"] button')!.click();
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it('標題旁「⋯」在 ✕ 左邊；選單有記錄退費、列印收費單、列印收據、作廢帳單，沒收款時退費與收據停用', () => {
+    const { el, item } = mount();
+    const head = el.querySelector('.dialog-header-inline')!;
+    expect([...head.querySelectorAll('button[aria-label]')].map((b) => b.getAttribute('aria-label'))).toEqual([
+      '帳單的更多動作',
+      '關閉',
+    ]);
+    expect(item('記錄退費')!.disabled).toBe(true);
+    expect(item('列印收費單')!.disabled).toBe(false);
+    expect(item('列印收據')!.disabled).toBe(true);
+    expect(item('作廢帳單')).toBeTruthy();
+  });
+
+  it('有收款：退費與收據可按，退費開收款對話框', () => {
+    const { item, open } = mount({
+      payments: [payment] as never,
+      netPaid: 1000,
+      status: 'partial',
+    });
+    expect(item('記錄退費')!.disabled).toBe(false);
+    expect(item('列印收據')!.disabled).toBe(false);
+    item('記錄退費')!.click();
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it('已作廢：底部列只剩「關閉」，選單沒有退費與作廢', () => {
+    const { foot, item } = mount({ status: 'void' });
+    expect(foot()).toEqual(['關閉']);
+    expect(item('記錄退費')).toBeUndefined();
+    expect(item('作廢帳單')).toBeUndefined();
+    expect(item('列印收費單')).toBeTruthy();
+  });
+
+  it('作廢：從「⋯」打開後底部列換成 取消＋確認作廢，填理由按一次只作廢一次', () => {
+    const { fixture, el, foot, item, voidInvoice } = mount();
+    item('作廢帳單')!.click();
+    fixture.detectChanges();
+    expect(foot()).toEqual(['取消', '確認作廢']);
+    const reason = el.querySelector<HTMLTextAreaElement>('#invoice-void-reason')!;
+    reason.value = '開錯月份';
+    reason.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    [...el.querySelectorAll<HTMLButtonElement>('.form-dialog__footer button')]
+      .find((b) => b.textContent!.includes('確認作廢'))!
+      .click();
+    expect(voidInvoice).toHaveBeenCalledTimes(1);
+    expect(voidInvoice).toHaveBeenCalledWith('inv-1', '開錯月份');
+  });
+
+  it('作廢但淨額沒歸零：底部列是 取消＋記錄退費（先退款），沒有確認作廢', () => {
+    const { fixture, foot, item } = mount({
+      payments: [payment] as never,
+      netPaid: 1000,
+      status: 'partial',
+    });
+    item('作廢帳單')!.click();
+    fixture.detectChanges();
+    expect(foot()).toEqual(['取消', '記錄退費']);
+  });
+});
