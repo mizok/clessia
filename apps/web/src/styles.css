@@ -187,6 +187,32 @@
     --p-datepicker-dropdown-width: 2.75rem;
   }
 }
+/*
+   原生可點元素的觸控下限（#924 P2，計畫席 11-11 裁）：上面那塊只管 PrimeNG 的 token；A6 改版後多數按鈕是
+   原生 <button>，寫成 `h-11 wide:h-9` —— `wide:` 只看寬度，平板橫放（≥861 寬、用手指點）會拿到 36px。
+   `wide:` 管版面、不動它；改在這裡依 pointer 補一個下限：**coarse pointer 一律 44，不分寬度**（R3）。
+
+   - 只給下限（min-height／min-width），不改 height：版面照稿，只是手指點得到
+   - **刻意不分層**：要贏過 utilities 層的 `wide:min-h-0`；`:where()` 讓 specificity 是 0，元件自己寫的照樣贏
+   - min-height 對 inline 元素無效，所以句子裡的文字連結不受影響；PrimeNG 元件（`.p-component`）交給上面的 token
+   - 勾選框、radio、range、hidden 不是這種目標，排除
+   - 桌機滑鼠（pointer: fine）完全不受影響
+*/
+@media (pointer: coarse) {
+  :where(
+    button,
+    [role='button'],
+    a[href],
+    select,
+    summary,
+    input:not([type='checkbox'], [type='radio'], [type='range'], [type='hidden'])
+  ):not(:where(.p-component, .p-component *)) {
+    min-height: 2.75rem;
+  }
+  :where(button, [role='button']):not(:where(.p-component, .p-component *)) {
+    min-width: 2.75rem;
+  }
+}
 /* =============================================================================
    全域規則進 `legacy` layer、reset 進 `base`（#991 T4）
 
