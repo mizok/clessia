@@ -127,7 +127,7 @@ describe('PaymentFormDialogComponent：標頭寫期別與到期日（#2316）', 
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('h2')?.textContent?.trim()).toBe('記錄收款 · 11 月學費');
     // #2396 C：從副標搬進內容區第一行
-    expect(el.querySelector('[data-part="dialog-context"]')?.textContent).toContain(
+    expect(el.querySelector('[data-part="dialog-lead"]')?.textContent).toContain(
       '林小華 · 應繳 520 元 · 已收 0 元 · 尚欠 520 元 · 到期 2026-11-10',
     );
   });
