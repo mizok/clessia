@@ -42,13 +42,13 @@ describe('DeactivateClassDialogComponent', () => {
   it('標題「停用「班名」」、副標「目前 N 位學生在籍」；沒帶人數時副標是麵包屑（不寫 0）', () => {
     const a = setup({ enrolledCount: 12 });
     expect(a.el.querySelector('h2')?.textContent?.trim()).toBe('停用「數學A班」');
-    expect(a.el.querySelector('[data-part="dialog-context"]')?.textContent).toContain(
+    expect(a.el.querySelector('[data-part="dialog-lead"]')?.textContent).toContain(
       '目前 12 位學生在籍',
     );
 
     TestBed.resetTestingModule();
     const b = setup({});
-    expect(b.el.querySelector('[data-part="dialog-context"]')?.textContent).toContain(
+    expect(b.el.querySelector('[data-part="dialog-lead"]')?.textContent).toContain(
       '本校 › 數學 › 數學A班',
     );
   });

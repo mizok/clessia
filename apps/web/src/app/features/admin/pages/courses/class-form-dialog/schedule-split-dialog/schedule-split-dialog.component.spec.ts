@@ -72,7 +72,7 @@ describe('ScheduleSplitDialogComponent', () => {
     lastFixture.detectChanges();
     const el = lastFixture.nativeElement as HTMLElement;
     expect(el.querySelector('app-dialog-frame h2')?.textContent?.trim()).toBe('從某日起改時段');
-    expect(el.querySelector('[data-part="dialog-context"]')?.textContent).toContain(
+    expect(el.querySelector('[data-part="dialog-lead"]')?.textContent).toContain(
       '之後改成下面的時間',
     );
     el.querySelector<HTMLButtonElement>('.dialog-header-inline__close')!.click();
