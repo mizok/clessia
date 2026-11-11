@@ -24,6 +24,8 @@ const staff = [
   { id: 't-1', displayName: '王老師', campusIds: ['campus-1'], subjectIds: ['subject-1'] },
 ];
 const campuses = [{ id: 'campus-1', name: '總校' }];
+/** 全部班（下一階班級的選項來源）：同分校的一班 */
+const allClasses = [{ id: 'class-7', campusId: 'campus-1', name: 'A 班', courseName: '國三數學' }];
 const existing = {
   id: 'class-9',
   courseId: 'course-1',
@@ -45,7 +47,7 @@ describe('ClassFormPage（#2396 L4 手機整頁）', () => {
   const setup = (params: Record<string, string>, host: 'page' | 'dialog' = 'page') => {
     classes = {
       get: vi.fn(() => of({ data: existing })),
-      list: vi.fn(() => of({ data: [] })),
+      list: vi.fn(() => of({ data: allClasses })),
       checkScheduleConflicts: vi.fn(() => of({ conflicts: [] })),
       create: vi.fn(() => of({ data: { id: 'class-new' } })),
       update: vi.fn(() => of({ data: { id: 'class-9' } })),
@@ -153,13 +155,23 @@ describe('ClassFormPage（#2396 L4 手機整頁）', () => {
   afterEach(() => TestBed.resetTestingModule());
 
   it('新增：抓課程、全部班、老師、分校，交給表單（跟開窗端給的同一組）', () => {
-    const { form } = setup({ courseId: 'course-1' });
+    const { form, el } = setup({ courseId: 'course-1' });
     expect(courses.get).toHaveBeenCalledWith('course-1');
     expect(classes['list']).toHaveBeenCalledWith({ pageSize: 0 });
     expect(classes['get']).not.toHaveBeenCalled();
     expect(form.isEditing()).toBe(false);
+    // 少交一欄都要看得出來（#2414 二讀 P1～P4）：四欄都是 mock 回的那組
     expect(form.course()).toEqual(course);
     expect(form.staff()).toEqual(staff);
+    expect(form.campuses()).toEqual(campuses);
+    expect(form.nextClassOptions().map((o: { label: string }) => o.label)).toEqual([
+      '沒有（不設升班路徑）',
+      '國三數學 · A 班',
+    ]);
+    // 畫面上的效果：分校名進內容區第一行（campuses）
+    expect(
+      el.querySelector('[data-part="dialog-context"]')!.textContent!.replace(/\s+/g, ' ').trim(),
+    ).toBe('總校 · 國二數學');
   });
 
   it('殼補白底：底部列是 background: inherit，頁面裡不給的話透明、欄位從底下透出來', () => {
