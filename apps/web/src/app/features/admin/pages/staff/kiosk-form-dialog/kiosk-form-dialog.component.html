@@ -1,11 +1,6 @@
 <!-- 共用殼（#2290）。A6 沒畫掃碼機台（#1127，舊有新無 R2），外框照全站表單 -->
 <app-dialog-frame
   [title]="isEditing ? '編輯掃碼機台' : '新增掃碼機台'"
-  [sub]="
-    isEditing
-      ? ''
-      : '放在分校門口給學生打卡的平板。它只能打卡，看不到任何學生或家長資料。建立後會給一個 QR，用平板掃它登入。'
-  "
   (closed)="cancel()"
 >
   <div class="flex flex-col gap-4">

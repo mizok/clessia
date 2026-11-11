@@ -61,7 +61,6 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
         <!-- 共用殼（#2290）；原生 dialog 帶 role="dialog"，殼的 appDialogTitle 才找得到它掛名稱 -->
         <app-dialog-frame
           title="直接報名"
-          sub="現場報名、老生加報、特殊例外 —— 跳過申請流程"
           (closed)="close()"
         >
           <form

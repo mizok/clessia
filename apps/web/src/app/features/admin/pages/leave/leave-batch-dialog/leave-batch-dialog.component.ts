@@ -35,7 +35,7 @@ interface Pick {
   imports: [DialogFrameComponent, FormsModule, SelectFieldComponent],
   template: `
     <!-- 共用殼（#2290）：標題、副標照 A6 leave.html batchLeave -->
-    <app-dialog-frame title="批次請假" sub="同一堂課，一次幫好幾位學生請假" (closed)="close()">
+    <app-dialog-frame title="批次請假" (closed)="close()">
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1">
           <!-- A6 的下拉（#2325）：全站 app-select-field，超過 8 項自動出搜尋框 -->
