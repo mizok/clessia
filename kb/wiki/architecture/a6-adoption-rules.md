@@ -44,6 +44,8 @@ updated: 2026-11-11
 
 觸控下限只約束**基底**（手機）——見 [[constitution-enforcement]] A27。桌機可以照稿用 `wide:` 縮小，所以桌機高度跟稿不同是**待修**，不是偏離。
 
+**coarse pointer 一律 44，不分寬度**（#924 P2，計畫席 11-11 裁）：平板橫放（≥861 寬、用手指點）拿到的是 `wide:` 的桌機尺寸，所以 `styles.css` 在 `@media (pointer: coarse)` 給原生 button／`[role=button]`／連結／select／summary／輸入框 `min-height: 44px`（按鈕另加 `min-width`），PrimeNG 由同處的 coarse token 處理（#171）。`wide:` 照舊只管版面；滑鼠桌機不受影響。
+
 ## R4 對齊的證據是 conformance 工具報告
 
 > 「為什麼你不先分析 A6 的 html part 來整理出來整體頁面結構應該都有哪些 part，再來比對功能正確性呢？很顯然我們需要一個自動而且具備幾何準確度，還有 uiux 行為準確度的驗證手段」—— 使用者，2026-10-14
