@@ -486,6 +486,96 @@ describe('ClassFormDialogComponent', () => {
   });
 
   /** #1118：家長端推薦加選的人工標記 —— 門檻跟班級本身一樣（manage_courses），永遠送 */
+  describe('hasChanges（#2396 L4 整頁的離開保護）', () => {
+    const existing = {
+      id: 'class-1',
+      name: '舊班',
+      maxStudents: 20,
+      nextClassId: null,
+      isActive: true,
+      schedules: [
+        { id: 'sch-1', weekday: 1, startTime: '09:00:00', endTime: '11:00:00', teacherId: null },
+      ],
+    };
+    const recreate = (cls: Record<string, unknown> | null) => {
+      TestBed.inject(DynamicDialogConfig).data.cls = cls;
+      fixture = TestBed.createComponent(ClassFormDialogComponent);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+    };
+    afterEach(() => {
+      TestBed.inject(DynamicDialogConfig).data.cls = null;
+    });
+
+    it('新增：一開沒改過；改班名、改時段各算改過', () => {
+      recreate(null);
+      expect(component.hasChanges()).toBe(false);
+      (component as any).updateForm('name', 'A 班');
+      expect(component.hasChanges()).toBe(true);
+      recreate(null);
+      (component as any).updateScheduleEntry(0, 'startTime', '18:00');
+      expect(component.hasChanges()).toBe(true);
+    });
+
+    /** 列表傳進來的班只帶今天有效的段；詳情多一段未來的（#1100 #22 的實際形狀） */
+    const sched = (id: string, weekday: number, effectiveFrom: string | null) => ({
+      id,
+      weekday,
+      startTime: '09:00:00',
+      endTime: '11:00:00',
+      teacherId: null,
+      effectiveFrom,
+      effectiveTo: null,
+      classroomId: null,
+    });
+    const withDetail = (schedules: unknown[]) =>
+      ((classesServiceMock.get as any) = vi.fn(() => of({ data: { ...existing, schedules } })));
+
+    it('編輯：讀完詳情（時段換成伺服器版：多一段未來的）不算改過；之後改欄位才算', () => {
+      withDetail([sched('sch-1', 1, null), sched('sch-2', 3, '2099-01-01')]);
+      recreate(existing);
+      expect((component as any).scheduleEntries().length).toBe(2);
+      expect(component.hasChanges()).toBe(false);
+      (component as any).isRecommended.set(true);
+      expect(component.hasChanges()).toBe(true);
+    });
+
+    it('「從某日起改時段」存完重讀（時段換掉）不算改過；之前改過的欄位照樣算', () => {
+      withDetail([sched('sch-1', 1, null)]);
+      recreate(existing);
+      expect(component.hasChanges()).toBe(false);
+      withDetail([sched('sch-1', 1, null), sched('sch-3', 5, '2099-02-01')]);
+      (component as any).openSplit((component as any).scheduleEntries()[0]);
+      conflictClose$.next({ kept: [] } as any);
+      expect((component as any).scheduleEntries().length).toBe(2);
+      expect(component.hasChanges()).toBe(false);
+      (component as any).updateForm('name', '改過的班名');
+      withDetail([sched('sch-1', 1, null)]);
+      (component as any).openSplit((component as any).scheduleEntries()[0]);
+      conflictClose$.next({ kept: [] } as any);
+      expect(component.hasChanges()).toBe(true);
+    });
+
+    it('刪一列再加回內容一模一樣的一列（key 不同）不算改過', async () => {
+      recreate(null);
+      (component as any).addScheduleEntry();
+      await fixture.whenStable();
+      (component as any).updateScheduleEntry(1, 'startTime', '19:00');
+      (component as any).updateScheduleEntry(1, 'endTime', '20:30');
+      (component as any).removeScheduleEntry(0);
+      await fixture.whenStable();
+      const [only] = (component as any).scheduleEntries();
+      expect(only.key).not.toBe(0);
+      expect(component.hasChanges()).toBe(false);
+    });
+
+    it('只改目錄參考價（保留類欄位）也算改過 —— 離開要問', () => {
+      recreate(existing);
+      (component as any).defaultFeeTemplateId.set('fee-1');
+      expect(component.hasChanges()).toBe(true);
+    });
+  });
+
   it('推薦加選：預設關，打開後送出帶 isRecommended: true', () => {
     expect(fixture.nativeElement.textContent).toContain('家長端推薦加選');
     expect((component as any).isRecommended()).toBe(false);
