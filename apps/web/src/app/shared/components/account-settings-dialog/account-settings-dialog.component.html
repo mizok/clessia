@@ -1,141 +1,119 @@
 <!--
-  帳號設定（#2390，A6 a6.js:178 field()／a6.js:191 dialog.acset／a6.css:443-457）：
-  各欄是 .acset__f（標籤、輸入＋「儲存」一列、提示），直接放在殼的內容區（grid gap 20），不再分段。
-  錯誤列與「登入方式」稿沒畫、現況有，保留（R2）。手機的「儲存」等鈕 44（R3）。
+  帳號設定（#2390，A6 a6.js:178 field()／a6.js:191 dialog.acset／a6.css:443-457）。
+  #2396 拆單 4（dialog-frame.md「操作量分級」）：原本每欄一顆「儲存」（稿 .acset__f），內容區十幾顆鈕 →
+  平常是唯讀檢視、底部列「關閉＋編輯」；按「編輯」欄位變輸入框、底部列「取消＋儲存」，一次只送改過的欄位（R5）。
+  登入方式、家長身份稿沒畫／現況有，保留（R2），它們自己的動作照舊在段落裡。
 -->
 <app-dialog-frame title="帳號設定" (closed)="close()">
-  <ng-template #saveBtn let-field>
-    <button
-      type="button"
-      class="account-settings__save inline-flex h-11 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-3 text-sm leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
-      [disabled]="saving()"
-      (click)="saveField(field)"
-    >
-      {{ savingField() === field ? '儲存中…' : '儲存' }}
-    </button>
-  </ng-template>
-
-  <ng-template #fieldError let-field>
-    @if (fieldErrorFor(field); as msg) {
-      <p class="account-settings__error mt-1 mb-0 text-sm text-error-700">{{ msg }}</p>
-    }
-  </ng-template>
-
-  <div>
-    <label class="mb-1 block text-md font-semibold text-zinc-700" for="account-name"
-      >顯示名稱</label
-    >
-    <div class="flex gap-2">
-      <input
-        id="account-name"
-        [class]="inputClass"
-        [(ngModel)]="displayName"
-        [disabled]="saving()"
-      />
-      <ng-container
-        [ngTemplateOutlet]="saveBtn"
-        [ngTemplateOutletContext]="{ $implicit: 'displayName' }"
-      />
-    </div>
-    <ng-container
-      [ngTemplateOutlet]="fieldError"
-      [ngTemplateOutletContext]="{ $implicit: 'displayName' }"
-    />
-  </div>
-
-  @if (hasStaffRole()) {
+  <!-- 送出鈕在殼的底部列（form 外）：type=submit form="account-form"，只走這裡的 submit（dialog-frame.md） -->
+  <form
+    id="account-form"
+    ngNoForm
+    class="grid gap-5"
+    aria-label="個人資料"
+    (submit)="$event.preventDefault(); save()"
+  >
     <div>
-      <label class="mb-1 block text-md font-semibold text-zinc-700" for="account-nickname"
-        >對外暱稱</label
-      >
-      <div class="flex gap-2">
+      @if (editing()) {
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="account-name"
+          >顯示名稱</label
+        >
         <input
-          id="account-nickname"
+          id="account-name"
           [class]="inputClass"
-          maxlength="20"
-          placeholder="例：王老師"
-          [(ngModel)]="nickname"
+          [(ngModel)]="displayName"
           [disabled]="saving()"
         />
-        <ng-container
-          [ngTemplateOutlet]="saveBtn"
-          [ngTemplateOutletContext]="{ $implicit: 'nickname' }"
-        />
+      } @else {
+        <p class="mt-0 mb-1 text-md font-semibold text-zinc-700">顯示名稱</p>
+        <p class="m-0 text-base text-zinc-900" data-testid="account-name-value">
+          {{ displayName || '未填' }}
+        </p>
+      }
+    </div>
+    @if (hasStaffRole()) {
+      <div>
+        @if (editing()) {
+          <label class="mb-1 block text-md font-semibold text-zinc-700" for="account-nickname"
+            >對外暱稱</label
+          >
+          <input
+            id="account-nickname"
+            maxlength="20"
+            placeholder="例：王老師"
+            [class]="inputClass"
+            [(ngModel)]="nickname"
+            [disabled]="saving()"
+          />
+        } @else {
+          <p class="mt-0 mb-1 text-md font-semibold text-zinc-700">對外暱稱</p>
+          <p class="m-0 text-base text-zinc-900" data-testid="account-nickname-value">
+            {{ nickname || '未填' }}
+          </p>
+        }
+        <p class="mt-1 mb-0 text-sm text-zinc-600">公開課程目錄顯示你的暱稱，沒填就顯示本名</p>
       </div>
-      <p class="mt-1 mb-0 text-sm text-zinc-600">公開課程目錄顯示你的暱稱，沒填就顯示本名</p>
-      <ng-container
-        [ngTemplateOutlet]="fieldError"
-        [ngTemplateOutletContext]="{ $implicit: 'nickname' }"
-      />
+    }
+    <!-- 生日：稿是原生 date（gate #2390），值就是 yyyy-MM-dd -->
+    <div>
+      @if (editing()) {
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="account-birthday"
+          >生日</label
+        >
+        <input
+          id="account-birthday"
+          type="date"
+          [class]="inputClass"
+          [(ngModel)]="birthday"
+          [disabled]="saving()"
+        />
+      } @else {
+        <p class="mt-0 mb-1 text-md font-semibold text-zinc-700">生日</p>
+        <p class="m-0 text-base text-zinc-900" data-testid="account-birthday-value">
+          {{ birthday || '未填' }}
+        </p>
+      }
     </div>
-  }
-
-  <!-- 生日：稿是原生 date（gate #2390），值就是 yyyy-MM-dd -->
-  <div>
-    <label class="mb-1 block text-md font-semibold text-zinc-700" for="account-birthday"
-      >生日</label
-    >
-    <div class="flex gap-2">
-      <input
-        id="account-birthday"
-        type="date"
-        [class]="inputClass"
-        [(ngModel)]="birthday"
-        [disabled]="saving()"
-      />
-      <ng-container
-        [ngTemplateOutlet]="saveBtn"
-        [ngTemplateOutletContext]="{ $implicit: 'birthday' }"
-      />
+    <div>
+      @if (editing()) {
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="account-email"
+          >Email</label
+        >
+        <input
+          id="account-email"
+          type="email"
+          [class]="inputClass"
+          [(ngModel)]="email"
+          [disabled]="saving()"
+        />
+      } @else {
+        <p class="mt-0 mb-1 text-md font-semibold text-zinc-700">Email</p>
+        <p class="m-0 text-base text-zinc-900" data-testid="account-email-value">
+          {{ email || '未填' }}
+        </p>
+      }
+      <p class="mt-1 mb-0 text-sm text-zinc-600">補習班用這個 Email 幫你產生一次性登入連結</p>
     </div>
-    <ng-container
-      [ngTemplateOutlet]="fieldError"
-      [ngTemplateOutletContext]="{ $implicit: 'birthday' }"
-    />
-  </div>
-
-  <div>
-    <label class="mb-1 block text-md font-semibold text-zinc-700" for="account-email">Email</label>
-    <div class="flex gap-2">
-      <input
-        id="account-email"
-        type="email"
-        [class]="inputClass"
-        [(ngModel)]="email"
-        [disabled]="saving()"
-      />
-      <ng-container
-        [ngTemplateOutlet]="saveBtn"
-        [ngTemplateOutletContext]="{ $implicit: 'email' }"
-      />
+    <div>
+      @if (editing()) {
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="account-phone"
+          >電話</label
+        >
+        <input
+          id="account-phone"
+          type="tel"
+          [class]="inputClass"
+          [(ngModel)]="phone"
+          [disabled]="saving()"
+        />
+      } @else {
+        <p class="mt-0 mb-1 text-md font-semibold text-zinc-700">電話</p>
+        <p class="m-0 text-base text-zinc-900" data-testid="account-phone-value">
+          {{ phone || '未填' }}
+        </p>
+      }
     </div>
-    <p class="mt-1 mb-0 text-sm text-zinc-600">補習班用這個 Email 幫你產生一次性登入連結</p>
-    <ng-container
-      [ngTemplateOutlet]="fieldError"
-      [ngTemplateOutletContext]="{ $implicit: 'email' }"
-    />
-  </div>
-
-  <div>
-    <label class="mb-1 block text-md font-semibold text-zinc-700" for="account-phone">電話</label>
-    <div class="flex gap-2">
-      <input
-        id="account-phone"
-        type="tel"
-        [class]="inputClass"
-        [(ngModel)]="phone"
-        [disabled]="saving()"
-      />
-      <ng-container
-        [ngTemplateOutlet]="saveBtn"
-        [ngTemplateOutletContext]="{ $implicit: 'phone' }"
-      />
-    </div>
-    <ng-container
-      [ngTemplateOutlet]="fieldError"
-      [ngTemplateOutletContext]="{ $implicit: 'phone' }"
-    />
-  </div>
+  </form>
 
   <!-- 登入方式（#1842 G-3，稿沒畫、R2 保留）：列這個部署掛了的 provider；綁兩個以上才給解除（使用者 11-02） -->
   <section aria-labelledby="account-methods">
@@ -209,4 +187,45 @@
       </p>
     }
   </section>
+  <!-- 底部列 1 主＋1 次（dialog-frame.md「操作量分級」） -->
+  <ng-container dialogFoot>
+    @if (saveError(); as msg) {
+      <p class="form-dialog__why text-error-700" role="alert">{{ msg }}</p>
+    }
+    @if (editing()) {
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
+        [disabled]="saving()"
+        (click)="cancelEdit()"
+      >
+        取消
+      </button>
+      <button
+        type="submit"
+        form="account-form"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+        [attr.aria-disabled]="saving()"
+        data-testid="account-save"
+      >
+        {{ saving() ? '儲存中…' : '儲存' }}
+      </button>
+    } @else {
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
+        (click)="close()"
+      >
+        關閉
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 wide:h-9"
+        data-testid="account-edit"
+        (click)="startEdit()"
+      >
+        編輯
+      </button>
+    }
+  </ng-container>
 </app-dialog-frame>
