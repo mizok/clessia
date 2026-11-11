@@ -160,7 +160,7 @@ export class AccountSettingsDialogComponent {
           nickname: string | null;
         }>(`${environment.apiUrl}/api/me`, { withCredentials: true }),
       );
-      this.displayName = me.displayName;
+      this.displayName = me.displayName ?? '';
       this.email = me.email ?? '';
       this.phone = me.phone ?? '';
       this.birthday = me.birthday ? me.birthday.slice(0, 10) : '';
