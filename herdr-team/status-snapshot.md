@@ -22,6 +22,28 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
+## 📦 11-10～11 收單節（labor-plan-20261105-1551，2026-11-11 10:50 台北寫；鏈空、生產席全退）
+
+> 狀態一律現查；這節記 11-06 13:3x 使用者暫停四天後、11-10 14:4x 復工到 11-11 上午的「為什麼」。
+
+### 做完的
+
+- **#2396 使用者 11-06 四項裁定全部上線並關單**（總結在 issue 最後一則）：臨時狀況拿掉、全站副標拿掉（B 類 `dialog-context` text-sm／C 類 `dialog-lead` text-base）、底部留白 24＋安全區、重量級分級（分步四支、收合／收斂三支、L4 整頁開課班＋學生表單各三／兩張）。R5 表全程只加不刪。
+- 零碎：#924 可及性審查收尾（P2 用全站 `pointer: coarse` 44）、新 app icon #2422（`tools/app-icon/make.mjs`，master 由使用者以 ChatGPT 生）、#2313／#2333 上週已合。
+- 席位：1027、1320、1746 都交了 charter（#2407／#2411＋#2424／#2423）退場；審核席 1228 續任（Ctx 約 30%）。
+
+### 學到的（已進記憶與 charter）
+
+1. **疊 squash PR 的 bundle 預算**：app.routes 靜態 import 的 guard 檔若帶 primeng 會把它拉進 initial（#2414 超 800 kB）；guard 單獨一檔、PageDialogRef 留 lazy 檔（dialog-frame.md L4 段有寫）。
+2. **Claude in Chrome 三個坑**（`reference_claude_in_chrome_brave`）：擴充寫死先選桌面 App 主機；長效 token 的 session 用不了；要 `claude --chrome` 起。最後使用者自己生圖。桌面 App 主機登錄檔被改名 `.off`，要用桌面 App 的瀏覽器整合時改回。
+3. **大檔 push HTTP 400**（`feedback_git_push_postbuffer`）：單次 `-c http.postBuffer` 推，推完 `ls-remote` 驗；遠端探測分支 `tmp-push-probe-plan` 指向 main，刪遠端分支被分類器擋，留給使用者刪。
+4. 席位 Ctx 壓縮後會回落（1320 報過線後 36%），輪替前先看一眼再決定要不要開新席。
+
+### 等使用者
+
+- 下一批工作要使用者點：#1727 家長端申請三頁（功能，要 spec gate）、#2296 SD9 直接報名開首期帳單（保留類金額）、#1842 Google 登入、#1160／#1122 保留類、走查第二輪（11-05 說等有閒額度）。
+- #1595 首開實測（5 分鐘，先放著）；`tmp-push-probe-plan` 遠端分支刪除；桌面 App 主機 `.off` 要不要改回。
+
 ## 🌅 11-06 晨間一節（labor-plan-20261105-1551，2026-11-06 06:55 台北寫；使用者睡前要求「早上可看」）
 
 > 狀態一律 `gh pr list --state open`、`herdr agent list` 現查；這節只記昨夜到今晨的「為什麼」。
