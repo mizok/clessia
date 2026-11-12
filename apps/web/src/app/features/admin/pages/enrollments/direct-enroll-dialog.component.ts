@@ -167,7 +167,7 @@ type InvoiceChoice = 'create' | 'none';
             </div>
             <!-- radio 群組用 fieldset＋legend（同核准對話框）；稿是 label（R7） -->
             <fieldset class="col-span-full m-0 min-w-0 border-0 p-0">
-              <legend class="mb-1 p-0 text-md font-semibold text-zinc-700">繳費單</legend>
+              <legend class="mb-1 w-full p-0 text-md font-semibold text-zinc-700">繳費單</legend>
               <div class="flex flex-wrap gap-2">
                 @for (opt of invoiceOptions; track opt.value) {
                   <label
