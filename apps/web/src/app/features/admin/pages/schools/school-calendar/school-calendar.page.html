@@ -22,6 +22,14 @@
         />
       </div>
     }
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
+      [disabled]="!school()"
+      (click)="openCreate()"
+    >
+      <i class="pi pi-plus" aria-hidden="true"></i>新增事件
+    </button>
   </div>
 </div>
 
@@ -62,7 +70,7 @@
         <app-empty-state
           icon="pi pi-calendar"
           [title]="'這期還沒有 ' + schoolLabel() + ' 的行事曆'"
-          description="每年照學校公告的行事曆填一次"
+          description="點「新增事件」填開學、休業式、寒暑假"
         />
       } @else {
         <ul class="m-0 mt-2 list-none p-0" aria-label="行事曆事件">
@@ -94,6 +102,14 @@
                 <button
                   type="button"
                   class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100"
+                  [attr.aria-label]="'編輯 ' + kindLabels[row.event.kind] + ' ' + row.when"
+                  (click)="openEdit(row.event)"
+                >
+                  <i class="pi pi-pencil" aria-hidden="true"></i>
+                </button>
+                <button
+                  type="button"
+                  class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100"
                   [attr.aria-label]="'刪除 ' + kindLabels[row.event.kind] + ' ' + row.when"
                   (click)="onDelete(row.event)"
                 >
@@ -117,3 +133,4 @@
 }
 
 <app-popup-menu #rowMenu [model]="rowMenuItems()" />
+<app-calendar-event-form-dialog (closed)="onFormClosed($event)" />

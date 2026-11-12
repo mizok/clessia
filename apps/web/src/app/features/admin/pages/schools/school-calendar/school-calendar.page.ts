@@ -37,6 +37,10 @@ import {
   type SelectFieldOption,
 } from '@shared/components/select-field/select-field.component';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
+import {
+  CalendarEventFormDialogComponent,
+  type CalendarEventFormResult,
+} from './calendar-event-form-dialog.component';
 
 const WD = ['日', '一', '二', '三', '四', '五', '六'];
 const LEVEL_LABELS: Record<string, string> = { elementary: '國小', junior: '國中', senior: '高中' };
@@ -82,6 +86,7 @@ export function defaultPeriodId(periods: readonly SchoolCalendarPeriod[], today:
     LoadFailedComponent,
     SelectFieldComponent,
     PopupMenuComponent,
+    CalendarEventFormDialogComponent,
   ],
   providers: [DialogService],
   templateUrl: './school-calendar.page.html',
@@ -95,6 +100,7 @@ export class SchoolCalendarPage {
   private readonly messageService = inject(MessageService);
   private readonly dialogService = inject(DialogService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly form = viewChild.required(CalendarEventFormDialogComponent);
   private readonly rowMenu = viewChild.required<PopupMenuComponent>('rowMenu');
 
   protected readonly schoolsHref = RoutesCatalog.ADMIN_SCHOOLS.absolutePath;
@@ -178,11 +184,34 @@ export class SchoolCalendarPage {
       });
   }
 
+  protected openCreate(): void {
+    const me = this.school();
+    if (!me) return;
+    const others = this.schools().filter((s) => s.id !== me.id && s.isActive);
+    this.form().open({ id: me.id, name: me.name }, null, others);
+  }
+
+  protected openEdit(event: SchoolCalendarEvent): void {
+    const me = this.school();
+    if (me) this.form().open({ id: me.id, name: me.name }, event);
+  }
+
   protected openRowMenu(domEvent: Event, event: SchoolCalendarEvent): void {
     this.rowMenuItems.set([
+      { label: '編輯', icon: 'pi pi-pencil', command: () => this.openEdit(event) },
       { label: '刪除', icon: 'pi pi-trash', command: () => this.onDelete(event) },
     ]);
     this.rowMenu().toggle(domEvent);
+  }
+
+  /** 列表就地更新：新增只插自己這所那一筆（POST 的 data[0]） */
+  protected onFormClosed(result: CalendarEventFormResult | null): void {
+    if (!result) return;
+    const [mine] = result.events;
+    if (!mine) return;
+    this.events.update((list) =>
+      result.mode === 'create' ? [...list, mine] : list.map((e) => (e.id === mine.id ? mine : e)),
+    );
   }
 
   protected onDelete(event: SchoolCalendarEvent): void {
