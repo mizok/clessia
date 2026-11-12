@@ -402,16 +402,25 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       expect(cls(kids[kids.length - 1])).toContain('ml-auto');
     });
 
-    it('字標：手機 44px 點擊區但只占 22px 版面（負邊距）、桌機 24px 字、高度回到行高', async () => {
+    it('字標：手機 44px 點擊區但只占 22px 版面（負邊距）、桌機 24px 字、高度回到行高；mark 在字前（#2428）', async () => {
       const { el } = await setup(['admin'], 'admin');
+      const brand = el.querySelector('header a')!;
+      // 桌機不再 wide:block：mark 與字要並排，全程 inline-flex＋gap，高度靠 wide:min-h-0 回到內容高
       has(
-        el.querySelector('header a'),
+        brand,
         'min-h-11',
         'wide:min-h-0',
         'wide:text-[24px]',
-        'wide:block',
+        'inline-flex',
+        'gap-2',
+        'wide:gap-2.5',
       );
-      has(el.querySelector('header a'), 'max-wide:my-[-11px]');
+      has(brand, 'max-wide:my-[-11px]');
+      expect(cls(brand)).not.toContain('wide:block');
+      const mark = brand.querySelector('app-brand-mark')!;
+      expect(mark).not.toBeNull();
+      has(mark, 'h-5', 'wide:h-6');
+      expect(brand.textContent?.trim()).toBe('Clessia');
     });
 
     it('導覽連結：框線與 padding 在 <a> 自己（不是內層 span），目前頁 2px 橘線；手機 44／桌機縮', async () => {

@@ -127,6 +127,7 @@
       "apps/web/src/app/shared/components/attendance-roster-panel",
       "apps/web/src/app/shared/components/audit-log-button",
       "apps/web/src/app/shared/components/audit-log-dialog",
+      "apps/web/src/app/shared/components/brand-mark",
       "apps/web/src/app/shared/components/campus-scope-note",
       "apps/web/src/app/shared/components/change-log-list",
       "apps/web/src/app/shared/components/chapter-head",
