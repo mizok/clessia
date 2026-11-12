@@ -360,7 +360,7 @@ try {
             base: sides.base,
             head: sides.head,
             api: API_URL,
-            state: path.basename(STATE),
+            state: path.basename(PAGES[page].state ?? STATE), // 頁面自己的登入態（家長頁是 parent03），不是預設值
             page,
             cfg: PAGES[page],
           },
