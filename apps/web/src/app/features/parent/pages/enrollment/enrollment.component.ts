@@ -15,6 +15,7 @@ import { filter, finalize, switchMap } from 'rxjs';
 import { format, parseISO } from 'date-fns';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
+import { HeightFollowDirective } from '@shared/directives/height-follow.directive';
 import { ChildScopeService } from '@core/child-scope.service';
 import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 import {
@@ -69,6 +70,7 @@ const PER = { monthly: '月', period: '期', session_pack: '堂數包' } as cons
     ChildScopeGateComponent,
     RequestRowComponent,
     RouterLink,
+    HeightFollowDirective,
   ],
   templateUrl: './enrollment.component.html',
 })
@@ -83,6 +85,7 @@ export class EnrollmentComponent {
     inject(ActivatedRoute).snapshot.fragment === 'records' ? 'records' : 'new',
   );
   protected readonly kids = this.childScope.children;
+  protected readonly kidsPending = computed(() => this.childScope.status() === 'unloaded');
   protected readonly today = todayLocal();
 
   // ── 新增申請 ──
@@ -94,6 +97,8 @@ export class EnrollmentComponent {
   protected readonly start = signal('');
   protected readonly note = signal('');
   protected readonly classes = signal<ParentCatalogClass[]>([]);
+  /** 目錄第一次回來（或失敗）之前 true；換孩子不回到 true（#2441） */
+  protected readonly catalogPending = signal(true);
   protected readonly sending = signal(false);
   protected readonly sendError = signal<string | null>(null);
 
@@ -157,7 +162,13 @@ export class EnrollmentComponent {
         switchMap((sid) => this.api.catalog(sid)),
         takeUntilDestroyed(),
       )
-      .subscribe({ next: (res) => this.classes.set(res.data) });
+      .subscribe({
+        next: (res) => {
+          this.classes.set(res.data);
+          this.catalogPending.set(false);
+        },
+        error: () => this.catalogPending.set(false),
+      });
   }
 
   protected gradeLabel(grade: string | null): string {

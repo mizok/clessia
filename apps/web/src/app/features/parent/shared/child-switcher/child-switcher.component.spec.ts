@@ -61,6 +61,16 @@ describe('ChildSwitcherComponent', () => {
     document.body.querySelectorAll('.p-popover').forEach((n) => n.remove());
   });
 
+  // #2441：孩子清單回來之前佔一顆同高的骨架，頁首標題不會在資料回來時被往下推
+  it('孩子清單還在載：畫骨架（aria-hidden），不畫名字也不畫警示', async () => {
+    await createComponent([], null, 'unloaded');
+    const skeleton = fixture.nativeElement.querySelector('[data-testid="child-switcher-skeleton"]');
+    expect(skeleton).not.toBeNull();
+    expect(skeleton.getAttribute('aria-hidden')).toBe('true');
+    expect(skeleton.classList).toContain('min-h-11');
+    expect(fixture.nativeElement.textContent.trim()).toBe('');
+  });
+
   it('沒有任何孩子時什麼都不渲染', async () => {
     await createComponent([], null);
     expect(fixture.nativeElement.textContent.trim()).toBe('');
