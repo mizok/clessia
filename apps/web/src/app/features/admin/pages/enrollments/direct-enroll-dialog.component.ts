@@ -10,12 +10,18 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { MessageService } from 'primeng/api';
+import { catchError, of, switchMap } from 'rxjs';
+
+import { AuthService } from '@core/auth.service';
+import { BillingPeriodsService, type BillingPeriod } from '@core/billing-periods.service';
 
 import {
   EnrollmentsService,
   type Enrollment,
+  type ProrationPreview,
   type ScheduleConflictWarning,
 } from '@core/enrollments.service';
 import {
@@ -35,11 +41,16 @@ import { StudentAutocompleteComponent } from '@shared/components/student-autocom
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
 
+type InvoiceChoice = 'create' | 'none';
+
 /**
  * 直接報名（#1314 EN2，A6 enrollments.html `[data-direct]` 的 `A2.form`）。
  *
- * 寫入只有既有的 `POST /api/enrollments`，建 `active`（計畫席 11-05 裁 (a)）：月結 run 與
- * 「未開單名單」只挑 active，帳單由它們照常接手。稿最後一欄「繳費單：建立／不建立」＝SD9（#2296），不畫。
+ * 寫入只有 `POST /api/enrollments`。稿最後一欄「繳費單」（#2296 SD9）：
+ * - 建立繳費單（待繳費）：帶 `firstInvoice`，報名建 `pending_payment`、同一個交易開第一期帳單
+ *   （跟家長申請核准共用同一段算法）。費用方案必填；底部一行唯讀的首期試算（`proration-preview`，
+ *   同核准對話框的取法）；堂數制多一欄堂數。這裡不給改金額／期限 —— 要改走帳單頁。要財務權限。
+ * - 不建立（已收款或免費）：建 `active`，帳單由月結 run／「未開單名單」照常接手。
  * 稿只有計費模式；費用方案一起選，月結才算得出金額（議定金額之後在列尾 ⋯ 的計費設定改）。
  *
  * 原生 `<dialog>` 裡放共用殼 app-dialog-frame（#2290）。
@@ -59,12 +70,10 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
     >
       @if (isOpen()) {
         <!-- 共用殼（#2290）；原生 dialog 帶 role="dialog"，殼的 appDialogTitle 才找得到它掛名稱 -->
-        <app-dialog-frame
-          title="直接報名"
-          (closed)="close()"
-        >
+        <app-dialog-frame title="直接報名" (closed)="close()">
           <form
             ngNoForm
+            id="direct-enroll-form"
             class="grid grid-cols-2 gap-x-3 gap-y-4 max-wide:grid-cols-1"
             (submit)="$event.preventDefault(); save()"
           >
@@ -156,6 +165,63 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
               />
               <p class="m-0 mt-1 text-sm text-zinc-600">留白＝讀到退班為止</p>
             </div>
+            <div class="col-span-full min-w-0">
+              <label
+                class="mb-1 block text-md font-semibold text-zinc-700"
+                id="direct-enroll-invoice"
+                >繳費單</label
+              >
+              <div
+                class="flex flex-wrap gap-2"
+                role="radiogroup"
+                aria-labelledby="direct-enroll-invoice"
+              >
+                @for (opt of invoiceOptions; track opt.value) {
+                  <label
+                    class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 font-semibold has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset has-disabled:cursor-not-allowed has-disabled:opacity-55 max-wide:h-11"
+                  >
+                    <input
+                      type="radio"
+                      name="direct-enroll-invoice"
+                      class="m-0 accent-zinc-900"
+                      [checked]="invoice() === opt.value"
+                      [disabled]="opt.value === 'create' && !canInvoice"
+                      (change)="invoice.set(opt.value); clearOutcome()"
+                    />{{ opt.label }}
+                  </label>
+                }
+              </div>
+              @if (!canInvoice) {
+                <p class="m-0 mt-1 text-sm text-zinc-600">建立繳費單需要財務權限</p>
+              }
+            </div>
+            @if (invoice() === 'create' && mode() === 'session_pack') {
+              <div class="min-w-0">
+                <label
+                  class="mb-1 block text-md font-semibold text-zinc-700"
+                  for="direct-enroll-sessions"
+                  >堂數 <span class="text-error-700" aria-hidden="true">*</span></label
+                >
+                <input
+                  id="direct-enroll-sessions"
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputmode="numeric"
+                  class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+                  [ngModel]="sessionCount()"
+                  (ngModelChange)="sessionCount.set($event); clearOutcome()"
+                />
+              </div>
+            }
+            @if (firstPeriodText(); as text) {
+              <p
+                class="col-span-full m-0 text-md text-zinc-700 tabular-nums"
+                data-testid="direct-enroll-first"
+              >
+                {{ text }}
+              </p>
+            }
             @if (conflicts().length) {
               <div
                 class="col-span-full rounded-md bg-warning-50 p-3 text-md text-zinc-900"
@@ -194,11 +260,11 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
               取消
             </button>
             <button
-              type="button"
+              type="submit"
+              form="direct-enroll-form"
               class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
               data-testid="direct-enroll-submit"
               [attr.aria-disabled]="!!missingHint() || loading()"
-              (click)="save()"
             >
               {{ loading() ? '報名中…' : conflicts().length ? '仍要報名' : '報名' }}
             </button>
@@ -212,6 +278,7 @@ export class DirectEnrollDialogComponent {
   private readonly enrollmentsService = inject(EnrollmentsService);
   private readonly studentsService = inject(StudentsService);
   private readonly feeTemplatesService = inject(FeeTemplatesService);
+  private readonly billingPeriodsService = inject(BillingPeriodsService);
   private readonly messageService = inject(MessageService);
   private readonly today = inject(SystemClockService).todayTaipei;
   private readonly injector = inject(Injector);
@@ -221,6 +288,13 @@ export class DirectEnrollDialogComponent {
   readonly classes = input.required<readonly { label: string; value: string }[]>();
   /** 報名成功帶那一筆，取消帶 null */
   readonly closed = output<Enrollment | null>();
+
+  /** 會開帳單：同家長申請核准，要財務權限（API 也擋，403） */
+  protected readonly canInvoice = inject(AuthService).hasPermission('manage_finance');
+  protected readonly invoiceOptions: readonly { label: string; value: InvoiceChoice }[] = [
+    { label: '建立繳費單（待繳費）', value: 'create' },
+    { label: '不建立（已收款或免費）', value: 'none' },
+  ];
 
   protected readonly modeOptions = (Object.keys(BILLING_MODE_LABELS) as BillingMode[]).map(
     (value) => ({ label: BILLING_MODE_LABELS[value], value }),
@@ -239,11 +313,17 @@ export class DirectEnrollDialogComponent {
   /** 409 撞課回來的衝突；有值時送出鈕變「仍要報名」（skipConflictCheck，同學生頁加入班級） */
   protected readonly conflicts = signal<readonly ScheduleConflictWarning[]>([]);
   private readonly templates = signal<readonly FeeTemplate[]>([]);
+  private readonly periods = signal<readonly BillingPeriod[]>([]);
+  protected readonly invoice = signal<InvoiceChoice>('none');
+  protected readonly sessionCount = signal<number | null>(null);
+  /** 伺服器試算（月繳、期繳）；參數不齊、堂數制回 null */
+  private readonly preview = signal<ProrationPreview | null>(null);
   private saved: Enrollment | null = null;
 
   /** 方案只列選定模式的（月繳的方案套在期繳生身上，月結會算錯錢） */
   protected readonly templateOptions = computed<SelectFieldOption<string | null>[]>(() => [
-    { label: '未指定', value: null },
+    // 開帳單要有方案才算得出首期
+    ...(this.invoice() === 'create' ? [] : [{ label: '未指定', value: null }]),
     ...this.templates()
       .filter((t) => t.billingMode === this.mode())
       .map((t) => ({ label: `${t.name}（$${t.amount.toLocaleString()}）`, value: t.id })),
@@ -254,16 +334,73 @@ export class DirectEnrollDialogComponent {
     return s && typeof s === 'object' ? s : null;
   });
 
+  /** 期繳的首期 = 涵蓋生效起的那期；重疊取最晚開始（同 API 的 ORDER BY start_date DESC） */
+  private readonly coveringPeriod = computed(() => {
+    const day = this.from();
+    if (!day) return null;
+    return (
+      this.periods()
+        .filter((p) => p.startDate <= day && day <= p.endDate)
+        .sort((a, b) => b.startDate.localeCompare(a.startDate))[0] ?? null
+    );
+  });
+
+  private readonly previewParams = computed(() => {
+    const feeTemplateId = this.feeTemplateId();
+    const effectiveFrom = this.from();
+    if (this.invoice() !== 'create' || !feeTemplateId || !effectiveFrom) return null;
+    const range = { effectiveFrom, effectiveTo: this.to() || null, feeTemplateId };
+    if (this.mode() === 'monthly') return { periodMonth: effectiveFrom.slice(0, 7), ...range };
+    const period = this.coveringPeriod();
+    if (this.mode() === 'period' && period) return { billingPeriodId: period.id, ...range };
+    return null;
+  });
+
+  /** 唯讀的首期試算；金額只由伺服器算（堂數制不按比例＝方案金額） */
+  protected readonly firstPeriodText = computed(() => {
+    if (this.invoice() !== 'create' || !this.feeTemplateId()) return null;
+    if (this.mode() === 'session_pack') {
+      const t = this.templates().find((x) => x.id === this.feeTemplateId());
+      return t ? `首期 $${t.amount.toLocaleString()}（堂數制不按比例）` : null;
+    }
+    const p = this.preview();
+    if (!p) return null;
+    return `首期 $${p.amount.toLocaleString()}${p.note ? `（${p.note}）` : ''}`;
+  });
+
   protected readonly missingHint = computed(() => {
+    const creating = this.invoice() === 'create';
+    const sessions = this.sessionCount();
     const missing = [
       !this.pickedStudent() && '學生',
       !this.classId() && '開課班',
       !this.from() && '生效起',
+      creating && !this.feeTemplateId() && '費用方案',
+      creating &&
+        this.mode() === 'session_pack' &&
+        !(Number.isInteger(sessions) && sessions! >= 1) &&
+        '堂數',
     ].filter(Boolean);
     if (missing.length) return `還沒填：${missing.join('、')}`;
     if (this.to() && this.to() < this.from()) return '生效迄不能早於生效起';
+    if (creating && this.mode() === 'period' && !this.coveringPeriod()) {
+      return '沒有涵蓋生效起的繳費期，先到繳費期設定新增';
+    }
     return null;
   });
+
+  constructor() {
+    // 參數一變就重算；switchMap 丟掉舊的回應（同核准對話框）
+    toObservable(this.previewParams)
+      .pipe(
+        switchMap((params) =>
+          params
+            ? this.enrollmentsService.prorationPreview(params).pipe(catchError(() => of(null)))
+            : of(null),
+        ),
+      )
+      .subscribe((p) => this.preview.set(p));
+  }
 
   open(): void {
     this.student.set(null);
@@ -272,6 +409,9 @@ export class DirectEnrollDialogComponent {
     // 稿的 radio 預設選第一個（月繳）
     this.mode.set('monthly');
     this.feeTemplateId.set(null);
+    // 稿的 radio 預設第一個（建立）；沒財務權限只能不建立
+    this.invoice.set(this.canInvoice ? 'create' : 'none');
+    this.sessionCount.set(null);
     this.from.set(this.today());
     this.to.set('');
     this.conflicts.set([]);
@@ -283,6 +423,12 @@ export class DirectEnrollDialogComponent {
       // 方案載不到只是少一個選單，報名照樣能送（之後在 ⋯ 的計費設定補）
       error: () => this.templates.set([]),
     });
+    if (this.canInvoice) {
+      this.billingPeriodsService.list().subscribe({
+        next: (res) => this.periods.set(res.data),
+        error: () => this.periods.set([]),
+      });
+    }
     this.isOpen.set(true);
     afterNextRender(() => this.dialog().nativeElement.showModal(), { injector: this.injector });
   }
@@ -331,13 +477,20 @@ export class DirectEnrollDialogComponent {
     const classId = this.classId();
     if (this.loading() || this.missingHint() || !student || !classId) return;
     const className = this.classes().find((c) => c.value === classId)?.label ?? '';
+    const creating = this.invoice() === 'create';
     this.loading.set(true);
     this.error.set(null);
     this.enrollmentsService
       .create({
         classId,
         studentId: student.id,
-        status: 'active',
+        status: creating ? 'pending_payment' : 'active',
+        ...(creating
+          ? {
+              firstInvoice:
+                this.mode() === 'session_pack' ? { sessionCount: this.sessionCount()! } : {},
+            }
+          : {}),
         ...(this.mode() ? { billingMode: this.mode()! } : {}),
         ...(this.feeTemplateId() ? { feeTemplateId: this.feeTemplateId()! } : {}),
         effectiveFrom: this.from(),
@@ -362,13 +515,15 @@ export class DirectEnrollDialogComponent {
             this.conflicts.set(warnings);
             return;
           }
-          this.error.set(
-            code === 'OVER_QUOTA'
-              ? '這個班已經額滿'
-              : code === 'ALREADY_ENROLLED'
-                ? `${student.name} 已經在這個班`
-                : '沒有報名成功，請再試一次',
-          );
+          const messages: Record<string, string> = {
+            OVER_QUOTA: '這個班已經額滿',
+            ALREADY_ENROLLED: `${student.name} 已經在這個班`,
+            FINANCE_REQUIRED: '建立繳費單需要財務權限',
+            NO_BILLING_PERIOD: '沒有涵蓋生效起的繳費期，先到繳費期設定新增',
+            INVALID_FEE_TEMPLATE: '費用方案已停用或計費模式不符，換一個方案',
+            ZERO_AMOUNT: '首期金額是 0，免費請選「不建立」',
+          };
+          this.error.set(messages[code as string] ?? '沒有報名成功，請再試一次');
         },
       });
   }
