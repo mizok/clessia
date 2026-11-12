@@ -181,11 +181,16 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
 
     const impl: Record<string, unknown> = {
       gte(column: string, value: string) {
-        filters.push((row) => field(row, column) != null && String(field(row, column)) >= value);
+        // 巢狀路徑中途是陣列（一對多 embed）時任一筆符合即成立，同 eq／in
+        filters.push((row) =>
+          fieldValues(row, column).some((v) => v != null && String(v) >= value),
+        );
         return proxy;
       },
       lte(column: string, value: string) {
-        filters.push((row) => field(row, column) != null && String(field(row, column)) <= value);
+        filters.push((row) =>
+          fieldValues(row, column).some((v) => v != null && String(v) <= value),
+        );
         return proxy;
       },
       lt(column: string, value: string) {
