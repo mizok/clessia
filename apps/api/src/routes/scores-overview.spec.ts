@@ -11,7 +11,8 @@ import { createMultiOrgDb } from '../test-utils/multi-org-db';
 import scoresRoute from './scores';
 
 /**
- * `GET /api/scores/overview`（#1314 G5）。`multi-org-db` 不解析 select，列直接帶 embed 形狀。
+ * `GET /api/scores/overview`（#1314 G5）。`multi-org-db` 不解析 select，列直接帶 embed 形狀 ——
+ * 成績與報名的 embed（#1928：窗與分校條件下在 `!inner` 上）由 `withEmbeds` 從考試表推出來，跟真的 join 同一份。
  * 窗：days=30 → [2027-02-13, 2027-03-15]。
  */
 
@@ -94,15 +95,46 @@ const TABLES = {
   ],
 };
 
+type Tables = Record<string, Array<Record<string, unknown>>>;
+
+/** 成績帶 `academy_exams`（to-one）、報名帶 `classes.academy_exam_classes[].academy_exams`（掛這班的每一場） */
+function withEmbeds(tables: Tables): Tables {
+  const exams = tables['academy_exams'] ?? [];
+  const head = (e: Record<string, unknown>) => ({
+    org_id: e['org_id'],
+    exam_date: e['exam_date'],
+    campus_id: e['campus_id'],
+  });
+  return {
+    ...tables,
+    academy_scores: (tables['academy_scores'] ?? []).map((s) => ({
+      ...s,
+      academy_exams: head(exams.find((e) => e['id'] === s['exam_id'])!),
+    })),
+    enrollments: (tables['enrollments'] ?? []).map((r) => ({
+      ...r,
+      classes: {
+        academy_exam_classes: exams
+          .filter((e) =>
+            (e['academy_exam_classes'] as Array<{ class_id: string }>).some(
+              (l) => l.class_id === r['class_id'],
+            ),
+          )
+          .map((e) => ({ academy_exams: head(e) })),
+      },
+    })),
+  };
+}
+
 async function overview(
   query = '',
   opts: {
     roles?: string[];
     scope?: string[] | null;
-    tables?: Record<string, Array<Record<string, unknown>>>;
+    tables?: Tables;
   } = {},
 ) {
-  const db = createMultiOrgDb(opts.tables ?? TABLES);
+  const db = createMultiOrgDb(withEmbeds(opts.tables ?? TABLES));
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);

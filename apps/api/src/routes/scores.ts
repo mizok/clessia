@@ -1748,8 +1748,9 @@ app.openapi(classExamStatsRoute, async (c) => {
 //
 // 考試集合＝近 N 天（台北日）的校內考，分校篩選同考試列表（`applyCampusFilter` 在 campus_id）。
 // 聚合在 `lib/scores-overview.ts`。只給 admin —— 總覽是管理端頁，老師沒有這一頁。
-// ponytail: 窗內考試×人數全撈（分頁撈齊）；`.in(exam_id)` 帶窗內全部考試 id，一個月上百場才要改成
-// 依日期 embed 篩或 RPC。
+// ponytail: 窗內考試×人數全撈（分頁撈齊）。
+// 成績與報名**不帶考試 id／班 id 清單**（#1928）：原本 `.in('exam_id', 窗內全部考試)`、`.in('class_id', …)`，
+// 一個月兩百多場就 414、整頁 500。改成把「窗＋分校」同一組條件下在 embed 的 `!inner` 上，在 DB 端篩。
 // ============================================================
 
 const ExamRowSchema = z.object({
@@ -1827,6 +1828,17 @@ const overviewRoute = createRoute({
   },
 });
 
+/**
+ * `inWindow` 要用到的 builder 方法（PostgREST 的 filter builder 都回自己）。
+ * 不拿它當泛型約束：對 supabase 的 builder 型別做 `Q extends …<Q>` 會 TS2589（展開太深）
+ */
+interface WindowFilterable {
+  eq(column: string, value: string): WindowFilterable;
+  gte(column: string, value: string): WindowFilterable;
+  lte(column: string, value: string): WindowFilterable;
+  in(column: string, values: string[]): WindowFilterable;
+}
+
 app.openapi(overviewRoute, async (c) => {
   if (!(c.get('roles') ?? []).includes('admin')) {
     return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
@@ -1836,23 +1848,27 @@ app.openapi(overviewRoute, async (c) => {
   const { days = 30, campusId } = c.req.valid('query');
   const today = getCurrentTaipeiDateString();
 
+  const windowFrom = addDaysToDateString(today, -days);
+  /**
+   * 「窗內、範圍內的校內考」—— 考試本身、成績、報名三支**共用這一份條件**，`prefix` 是考試在該查詢裡的路徑。
+   * 成績與報名要靠這份條件落在 embed 上，不能先撈考試 id 再 `.in()` 回去（#1928）
+   */
+  const inWindow = <Q>(query: Q, prefix: string): Q =>
+    applyCampusFilter(
+      (query as unknown as WindowFilterable)
+        .eq(`${prefix}org_id`, orgId)
+        .gte(`${prefix}exam_date`, windowFrom)
+        .lte(`${prefix}exam_date`, today),
+      `${prefix}campus_id`,
+      getCampusScope(c),
+      campusId,
+    ) as unknown as Q;
+
   try {
     const examSelect: string =
       'id, name, exam_date, total_score, pass_score, academy_exam_classes(class_id, classes(name, course_id))';
     const examRows = await fetchAllRows<Record<string, any>>((from, to) =>
-      applyCampusFilter(
-        supabase
-          .from('academy_exams')
-          .select(examSelect)
-          .eq('org_id', orgId)
-          .gte('exam_date', addDaysToDateString(today, -days))
-          .lte('exam_date', today),
-        'campus_id',
-        getCampusScope(c),
-        campusId,
-      )
-        .order('id')
-        .range(from, to),
+      inWindow(supabase.from('academy_exams').select(examSelect), '').order('id').range(from, to),
     );
     const exams = examRows.map((r) => ({
       id: r['id'] as string,
@@ -1866,35 +1882,41 @@ app.openapi(overviewRoute, async (c) => {
         courseId: (l.classes?.course_id as string) ?? '',
       })),
     }));
-    const examIds = exams.map((e) => e.id);
-    const classIds = [...new Set(exams.flatMap((e) => e.classes.map((k) => k.classId)))];
-
-    const [scoreRows, enrollments] = await Promise.all([
-      examIds.length === 0
-        ? []
-        : fetchAllRows<Record<string, any>>((from, to) =>
-            supabase
-              .from('academy_scores')
-              .select('id, exam_id, student_id, score, status, students(name, grade)')
-              .in('exam_id', examIds)
-              .order('id')
-              .range(from, to),
-          ),
-      classIds.length === 0
-        ? []
-        : fetchAllRows<OverviewEnrollment>((from, to) =>
-            supabase
-              .from('enrollments')
-              .select('id, class_id, student_id, effective_from, effective_to')
-              .eq('org_id', orgId)
-              // 同 academy-exam-roster：排除作廢、保留退班
-              .neq('status', 'void')
-              .in('class_id', classIds)
-              .order('id')
-              .range(from, to),
-          ),
-    ]);
-
+    // 窗內沒有考試：成績、報名都不用撈（條件一樣，撈了也是空的）
+    const [scoreRows, enrollments] =
+      exams.length === 0
+        ? [[], []]
+        : await Promise.all([
+            fetchAllRows<Record<string, any>>((from, to) =>
+              inWindow(
+                supabase
+                  .from('academy_scores')
+                  .select(
+                    'id, exam_id, student_id, score, status, students(name, grade), academy_exams!inner(org_id)',
+                  ),
+                'academy_exams.',
+              )
+                .order('id')
+                .range(from, to),
+            ),
+            // 掛著窗內考試的班的報名：班 → 考試×班 → 考試 三層 `!inner`，有任一場符合這筆報名就留下
+            // （PostgREST 對一對多的 inner embed 只篩父列、不複製）
+            fetchAllRows<OverviewEnrollment>((from, to) =>
+              inWindow(
+                supabase
+                  .from('enrollments')
+                  .select(
+                    'id, class_id, student_id, effective_from, effective_to, classes!inner(academy_exam_classes!inner(academy_exams!inner(org_id)))',
+                  )
+                  .eq('org_id', orgId)
+                  // 同 academy-exam-roster：排除作廢、保留退班
+                  .neq('status', 'void'),
+                'classes.academy_exam_classes.academy_exams.',
+              )
+                .order('id')
+                .range(from, to),
+            ),
+          ]);
     return c.json(
       buildScoresOverview({
         windowDays: days,

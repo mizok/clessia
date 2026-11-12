@@ -181,11 +181,18 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
 
     const impl: Record<string, unknown> = {
       gte(column: string, value: string) {
-        filters.push((row) => field(row, column) != null && String(field(row, column)) >= value);
+        // 巢狀路徑中途是陣列（一對多 embed）時任一筆符合即成立，同 eq／in。
+        // ⚠️ 每個條件各自 `.some`：gte 與 lte 可以由**不同的子列**滿足（一筆太早、一筆太晚的父列在替身會過），
+        // 真 PostgREST 是同一筆子列要同時符合。用替身寫窗口測試時別放這種形狀，要驗就寫契約（#1928 計畫席二讀）
+        filters.push((row) =>
+          fieldValues(row, column).some((v) => v != null && String(v) >= value),
+        );
         return proxy;
       },
       lte(column: string, value: string) {
-        filters.push((row) => field(row, column) != null && String(field(row, column)) <= value);
+        filters.push((row) =>
+          fieldValues(row, column).some((v) => v != null && String(v) <= value),
+        );
         return proxy;
       },
       lt(column: string, value: string) {
