@@ -53,9 +53,8 @@ describe('index.html 開站畫面', () => {
     expect(markup).toContain('載入中…');
   });
 
-  // 4KB → 4.5KB（使用者 11-12 裁，#2428）：品牌 mark 進 splash 要 170 bytes，原上限只剩 88
-  it('gzip 後 4.5KB 內（index.html 每次載入都要下載）', () => {
-    expect(gzipSync(style + markup, { level: 9 }).length).toBeLessThanOrEqual(4608);
+  it('gzip 後 4KB 內（index.html 每次載入都要下載）', () => {
+    expect(gzipSync(style + markup, { level: 9 }).length).toBeLessThanOrEqual(4096);
   });
 
   /** 退場條件：第一個路由元件掛到 router-outlet 後面。app-toast 也是 outlet 的兄弟，不能算 */
