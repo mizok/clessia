@@ -365,6 +365,41 @@ async function ensureSchoolExamOwnedByOrg(
   return data as SchoolExamRow;
 }
 
+/**
+ * 待登錄段考（#2437，計畫席 11-12 裁定）：清單 `todo=true` 與 `/todo-count` 共用，條件只寫這一份。
+ *
+ * - **範圍內**＝段考的學校有任一位學生、任一筆報名的班在範圍分校（不分報名狀態，同 `GET /{id}` 的 summary）
+ * - **待登錄**＝`active` ∧ 範圍內 ∧ **範圍內學生的成績 0 筆**。別校登過不算 —— 否則別校的進度會從我的數字露出來
+ * - `campusIds` null（跨分校）退化成原本的「active 且成績 0 筆」；`[]` 由呼叫端先回空
+ *
+ * 全在 DB 端：範圍走 `!inner`、「0 筆」走反連接（`todo_hit=is.null`），空 embed `()` 不回資料。
+ * 原本先撈全 org 未結案 id 再 `.in()` —— 兩百多場就 414，而且不受分校範圍限制。
+ */
+const TODO_SCOPE_PATH = 'students!inner(enrollments!inner(classes!inner()))';
+
+function todoSelect(campusIds: readonly string[] | null): string {
+  return campusIds
+    ? `, todo_scope:schools!inner(${TODO_SCOPE_PATH}), todo_hit:school_scores(${TODO_SCOPE_PATH})`
+    : ', todo_hit:school_scores()';
+}
+
+interface TodoFilterable {
+  eq(column: string, value: unknown): TodoFilterable;
+  in(column: string, values: readonly unknown[]): TodoFilterable;
+  is(column: string, value: null): TodoFilterable;
+}
+
+// `<Q,>` 而不是 `Q extends Filterable<Q>`：後者對 supabase builder 會 TS2589（labor-20261112-1233 charter）
+function applyTodo<Q>(query: Q, campusIds: readonly string[] | null): Q {
+  let q = (query as unknown as TodoFilterable).eq('status', 'active');
+  if (campusIds) {
+    q = q
+      .in('todo_scope.students.enrollments.classes.campus_id', campusIds)
+      .in('todo_hit.students.enrollments.classes.campus_id', campusIds);
+  }
+  return q.is('todo_hit', null) as unknown as Q;
+}
+
 const listRoute = createRoute({
   method: 'get',
   path: '/',
@@ -426,11 +461,13 @@ app.openapi(listRoute, async (c) => {
     page = 1,
     pageSize = 20,
   } = c.req.valid('query');
+  const todoCampusIds = campusFilterIds(getCampusScope(c), undefined);
 
   let query = supabase
     .from('school_exams')
     .select(
-      'id, academic_year, semester, exam_type, subject_id, name, label, exam_date, status, school_id, schools(id, name), subjects(id, name), created_at, updated_at, school_scores(count)',
+      'id, academic_year, semester, exam_type, subject_id, name, label, exam_date, status, school_id, schools(id, name), subjects(id, name), created_at, updated_at, school_scores(count)' +
+        (todo ? todoSelect(todoCampusIds) : ''),
       {
         count: 'exact',
       },
@@ -446,9 +483,8 @@ app.openapi(listRoute, async (c) => {
   if (search?.trim()) {
     query = query.ilike('label', `%${search.trim()}%`);
   }
-  if (todo) {
-    query = query.eq('status', 'active');
-  } else if (status) {
+  // todo 的 status=active 由 applyTodo 下
+  if (!todo && status) {
     query = query.eq('status', status);
   }
   if (schoolId) {
@@ -465,60 +501,10 @@ app.openapi(listRoute, async (c) => {
   }
 
   if (todo) {
-    let todoIdQuery = supabase
-      .from('school_exams')
-      .select('id')
-      .eq('org_id', orgId)
-      .eq('status', 'active');
-
-    if (academicYear !== undefined) {
-      todoIdQuery = todoIdQuery.eq('academic_year', academicYear);
-    }
-    if (semester !== undefined) {
-      todoIdQuery = todoIdQuery.eq('semester', semester);
-    }
-    if (search?.trim()) {
-      todoIdQuery = todoIdQuery.ilike('label', `%${search.trim()}%`);
-    }
-    if (schoolId) {
-      todoIdQuery = todoIdQuery.eq('school_id', schoolId);
-    }
-    if (subjectId) {
-      todoIdQuery = todoIdQuery.eq('subject_id', subjectId);
-    }
-    if (dateFrom) {
-      todoIdQuery = todoIdQuery.gte('exam_date', dateFrom);
-    }
-    if (dateTo) {
-      todoIdQuery = todoIdQuery.lte('exam_date', dateTo);
-    }
-
-    const { data: activeRows, error: todoRowsError } = await todoIdQuery;
-    if (todoRowsError) {
-      return c.json({ error: todoRowsError.message, code: 'DB_ERROR' }, 500);
-    }
-
-    const activeExamIds = (activeRows ?? []).map((row: { id: string }) => row.id);
-    if (activeExamIds.length === 0) {
+    if (todoCampusIds?.length === 0) {
       return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
     }
-
-    const { data: scoreRows, error: scoreRowsError } = await supabase
-      .from('school_scores')
-      .select('school_exam_id')
-      .in('school_exam_id', activeExamIds);
-    if (scoreRowsError) {
-      return c.json({ error: scoreRowsError.message, code: 'DB_ERROR' }, 500);
-    }
-
-    const scoredExamIds = new Set(
-      (scoreRows ?? []).map((row: { school_exam_id: string }) => row.school_exam_id),
-    );
-    const todoExamIds = activeExamIds.filter((examId) => !scoredExamIds.has(examId));
-    if (todoExamIds.length === 0) {
-      return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
-    }
-    query = query.in('id', todoExamIds);
+    query = applyTodo(query, todoCampusIds);
   }
 
   const from = (page - 1) * pageSize;
@@ -535,7 +521,7 @@ app.openapi(listRoute, async (c) => {
   }
 
   const rows = (
-    (data ?? []) as Array<
+    (data ?? []) as unknown as Array<
       SchoolExamRow & {
         school_scores?: SchoolScoreCountRow[] | null;
         schools?: SchoolRelation | SchoolRelation[] | null;
@@ -611,36 +597,21 @@ app.openapi(todoCountRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
 
-  const { data: activeRows, error: activeRowsError } = await supabase
-    .from('school_exams')
-    .select('id')
-    .eq('org_id', orgId)
-    .eq('status', 'active');
+  const campusIds = campusFilterIds(getCampusScope(c), undefined);
+  if (campusIds?.length === 0) return c.json({ count: 0 }, 200);
 
-  if (activeRowsError) {
-    return c.json({ error: activeRowsError.message, code: 'DB_ERROR' }, 500);
-  }
-
-  const activeExamIds = (activeRows ?? []).map((row: { id: string }) => row.id);
-  if (activeExamIds.length === 0) {
-    return c.json({ count: 0 }, 200);
-  }
-
-  const { data: scoreRows, error: scoreRowsError } = await supabase
-    .from('school_scores')
-    .select('school_exam_id')
-    .in('school_exam_id', activeExamIds);
-
-  if (scoreRowsError) {
-    return c.json({ error: scoreRowsError.message, code: 'DB_ERROR' }, 500);
-  }
-
-  const scoredExamIds = new Set(
-    (scoreRows ?? []).map((row: { school_exam_id: string }) => row.school_exam_id),
+  const { count, error } = await applyTodo(
+    supabase
+      .from('school_exams')
+      .select('id' + todoSelect(campusIds), { count: 'exact', head: true })
+      .eq('org_id', orgId),
+    campusIds,
   );
-  const count = activeExamIds.filter((examId) => !scoredExamIds.has(examId)).length;
+  if (error) {
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
+  }
 
-  return c.json({ count }, 200);
+  return c.json({ count: count ?? 0 }, 200);
 });
 
 const getRoute = createRoute({

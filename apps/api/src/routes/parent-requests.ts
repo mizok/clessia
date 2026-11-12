@@ -475,6 +475,7 @@ app.openapi(
         studentIds: [prev['student_id'] as string],
         effectiveFrom: body.effectiveFrom,
         effectiveTo: null,
+        scope,
       });
       if (pre.error?.code === 'SERVER_ERROR') {
         return c.json({ error: '核准失敗', code: 'SERVER_ERROR' }, 500);
