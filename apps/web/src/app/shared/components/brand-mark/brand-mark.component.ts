@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 /**
  * 品牌 mark：等角立方體的三片面（#2422 的 app icon 去底版；11-12 換立方體版）。
  * 幾何是從 logo master 擬合每條邊的直線、取交點當角（不是抓像素極值：圓角會把極值往內拉），
- * 右半以中線鏡射左半、三道縫統一 56（使用者 11-12 要再大一點；原 43）；master 是 tools/app-icon/logo.svg，同一組 points，
+ * 右半以中線鏡射左半、三道縫統一 80（使用者 11-12 兩次要再大一點；43 → 56 → 80）；master 是 tools/app-icon/logo.svg，同一組 points，
  * 圓角用「每條邊沿法線內縮 r、再用 2r 寬的 round-join stroke 補回」做（等距內縮，不是往質心縮，縫才會等寬）。
  * 顏色走 CSS 變數，放在哪種底上由父層決定：
  *   --mark-cream（兩片側面，預設奶油）、--mark-orange（底面，預設橘）；
@@ -24,15 +24,15 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
       focusable="false"
     >
       <polygon
-        points="283,442 577,261 577,594 283,772"
+        points="283,442 565,268 565,601 283,772"
         style="fill: var(--mark-cream, #fff3dd); stroke: var(--mark-cream, #fff3dd)"
       />
       <polygon
-        points="677,261 971,442 971,772 677,594"
+        points="689,268 971,442 971,772 689,601"
         style="fill: var(--mark-cream, #fff3dd); stroke: var(--mark-cream, #fff3dd)"
       />
       <polygon
-        points="627,680 910,852 627,1023 344,852"
+        points="627,708 887,866 627,1023 367,866"
         style="fill: var(--mark-orange, #ff6a3d); stroke: var(--mark-orange, #ff6a3d)"
       />
     </svg>
