@@ -201,7 +201,7 @@ describe('DirectEnrollDialogComponent（#1314 EN2）', () => {
         feeTemplateId: 'ft-m',
       });
       expect(el.querySelector('[data-testid="direct-enroll-first"]')?.textContent?.trim()).toBe(
-        '首期 $1,700（期間 31 天，實際 17 天（17/31），比例試算，可調整）',
+        '首期 NT$1,700（期間 31 天，實際 17 天（17/31），比例試算，可調整）',
       );
       cmp.save();
       expect(create).toHaveBeenCalledWith(
@@ -222,7 +222,7 @@ describe('DirectEnrollDialogComponent（#1314 EN2）', () => {
       fixture.detectChanges();
       expect(hint()).toBe('還沒填：堂數');
       expect(el.querySelector('[data-testid="direct-enroll-first"]')?.textContent?.trim()).toBe(
-        '首期 $6,000（堂數制不按比例）',
+        '首期 NT$6,000（堂數制不按比例）',
       );
       cmp.sessionCount.set(12);
       cmp.save();

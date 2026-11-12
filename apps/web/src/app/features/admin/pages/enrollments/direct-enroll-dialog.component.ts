@@ -354,11 +354,11 @@ export class DirectEnrollDialogComponent {
     if (this.invoice() !== 'create' || !this.feeTemplateId()) return null;
     if (this.mode() === 'session_pack') {
       const t = this.templates().find((x) => x.id === this.feeTemplateId());
-      return t ? `首期 $${t.amount.toLocaleString()}（堂數制不按比例）` : null;
+      return t ? `首期 NT$${t.amount.toLocaleString()}（堂數制不按比例）` : null;
     }
     const p = this.preview();
     if (!p) return null;
-    return `首期 $${p.amount.toLocaleString()}${p.note ? `（${p.note}）` : ''}`;
+    return `首期 NT$${p.amount.toLocaleString()}${p.note ? `（${p.note}）` : ''}`;
   });
 
   protected readonly missingHint = computed(() => {
