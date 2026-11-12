@@ -77,6 +77,7 @@ describe('GET /school-exams 的 todo 是字串布林', () => {
       order: chain,
       range: chain,
       in: chain,
+      is: chain,
       ilike: chain,
       gte: chain,
       lte: chain,
