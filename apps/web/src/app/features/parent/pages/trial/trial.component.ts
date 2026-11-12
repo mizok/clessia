@@ -92,6 +92,7 @@ export class TrialComponent {
     inject(ActivatedRoute).snapshot.fragment === 'records' ? 'records' : 'new',
   );
   protected readonly kids = this.childScope.children;
+  protected readonly kidsPending = computed(() => this.childScope.status() === 'unloaded');
 
   // ── 新增申請 ──
   // linkedSignal：直接打開這頁時孩子名單還沒載完，activeChildId 晚到 —— 跟著它走，家長自己選了才固定

@@ -85,6 +85,7 @@ export class EnrollmentComponent {
     inject(ActivatedRoute).snapshot.fragment === 'records' ? 'records' : 'new',
   );
   protected readonly kids = this.childScope.children;
+  protected readonly kidsPending = computed(() => this.childScope.status() === 'unloaded');
   protected readonly today = todayLocal();
 
   // ── 新增申請 ──

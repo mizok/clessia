@@ -122,7 +122,8 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
             children: kidsSig.asReadonly(),
             activeChildId: activeSig.asReadonly(),
             activeChild: signal(KID).asReadonly(),
-            status: () => 'ready' as const,
+            // 名單晚到＝還在載（#2441 骨架看這個）
+            status: () => (opts.lateKids && !kidsSig().length ? 'unloaded' : 'ready'),
             canSwitch: () => false,
             setActiveChild: vi.fn(),
             load: vi.fn(),
@@ -154,6 +155,29 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
   };
 
   describe('新增申請', () => {
+    it('#2441 孩子名單與目錄回來之前：孩子欄、課程欄是骨架，不先說「目前沒有開放報名的開課班」', async () => {
+      const reply = new Subject<{ data: ParentCatalogClass[] }>();
+      await setup({ lateKids: true });
+      api.catalog.mockReturnValue(reply);
+      const q = (id: string) => el().querySelector(`[data-testid="${id}"]`);
+      expect(q('kids-skeleton')).not.toBeNull();
+      expect(q('catalog-skeleton')).not.toBeNull();
+
+      kidsSig.set([KID]);
+      activeSig.set(KID.id);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(q('kids-skeleton')).toBeNull();
+      expect(q('catalog-skeleton')).not.toBeNull();
+      expect(text()).not.toContain('目前沒有開放報名的開課班');
+
+      reply.next({ data: [] });
+      fixture.detectChanges();
+      expect(q('catalog-skeleton')).toBeNull();
+      expect(text()).toContain('目前沒有開放報名的開課班');
+    });
+
     it('依科目分組；已在班上、申請中、已登記候補的列出但不能選，寫原因；剩 3 位以下紅字', async () => {
       await setup({
         classes: [
