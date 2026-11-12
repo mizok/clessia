@@ -23,6 +23,10 @@ const room = (
 });
 
 /** #1314 SE3：A6 settings.html#campuses「⋮ › 教室」＋改名／刪除（Q4） */
+// setup() stub 了 matchMedia；不還原的話同一個 worker 之後的 spec 都吃到它
+// （dialog-steps 的「沒有 matchMedia 當桌機」隨執行順序紅，campus-form 同族）
+afterEach(() => vi.unstubAllGlobals());
+
 describe('ClassroomsDialogComponent', () => {
   function setup(
     rooms: Classroom[] = [room('r1', 'A 教室'), room('r2', 'B 教室', null)],
