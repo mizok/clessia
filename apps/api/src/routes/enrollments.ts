@@ -744,6 +744,7 @@ app.openapi(
           issuedAt,
           dueDate: firstInvoice.dueDate ?? null,
           sessionCount: firstInvoice.sessionCount ?? null,
+          notes: body.notes ?? null,
         });
       } catch (err) {
         console.error('[enrollments] create with first invoice failed', err);

@@ -88,6 +88,7 @@ run('直接報名＋建立繳費單對真 Postgres（#2296）', () => {
       issuedAt: '2026-10-21',
       dueDate: null,
       sessionCount: null,
+      notes: null,
     };
     return { orgId, campusId, classId, studentId, monthly, pack, period, base };
   }
@@ -355,6 +356,15 @@ run('直接報名＋建立繳費單對真 Postgres（#2296）', () => {
       r.enrollmentId,
     ]);
     expect(e).toEqual({ effective_to: '2026-10-26' });
+  });
+
+  it('建立分支的備註有寫進 enrollments.notes（審核席二讀 #2451）', async () => {
+    const s = await setup();
+    const r = await directEnrollWithFirstInvoice(pool, { ...s.base, notes: '週三要早退' });
+    expect(r).toMatchObject({ status: 'done' });
+    if (r.status !== 'done') return;
+    const [e] = await q(`SELECT notes FROM enrollments WHERE id = $1`, [r.enrollmentId]);
+    expect(e).toEqual({ notes: '週三要早退' });
   });
 
   it('額滿 → over-quota，什麼都沒寫', async () => {
