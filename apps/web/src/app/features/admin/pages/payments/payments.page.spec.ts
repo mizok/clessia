@@ -445,7 +445,7 @@ describe('PaymentsPage', () => {
     dialogService.open = originalOpen;
   });
   describe('#2316 同一位學生好幾張帳單分得出來', () => {
-    it('逾期章依到期日早的在前（逾期天數多到少），每列寫期別', async () => {
+    it('逾期章照 API 的順序畫（#2447 API 整份排好，前端不再頁內重排），每列寫期別', async () => {
       const item = { type: 'tuition', periodMonth: '2026-10-01', note: null } as never;
       invoices.list.mockReturnValue(
         of(
@@ -459,7 +459,11 @@ describe('PaymentsPage', () => {
       fixture.detectChanges();
       await fixture.whenStable();
       fixture.detectChanges();
-      expect(component['overdueRows']().map((i) => i.id)).toEqual(['early', 'late']);
+      // API 給什麼順序就畫什麼順序：頁內重排會讓第 1 頁「看起來已排好」而誤判
+      const order = [
+        ...(fixture.nativeElement as HTMLElement).querySelectorAll('section[aria-label="逾期"] li'),
+      ].map((li) => li.getAttribute('style')?.match(/inv-main-(\w+)/)?.[1]);
+      expect(order).toEqual(['late', 'early']);
       const periods = (fixture.nativeElement as HTMLElement).querySelectorAll(
         '[data-testid="invoice-period"]',
       );
