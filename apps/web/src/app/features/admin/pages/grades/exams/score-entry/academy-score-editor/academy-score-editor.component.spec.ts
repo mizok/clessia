@@ -169,6 +169,16 @@ describe('AcademyScoreEditorComponent', () => {
     expect(firstRow.textContent).toContain('國一');
   });
 
+  // #2290：底部面板是例外形狀（永遠貼底），標題要是 h2、✕ 要有中文名稱（同家長帳單抽屜）
+  it('手機成績面板：學生名是 h2、✕ 名稱是「關閉」', async () => {
+    component['openSheet'](component['rows']()[0]);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const drawer = document.body.querySelector('.p-drawer') as HTMLElement;
+    expect(drawer.querySelector('h2')?.textContent?.trim()).toBe('王小明');
+    expect(drawer.querySelector('button[aria-label="關閉"]')).not.toBeNull();
+  });
+
   // ── 未儲存移出色彩通道（刀 4）─────────────────────────────────────────────
   it('dirtyCount 數的是還沒存的筆數 —— 急迫性屬於整批不屬於單一格', () => {
     expect(component['dirtyCount']()).toBe(
