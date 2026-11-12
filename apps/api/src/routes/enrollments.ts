@@ -4,7 +4,11 @@ import { requireAdminMiddleware } from '../middleware/auth';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { inOrg } from '../lib/org-scope';
-import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrollments/validation';
+import {
+  checkEnrollmentAttendance,
+  checkEnrollmentPreconditions,
+  findClassInScope,
+} from './enrollments/validation';
 import { enrollWithSeatLock } from '../lib/class-seats';
 import { getAuth } from '../lib/get-auth';
 import {
@@ -624,6 +628,7 @@ app.openapi(
       studentIds: [body.studentId],
       effectiveFrom,
       effectiveTo,
+      scope: getCampusScope(c),
     });
 
     if (preconditions.error) {
@@ -654,6 +659,7 @@ app.openapi(
     try {
       outcome = await enrollWithSeatLock(pool, {
         orgId,
+        scope: getCampusScope(c),
         classId: body.classId,
         rows: [
           {
@@ -1166,6 +1172,7 @@ app.openapi(
       studentIds: uniqueStudentIds,
       effectiveFrom: startDate,
       effectiveTo: null,
+      scope: getCampusScope(c),
     });
 
     if (preconditions.error) {
@@ -1196,6 +1203,7 @@ app.openapi(
     try {
       outcome = await enrollWithSeatLock(pool, {
         orgId,
+        scope: getCampusScope(c),
         classId,
         rows: uniqueStudentIds.map((studentId) => ({
           studentId,
@@ -1420,22 +1428,24 @@ app.openapi(
       return c.json({ error: '來源班級不能與目標班級相同', code: 'SAME_CLASS' }, 400);
     }
 
-    const { data: targetClass, error: targetClassError } = await supabase
-      .from('classes')
-      .select('id')
-      .eq('id', targetClassId)
-      .eq('org_id', orgId)
-      .maybeSingle();
+    // 範圍外的班（來源或目標）跟不存在一樣（#2443）：不讀別校的名冊、不報進別校的班
+    const scope = getCampusScope(c);
+    const { data: targetClass, error: targetClassError } = await findClassInScope(
+      supabase,
+      orgId,
+      targetClassId,
+      scope,
+    );
 
     if (targetClassError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
     if (!targetClass) return c.json({ error: 'TARGET_CLASS_NOT_FOUND' }, 404);
 
-    const { data: sourceClass, error: sourceClassError } = await supabase
-      .from('classes')
-      .select('id')
-      .eq('id', sourceClassId)
-      .eq('org_id', orgId)
-      .maybeSingle();
+    const { data: sourceClass, error: sourceClassError } = await findClassInScope(
+      supabase,
+      orgId,
+      sourceClassId,
+      scope,
+    );
 
     if (sourceClassError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
     if (!sourceClass) return c.json({ error: 'SOURCE_CLASS_NOT_FOUND' }, 404);
@@ -1479,6 +1489,7 @@ app.openapi(
     try {
       outcome = await enrollWithSeatLock(pool, {
         orgId,
+        scope: getCampusScope(c),
         classId: targetClassId,
         rows: toInsertStudentIds.map((studentId) => ({
           studentId,

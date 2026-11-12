@@ -695,6 +695,7 @@ describe('checkEnrollmentPreconditions', () => {
     });
 
     const result = await checkEnrollmentPreconditions({
+      scope: null,
       supabase: supabase as never,
       orgId,
       classId,
@@ -757,6 +758,7 @@ describe('checkEnrollmentPreconditions', () => {
     });
 
     const result = await checkEnrollmentPreconditions({
+      scope: null,
       supabase: supabase as never,
       orgId,
       classId,
@@ -804,6 +806,7 @@ describe('checkEnrollmentPreconditions', () => {
         ],
       });
       return checkEnrollmentPreconditions({
+        scope: null,
         supabase: supabase as never,
         orgId,
         classId,
