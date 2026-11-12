@@ -1,0 +1,138 @@
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { of, throwError } from 'rxjs';
+import { vi } from 'vitest';
+import { MessageService } from 'primeng/api';
+
+import {
+  SchoolsService,
+  type School,
+  type SchoolCalendarEvent,
+  type SchoolCalendarPeriod,
+} from '@core/schools.service';
+import { SchoolCalendarPage, defaultPeriodId, mdw } from './school-calendar.page';
+
+const school = (id: string, name: string): School =>
+  ({ id, name, shortName: name, level: 'junior', isActive: true, studentCount: 0 }) as School;
+
+const ev = (
+  id: string,
+  kind: SchoolCalendarEvent['kind'],
+  startDate: string,
+  endDate = startDate,
+): SchoolCalendarEvent => ({
+  id,
+  schoolId: 's1',
+  kind,
+  startDate,
+  endDate,
+  note: null,
+  createdAt: '',
+  updatedAt: '',
+});
+
+const P_SPRING: SchoolCalendarPeriod = {
+  id: 'p2',
+  name: '115 春',
+  startDate: '2027-02-01',
+  endDate: '2027-07-31',
+};
+const P_FALL: SchoolCalendarPeriod = {
+  id: 'p1',
+  name: '115 秋',
+  startDate: '2026-08-01',
+  endDate: '2027-01-31',
+};
+
+function stubDialog() {
+  const proto = HTMLDialogElement.prototype as any;
+  proto.showModal ??= function (this: HTMLDialogElement) {
+    this.setAttribute('open', '');
+  };
+  proto.close = function (this: HTMLDialogElement) {
+    this.removeAttribute('open');
+    this.dispatchEvent(new Event('close'));
+  };
+}
+
+describe('學校行事曆的日期與預設期（#1160）', () => {
+  it('mdw 寫成 月/日（星期），不經機器時區', () => {
+    expect(mdw('2027-02-11')).toBe('2/11（四）');
+  });
+
+  it('預設期：涵蓋今天 → 最近的下一期 → 最近的上一期 → 全部', () => {
+    const periods = [P_SPRING, P_FALL]; // API 依開始日新到舊
+    expect(defaultPeriodId(periods, '2026-11-12')).toBe('p1');
+    expect(defaultPeriodId(periods, '2026-07-01')).toBe('p1');
+    expect(defaultPeriodId(periods, '2027-09-01')).toBe('p2');
+    expect(defaultPeriodId([], '2026-11-12')).toBe('');
+  });
+});
+
+describe('SchoolCalendarPage（#1160 PR3）', () => {
+  function setup(events: SchoolCalendarEvent[], periods = [P_SPRING, P_FALL], fail = false) {
+    stubDialog();
+    const calendarEvents = vi.fn(() =>
+      fail ? throwError(() => new Error('x')) : of({ data: events, meta: { periods } }),
+    );
+    TestBed.configureTestingModule({
+      imports: [SchoolCalendarPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: SchoolsService,
+          useValue: {
+            list: () => of({ data: [school('s1', '明湖國中'), school('s2', '麗山國中')] }),
+            calendarEvents,
+          },
+        },
+        { provide: MessageService, useValue: { add: vi.fn() } },
+      ],
+    });
+    const fixture = TestBed.createComponent(SchoolCalendarPage);
+    fixture.componentRef.setInput('id', 's1');
+    fixture.detectChanges();
+    TestBed.flushEffects();
+    fixture.detectChanges();
+    return {
+      fixture,
+      el: fixture.nativeElement as HTMLElement,
+      cmp: fixture.componentInstance as any,
+    };
+  }
+
+  it('只列跟選定的期重疊的事件（跨期的寒假兩期都列）、摘要寫開學與休業式', () => {
+    vi.useFakeTimers({ now: new Date('2026-11-12T04:00:00Z'), toFake: ['Date'] });
+    const { el, cmp, fixture } = setup([
+      ev('a', 'semester_start', '2026-08-30'),
+      ev('b', 'winter_break', '2027-01-20', '2027-02-10'),
+      ev('c', 'semester_start', '2027-02-11'),
+    ]);
+    vi.useRealTimers();
+
+    expect(cmp.periodId()).toBe('p1');
+    expect(el.querySelectorAll('[data-event]').length).toBe(2);
+    expect(el.querySelector('[data-part=calendar-summary]')!.textContent).toContain(
+      '開學 8/30（日）',
+    );
+    expect(el.textContent).toContain('1/20（三）–2/10（三） · 22 天');
+
+    cmp.periodId.set('p2');
+    fixture.detectChanges();
+    expect(
+      [...el.querySelectorAll('[data-event]')].map((r) => r.getAttribute('data-event')),
+    ).toEqual(['b', 'c']);
+  });
+
+  it('期內沒有開學／休業式 → 灰字提示；沒事件 → 空狀態', () => {
+    const { el } = setup([], [P_FALL]);
+    expect(el.textContent).toContain('還沒填開學／休業式');
+    expect(el.textContent).toContain('這期還沒有 明湖國中 的行事曆');
+  });
+
+  it('讀取失敗 → 失敗畫面（不是空狀態）', () => {
+    const { el } = setup([], [], true);
+    expect(el.textContent).not.toContain('這期還沒有');
+    expect(el.querySelector('app-load-failed')).not.toBeNull();
+  });
+});

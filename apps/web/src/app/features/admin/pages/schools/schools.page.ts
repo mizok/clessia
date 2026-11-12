@@ -8,6 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { EMPTY, Subject, catchError, debounceTime, switchMap } from 'rxjs';
 import { MessageService } from 'primeng/api';
@@ -47,6 +48,7 @@ const CHAPTERS: ReadonlyArray<{ level: SchoolLevel | null; label: string }> = [
     ReloadVeilComponent,
     EmptyStateComponent,
     LoadFailedComponent,
+    RouterLink,
   ],
   providers: [DialogService],
   templateUrl: './schools.page.html',
