@@ -103,6 +103,7 @@ export async function approveEnrollmentRequest(
       issuedAt: input.issuedAt,
       dueDate: input.dueDate,
       sessionCount: input.sessionCount,
+      notes: null,
     });
     if (r.status !== 'done') return r;
 

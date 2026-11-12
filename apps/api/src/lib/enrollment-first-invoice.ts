@@ -40,6 +40,8 @@ export interface FirstInvoiceInput {
   readonly dueDate: string | null;
   /** 堂數制必填 */
   readonly sessionCount: number | null;
+  /** 報名備註（直接報名表單的備註；核准沒有，給 null） */
+  readonly notes: string | null;
 }
 
 export type FirstInvoiceOutcome =
@@ -130,6 +132,7 @@ export async function enrollWithFirstInvoice(
         feeTemplateId: input.feeTemplateId,
         agreedAmount: input.agreedAmount,
         adjustmentNote: input.adjustmentNote,
+        notes: input.notes,
         createdBy: input.userId,
       },
     ],

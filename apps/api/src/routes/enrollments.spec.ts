@@ -1086,6 +1086,7 @@ describe('POST /api/enrollments 的 firstInvoice（#2296 SD9 建立繳費單）'
     const res = await post(appWith(), {
       ...body,
       effectiveTo: '2026-12-31',
+      notes: '週三要早退',
       firstInvoice: { amount: 900, amountNote: '老生' },
     });
     expect(res.status).toBe(201);
@@ -1109,6 +1110,7 @@ describe('POST /api/enrollments 的 firstInvoice（#2296 SD9 建立繳費單）'
         issuedAt: today,
         dueDate: null,
         sessionCount: null,
+        notes: '週三要早退',
       }),
     ]);
   });
