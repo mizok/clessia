@@ -1,4 +1,4 @@
-import type { CampusScope } from '../../lib/campus-scope';
+import { applyCampusFilter, type CampusScope } from '../../lib/campus-scope';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { scheduleOverlaps, scheduleRangeOf } from '../../lib/schedule-effective';
@@ -64,6 +64,32 @@ interface ExistingEnrollmentRow {
   } | null;
 }
 
+type ClassLookup = {
+  in(column: string, values: string[]): ClassLookup;
+  maybeSingle(): PromiseLike<{ data: { id: string } | null; error: { message: string } | null }>;
+};
+
+/**
+ * 查一個班，**範圍外查不到 → 跟不存在一樣**（#2443）。直接報名的前置檢查與 copy-from-class 的
+ * 來源／目標班共用。轉成結構型別再套 `applyCampusFilter`：直接套 supabase builder 會 TS2589。
+ */
+export function findClassInScope(
+  supabase: SupabaseClient,
+  orgId: string,
+  classId: string,
+  scope: CampusScope,
+) {
+  return applyCampusFilter(
+    supabase
+      .from('classes')
+      .select('id')
+      .eq('id', classId)
+      .eq('org_id', orgId) as unknown as ClassLookup,
+    'campus_id',
+    scope,
+  ).maybeSingle();
+}
+
 export async function checkEnrollmentPreconditions(
   input: EnrollmentPreconditionInput,
 ): Promise<EnrollmentPreconditionResult> {
@@ -74,12 +100,7 @@ export async function checkEnrollmentPreconditions(
     return { error: null, conflicts: [] };
   }
 
-  const { data: cls, error: classError } = await supabase
-    .from('classes')
-    .select('id, campus_id')
-    .eq('id', classId)
-    .eq('org_id', orgId)
-    .maybeSingle();
+  const { data: cls, error: classError } = await findClassInScope(supabase, orgId, classId, scope);
 
   if (classError) {
     return {
@@ -88,7 +109,7 @@ export async function checkEnrollmentPreconditions(
     };
   }
 
-  if (!cls || (scope !== null && !scope.includes(cls.campus_id as string))) {
+  if (!cls) {
     return {
       error: { code: 'CLASS_NOT_FOUND', message: '班級不存在' },
       conflicts: [],
