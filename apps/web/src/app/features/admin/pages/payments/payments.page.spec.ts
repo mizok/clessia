@@ -717,8 +717,12 @@ describe('PaymentsPage', () => {
 
       const month = component['exportMonth']();
       expect(invoices.list).toHaveBeenCalledTimes(3);
+      // #2444：逾期的張數不分月份；其他兩個範圍看月份
       expect(invoices.list).toHaveBeenCalledWith(
-        expect.objectContaining({ issuedMonth: month, overdue: true, page: 1, pageSize: 1 }),
+        expect.objectContaining({ issuedMonth: undefined, overdue: true, page: 1, pageSize: 1 }),
+      );
+      expect(invoices.list).toHaveBeenCalledWith(
+        expect.objectContaining({ issuedMonth: month, overdue: undefined, pageSize: 1 }),
       );
       const labels = [
         ...(fixture.nativeElement as HTMLElement).querySelectorAll('#payments-export label'),
@@ -740,7 +744,7 @@ describe('PaymentsPage', () => {
       );
     });
 
-    it('匯出預設當月（台北今天所在月），檔名與範圍寫進檔名；逾期範圍送 overdue', async () => {
+    it('匯出預設當月；逾期範圍送 overdue、不帶月份（#2444），檔名寫今天', async () => {
       const writeFile = vi.fn();
       vi.doMock('xlsx', () => ({
         utils: {
@@ -763,13 +767,14 @@ describe('PaymentsPage', () => {
       expect(panel.hidePopover).toHaveBeenCalledTimes(1);
       expect(invoices.list).toHaveBeenCalledWith(
         expect.objectContaining({
-          issuedMonth: month,
+          issuedMonth: undefined,
           overdue: true,
           outstanding: undefined,
           pageSize: 200,
         }),
       );
-      expect(writeFile).toHaveBeenCalledWith(expect.anything(), `帳單_${month}_只有逾期.xlsx`);
+      const today = component['systemClock'].todayTaipei();
+      expect(writeFile).toHaveBeenCalledWith(expect.anything(), `帳單_只有逾期_${today}.xlsx`);
       vi.doUnmock('xlsx');
     });
 
@@ -790,6 +795,48 @@ describe('PaymentsPage', () => {
       expect(TestBed.inject(AppVersionService).isStale()).toBe(true);
       expect(toasts.filter((t) => t.severity === 'error')).toEqual([]);
       expect(component['exporting']()).toBe(false);
+    });
+
+    it('#2444 選逾期：月份欄停用、說明改成不分月份；全部帳單仍帶月份', async () => {
+      const el = fixture.nativeElement as HTMLElement;
+      component['exportScope'].set('overdue');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(
+        el.querySelector<HTMLInputElement>('#payments-export input[type=month]')!.disabled,
+      ).toBe(true);
+      expect(el.querySelector('[data-testid="export-hint"]')!.textContent).toContain(
+        '只有逾期不分月份',
+      );
+
+      component['exportScope'].set('all');
+      invoices.list.mockClear();
+      invoices.list.mockReturnValue(of(listResponse([], 0)));
+      await component['exportInvoices']({ hidePopover: vi.fn() } as never);
+      expect(invoices.list).toHaveBeenCalledWith(
+        expect.objectContaining({ issuedMonth: component['exportMonth']() }),
+      );
+    });
+
+    it('#2444 這個範圍 0 張：匯出鈕停用並寫原因；張數還沒回來不擋', () => {
+      const el = fixture.nativeElement as HTMLElement;
+      const go = () => el.querySelector<HTMLButtonElement>('[data-testid="export-go"]')!;
+      component['exportCounts'].set({});
+      fixture.detectChanges();
+      expect(go().disabled).toBe(false);
+
+      component['exportCounts'].set({ all: 5, overdue: 0, outstanding: 3 });
+      component['exportScope'].set('overdue');
+      fixture.detectChanges();
+      expect(go().disabled).toBe(true);
+      expect(go().getAttribute('aria-describedby')).toBe('export-empty');
+      expect(el.querySelector('#export-empty')!.textContent).toContain('這個範圍沒有帳單');
+
+      component['exportScope'].set('all');
+      fixture.detectChanges();
+      expect(go().disabled).toBe(false);
+      expect(el.querySelector('#export-empty')).toBeNull();
     });
 
     it('匯出超過一頁：用 meta.total 判斷收完', async () => {

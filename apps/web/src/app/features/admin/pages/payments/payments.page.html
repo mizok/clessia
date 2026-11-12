@@ -142,6 +142,7 @@
               name="exportMonth"
               class="h-10 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit]"
               [ngModel]="exportMonth()"
+              [disabled]="exportScope() === 'overdue'"
               (ngModelChange)="exportMonth.set($event); loadExportCounts()"
             />
           </label>
@@ -174,9 +175,18 @@
             <span class="text-base">Excel（.xlsx）</span>
           </div>
           <!-- A6 沒有這句；範圍跟畫面篩選不同步，現況有的說明保留（R2） -->
-          <p class="m-0 text-sm text-zinc-600">
-            範圍以這裡的選擇為準，不跟畫面上的篩選。月份看開立日。
+          <p class="m-0 text-sm text-zinc-600" data-testid="export-hint">
+            範圍以這裡的選擇為準，不跟畫面上的篩選。{{
+              exportScope() === 'overdue'
+                ? '只有逾期不分月份：現在逾期的全部匯出。'
+                : '月份看開立日。'
+            }}
           </p>
+          @if (exportEmpty()) {
+            <p id="export-empty" class="m-0 text-sm text-zinc-700" data-testid="export-empty">
+              這個範圍沒有帳單
+            </p>
+          }
           <div class="flex justify-end gap-2">
             <button
               type="button"
@@ -190,7 +200,8 @@
               type="submit"
               class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-accent-vivid bg-accent-vivid px-4 text-md leading-[1.5] font-semibold text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 disabled:cursor-wait disabled:opacity-60 max-wide:flex-1 wide:h-9"
               data-testid="export-go"
-              [disabled]="exporting()"
+              [disabled]="exporting() || exportEmpty()"
+              [attr.aria-describedby]="exportEmpty() ? 'export-empty' : null"
             >
               @if (exporting()) {
                 <i class="pi pi-spinner pi-spin text-sm" aria-hidden="true"></i>匯出中…
