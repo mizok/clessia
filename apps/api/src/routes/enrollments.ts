@@ -654,6 +654,7 @@ app.openapi(
     try {
       outcome = await enrollWithSeatLock(pool, {
         orgId,
+        scope: getCampusScope(c),
         classId: body.classId,
         rows: [
           {
@@ -1196,6 +1197,7 @@ app.openapi(
     try {
       outcome = await enrollWithSeatLock(pool, {
         orgId,
+        scope: getCampusScope(c),
         classId,
         rows: uniqueStudentIds.map((studentId) => ({
           studentId,
@@ -1479,6 +1481,7 @@ app.openapi(
     try {
       outcome = await enrollWithSeatLock(pool, {
         orgId,
+        scope: getCampusScope(c),
         classId: targetClassId,
         rows: toInsertStudentIds.map((studentId) => ({
           studentId,
