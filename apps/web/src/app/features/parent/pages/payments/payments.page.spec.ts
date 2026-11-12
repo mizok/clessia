@@ -432,6 +432,35 @@ describe('PaymentsPage', () => {
     expect(detail?.textContent).not.toContain('確認人');
   });
 
+  // #1859：色面第一次載入先畫成有資料的形狀，資料回來只換字、不長高（帳單列出現後不再被往下推）
+  it('第一次載入時色面是骨架＋數字列；回來有帳單換成字，沒有帳單收掉數字列', () => {
+    const meta = { total: 1, page: 1, pageSize: 20, totalDue: 2400, paymentInfo: [] };
+    createComponent();
+    const pending = new Subject<ParentInvoiceListResponse>();
+    listMock.mockReturnValue(pending);
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="band-skeleton"]')).not.toBeNull();
+    expect(el.querySelectorAll('.payments__stats dd .skeleton')).toHaveLength(2);
+
+    pending.next({ data: [invoice()], meta });
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="band-skeleton"]')).toBeNull();
+    expect(el.querySelector('.payments__stats dd')?.textContent?.replace(/\s+/g, '')).toBe(
+      '2,400元',
+    );
+    fixture.destroy();
+    TestBed.resetTestingModule();
+
+    createComponent();
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    const empty = fixture.nativeElement as HTMLElement;
+    expect(empty.querySelector('[data-testid="band-skeleton"]')).toBeNull();
+    expect(empty.querySelector('.payments__stats')).toBeNull();
+  });
+
   it('載入失敗顯示失敗狀態', () => {
     createComponent('error');
     activeChildId.set('child-1');

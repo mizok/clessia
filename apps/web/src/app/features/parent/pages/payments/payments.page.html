@@ -5,8 +5,23 @@
 -->
 <app-page-open>
   <app-child-switcher openBack class="mb-3 block" />
+  <!--
+    第一次載入時色面先畫成有資料的形狀（兩行標題、副行、數字列，數字位置是骨架），資料回來只換字、不長高 ——
+    原本色面從一行標題長成整塊（桌機 +211px、手機 +153px），帳單列一出現就跟著被往下推，滑動中點不準（#1859）。
+    結果是沒有帳單的孩子，色面往回縮（appHeightFollow 滑），那時下面只有空狀態、沒有可點的東西。
+  -->
   <ng-container openTitle>
-    @if (!loading() && invoices().length > 0) {
+    @if (bandPending()) {
+      <span
+        class="skeleton skeleton--on-band inline-block h-[0.9em] w-[6ch] rounded-sm align-middle"
+        data-testid="band-skeleton"
+        aria-label="載入中"
+      ></span
+      ><br /><span
+        class="skeleton skeleton--on-band inline-block h-[0.9em] w-[5ch] rounded-sm align-middle"
+        aria-hidden="true"
+      ></span>
+    } @else if (!loading() && invoices().length > 0) {
       @if (totalDue() > 0) {
         {{ childName() }} 還要繳<br />{{ totalDue() | number }} 元。
       } @else {
@@ -17,27 +32,39 @@
     }
   </ng-container>
   <ng-container openSub>
-    @if (nextDue(); as due) {
+    @if (bandPending()) {
+      <span
+        class="skeleton skeleton--on-band inline-block h-[0.9em] w-[12ch] rounded-sm align-middle"
+        aria-hidden="true"
+      ></span>
+    } @else if (nextDue(); as due) {
       最近的期限是 {{ monthDay(due) }}{{ due < today() ? '，已經過了' : '' }}
     }
   </ng-container>
-  @if (!loading() && invoices().length > 0) {
+  @if (bandPending() || (!loading() && invoices().length > 0)) {
     <!-- A6 .open__stats：dt 是標籤、dd 是數字＋「元」（數字在上，order） -->
     <dl
       class="payments__stats m-0 mt-5 flex max-w-[760px] flex-wrap gap-x-6 gap-y-4 border-t border-band-rule pt-4 wide:mt-8 wide:gap-x-12 wide:gap-y-5 wide:pt-5"
     >
       <div class="m-0 flex flex-col">
         <dt class="mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-md">
-          待繳 · {{ groups().pending.length }} 張
+          待繳{{ bandPending() ? '' : ' · ' + groups().pending.length + ' 張' }}
         </dt>
         <dd
           class="order-first m-0 text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
         >
-          {{ totalDue() | number
-          }}<small class="ml-0.5 text-md font-bold tracking-[-0.01em] wide:text-lg">元</small>
+          @if (bandPending()) {
+            <span
+              class="skeleton skeleton--on-band inline-block h-[1em] w-[4ch] rounded-sm align-top"
+              aria-hidden="true"
+            ></span>
+          } @else {
+            {{ totalDue() | number
+            }}<small class="ml-0.5 text-md font-bold tracking-[-0.01em] wide:text-lg">元</small>
+          }
         </dd>
       </div>
-      @if (termPaid() !== null) {
+      @if (bandPending() || termPaid() !== null) {
         <div class="m-0 flex flex-col">
           <dt class="mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-md">
             本學期已繳
@@ -45,8 +72,15 @@
           <dd
             class="order-first m-0 text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
           >
-            {{ termPaid() | number
-            }}<small class="ml-0.5 text-md font-bold tracking-[-0.01em] wide:text-lg">元</small>
+            @if (bandPending()) {
+              <span
+                class="skeleton skeleton--on-band inline-block h-[1em] w-[4ch] rounded-sm align-top"
+                aria-hidden="true"
+              ></span>
+            } @else {
+              {{ termPaid() | number
+              }}<small class="ml-0.5 text-md font-bold tracking-[-0.01em] wide:text-lg">元</small>
+            }
           </dd>
         </div>
       }

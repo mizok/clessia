@@ -263,6 +263,8 @@ A6_APP_URL=http://localhost:4212 A6_API_URL=http://localhost:8794 \
   node tools/a6-conformance/jump.mjs students dashboard --widths 1440,390 --out /tmp/jump.json
 # 追區塊內部的東西：--sel 用分號隔開，每個選擇器一個標記色（最多 8 個）
 node tools/a6-conformance/jump.mjs dashboard --sel 'app-dashboard .colls;app-dashboard nav.flex-col'
+# 家長頁預設選第一個孩子；--child 指定要先選哪個（例：parent03 只有張宇軒有帳單）
+node tools/a6-conformance/jump.mjs p-payments --child 張宇軒
 ```
 
 **做法**

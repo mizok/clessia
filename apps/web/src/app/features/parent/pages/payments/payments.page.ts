@@ -78,6 +78,16 @@ export class PaymentsPage implements OnInit {
   protected readonly currentPage = signal(1);
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
+  /** 第一次的帳單回來（或失敗）之前；換孩子時不回到 false —— 色面留著上一個孩子的字，不縮回去 */
+  private readonly settled = signal(false);
+  /**
+   * 色面要先畫成「有資料」的形狀（#1859）：第一次的帳單還沒回來，而且不是「沒有孩子」或孩子清單讀取失敗
+   * （那兩種下面是 child-scope-gate 的說明，不會有帳單）。
+   */
+  protected readonly bandPending = computed(() => {
+    if (this.settled() || this.childScope.status() === 'failed') return false;
+    return !(this.childScope.status() === 'ready' && this.childScope.children().length === 0);
+  });
   protected readonly selectedInvoice = signal<ParentInvoice | null>(null);
   protected readonly drawerVisible = signal(false);
 
@@ -173,10 +183,12 @@ export class PaymentsPage implements OnInit {
         this.paymentInfo.set(res.meta.paymentInfo);
         this.currentPage.set(page);
         this.loading.set(false);
+        this.settled.set(true);
       },
       error: () => {
         this.failed.set(true);
         this.loading.set(false);
+        this.settled.set(true);
         if (!append) {
           this.invoices.set([]);
           this.total.set(0);

@@ -25,6 +25,8 @@ const widths = opt('widths', '1440,390').split(',').map(Number);
 const outFile = opt('out', null);
 // 要追的區塊：預設是頁面的頂層區塊；`--sel 'a;b;c'` 直接指定（最多 MARK_COLORS 個），例如區塊內部的列表
 const sels = opt('sel', null)?.split(';').filter(Boolean);
+// 家長端一律先選清單第一個孩子（不記住選擇）：`--child 張宇軒` 把那個孩子排第一，量有資料的情境（#1859）
+const child = opt('child', null);
 const targets = args.length ? args : Object.keys(PAGES);
 
 const MARK_CSS = MARK_COLORS.map(([r, g, b], k) => {
@@ -95,6 +97,13 @@ async function measure(name, width) {
         }
       }
       await route.abort().catch(() => {});
+    });
+  if (child)
+    await ctx.route('**/api/me/children', async (route) => {
+      const res = await route.fetch({ url: route.request().url().replace(BUILT_API, API_URL) });
+      const body = await res.json();
+      body.data.sort((x, y) => (y.name === child) - (x.name === child));
+      await route.fulfill({ response: res, json: body });
     });
   await ctx.addInitScript((css) => {
     const add = () => {
