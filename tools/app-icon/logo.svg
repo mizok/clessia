@@ -1,0 +1,2 @@
+<!-- 品牌 logo master（11-12）：三片面、縫 56、圓角 22（內縮＋round-join stroke）；app-brand-mark 與 index.html splash 用同一組 points -->
+<svg width="1254" height="1254" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1254 1254" stroke-width="44" stroke-linejoin="round"><rect width="1254" height="1254" fill="#191413" stroke="none"/><polygon points="283,442 577,261 577,594 283,772" fill="#fff3dd" stroke="#fff3dd"/><polygon points="677,261 971,442 971,772 677,594" fill="#fff3dd" stroke="#fff3dd"/><polygon points="627,680 910,852 627,1023 344,852" fill="#ff6a3d" stroke="#ff6a3d"/></svg>
