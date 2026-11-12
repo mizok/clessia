@@ -12,6 +12,7 @@ import { OverlayContainerService } from '@core/overlay-container.service';
 import { OverlayContainerDirective } from '@shared/directives/overlay-container.directive';
 import { AccountSettingsDialogComponent } from '@shared/components/account-settings-dialog/account-settings-dialog.component';
 import { GlobalSearchComponent } from '@shared/components/layout/global-search/global-search.component';
+import { BrandMarkComponent } from '@shared/components/brand-mark/brand-mark.component';
 
 /** A6 的手機／桌機切換（tailwind.css 的 `--breakpoint-wide`） */
 const WIDE = '(min-width: 861px)';
@@ -30,6 +31,7 @@ const WIDE = '(min-width: 861px)';
 @Component({
   selector: 'app-shell-layout',
   imports: [
+    BrandMarkComponent,
     RouterOutlet,
     RouterLink,
     RouterLinkActive,

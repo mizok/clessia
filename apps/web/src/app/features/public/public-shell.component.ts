@@ -5,6 +5,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map, startWith } from 'rxjs';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { FlowFieldComponent } from '@shared/components/flow-field/flow-field.component';
+import { BrandMarkComponent } from '@shared/components/brand-mark/brand-mark.component';
 import { PublicFormsService } from './pages/application-form/public-forms.service';
 
 /** 手機的右面（表單面）用網址片段表示：重新整理、瀏覽器返回鍵都跟著同一個狀態走 */
@@ -21,7 +22,7 @@ const FORM_FRAGMENT = 'form';
  */
 @Component({
   selector: 'app-public-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, FlowFieldComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, FlowFieldComponent, BrandMarkComponent],
   templateUrl: './public-shell.component.html',
 })
 export class PublicShellComponent {

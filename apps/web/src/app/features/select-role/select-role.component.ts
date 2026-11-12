@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 
 import { AuthService, type UserRole } from '@core/auth.service';
+import { BrandMarkComponent } from '@shared/components/brand-mark/brand-mark.component';
 
 /**
  * `/select-role` 的薄殼：路由是骨架，彈窗是長相。
@@ -23,7 +24,7 @@ import { AuthService, type UserRole } from '@core/auth.service';
  */
 @Component({
   selector: 'app-select-role',
-  imports: [],
+  imports: [BrandMarkComponent],
   templateUrl: './select-role.component.html',
   host: { class: 'block h-full' },
 })
