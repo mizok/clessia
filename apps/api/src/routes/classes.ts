@@ -2121,6 +2121,125 @@ app.openapi(
   },
 );
 
+// GET /api/classes/:id/school-calendar
+/**
+ * 產生課堂的學校行事曆疊圖（#1160 PR4 用）：這班**在讀**（active／pending_payment）學生的學校、
+ * 在區間內（重疊即列）的行事曆，每筆帶該校在這班有幾位學生。只標示、不自動排除（內文：自動避開之後再談）。
+ * `meta.studentCount` 給前端判斷「這班還沒有學生」（gate Q3 (a)：不疊、寫原因）。
+ * 分校範圍由上面的 `/:id/*` 守門擋（GET 範圍外回 404）。
+ */
+app.openapi(
+  createRoute({
+    method: 'get',
+    path: '/{id}/school-calendar',
+    tags: ['Classes'],
+    summary: '這班學生的學校在區間內的行事曆',
+    request: {
+      params: z.object({ id: DbUuidSchema }),
+      query: z.object({ from: z.string().date(), to: z.string().date() }),
+    },
+    responses: {
+      200: {
+        description: '成功',
+        content: {
+          'application/json': {
+            schema: z.object({
+              data: z.array(
+                z.object({
+                  kind: z.string(),
+                  startDate: z.string(),
+                  endDate: z.string(),
+                  note: z.string().nullable(),
+                  schoolId: z.string(),
+                  schoolName: z.string(),
+                  studentCount: z.number().int(),
+                }),
+              ),
+              meta: z.object({ studentCount: z.number().int() }),
+            }),
+          },
+        },
+      },
+      404: { description: '班級不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const orgId = c.get('orgId');
+    const supabase = c.get('supabase');
+    const { id } = c.req.valid('param');
+    const { from, to } = c.req.valid('query');
+
+    const cls = await supabase
+      .from('classes')
+      .select('id')
+      .eq('id', id)
+      .eq('org_id', orgId)
+      .maybeSingle();
+    if (cls.error) return c.json({ error: cls.error.message, code: 'DB_ERROR' }, 500);
+    if (!cls.data) return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+
+    const enrolled = await supabase
+      .from('enrollments')
+      .select('student_id, students!inner(school_id)')
+      .eq('org_id', orgId)
+      .eq('class_id', id)
+      .in('status', ['active', 'pending_payment']);
+    if (enrolled.error) return c.json({ error: enrolled.error.message, code: 'DB_ERROR' }, 500);
+
+    // 每校幾位「不同的」學生（同一位學生兩筆報名只算一次）
+    const studentsBySchool = new Map<string, Set<string>>();
+    const students = new Set<string>();
+    for (const row of (enrolled.data ?? []) as unknown as Array<{
+      student_id: string;
+      students: { school_id: string | null } | null;
+    }>) {
+      students.add(row.student_id);
+      const school = row.students?.school_id;
+      if (!school) continue;
+      if (!studentsBySchool.has(school)) studentsBySchool.set(school, new Set());
+      studentsBySchool.get(school)!.add(row.student_id);
+    }
+    const meta = { studentCount: students.size };
+    if (studentsBySchool.size === 0) return c.json({ data: [], meta }, 200);
+
+    const events = await supabase
+      .from('school_calendar_events')
+      .select('kind, start_date, end_date, note, school_id, schools(name)')
+      .eq('org_id', orgId)
+      .in('school_id', [...studentsBySchool.keys()])
+      .lte('start_date', to)
+      .gte('end_date', from)
+      .order('start_date', { ascending: true });
+    if (events.error) return c.json({ error: events.error.message, code: 'DB_ERROR' }, 500);
+
+    return c.json(
+      {
+        data: (
+          (events.data ?? []) as unknown as Array<{
+            kind: string;
+            start_date: string;
+            end_date: string;
+            note: string | null;
+            school_id: string;
+            schools: { name: string } | null;
+          }>
+        ).map((e) => ({
+          kind: e.kind,
+          startDate: e.start_date,
+          endDate: e.end_date,
+          note: e.note,
+          schoolId: e.school_id,
+          schoolName: e.schools?.name ?? '',
+          studentCount: studentsBySchool.get(e.school_id)?.size ?? 0,
+        })),
+        meta,
+      },
+      200,
+    );
+  },
+);
+
 // POST /api/classes/:id/sessions/generate
 app.openapi(
   createRoute({
