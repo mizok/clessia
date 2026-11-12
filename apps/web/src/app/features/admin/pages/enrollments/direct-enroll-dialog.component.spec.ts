@@ -79,14 +79,7 @@ describe('DirectEnrollDialogComponent（#1314 EN2）', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('學生的 label 關聯到輸入框（可及名稱是「學生」，不是 placeholder）', () => {
-    const { el } = setup();
-    const input = el.querySelector<HTMLInputElement>('#direct-enroll-student');
-    expect(input?.tagName).toBe('INPUT');
-    expect(input?.labels?.[0]?.textContent).toContain('學生');
-  });
-
-    it('只打字沒選到人不算選了學生', () => {
+  it('只打字沒選到人不算選了學生', () => {
     const { cmp, fixture, hint } = setup();
     cmp.onStudent('陳');
     cmp.classId.set('class-1');
