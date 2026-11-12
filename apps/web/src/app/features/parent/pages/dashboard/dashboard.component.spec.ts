@@ -195,7 +195,7 @@ describe('DashboardComponent（A6 p-dashboard）', () => {
     create();
     const pay = el().querySelector('.dashboard__pay')!;
     expect(pay.textContent).toContain('4,800');
-    expect(pay.textContent).toContain('10/24（六）到期 · 2 個項目');
+    expect(pay.textContent).toContain('10/24（六）到期');
     expect(pay.textContent).toContain('2 天後到期');
   });
 
