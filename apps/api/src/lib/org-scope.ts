@@ -48,6 +48,7 @@ export type OrgTable =
   | 'push_subscriptions'
   | 'receipt_counters'
   | 'schedule_changes'
+  | 'school_calendar_events'
   | 'school_exams'
   | 'schools'
   | 'session_packs'
