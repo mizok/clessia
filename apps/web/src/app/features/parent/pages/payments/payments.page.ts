@@ -31,8 +31,10 @@ import {
   INVOICE_ITEM_TYPE_LABELS,
   INVOICE_STATUS_LABELS,
   PAYMENT_METHOD_LABELS,
+  dueSummary,
   dueTag,
   groupInvoices,
+  invoicePeriodLabel,
   invoiceTitle,
   latestPaymentDate,
   monthDay,
@@ -70,6 +72,10 @@ export class PaymentsPage implements OnInit {
   protected readonly invoices = signal<ParentInvoice[]>([]);
   protected readonly total = signal(0);
   protected readonly totalDue = signal(0);
+  /** 全量張數（#2446）：頁首、章頭、作廢都用它，不用已載入的列數 */
+  protected readonly counts = signal({ pending: 0, paid: 0, voided: 0 });
+  private readonly overdueSince = signal<string | null>(null);
+  private readonly nextDue = signal<string | null>(null);
   /** 本學期已繳（#1314 PP1），`meta.term.paid`；沒有涵蓋今天的收費期間 → null（不畫這個數字） */
   protected readonly termPaid = signal<number | null>(null);
   protected readonly copiedText = signal<string | null>(null);
@@ -93,20 +99,25 @@ export class PaymentsPage implements OnInit {
 
   protected readonly groups = computed(() => groupInvoices(this.invoices()));
   protected readonly childName = computed(() => this.childScope.activeChild()?.name ?? '孩子');
-  /**
-   * 最近的期限＝待繳裡最早的期限日（逾期的也算，會多寫「已經過了」）。
-   * ponytail: 只看已載入的那幾頁；待繳超過一頁時可能漏掉更早的，等有人真的有 20 張以上再說。
-   */
-  protected readonly nextDue = computed(
-    () =>
-      this.groups()
-        .pending.map((i) => i.dueDate)
-        .filter((d): d is string => d !== null)
-        .sort()[0] ?? null,
+  /** 色面副行（#2446）：最久的逾期＋下一張到期，兩個日期都是 API 的全量 */
+  protected readonly dueSummary = computed(() =>
+    dueSummary(this.overdueSince(), this.nextDue(), this.today()),
   );
   protected readonly chapters = computed(() => [
-    { kind: 'pending', name: '待繳', rows: this.groups().pending, empty: '目前沒有待繳的帳單。' },
-    { kind: 'paid', name: '已繳清', rows: this.groups().paid, empty: '還沒有繳清的帳單。' },
+    {
+      kind: 'pending',
+      name: '待繳',
+      rows: this.groups().pending,
+      count: this.counts().pending,
+      empty: '目前沒有待繳的帳單。',
+    },
+    {
+      kind: 'paid',
+      name: '已繳清',
+      rows: this.groups().paid,
+      count: this.counts().paid,
+      empty: '還沒有已繳清的帳單。',
+    },
   ]);
   protected readonly hasMore = computed(() => this.invoices().length < this.total());
   protected readonly itemTypeLabels = INVOICE_ITEM_TYPE_LABELS;
@@ -126,9 +137,17 @@ export class PaymentsPage implements OnInit {
   }
 
   protected readonly monthDay = monthDay;
+  /** 明細的期別（#2446）：`2026-08` → 8，跟列上的「8 月學費」同一種寫法 */
+  protected monthOf(periodMonth: string): number {
+    return Number(periodMonth.slice(5, 7));
+  }
 
   protected title(invoice: ParentInvoice): string {
     return invoiceTitle(invoice);
+  }
+
+  protected periodLabel(invoice: ParentInvoice): string {
+    return invoicePeriodLabel(invoice);
   }
 
   protected dueTag(invoice: ParentInvoice) {
@@ -179,6 +198,9 @@ export class PaymentsPage implements OnInit {
         this.invoices.set(append ? [...this.invoices(), ...res.data] : res.data);
         this.total.set(res.meta.total);
         this.totalDue.set(res.meta.totalDue);
+        this.counts.set(res.meta.counts);
+        this.overdueSince.set(res.meta.overdueSince);
+        this.nextDue.set(res.meta.nextDue);
         this.termPaid.set(res.meta.term?.paid ?? null);
         this.paymentInfo.set(res.meta.paymentInfo);
         this.currentPage.set(page);

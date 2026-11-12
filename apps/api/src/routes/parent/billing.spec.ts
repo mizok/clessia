@@ -523,3 +523,80 @@ describe('GET /api/me/billing —— meta.term（#1314 PP1）', () => {
     expect(result).toBeNull();
   });
 });
+
+describe('GET /api/me/billing 排序與全量張數（#2446）', () => {
+  /** 今天是 2026-10-08（檔頭 mock）。期限 null＝沒有期限 */
+  const inv = (id: string, issued: string, due: string | null, paid = 0) => ({
+    ...UNPAID_INVOICE,
+    id,
+    issued_at: issued,
+    due_date: due,
+    invoice_items: [{ ...UNPAID_INVOICE.invoice_items[0], id: `${id}-i`, amount: '1000' }],
+    payment_records: paid
+      ? [{ ...UNPAID_INVOICE.payment_records[0], id: `${id}-p`, amount: String(paid) }]
+      : [],
+  });
+  // 25 張待繳，開立日越晚期限越早 —— 舊的 issued_at desc 會把最早期限排到最後一頁
+  const pending = Array.from({ length: 25 }, (_, i) => {
+    const day = String(i + 1).padStart(2, '0');
+    return inv(`p${day}`, `2026-10-${String(31 - i).padStart(2, '0')}`, `2026-06-${day}`);
+  });
+  const all = [
+    ...pending,
+    inv('paid', '2026-11-01', '2026-11-30', 1000),
+    inv('nodue', '2026-11-02', null),
+  ];
+
+  const get = (query: string) =>
+    appWith(['parent'], [CHILD_ID], fakeChildDb(all, all)).request(`/?childId=${CHILD_ID}${query}`);
+
+  it('跨頁：第 1 頁第一張是全部待繳裡期限最早的；沒期限的待繳排在待繳最後、已繳清在後', async () => {
+    const page1 = (await (await get('&page=1&pageSize=20')).json()) as any;
+    expect(page1.data.map((i: any) => i.dueDate).slice(0, 3)).toEqual([
+      '2026-06-01',
+      '2026-06-02',
+      '2026-06-03',
+    ]);
+    const page2 = (await (await get('&page=2&pageSize=20')).json()) as any;
+    expect(page2.data.map((i: any) => i.id)).toEqual([
+      'p21',
+      'p22',
+      'p23',
+      'p24',
+      'p25',
+      'nodue',
+      'paid',
+    ]);
+  });
+
+  it('counts 是全量（不是一頁 20 張），total 是全部張數', async () => {
+    const body = (await (await get('&page=1&pageSize=20')).json()) as any;
+    expect(body.data).toHaveLength(20);
+    expect(body.meta.counts).toEqual({ pending: 26, paid: 1, voided: 0 });
+    expect(body.meta.total).toBe(27);
+    expect(body.meta.overdueSince).toBe('2026-06-01');
+  });
+
+  it('今天到期算 nextDue、不算逾期；昨天到期算逾期', async () => {
+    const rows = [
+      inv('today', '2026-10-01', '2026-10-08'),
+      inv('later', '2026-10-01', '2026-10-20'),
+    ];
+    const body = (await (
+      await appWith(['parent'], [CHILD_ID], fakeChildDb(rows, rows)).request(
+        `/?childId=${CHILD_ID}`,
+      )
+    ).json()) as any;
+    expect(body.meta.overdueSince).toBeNull();
+    expect(body.meta.nextDue).toBe('2026-10-08');
+
+    const late = [inv('y', '2026-10-01', '2026-10-07')];
+    const body2 = (await (
+      await appWith(['parent'], [CHILD_ID], fakeChildDb(late, late)).request(
+        `/?childId=${CHILD_ID}`,
+      )
+    ).json()) as any;
+    expect(body2.meta.overdueSince).toBe('2026-10-07');
+    expect(body2.meta.nextDue).toBeNull();
+  });
+});

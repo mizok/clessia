@@ -67,6 +67,23 @@ export function invoiceTitle(invoice: ParentInvoice): string {
   return [...new Set(names)].join('、');
 }
 
+/**
+ * 這張帳單收的是哪一期（#2446）：字同管理端 `invoicePeriodLabel`（#2316）——
+ * 有 `periodMonth` →「11 月學費」，否則類型名；去重，超過兩種「X 等 N 項」。
+ * c5 不跨 feature import，所以這裡另寫一份；家長端明細沒有 note，少了「（備註）」那支。
+ */
+export function invoicePeriodLabel(invoice: Pick<ParentInvoice, 'items'>): string {
+  const labels = [
+    ...new Set(
+      invoice.items.map((item) => {
+        const type = INVOICE_ITEM_TYPE_LABELS[item.type];
+        return item.periodMonth ? `${Number(item.periodMonth.slice(5, 7))} 月${type}` : type;
+      }),
+    ),
+  ];
+  return labels.length <= 2 ? labels.join('、') : `${labels[0]} 等 ${labels.length} 項`;
+}
+
 export type DueTone = 'overdue' | 'soon' | 'inactive';
 
 const day = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));
@@ -86,6 +103,20 @@ export function dueTag(
   if (left === 0) return { tone: 'soon', label: `${part}今天到期` };
   if (left <= 7) return { tone: 'soon', label: `${part}${left} 天後到期` };
   return { tone: 'inactive', label: `${part}未到期` };
+}
+
+/**
+ * 色面副行（#2446）：「最久的逾期 6/10（155 天）。下一張 11/13 到期」—— 兩個日期都是 API 的全量
+ * （`meta.overdueSince`／`meta.nextDue`），不是已載入那幾頁裡挑的。
+ */
+export function dueSummary(overdueSince: string | null, nextDue: string | null, today: string) {
+  const parts: string[] = [];
+  if (overdueSince) {
+    const late = Math.round((day(today) - day(overdueSince)) / 86_400_000);
+    parts.push(`最久的逾期 ${monthDay(overdueSince)}（${late} 天）`);
+  }
+  if (nextDue) parts.push(`下一張 ${monthDay(nextDue)} 到期`);
+  return parts.join('。');
 }
 
 /** `YYYY-MM-DD` → `M/D`（A6 `md`） */

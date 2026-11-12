@@ -155,11 +155,11 @@ export function examRows(
 
 // ── 待繳 ──────────────────────────────────────────────────────────────────────
 
-/** 待繳條（A6 `.pd-pay`）：最近期限那張的到期日與項目數；紅只給逾期，3 天內到期琥珀 */
+/** 待繳條（A6 `.pd-pay`）：最近期限那張的到期日（「N 個項目」拿掉，會讀成只有一筆，#2446）；紅只給逾期，3 天內到期琥珀 */
 export function payStrip(
   invoices: readonly ParentInvoice[],
   today: string,
-): { due: string | null; items: number; tag: Tag | null } | null {
+): { due: string | null; tag: Tag | null } | null {
   const pending = groupInvoices(invoices).pending;
   if (pending.length === 0) return null;
   const next = [...pending].sort((a, b) => ((a.dueDate ?? '9') < (b.dueDate ?? '9') ? -1 : 1))[0];
@@ -172,7 +172,7 @@ export function payStrip(
         : left <= 3
           ? { tone: 'warn', label: left ? `${left} 天後到期` : '今天到期' }
           : null;
-  return { due: next.dueDate, items: next.items.length, tag };
+  return { due: next.dueDate, tag };
 }
 
 // ── 聯絡簿 ────────────────────────────────────────────────────────────────────
