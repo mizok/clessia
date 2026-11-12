@@ -66,6 +66,22 @@ describe('ScoreEditDialogComponent', () => {
     expect(el.querySelector('.form-dialog__footer')?.textContent).toContain('儲存');
   });
 
+  // #2290：科目底部面板是例外形狀（永遠貼底），標題要是 h2、✕ 要有中文名稱（同家長帳單抽屜）
+  it('手機科目面板：科目名是 h2、✕ 名稱是「關閉」', async () => {
+    component['openSubjectSheet']({
+      subjectId: 'sub-1',
+      subjectName: '數學',
+      score: null,
+      status: 'scored',
+      notes: '',
+    } as never);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const drawer = document.body.querySelector('.p-drawer') as HTMLElement;
+    expect(drawer.querySelector('h2')?.textContent?.trim()).toBe('數學');
+    expect(drawer.querySelector('button[aria-label="關閉"]')).not.toBeNull();
+  });
+
   // 這張表跟 academy-score-editor 是同一種東西，手感必須一樣（#161 只修了那一份）
   describe('鍵盤動線', () => {
     function keydown(key: string) {

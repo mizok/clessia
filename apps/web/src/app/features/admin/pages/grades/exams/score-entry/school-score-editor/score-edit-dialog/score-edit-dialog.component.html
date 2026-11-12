@@ -188,11 +188,13 @@
   [modal]="true"
   [appendTo]="'body'"
   styleClass="drawer-auto"
+  ariaCloseLabel="關閉"
 >
   @if (subjectSheetRow(); as row) {
+    <!-- 例外形狀（永遠貼底），只把標題升成 h2（#2290 分批表，同家長帳單抽屜） -->
     <ng-template #header>
       <div class="flex items-baseline gap-2">
-        <span class="text-lg font-semibold text-zinc-900">{{ row.subjectName }}</span>
+        <h2 class="m-0 text-lg font-semibold text-zinc-900">{{ row.subjectName }}</h2>
       </div>
     </ng-template>
 
