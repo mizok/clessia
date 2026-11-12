@@ -1,3 +1,4 @@
+import { HeightFollowDirective } from '@shared/directives/height-follow.directive';
 import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { NgTemplateOutlet } from '@angular/common';
 import {
@@ -63,6 +64,7 @@ const PAGE_SIZE = 100;
   standalone: true,
   imports: [
     TextSwapDirective,
+    HeightFollowDirective,
     SkeletonComponent,
     SelectFieldComponent,
     NgTemplateOutlet,
@@ -102,6 +104,16 @@ export class GradesComponent implements OnInit {
   protected readonly truncated = computed(() => this.total() > this.records().length);
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
+  /** 第一次的成績回來（或失敗）之前；換孩子時不回到 false —— 色面留著上一個孩子的字，不縮回去 */
+  private readonly settled = signal(false);
+  /**
+   * 色面與篩選列先畫成「有資料」的形狀（#1859）：第一次的成績還沒回來，而且不是「沒有孩子」或孩子清單讀取失敗
+   * （那兩種下面是 child-scope-gate 的說明，不會有成績）。
+   */
+  protected readonly bandPending = computed(() => {
+    if (this.settled() || this.childScope.status() === 'failed') return false;
+    return !(this.childScope.status() === 'ready' && this.childScope.children().length === 0);
+  });
   /** 機構的期（`billing_periods`）＝學期篩選的選項來源（#1076） */
   protected readonly periods = signal<ParentGradePeriod[]>([]);
   /** `null`＝使用者還沒選過，第一次拿到期清單時套預設（含今天的期） */
@@ -219,10 +231,12 @@ export class GradesComponent implements OnInit {
         this.defaultPeriod.set(defaultPeriodFilter(res.meta.periods, this.today()));
         if (this.periodFilter() === null) this.periodFilter.set(this.defaultPeriod());
         this.loading.set(false);
+        this.settled.set(true);
       },
       error: () => {
         this.failed.set(true);
         this.loading.set(false);
+        this.settled.set(true);
         this.records.set([]);
         this.recentCount.set(0);
         this.total.set(0);

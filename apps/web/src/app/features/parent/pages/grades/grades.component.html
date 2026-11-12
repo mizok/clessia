@@ -2,10 +2,25 @@
   A6 版（#1314 PG1–2）：色面＝一句話（最近一次考幾分）＋「N 筆新成績」→ 篩選列（課程、學期、期間）→
   按課程分組的清單，每列點開看考試說明、滿分、登錄日。分數全讀 API，前端不運算。
 -->
+<!--
+  第一次載入時色面與灰帶篩選列先畫成有資料的形狀（骨架／載入中點不到的篩選），資料回來只換字、不長高 ——
+  原本色面從一行長成整塊、篩選列瞬間冒出來，成績列一出現就被往下推 211px（手機 153）（#1859，同家長繳費）。
+  結果是沒有成績的孩子，色面往回縮、篩選列收掉（appHeightFollow 滑），那時下面只有空狀態。
+-->
 <app-page-open>
   <app-child-switcher openBack class="mb-3 block" />
   <ng-container openTitle>
-    @if (!loading() && records().length > 0) {
+    @if (bandPending()) {
+      <span
+        class="skeleton skeleton--on-band inline-block h-[0.9em] w-[4ch] rounded-sm align-middle"
+        data-testid="band-skeleton"
+        aria-label="載入中"
+      ></span
+      ><br /><span
+        class="skeleton skeleton--on-band inline-block h-[0.9em] w-[7ch] rounded-sm align-middle"
+        aria-hidden="true"
+      ></span>
+    } @else if (!loading() && records().length > 0) {
       @if (latest(); as last) {
         {{ childName() }}<br />最近一次 {{ last.subjectName ?? last.examName }}
         {{ last.score }} 分。
@@ -17,11 +32,16 @@
     }
   </ng-container>
   <ng-container openSub>
-    @if (!loading() && records().length > 0) {
+    @if (bandPending()) {
+      <span
+        class="skeleton skeleton--on-band inline-block h-[0.9em] w-[14ch] rounded-sm align-middle"
+        aria-hidden="true"
+      ></span>
+    } @else if (!loading() && records().length > 0) {
       {{ classCount() }} 個班、{{ total() }} 場考試。點一場看範圍與滿分。
     }
   </ng-container>
-  @if (!loading() && records().length > 0) {
+  @if (bandPending() || (!loading() && records().length > 0)) {
     <!-- A6 `.open__stats`（a6.css:75–81）：dl，數字（dd）排在標籤（dt）上面；同家長到班頁的寫法 -->
     <dl
       class="grades__stats mt-5 mb-0 flex max-w-[760px] flex-wrap gap-x-6 gap-y-4 border-0 border-t border-solid border-band-rule pt-4 text-band-ink wide:mt-8 wide:gap-x-12 wide:gap-y-5 wide:pt-5"
@@ -30,8 +50,15 @@
         <dd
           class="m-0 order-first text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
         >
-          {{ recentCount()
-          }}<small class="ml-0.5 text-md font-bold tracking-[-0.01em] wide:text-lg">筆</small>
+          @if (bandPending()) {
+            <span
+              class="skeleton skeleton--on-band inline-block h-[1em] w-[2ch] rounded-sm align-top"
+              aria-hidden="true"
+            ></span>
+          } @else {
+            {{ recentCount()
+            }}<small class="ml-0.5 text-md font-bold tracking-[-0.01em] wide:text-lg">筆</small>
+          }
         </dd>
         <dt class="mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-md">
           新成績 · 過去 7 天登錄
@@ -47,64 +74,72 @@
     規則與措辭集中在 `app-child-scope-gate`，四頁不各自長出一種說法。
   -->
   <app-child-scope-gate>
-    @if (records().length > 0) {
-      <!-- A6 灰帶工具列：課程、學期（A6 客製下拉）＋期間分段鈕；高度走 tbar-control（R5 #1903） -->
-      <div class="grades__filters bg-zinc-100">
-        <div
-          class="page-wrap flex min-h-16 flex-wrap items-center gap-2 py-3 wide:gap-x-4 wide:gap-y-3 [&_.p-select]:tbar-control"
-        >
-          <app-select-field
-            class="grades__class-filter min-w-[9em] max-wide:flex-1"
-            label="課程"
-            [hideLabel]="true"
-            [options]="classOptions()"
-            [value]="classFilter()"
-            (valueChange)="onClassChange($event)"
-          />
-          <app-select-field
-            class="grades__period-filter min-w-[9em] max-wide:flex-1"
-            label="學期"
-            [hideLabel]="true"
-            [options]="periodOptions()"
-            [value]="periodFilter() ?? 'all'"
-            (valueChange)="onPeriodChange($event)"
-          />
-          <!-- A6 `.seg`（p-grades.html:10–13）：外框包整組、鈕之間只有左分隔線、鈕沒有各自的框；
+    <!-- 篩選列出現／收掉（沒有成績的孩子、換孩子）用滑的，不是一下跳掉（#1859） -->
+    <div appHeightFollow appHeightFollowGrow>
+      <div>
+        @if (bandPending() || records().length > 0) {
+          <!-- A6 灰帶工具列：課程、學期（A6 客製下拉）＋期間分段鈕；高度走 tbar-control（R5 #1903）。
+           第一次載入時先佔位、inert（選項還沒來，點了沒意義） -->
+          <div class="grades__filters bg-zinc-100" [attr.inert]="bandPending() ? '' : null">
+            <div
+              class="page-wrap flex min-h-16 flex-wrap items-center gap-2 py-3 wide:gap-x-4 wide:gap-y-3 [&_.p-select]:tbar-control"
+            >
+              <app-select-field
+                class="grades__class-filter min-w-[9em] max-wide:flex-1"
+                label="課程"
+                [hideLabel]="true"
+                [options]="classOptions()"
+                [value]="classFilter()"
+                (valueChange)="onClassChange($event)"
+              />
+              <app-select-field
+                class="grades__period-filter min-w-[9em] max-wide:flex-1"
+                label="學期"
+                [hideLabel]="true"
+                [options]="periodOptions()"
+                [value]="periodFilter() ?? 'all'"
+                (valueChange)="onPeriodChange($event)"
+              />
+              <!-- A6 `.seg`（p-grades.html:10–13）：外框包整組、鈕之間只有左分隔線、鈕沒有各自的框；
                鈕高走 tbar-control（桌機 40，稿 38 —— R5 #1903 工具列同高） -->
-          <div
-            class="grades__range flex flex-[1_1_100%] overflow-hidden rounded-md border border-solid border-zinc-300 bg-white wide:flex-none"
-            role="group"
-            aria-label="期間"
-          >
-            @for (opt of rangeOptions; track opt.value) {
+              <div
+                class="grades__range flex flex-[1_1_100%] overflow-hidden rounded-md border border-solid border-zinc-300 bg-white wide:flex-none"
+                role="group"
+                aria-label="期間"
+              >
+                @for (opt of rangeOptions; track opt.value) {
+                  <button
+                    type="button"
+                    class="grades__range-btn vt-seg tbar-control flex-1 cursor-pointer border-0 bg-white px-2 text-md leading-normal text-zinc-900 not-first:border-l not-first:border-solid not-first:border-zinc-300 aria-pressed:bg-zinc-900 aria-pressed:font-semibold aria-pressed:text-white wide:flex-none wide:px-4"
+                    [style.view-transition-name]="
+                      rangeFilter() === opt.value ? 'seg-grades-range' : null
+                    "
+                    [attr.aria-pressed]="rangeFilter() === opt.value"
+                    (click)="onRangeChange(opt.value)"
+                  >
+                    {{ opt.label }}
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+          @if (filtered()) {
+            <p
+              class="grades__count page-wrap m-0 flex items-center gap-3 pb-2 text-md text-zinc-700"
+            >
+              <span>{{ shownCount() }} 場考試</span>
               <button
                 type="button"
-                class="grades__range-btn vt-seg tbar-control flex-1 cursor-pointer border-0 bg-white px-2 text-md leading-normal text-zinc-900 not-first:border-l not-first:border-solid not-first:border-zinc-300 aria-pressed:bg-zinc-900 aria-pressed:font-semibold aria-pressed:text-white wide:flex-none wide:px-4"
-                [style.view-transition-name]="
-                  rangeFilter() === opt.value ? 'seg-grades-range' : null
-                "
-                [attr.aria-pressed]="rangeFilter() === opt.value"
-                (click)="onRangeChange(opt.value)"
+                class="grades__clear min-h-11 cursor-pointer border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-[3px]"
+                (click)="clearFilters()"
               >
-                {{ opt.label }}
+                清除篩選
               </button>
-            }
-          </div>
-        </div>
+            </p>
+          }
+        }
       </div>
-      @if (filtered()) {
-        <p class="grades__count page-wrap m-0 flex items-center gap-3 pb-2 text-md text-zinc-700">
-          <span>{{ shownCount() }} 場考試</span>
-          <button
-            type="button"
-            class="grades__clear min-h-11 cursor-pointer border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-[3px]"
-            (click)="clearFilters()"
-          >
-            清除篩選
-          </button>
-        </p>
-      }
-    }
+    </div>
 
     <!-- 上方 24px：A6 清單前永遠有 `.count`（沒篩選時是空的，margin-top 照樣佔） -->
     <div class="grades__content page-wrap flex flex-col pt-6 pb-6">
