@@ -12,7 +12,7 @@ import { createServiceClientFromEnv } from '../lib/supabase';
  * 原本三條都走 `enrollWithSeatLock`、完全不看 `campusScope`：受限管理員可以把學生報進別校的班。
  * 裁定（11-12）：範圍外＝404、什麼都不寫，同核准路徑（`enrollment-approve.ts`）。
  *
- * fixture：C1 有 A（來源班，有在籍學生）、B 兩班；C2 有 X 一班。管理員只被指派 C1。
+ * fixture：C1 有 A（來源班，有在籍學生）、B 兩班；C2 有 X 一班（一位在籍、週二 18–20）；C1 的 Y 班同時段有 busy。管理員只被指派 C1。
  */
 
 const URL = process.env['SUPABASE_URL'];
@@ -70,7 +70,16 @@ run('#2443 直接報名三條路看分校範圍', () => {
     (await pool!.query(text, values)).rows as T[];
   const one = async (sql: string, values: unknown[]) =>
     (await q<{ id: string }>(`${sql} returning id`, values))[0]!.id;
-  const fx = { c1: '', c2: '', a: '', b: '', x: '', solo: '', pair: [] as string[] };
+  const fx = {
+    c1: '',
+    c2: '',
+    a: '',
+    b: '',
+    x: '',
+    solo: '',
+    pair: [] as string[],
+    busy: '',
+  };
 
   beforeAll(async () => {
     const [admin] = await q<{ user_id: string }>(
@@ -100,7 +109,7 @@ run('#2443 直接報名三條路看分校範圍', () => {
     const students = (
       await q<{ id: string }>(
         `insert into students (org_id, name, grade) select $1, '生 ' || n, 'J2'
-         from generate_series(1, 5) n returning id`,
+         from generate_series(1, 7) n returning id`,
         [ctx.orgId],
       )
     ).map((r) => r.id);
@@ -109,7 +118,20 @@ run('#2443 直接報名三條路看分校範圍', () => {
     await q(
       `insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from)
        select $1, $2, unnest($3::uuid[]), 'active', 'monthly', 1000, '2026-01-01'`,
-      [ctx.orgId, fx.a, students.slice(3)],
+      [ctx.orgId, fx.a, students.slice(3, 5)],
+    );
+    // 撞課：busy 在 C1 的 Y 班週二 18–20，X（C2）也排週二 18–20；X 另有一位在籍生（copy 的來源）
+    fx.busy = students[5]!;
+    const y = await klass(fx.c1, 'Y');
+    await q(
+      `insert into schedules (class_id, weekday, start_time, end_time, effective_from)
+       select unnest($1::uuid[]), 2, '18:00', '20:00', '2026-01-01'`,
+      [[y, fx.x]],
+    );
+    await q(
+      `insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from)
+       values ($1, $2, $3, 'active', 'monthly', 1000, '2026-01-01'), ($1, $4, $5, 'active', 'monthly', 1000, '2026-01-01')`,
+      [ctx.orgId, y, fx.busy, fx.x, students[6]],
     );
     app = (await import('../index')).default as never;
   }, 120_000);
@@ -118,6 +140,7 @@ run('#2443 直接報名三條路看分校範圍', () => {
     if (!ctx.orgId) return;
     for (const sql of [
       'delete from enrollments where org_id = $1',
+      'delete from schedules where class_id in (select id from classes where org_id = $1)',
       'delete from students where org_id = $1',
       'delete from classes where org_id = $1',
       'delete from courses where org_id = $1',
@@ -156,7 +179,7 @@ run('#2443 直接報名三條路看分校範圍', () => {
   it('POST /：受限 C1 報進 C2 的班 → 404、沒寫；報進 C1 的班 → 201', async () => {
     const out = await post('', { classId: fx.x, studentId: fx.solo });
     expect(out.status).toBe(404);
-    expect(await rowsIn(fx.x)).toBe(0);
+    expect(await rowsIn(fx.x)).toBe(1);
 
     const ok = await post('', { classId: fx.b, studentId: fx.solo });
     expect(ok.status).toBe(201);
@@ -166,7 +189,7 @@ run('#2443 直接報名三條路看分校範圍', () => {
   it('POST /batch：受限 C1 報進 C2 的班 → 404、沒寫；報進 C1 的班 → 200 兩位', async () => {
     const out = await post('/batch', { classId: fx.x, studentIds: fx.pair });
     expect(out.status).toBe(404);
-    expect(await rowsIn(fx.x)).toBe(0);
+    expect(await rowsIn(fx.x)).toBe(1);
 
     const ok = await post('/batch', { classId: fx.a, studentIds: fx.pair });
     expect(ok.status).toBe(200);
@@ -181,10 +204,29 @@ run('#2443 直接報名三條路看分校範圍', () => {
     });
     const out = await post('/copy-from-class', body(fx.x));
     expect(out.status).toBe(404);
-    expect(await rowsIn(fx.x)).toBe(0);
+    expect(await rowsIn(fx.x)).toBe(1);
 
     const ok = await post('/copy-from-class', body(fx.b));
     expect(ok.status).toBe(200);
     expect(await rowsIn(fx.b)).toBeGreaterThan(1);
+  });
+
+  it('範圍外且撞課：POST / 與 /batch 都是 404，不是 409（不帶出那班的時段）', async () => {
+    const one = await post('', { classId: fx.x, studentId: fx.busy });
+    expect(one.status).toBe(404);
+    const batch = await post('/batch', { classId: fx.x, studentIds: [fx.busy] });
+    expect(batch.status).toBe(404);
+    expect(await rowsIn(fx.x)).toBe(1);
+  });
+
+  it('POST /copy-from-class：來源班在別校 → 404，目標班 0 新增', async () => {
+    const before = await rowsIn(fx.b);
+    const res = await post('/copy-from-class', {
+      sourceClassId: fx.x,
+      targetClassId: fx.b,
+      statuses: ['active'],
+    });
+    expect(res.status).toBe(404);
+    expect(await rowsIn(fx.b)).toBe(before);
   });
 });

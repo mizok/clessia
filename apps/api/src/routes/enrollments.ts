@@ -624,6 +624,7 @@ app.openapi(
       studentIds: [body.studentId],
       effectiveFrom,
       effectiveTo,
+      scope: getCampusScope(c),
     });
 
     if (preconditions.error) {
@@ -1167,6 +1168,7 @@ app.openapi(
       studentIds: uniqueStudentIds,
       effectiveFrom: startDate,
       effectiveTo: null,
+      scope: getCampusScope(c),
     });
 
     if (preconditions.error) {
@@ -1422,25 +1424,29 @@ app.openapi(
       return c.json({ error: '來源班級不能與目標班級相同', code: 'SAME_CLASS' }, 400);
     }
 
+    // 範圍外的班（來源或目標）跟不存在一樣（#2443）：不讀別校的名冊、不報進別校的班
+    const scope = getCampusScope(c);
+    const inScope = (cls: { campus_id: string } | null) =>
+      !!cls && (scope === null || scope.includes(cls.campus_id));
     const { data: targetClass, error: targetClassError } = await supabase
       .from('classes')
-      .select('id')
+      .select('id, campus_id')
       .eq('id', targetClassId)
       .eq('org_id', orgId)
       .maybeSingle();
 
     if (targetClassError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
-    if (!targetClass) return c.json({ error: 'TARGET_CLASS_NOT_FOUND' }, 404);
+    if (!inScope(targetClass)) return c.json({ error: 'TARGET_CLASS_NOT_FOUND' }, 404);
 
     const { data: sourceClass, error: sourceClassError } = await supabase
       .from('classes')
-      .select('id')
+      .select('id, campus_id')
       .eq('id', sourceClassId)
       .eq('org_id', orgId)
       .maybeSingle();
 
     if (sourceClassError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
-    if (!sourceClass) return c.json({ error: 'SOURCE_CLASS_NOT_FOUND' }, 404);
+    if (!inScope(sourceClass)) return c.json({ error: 'SOURCE_CLASS_NOT_FOUND' }, 404);
 
     const { data: sourceEnrollments, error: sourceEnrollmentsError } = await supabase
       .from('enrollments')

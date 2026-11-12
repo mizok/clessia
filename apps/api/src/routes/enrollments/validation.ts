@@ -1,3 +1,4 @@
+import type { CampusScope } from '../../lib/campus-scope';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { scheduleOverlaps, scheduleRangeOf } from '../../lib/schedule-effective';
@@ -9,6 +10,11 @@ export interface EnrollmentPreconditionInput {
   readonly studentIds: readonly string[];
   readonly effectiveFrom: string;
   readonly effectiveTo: string | null;
+  /**
+   * 分校範圍（#2443）：班在範圍外**跟不存在一樣**（`CLASS_NOT_FOUND`），而且是第一步 ——
+   * 先查撞課的話，範圍外的班會回 409 並帶出那班的時段。
+   */
+  readonly scope: CampusScope;
 }
 
 export type EnrollmentPreconditionError =
@@ -61,7 +67,7 @@ interface ExistingEnrollmentRow {
 export async function checkEnrollmentPreconditions(
   input: EnrollmentPreconditionInput,
 ): Promise<EnrollmentPreconditionResult> {
-  const { supabase, orgId, classId, studentIds, effectiveFrom, effectiveTo } = input;
+  const { supabase, orgId, classId, studentIds, effectiveFrom, effectiveTo, scope } = input;
   const uniqueStudentIds = Array.from(new Set(studentIds));
 
   if (uniqueStudentIds.length === 0) {
@@ -70,7 +76,7 @@ export async function checkEnrollmentPreconditions(
 
   const { data: cls, error: classError } = await supabase
     .from('classes')
-    .select('id')
+    .select('id, campus_id')
     .eq('id', classId)
     .eq('org_id', orgId)
     .maybeSingle();
@@ -82,7 +88,7 @@ export async function checkEnrollmentPreconditions(
     };
   }
 
-  if (!cls) {
+  if (!cls || (scope !== null && !scope.includes(cls.campus_id as string))) {
     return {
       error: { code: 'CLASS_NOT_FOUND', message: '班級不存在' },
       conflicts: [],
