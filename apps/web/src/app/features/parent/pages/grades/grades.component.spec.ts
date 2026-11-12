@@ -197,6 +197,38 @@ describe('GradesComponent', () => {
     expect(stats.querySelector('dt')?.textContent?.trim()).toBe('新成績 · 過去 7 天登錄');
   });
 
+  // #1859：色面與篩選列第一次載入先畫成有資料的形狀，資料回來只換字、不長高（成績列出現後不再被往下推）
+  it('第一次載入時色面是骨架、篩選列先佔位且點不到；回來有成績換成字，沒有成績收掉', () => {
+    createComponent();
+    const pending = new Subject<ParentScoreListResponse>();
+    listMock.mockReturnValue(pending);
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="band-skeleton"]')).not.toBeNull();
+    expect(el.querySelector('.grades__stats dd .skeleton')).not.toBeNull();
+    expect(el.querySelector('.grades__filters')?.hasAttribute('inert')).toBe(true);
+
+    pending.next({
+      data: [record()],
+      meta: { total: 1, page: 1, pageSize: 100, recentCount: 3, periods: [] },
+    });
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="band-skeleton"]')).toBeNull();
+    expect(el.querySelector('.grades__stats dd')?.textContent?.replace(/\s/g, '')).toBe('3筆');
+    expect(el.querySelector('.grades__filters')?.hasAttribute('inert')).toBe(false);
+    fixture.destroy();
+    TestBed.resetTestingModule();
+
+    createComponent();
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    const empty = fixture.nativeElement as HTMLElement;
+    expect(empty.querySelector('[data-testid="band-skeleton"]')).toBeNull();
+    expect(empty.querySelector('.grades__stats')).toBeNull();
+    expect(empty.querySelector('.grades__filters')).toBeNull();
+  });
+
   it('依課程分組顯示；段考（沒有班）歸「學校段考」放最後', () => {
     createComponent({
       data: [
