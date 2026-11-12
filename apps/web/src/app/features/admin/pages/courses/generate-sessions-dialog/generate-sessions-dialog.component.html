@@ -67,6 +67,9 @@
           <p class="m-0 text-md font-semibold text-zinc-700" id="gen-preview-label">
             預覽：取消勾選就排除那一天
           </p>
+          @if (calendarSummary(); as cs) {
+            <p class="m-0 text-sm text-zinc-600" data-testid="gen-calendar-summary">{{ cs }}</p>
+          }
           <div
             class="max-h-60 overflow-auto rounded-md bg-zinc-50 p-2 shadow-[inset_0_0_0_1px_var(--zinc-200)]"
             role="group"
@@ -82,7 +85,14 @@
                   [checked]="!excluded().has(day.date)"
                   (change)="toggleDay(day.date, $any($event.target).checked)"
                 />
-                <span>{{ day.label }}</span>
+                <span class="min-w-0 py-1">
+                  {{ day.label }}
+                  @for (mark of day.marks; track mark) {
+                    <span class="block text-sm text-zinc-600" data-part="gen-calendar-mark">{{
+                      mark
+                    }}</span>
+                  }
+                </span>
               </label>
             }
           </div>
