@@ -1,5 +1,12 @@
 import type { ParentInvoice } from '@core/parent-billing.service';
-import { dueTag, groupInvoices, invoiceTitle, latestPaymentDate } from './payments.util';
+import {
+  dueSummary,
+  dueTag,
+  groupInvoices,
+  invoicePeriodLabel,
+  invoiceTitle,
+  latestPaymentDate,
+} from './payments.util';
 
 const invoice = (overrides: Partial<ParentInvoice> = {}): ParentInvoice => ({
   id: 'inv-1',
@@ -120,5 +127,38 @@ describe('groupInvoices —— 多退', () => {
       expect(tag('2026-10-12', 'partial')?.label).toBe('部分繳 · 2 天後到期');
       expect(tag(null)).toBeNull();
     });
+  });
+});
+
+describe('invoicePeriodLabel（#2446，字同管理端 #2316）', () => {
+  const item = (type: 'tuition' | 'meal', periodMonth: string | null) => ({
+    id: 'x',
+    type,
+    amount: 1,
+    periodMonth,
+    className: null,
+  });
+  it('有月份寫「N 月類型」、去重；超過兩種寫「X 等 N 項」', () => {
+    expect(
+      invoicePeriodLabel({ items: [item('tuition', '2026-11-01'), item('tuition', '2026-11-01')] }),
+    ).toBe('11 月學費');
+    expect(invoicePeriodLabel({ items: [item('tuition', '2026-11-01'), item('meal', null)] })).toBe(
+      '11 月學費、餐費',
+    );
+    expect(
+      invoicePeriodLabel({
+        items: [item('tuition', '2026-10-01'), item('tuition', '2026-11-01'), item('meal', null)],
+      }),
+    ).toBe('10 月學費 等 3 項');
+  });
+});
+
+describe('dueSummary（#2446）', () => {
+  it('兩句：最久的逾期（天數）。下一張到期；只有一邊就只寫一邊', () => {
+    expect(dueSummary('2026-06-10', '2026-11-13', '2026-11-12')).toBe(
+      '最久的逾期 6/10（155 天）。下一張 11/13 到期',
+    );
+    expect(dueSummary(null, '2026-11-12', '2026-11-12')).toBe('下一張 11/12 到期');
+    expect(dueSummary(null, null, '2026-11-12')).toBe('');
   });
 });

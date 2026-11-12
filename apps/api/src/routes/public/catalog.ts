@@ -8,7 +8,7 @@ import {
   isOpenClass,
   liveSchedules,
   one,
-  takenSeats,
+  orgTakenSeats,
   toCatalogClass,
   type Row,
 } from '../../lib/catalog-class';
@@ -82,11 +82,7 @@ app.openapi(
     // ponytail: 結束日與課程停用在記憶體濾 —— 一間補習班的開課班是幾十到幾百班
     const classes = ((data ?? []) as Row[]).filter((row) => isOpenClass(row, today));
 
-    const { taken, error: countError } = await takenSeats(
-      supabase,
-      orgId,
-      classes.map((row) => row['id'] as string),
-    );
+    const { taken, error: countError } = await orgTakenSeats(supabase, orgId);
     if (countError) return failed();
 
     // 名額晚一分鐘可接受；免登入讀取最便宜的防刷（正式的防濫用在 #1126）

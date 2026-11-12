@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Pool } from 'pg';
+import { orgTakenSeats } from './catalog-class';
 import { resolveAttendanceMode } from './attendance-mode';
 import type { StudentScope } from './child-scope';
 import {
@@ -478,24 +479,13 @@ export function createChildDb(
     },
 
     /**
-     * 多班的佔名額人數（#1118 目錄）。**在這裡聚合成數字才交出去** —— 查詢只撈 `class_id`，
-     * route 拿到的是 `Map<classId, number>`，碰不到任何報名列。單班版是 N 次 head 查詢，目錄不適用。
+     * 各班的佔名額人數（#1118 目錄）。**在這裡聚合成數字才交出去** —— 查詢只撈 `class_id`，
+     * route 拿到的是 `Map<classId, number>`，碰不到任何報名列。
+     * 整個 org 一次數、不帶班 id 清單（#2437 (3)：兩百多班就 414），同公開目錄的 `orgTakenSeats`。
      */
-    async activeEnrollmentCounts(
-      classIds: readonly string[],
-    ): Promise<{ counts: Map<string, number>; error: unknown }> {
-      const counts = new Map<string, number>();
-      if (classIds.length === 0) return { counts, error: null };
-      const { data, error } = await supabase
-        .from('enrollments')
-        .select('class_id')
-        .eq('org_id', orgId)
-        .in('class_id', [...classIds])
-        .in('status', ['active', 'pending_payment']);
-      for (const row of (data ?? []) as Array<{ class_id: string }>) {
-        counts.set(row.class_id, (counts.get(row.class_id) ?? 0) + 1);
-      }
-      return { counts, error };
+    async activeEnrollmentCounts(): Promise<{ counts: Map<string, number>; error: unknown }> {
+      const { taken, error } = await orgTakenSeats(supabase, orgId);
+      return { counts: taken, error };
     },
 
     /**

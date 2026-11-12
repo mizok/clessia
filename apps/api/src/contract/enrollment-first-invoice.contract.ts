@@ -278,6 +278,7 @@ run('直接報名＋建立繳費單對真 Postgres（#2296）', () => {
     const s = await setup();
     const r = await enrollWithSeatLock(pool, {
       orgId: s.orgId,
+      scope: null,
       classId: s.classId,
       rows: [
         {

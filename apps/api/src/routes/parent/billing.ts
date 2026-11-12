@@ -61,6 +61,16 @@ const ListResponseSchema = z
     data: z.array(ParentInvoiceSchema),
     meta: z.object({
       total: z.number().int().min(0),
+      /** 全量張數（#2446）：待繳＝unpaid/partial、已繳清＝paid/overrefunded、作廢 —— 不受分頁截斷 */
+      counts: z.object({
+        pending: z.number().int().min(0),
+        paid: z.number().int().min(0),
+        voided: z.number().int().min(0),
+      }),
+      /** 待繳裡最早、且已過的期限（#2446「最久的逾期」）；沒有 → null */
+      overdueSince: z.string().nullable(),
+      /** 待繳裡最早、且還沒過的期限（今天到期算這邊）；沒有 → null */
+      nextDue: z.string().nullable(),
       page: z.number().int().min(1),
       pageSize: z.number().int().min(1),
       /** 這個孩子全部未繳清帳單的 (total − netPaid) 加總，不分頁截斷 */
@@ -173,6 +183,31 @@ async function readPaymentInfo(childDb: ChildDb, childId: string) {
   };
 }
 
+function groupOf(status: InvoiceResponse['status']): 'pending' | 'paid' | 'voided' {
+  if (status === 'void') return 'voided';
+  return isOpenInvoice(status) ? 'pending' : 'paid';
+}
+
+const GROUP_ORDER = { pending: 0, paid: 1, voided: 2 } as const;
+
+/**
+ * 家長端的列順序（#2446，同 A6 `p-payments.html`）：待繳依期限升冪（沒期限墊底）→
+ * 已繳清依開立日新到舊 → 作廢依開立日新到舊。前端分章靠這個順序，所以第 1 頁就是最該先繳的。
+ */
+function sortForParent(invoices: InvoiceResponse[]): InvoiceResponse[] {
+  return [...invoices].sort((a, b) => {
+    const ga = groupOf(a.status);
+    const gb = groupOf(b.status);
+    if (ga !== gb) return GROUP_ORDER[ga] - GROUP_ORDER[gb];
+    if (ga === 'pending') {
+      const da = a.dueDate ?? '9999';
+      const db = b.dueDate ?? '9999';
+      if (da !== db) return da < db ? -1 : 1;
+    }
+    return a.issuedAt < b.issuedAt ? 1 : a.issuedAt > b.issuedAt ? -1 : 0;
+  });
+}
+
 const app = new OpenAPIHono<AppEnv>();
 
 // GET /api/me/billing
@@ -212,16 +247,11 @@ app.openapi(
     const childDb = c.get('childDb');
     const from = (page - 1) * pageSize;
 
-    // `totalDue` 是**全部**帳單（不分頁）算出來的 —— 分頁截斷不能拿來算總額，
-    // 跟出缺席／成績的 meta 同一個判準，所以另開一支不分頁的查詢。
+    // 撈這個孩子的**全部**帳單，排序與分頁在記憶體做（#2446）：`totalDue`、張數、期限都要全量，
+    // 分頁截斷不能拿來算；而排序是「待繳依期限」，DB 單一 order 排不出這種分組順序。
+    // ponytail: 一個孩子幾十到幾百張；真的上千張再改成 DB 端分組排序。
     const today = getCurrentTaipeiDateString();
-    const [pageResult, allResult, paymentInfo, termResult, enrollmentNames] = await Promise.all([
-      childDb
-        .from('invoices', 'student_id')
-        .select(INVOICE_SELECT, { count: 'exact' })
-        .eq('student_id', childId)
-        .range(from, from + pageSize - 1)
-        .order('issued_at', { ascending: false }),
+    const [allResult, paymentInfo, termResult, enrollmentNames] = await Promise.all([
       childDb.from('invoices', 'student_id').select(INVOICE_SELECT).eq('student_id', childId),
       readPaymentInfo(childDb, childId),
       childDb
@@ -235,17 +265,10 @@ app.openapi(
       childDb.from('enrollments', 'student_id').pluck('id, classes(name)', 'id', childId),
     ]);
 
-    if (
-      pageResult.error ||
-      allResult.error ||
-      paymentInfo.error ||
-      termResult.error ||
-      enrollmentNames.error
-    ) {
+    if (allResult.error || paymentInfo.error || termResult.error || enrollmentNames.error) {
       return c.json({ error: '讀取帳單失敗', code: 'FETCH_BILLING_FAILED' }, 500);
     }
 
-    const pageRows = (pageResult.data ?? []) as unknown as Record<string, unknown>[];
     const allRows = (allResult.data ?? []) as unknown as Record<string, unknown>[];
 
     const classNames = new Map<string, string>();
@@ -253,8 +276,15 @@ app.openapi(
       const name = (row['classes'] as { name?: string } | null)?.name;
       if (name) classNames.set(row['id'] as string, name);
     }
-    const mapped = pageRows.map((row) => toParentInvoice(toInvoiceResponse(row), classNames));
-    const allInvoices = allRows.map((row) => toInvoiceResponse(row));
+    const allInvoices = sortForParent(allRows.map((row) => toInvoiceResponse(row)));
+    const mapped = allInvoices
+      .slice(from, from + pageSize)
+      .map((invoice) => toParentInvoice(invoice, classNames));
+    const pendingDues = allInvoices
+      .filter((invoice) => isOpenInvoice(invoice.status) && invoice.dueDate !== null)
+      .map((invoice) => invoice.dueDate!); // 已依期限升冪
+    const counts = { pending: 0, paid: 0, voided: 0 };
+    for (const invoice of allInvoices) counts[groupOf(invoice.status)]++;
     const totalDue = allInvoices
       // isOpenInvoice 而不是 `!== 'paid'` —— 作廢單的 total − netPaid 是全額（#898）
       .filter((invoice) => isOpenInvoice(invoice.status))
@@ -280,7 +310,10 @@ app.openapi(
       {
         data: mapped,
         meta: {
-          total: pageResult.count ?? 0,
+          total: allInvoices.length,
+          counts,
+          overdueSince: pendingDues.find((d) => d < today) ?? null,
+          nextDue: pendingDues.find((d) => d >= today) ?? null,
           page,
           pageSize,
           totalDue,
