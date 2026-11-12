@@ -44,6 +44,7 @@
 @source './app/shared/components/page-open';
 @source './app/shared/components/pager';
 @source './app/shared/components/filter-panel';
+@source './app/shared/components/brand-mark';
 @source './app/shared/components/active-filters';
 @source './app/shared/components/campus-scope-note';
 @source './app/shared/components/toast';
