@@ -17,6 +17,8 @@ export class StudentAutocompleteComponent {
   readonly value = input<Student | string | null>(null);
   readonly suggestions = input<Student[]>([]);
   readonly placeholder = input('輸入姓名模糊搜尋');
+  /** 給外面的 `<label for>` 關聯輸入框（不給＝沒有 id，同原本） */
+  readonly inputId = input<string | undefined>(undefined);
   readonly disabled = input(false);
   readonly forceSelection = input(false);
   /**
