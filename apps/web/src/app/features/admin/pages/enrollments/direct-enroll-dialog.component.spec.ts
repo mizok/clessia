@@ -262,7 +262,7 @@ describe('DirectEnrollDialogComponent（#1314 EN2）', () => {
       expect(el.textContent).toContain('建立繳費單需要財務權限');
     });
 
-    it('伺服器說沒有涵蓋的繳費期：對話框內寫原因、不關', () => {
+    it('伺服器回首期 0 元：對話框內叫人改選不建立、不關', () => {
       const { cmp, create, fill, fixture, hint, closed } = setup(['manage_finance']);
       fill();
       cmp.feeTemplateId.set('ft-m');
