@@ -168,17 +168,10 @@ type InvoiceChoice = 'create' | 'none';
               />
               <p class="m-0 mt-1 text-sm text-zinc-600">留白＝讀到退班為止</p>
             </div>
-            <div class="col-span-full min-w-0">
-              <label
-                class="mb-1 block text-md font-semibold text-zinc-700"
-                id="direct-enroll-invoice"
-                >繳費單</label
-              >
-              <div
-                class="flex flex-wrap gap-2"
-                role="radiogroup"
-                aria-labelledby="direct-enroll-invoice"
-              >
+            <!-- radio 群組用 fieldset＋legend（同核准對話框）；稿是 label（R7） -->
+            <fieldset class="col-span-full m-0 min-w-0 border-0 p-0">
+              <legend class="mb-1 p-0 text-md font-semibold text-zinc-700">繳費單</legend>
+              <div class="flex flex-wrap gap-2">
                 @for (opt of invoiceOptions; track opt.value) {
                   <label
                     class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 font-semibold has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset has-disabled:cursor-not-allowed has-disabled:opacity-55 max-wide:h-11"
@@ -197,7 +190,7 @@ type InvoiceChoice = 'create' | 'none';
               @if (!canInvoice) {
                 <p class="m-0 mt-1 text-sm text-zinc-600">建立繳費單需要財務權限</p>
               }
-            </div>
+            </fieldset>
             @if (invoice() === 'create' && mode() === 'session_pack') {
               <div class="min-w-0">
                 <label
