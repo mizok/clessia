@@ -43,6 +43,12 @@ import {
   unscopedStudentRoutes,
 } from './lib/student-campus-scope.mjs';
 import {
+  collectEndpoints,
+  contractTags,
+  loadContractFiles,
+  scopeContractProblems,
+} from './lib/scope-contracts.mjs';
+import {
   collectApiParams,
   findMissing,
   findOrphanEndpoints,
@@ -2581,6 +2587,33 @@ function checkScssLedger() {
 }
 
 checkScssLedger();
+
+// ── A30. 每支 admin 端點都有分校範圍契約（#2493）──────────────────────────────────────
+// A7c 看檔，這支看端點：#2493 盤點的 33 支缺口全在「有接範圍的檔」裡（列表收了、/:id 沒收）。
+// 判準、兩本帳與能力邊界見 lib/scope-contracts.mjs 檔頭。一句話：**只認標記，不驗契約斷言**。
+function checkAdminScopeContracts() {
+  if (!existsSync(join(ROOT, 'apps/api/src/index.ts'))) return;
+  let endpoints;
+  try {
+    endpoints = collectEndpoints(ROOT);
+  } catch {
+    warnings.push('app.routes 產生失敗，本輪跳過 A30 分校範圍契約檢查');
+    return;
+  }
+  const read = (name) => JSON.parse(readFileSync(join(ROOT, 'tools/agent-harness', name), 'utf8'));
+  const problems = scopeContractProblems({
+    endpoints,
+    adminPrefixes: adminMounts(readFileSync(join(ROOT, 'apps/api/src/index.ts'), 'utf8')).map(
+      (m) => m.path,
+    ),
+    tags: contractTags(loadContractFiles(ROOT)),
+    org: read('campus-scope-org.json'),
+    baseline: read('campus-scope-contract-baseline.json'),
+  });
+  for (const p of problems) fail(`A30：${p}`);
+}
+
+checkAdminScopeContracts();
 
 checkScanScope();
 

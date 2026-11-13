@@ -3,7 +3,7 @@ title: 憲法強制機制索引
 summary: 每條 clause 用什麼機制守、在哪一層擋、目前接上了沒有。改機制不算修法。
 category: architecture
 status: active
-updated: 2026-11-02
+updated: 2026-11-13
 tags: [architecture, constitution-enforcement]
 ---
 
@@ -50,7 +50,7 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 
 | Clause                     | 分類          | 機制                                                                                                                                                                                   | 狀態                                                                        |
 | -------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| c1 授權在 API 層           | Semantic      | harness gate A7（route 掛載宣告角色）+ A23（org 表寫入帶 `org_id`，ratchet）+ 人工 review                                                                                              | ⚠️ 部分：准入與寫入 `org_id` 已機器化，分校範圍靠 review                    |
+| c1 授權在 API 層           | Semantic      | harness gate A7（route 掛載宣告角色）+ A23（org 表寫入帶 `org_id`，ratchet）+ A30 + 人工 review                                                                                        | ⚠️ 部分：准入與寫入 `org_id` 已機器化，分校範圍靠 review                    |
 | c2 `ba_*` 不得寫入         | Deterministic | **雙層**：pre-guard regex（只擋 insert/update/upsert/delete，讀取放行；**單寫 `orgId` 已豁免**，見下）+ harness gate A15（存量，債 4 + 永久豁免 1）                                    | ⚠️ 雙重，剩 4 筆真債待 billing-api 驗證 API 路徑                            |
 | c3 已提交 migration 不可改 | Deterministic | **雙層**：pre-guard + `whenTracked`（寫入當下）+ harness gate A16（分支對照 `origin/main...HEAD` 的 M/D/R）                                                                            | ✅ 雙重 —— A16 看不到「直接推 main」的情形，理由見下                        |
 | c4 migration 檔名          | Deterministic | 由 `supabase migration new` 保證                                                                                                                                                       | 依賴工具，未另外 gate                                                       |
@@ -101,6 +101,7 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 | A27  | Tailwind 頁（`@source` 目錄）的可點元素要有基底的 ≥44px 高度 class（A17 的 class 版，#991 T3）；**零 baseline**                                                                                                                                      |
 | A28  | Tailwind 頁的文字色／底色 class 對比（scss-contrast 的 class 版，#991 T3）：祖先鏈找最近的 `text-*`／`bg-*`，經 design system 解析成 token 值                                                                                                        |
 | A29  | 每個有模板的目錄（`.html`，或 `.ts` 的 inline `template:`）都被 `tailwind.css` 的某一條 `@source` 涵蓋。`source(none)` 下沒列進去的目錄 class 不會產生，別頁剛好用過同 class 時本機看不出來（10-23 踩三次）。判準 `lib/tailwind-source-coverage.mjs` |
+| A30  | 每支 admin 端點都要被契約的 `scope-contract` 標記認領，或列 ORG 帳本／baseline（c1，#2493，ratchet）。**只認標記不驗斷言**；判準見 `lib/scope-contracts.mjs` 檔頭                                                                                    |
 
 ### 存量 allowlist：讓債務可見且會自己收斂
 
