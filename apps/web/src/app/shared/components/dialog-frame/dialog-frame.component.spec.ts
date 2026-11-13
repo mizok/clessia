@@ -62,4 +62,29 @@ describe('DialogFrameComponent', () => {
     const { el } = await setup({ withFoot: false });
     expect(el.querySelector('.form-dialog__footer')!.children.length).toBe(0);
   });
+
+  describe('Esc＝✕（#2445）', () => {
+    const esc = (target: Element, prevented = false) => {
+      const e = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+      if (prevented) e.preventDefault();
+      target.dispatchEvent(e);
+      return e;
+    };
+
+    it('焦點在對話框裡按 Esc 發 closed（跟按 ✕ 同一條路），並吃掉事件', async () => {
+      const { fixture, el } = await setup();
+      const e = esc(el.querySelector('[data-body]')!);
+      expect(fixture.componentInstance.closedCount).toBe(1);
+      expect(e.defaultPrevented).toBe(true);
+
+      (el.querySelector('.dialog-header-inline__close') as HTMLButtonElement).click();
+      expect(fixture.componentInstance.closedCount).toBe(2);
+    });
+
+    it('裡面的下拉先吃掉 Esc（defaultPrevented）→ 不關整個對話框', async () => {
+      const { fixture, el } = await setup();
+      esc(el.querySelector('[data-body]')!, true);
+      expect(fixture.componentInstance.closedCount).toBe(0);
+    });
+  });
 });
