@@ -194,6 +194,7 @@
         <div class="acset__body">
           <form class="acset__form" id="acset-form" aria-label="個人資料">
             ${field('name', '顯示名稱', `<input class="acset__in" value="${ME.name}">`, ME.name)}
+            ${field('nickname', '對外暱稱', `<input class="acset__in" maxlength="20" placeholder="例：王老師">`, '', '公開課程目錄顯示你的暱稱，沒填就顯示本名')}
             ${field('birthday', '生日', `<input class="acset__in" type="date" value="${ME.birthday}">`, ME.birthday)}
             ${field('email', 'Email', `<input class="acset__in" type="email" value="${ME.email}">`, ME.email, '補習班用這個 Email 幫你產生一次性登入連結')}
             ${field('phone', '電話', `<input class="acset__in" type="tel" value="${phone(ME.phone)}">`, phone(ME.phone))}

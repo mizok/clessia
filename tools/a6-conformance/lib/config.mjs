@@ -764,16 +764,6 @@ export const PAGES = {
     behaveIgnore: ['^[高國小][一二三四五六]#?$'],
     deviations: [
       // ── 帳號設定內容（#2390）──
-      // 量的帳號是管理員：有「對外暱稱」一欄（#1665，稿沒畫、R2 保留），下面各欄跟著下移
-      ...[
-        { status: '多', app: '>landmark:dialog\\[帳號設定\\]>(text:label\\[對外暱稱\\]|text:p\\[公開課程目錄[^\\]]*\\]|control:button\\[儲存\\]~5)$' },
-        { status: '位置', widths: [1440], a6: '>landmark:dialog\\[帳號設定\\]>(text:label\\[(生日|Email|電話)\\]|text:p\\[補習班用這個Email[^\\]]*\\])$', detail: '^相對「帳號設定」 Δx 0、Δy \\+10\\d（' },
-      ].map((d) => ({
-        ...d,
-        pop: 'acset',
-        reason: '對外暱稱（人員身分才有）：稿沒畫、現況有，保留',
-        source: `${rule('R2')}；#1665`,
-      })),
       // 量的帳號沒有家長身份：稿的使用者有（✓ 已啟用），app 照實寫洽行政（#1844）
       ...['文案', '樣式'].map((status) => ({
         status,
