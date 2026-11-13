@@ -129,6 +129,24 @@ BEGIN
   INSERT INTO public.schools (org_id, name, short_name)
   VALUES (v_org, '臺北市文山區興隆國民小學', '興隆國小') RETURNING id INTO v_school_b;
 
+  -- 學校行事曆（#1160）：115 學年兩所學校的開學、休業式、寒假、補課、停課。
+  -- 固定日期（不跟 current_date 走）：行事曆本來就是照學年公告填的，showcase 落在這一學年內
+  INSERT INTO public.school_calendar_events (org_id, school_id, kind, start_date, end_date, note)
+  VALUES
+    (v_org, v_school_a, 'semester_start', '2026-08-31', '2026-08-31', NULL),
+    (v_org, v_school_a, 'no_class',       '2026-10-09', '2026-10-09', '國慶連假彈性放假'),
+    (v_org, v_school_a, 'makeup_day',     '2026-09-26', '2026-09-26', '補 10/9 的課'),
+    (v_org, v_school_a, 'semester_end',   '2027-01-20', '2027-01-20', NULL),
+    (v_org, v_school_a, 'winter_break',   '2027-01-21', '2027-02-10', NULL),
+    (v_org, v_school_a, 'semester_start', '2027-02-11', '2027-02-11', NULL),
+    (v_org, v_school_a, 'semester_end',   '2027-06-30', '2027-06-30', NULL),
+    (v_org, v_school_a, 'summer_break',   '2027-07-01', '2027-08-29', NULL),
+    (v_org, v_school_b, 'semester_start', '2026-08-31', '2026-08-31', NULL),
+    (v_org, v_school_b, 'semester_end',   '2027-01-20', '2027-01-20', NULL),
+    (v_org, v_school_b, 'winter_break',   '2027-01-21', '2027-02-10', NULL),
+    (v_org, v_school_b, 'semester_start', '2027-02-11', '2027-02-11', NULL),
+    (v_org, v_school_b, 'other',          '2027-04-10', '2027-04-10', '校慶運動會（週六）');
+
   -- 科目沿用 seed.sql 已建好的（順序：數學/英文/國文/自然，對應下面六個課程）
   SELECT ARRAY[
     (SELECT id FROM public.subjects WHERE org_id = v_org AND name = '數學'),

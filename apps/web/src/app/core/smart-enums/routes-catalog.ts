@@ -443,6 +443,16 @@ export class RoutesCatalog {
     false,
     NavigationGroup.ADMIN_SETTINGS,
   );
+  /** 單校整學期行事曆（#1160）：學校分頁的子頁，殼的分頁仍亮「學校」 */
+  public static readonly ADMIN_SCHOOL_CALENDAR = this.register(
+    'schools/:id/calendar',
+    '/admin/settings/schools/:id/calendar',
+    '學校行事曆',
+    UserType.ADMIN,
+    'pi-calendar',
+    false,
+    NavigationGroup.ADMIN_SETTINGS,
+  );
   public static readonly ADMIN_SUBJECTS = this.register(
     'subjects',
     '/admin/settings/subjects',

@@ -312,6 +312,14 @@ export const routes: Routes = [
                 data: { page: RoutesCatalog.ADMIN_SCHOOLS },
               },
               {
+                path: RoutesCatalog.ADMIN_SCHOOL_CALENDAR.relativePath,
+                loadComponent: () =>
+                  import('@features/admin/pages/schools/school-calendar/school-calendar.page').then(
+                    (m) => m.SchoolCalendarPage,
+                  ),
+                data: { page: RoutesCatalog.ADMIN_SCHOOL_CALENDAR },
+              },
+              {
                 path: RoutesCatalog.ADMIN_SUBJECTS.relativePath,
                 loadComponent: () =>
                   import('@features/admin/pages/subjects/subjects.page').then(
