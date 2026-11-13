@@ -1947,6 +1947,14 @@ export const PAGES = {
     // 直接報名（#1314 EN2）：兩邊都是原生 showModal 的表單對話框
     a6Open: { direct: { click: '[data-direct]', root: 'dialog[open]' } },
     appOpen: { direct: { click: '[data-testid="direct-enroll"]', root: 'dialog[open]' } },
+    // #2468：學生欄的名稱改由 label 來（原本只有 placeholder），app 的 key 從「輸入姓名搜尋」換成「學生*」——
+    // 稿的同一格（選擇鈕裡的 placeholder 字）照舊配給它，下面那組 R7 偏離照樣適用
+    popMapping: {
+      direct: {
+        'pop[direct]>landmark:dialog[直接報名]>landmark:form[]>control:button[選擇：輸入姓名搜尋]>text:span[輸入姓名搜尋]':
+          'pop[direct]>landmark:dialog[直接報名]>landmark:form[]>control:combobox[學生*]',
+      },
+    },
     deviations: [
       // #2396 ④：直接報名的說明句刪（A）
       ...noSubDeviations('direct', '直接報名', '現場報名[^\\]]*', { deleted: true }),
@@ -2079,7 +2087,8 @@ export const PAGES = {
       // 學生篩選有建議清單（app-student-autocomplete）＝combobox，同 contact-book
       ...[
         { status: '缺', a6: '>landmark:search\\[\\]>control:searchbox\\[學生新\\]$' },
-        { status: '多', app: '>landmark:search\\[篩選報名紀錄\\]>control:combobox\\[輸入姓名\\]$' },
+        // #2468：名稱改由「學生」字樣（aria-labelledby）來，原本是 placeholder「輸入姓名」
+        { status: '多', app: '>landmark:search\\[篩選報名紀錄\\]>control:combobox\\[學生\\]$' },
       ].map((d) => ({
         ...d,
         reason: 'ARIA 角色依元件行為：有建議清單的搜尋是 combobox',
@@ -3085,6 +3094,12 @@ export const PAGES = {
   'contact-book': {
     a6: 'contact-book.html',
     app: '/admin/contact-book',
+    // #2468：學生篩選有了可及名稱「篩選學生」（原本只有 placeholder），跟稿的 placeholder 名字不同 —— 指定配對，
+    // 下面的角色／框線偏離照樣適用
+    mapping: {
+      '>landmark:main[]>landmark:region[這段期間的聯絡簿]>control:searchbox[輸入學生姓名篩選]':
+        '>landmark:main[]>landmark:region[這段期間的聯絡簿]>landmark:search[篩選聯絡簿]>control:combobox[篩選學生]',
+    },
     deviations: [
       // 學生篩選有建議清單（app-student-autocomplete，選了才帶 studentId 查）＝combobox；框畫在 input 上
       // （共用 p-iconfield＋.clessia-filter-search），稿畫在外層 label.tsearch —— 同 courses #1762 的那條
