@@ -1,12 +1,14 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { DynamicDialogRef } from 'primeng/dynamicdialog';
-import { of, throwError } from 'rxjs';
+import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { CampusContextService } from '@core/campus-context.service';
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import { FeeTemplatesService } from '@core/fee-templates.service';
 import { InvoicesService } from '@core/invoices.service';
+import { OrgSettingsService } from '@core/org-settings.service';
+import { SystemClockService } from '@core/system-clock.service';
 
 import { UninvoicedDialogComponent } from './uninvoiced-dialog.component';
 
@@ -35,6 +37,37 @@ describe('UninvoicedDialogComponent', () => {
   const feeTemplatesServiceMock = { list: vi.fn() };
   const invoicesServiceMock = { create: vi.fn() };
   const dialogRefMock = { close: vi.fn() };
+  // #2445：全部開帳先開確認框 —— 元件層 providers 會遮蔽 TestBed 的，要 overrideComponent
+  let confirmClose$: Subject<boolean | undefined>;
+  const dialogServiceMock = { open: vi.fn() };
+  const orgSettingsMock = {
+    getSettings: vi.fn(() => of<{ invoiceDueDays?: number }>({ invoiceDueDays: 14 })),
+  };
+  const providers = () => [
+    { provide: EnrollmentsService, useValue: enrollmentsServiceMock },
+    { provide: FeeTemplatesService, useValue: feeTemplatesServiceMock },
+    { provide: InvoicesService, useValue: invoicesServiceMock },
+    { provide: DynamicDialogRef, useValue: dialogRefMock },
+    { provide: OrgSettingsService, useValue: orgSettingsMock },
+    { provide: SystemClockService, useValue: { todayTaipei: () => '2026-11-12' } },
+  ];
+  async function configure() {
+    confirmClose$ = new Subject<boolean | undefined>();
+    dialogServiceMock.open.mockReset().mockReturnValue({ onClose: confirmClose$ });
+    await TestBed.configureTestingModule({
+      imports: [UninvoicedDialogComponent],
+      providers: providers(),
+    })
+      .overrideComponent(UninvoicedDialogComponent, {
+        set: { providers: [{ provide: DialogService, useValue: dialogServiceMock }] },
+      })
+      .compileComponents();
+  }
+  /** 全部開帳＝按鈕＋確認框按主鈕 */
+  const issueAllConfirmed = (c: UninvoicedDialogComponent) => {
+    c['issueAll']();
+    confirmClose$.next(true);
+  };
 
   async function setup(rows: Enrollment[], total = rows.length) {
     enrollmentsServiceMock.list.mockReturnValue(of({ data: rows, meta: { total } }));
@@ -47,16 +80,9 @@ describe('UninvoicedDialogComponent', () => {
     );
     invoicesServiceMock.create.mockReturnValue(of({ data: { id: 'inv-1' } }));
     dialogRefMock.close.mockClear();
+    invoicesServiceMock.create.mockClear();
 
-    await TestBed.configureTestingModule({
-      imports: [UninvoicedDialogComponent],
-      providers: [
-        { provide: EnrollmentsService, useValue: enrollmentsServiceMock },
-        { provide: FeeTemplatesService, useValue: feeTemplatesServiceMock },
-        { provide: InvoicesService, useValue: invoicesServiceMock },
-        { provide: DynamicDialogRef, useValue: dialogRefMock },
-      ],
-    }).compileComponents();
+    await configure();
 
     fixture = TestBed.createComponent(UninvoicedDialogComponent);
     component = fixture.componentInstance;
@@ -148,7 +174,7 @@ describe('UninvoicedDialogComponent', () => {
     it('全部開帳只開開得了的那些', async () => {
       const c = await setup([enrollment(), noBilling]);
 
-      c['issueAll']();
+      issueAllConfirmed(c);
 
       expect(invoicesServiceMock.create).toHaveBeenCalledTimes(1);
     });
@@ -198,7 +224,7 @@ describe('UninvoicedDialogComponent', () => {
         .mockReturnValueOnce(of({ data: { id: 'inv-1' } }))
         .mockReturnValueOnce(throwError(() => new Error('boom')));
 
-      c['issueAll']();
+      issueAllConfirmed(c);
 
       expect(c['isIssued'](enrollment())).toBe(true);
       expect(c['isFailed'](rowB)).toBe(true);
@@ -222,6 +248,64 @@ describe('UninvoicedDialogComponent', () => {
     });
   });
 
+  describe('全部開帳先預覽再確認（#2445）', () => {
+    const rowB = enrollment({
+      id: 'en-2',
+      studentId: 'stu-2',
+      studentName: '李小華',
+      billingMode: 'session_pack',
+      agreedAmount: 3200,
+    });
+
+    it('按全部開帳先出確認：張數、合計 NT$、期別、期限；按「再看看」一張都不開', async () => {
+      const c = await setup([enrollment(), rowB]);
+      c['issueAll']();
+
+      expect(dialogServiceMock.open).toHaveBeenCalledTimes(1);
+      const [, config] = dialogServiceMock.open.mock.calls[0];
+      expect(config.data.message).toBe(
+        '開 2 張\n合計 NT$ 7,700\n期別 學費、堂數包\n期限 2026/11/26',
+      );
+      expect(config.data.acceptLabel).toBe('開 2 張');
+
+      confirmClose$.next(false);
+      expect(invoicesServiceMock.create).not.toHaveBeenCalled();
+    });
+
+    // golden：改動前（#2445 之前）issueAll 對這兩筆送出的 payload，原樣抄下 —— 確認框不能改到開出去的帳單
+    it('確認後開出的 invoices 跟改動前逐欄相同', async () => {
+      const golden = [
+        [{ studentId: 'stu-1', items: [{ type: 'tuition', enrollmentId: 'en-1', amount: 4500 }] }],
+        [
+          {
+            studentId: 'stu-2',
+            items: [{ type: 'session_pack', enrollmentId: 'en-2', amount: 3200 }],
+          },
+        ],
+      ];
+      const c = await setup([enrollment(), rowB]);
+      issueAllConfirmed(c);
+
+      expect(invoicesServiceMock.create.mock.calls).toEqual(golden);
+    });
+
+    it('拿不到機構繳費天數（沒有財務權限）→ 期限寫依機構設定，不猜', async () => {
+      orgSettingsMock.getSettings.mockReturnValueOnce(of({}));
+      const c = await setup([enrollment()]);
+      c['issueAll']();
+      const [, config] = dialogServiceMock.open.mock.calls[0];
+      expect(config.data.message).toContain('期限 開立日起依機構設定');
+    });
+
+    it('每列寫期別、金額寫 NT$', async () => {
+      await setup([enrollment()]);
+      const text = (fixture.nativeElement as HTMLElement).textContent!;
+      expect(text).toContain('國一數學 A · 學費 · 2026-09-01');
+      expect(text).toContain('NT$ 4,500');
+      expect(text).not.toMatch(/\$4,500/);
+    });
+  });
+
   // 一頁只撈 100 筆，但「還有幾筆」要說真話（charter 坑 #4）
   it('筆數用 meta.total 不是當頁長度', async () => {
     const c = await setup([enrollment()], 37);
@@ -233,15 +317,7 @@ describe('UninvoicedDialogComponent', () => {
     enrollmentsServiceMock.list.mockReturnValue(throwError(() => new Error('boom')));
     feeTemplatesServiceMock.list.mockReturnValue(of({ data: [] }));
 
-    await TestBed.configureTestingModule({
-      imports: [UninvoicedDialogComponent],
-      providers: [
-        { provide: EnrollmentsService, useValue: enrollmentsServiceMock },
-        { provide: FeeTemplatesService, useValue: feeTemplatesServiceMock },
-        { provide: InvoicesService, useValue: invoicesServiceMock },
-        { provide: DynamicDialogRef, useValue: dialogRefMock },
-      ],
-    }).compileComponents();
+    await configure();
 
     fixture = TestBed.createComponent(UninvoicedDialogComponent);
     fixture.detectChanges();

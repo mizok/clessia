@@ -3,7 +3,7 @@ title: 對話框與貼底面板的共用規則（app-dialog-frame）
 summary: 全站對話框收斂成共用殼 app-dialog-frame（h2＋關閉、不放副標、內距、sticky 底部、手機貼底抽屜的底部留白）；寬三種 --dlg-w-sm/md/lg、左右內距 --dlg-pad-x（24／手機 16）、貼底底部留白 --sheet-foot-gap＋safe-area 只墊一次；進退場時長走 --motion-* token，減少動態時只淡入淡出。手機操作量分級（L1～L4：選填收合、抽屜內分步 app-dialog-steps、整頁），送出鈕一律在 sticky 底部列。#2290 第 3 步分批遷移中。
 category: architecture
 status: developing
-updated: 2026-11-10
+updated: 2026-11-12
 tags: [architecture, dialog, a6, motion, accessibility]
 ---
 
@@ -32,6 +32,7 @@ tags: [architecture, dialog, a6, motion, accessibility]
 - **不放副標**（R5「彈窗與抽屜不放副標」，#2396）：殼沒有 `sub` input、也沒有副標投影槽。是誰／哪天／哪班寫內容區第一行 `data-part="dialog-context"`；做決定要讀的內容本體寫 `data-part="dialog-lead"`；說明句不寫（見下「內容區第一行的先後」）。
 - **有 `<form>` 的對話框**：送出鈕在殼的底部列、已經在 form 外面，要寫 `<button type="submit" form="<form 的 id>">`，**不綁 `(click)`**，只留 form 的 `(ngSubmit)` 一條路 —— 不指回表單，欄位按 Enter 就不送出（鍵盤退步）；兩條都留，按一次送兩次（#2362 二讀）。
 - **確認對話框**（`ConfirmDialogComponent`）：關窗結果主鈕 `true`、次要鈕 `false`、✕／Esc `undefined` —— 次要鈕本身是第二個動作時（請假「完全刪除」）用 `=== false` 分辨；只是告知、沒有第二個選擇時給 `rejectVisible: false`（學校「它已經停用了」）。訊息可用 `\n` 分行。全站已無 `p-confirmdialog`／`ConfirmationService`（#2290）。
+- **Esc＝✕**（#2445）：殼的 host 接 `keydown.escape` → 發 `closed`，跟按 ✕ 同一條路，所以離開保護、回報結果都由對話框自己的 `closed` 處理決定。不靠 PrimeNG：DynamicDialog 沒帶 `closable` 時內層 `p-dialog` 根本不掛 Esc（它要 `closeOnEscape && closable`），全站 `showHeader:false` 的開啟點都中過。裡面的下拉先吃掉 Esc（`defaultPrevented`）時殼不動；殼吃掉後 `preventDefault`＋`stopPropagation`，外層原生 `<dialog>` 的 cancel 不會再關一次。
 - 開窗端（DynamicDialog）：`width: 'var(--dlg-w-md)'`、`showHeader: false`；**不寫 `breakpoints`**（≤860 會被全站 `.p-dialog` 的 `width: 100% !important` 蓋掉，寫了也沒作用）。
 - 原生 `<dialog>`：殼放在 `<dialog>` 裡；`<dialog>` 自己帶 `aria-labelledby` 或靠殼的 `appDialogTitle`（找最近的 `[role=dialog]`）。
 
