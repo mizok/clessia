@@ -346,8 +346,6 @@ app.openapi(
     if (kind === 'enrollment' && !REJECTABLE.includes(prev['status'] as string)) {
       return c.json({ error: '這筆申請已經不是待審核，不能拒絕', code: 'NOT_REJECTABLE' }, 409);
     }
-    const renewalClosed = { error: '這筆續課異動已經結案或被撤回', code: 'NOT_PENDING' } as const;
-    if (kind === 'renewal' && prev['status'] !== 'pending') return c.json(renewalClosed, 409);
 
     // 報名的拒絕帶上「狀態還是可拒絕」當條件：讀完到寫入之間別人可能已經核准了（#1726 上線後就會發生），
     // 沒寫到任何一列就是被搶先了 → 409，不蓋掉已經開了帳單的那一筆（審核席 #1728 建議）
@@ -361,10 +359,11 @@ app.openapi(
           : update
     ).select('id');
     if (error) return c.json({ error: '更新失敗', code: 'UPDATE_FAILED' }, 500);
-    if (kind === 'renewal' && (!written || (written as unknown[]).length === 0)) {
-      return c.json(renewalClosed, 409);
-    }
     if (!written || (written as unknown[]).length === 0) {
+      // 續課異動：已結案、已撤回、或讀完到寫之間家長撤回了 —— 一律以 update 的狀態條件為準
+      if (kind === 'renewal') {
+        return c.json({ error: '這筆續課異動已經結案或被撤回', code: 'NOT_PENDING' }, 409);
+      }
       return c.json({ error: '這筆申請已經不是待審核，不能拒絕', code: 'NOT_REJECTABLE' }, 409);
     }
 

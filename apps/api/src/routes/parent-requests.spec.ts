@@ -605,12 +605,13 @@ describe('續課異動（#1122）', () => {
       async (table, ops) => {
         if (table !== 'renewal_requests' || !ops.includes('update') || raced) return undefined;
         raced = true;
-        await db.client.from('renewal_requests').update({ status: 'withdrawn' }).eq('id', id(11));
+        await (db.client as any).from('renewal_requests').update({ status: 'withdrawn' }).eq('id', id(11));
         return undefined;
       },
     );
     expect(raced).toBe(true);
     expect(res.status).toBe(409);
+    expect(((await res.json()) as { code: string }).code).toBe('NOT_PENDING');
     expect(db.rows('renewal_requests').find((r) => r['id'] === id(11))!['status']).toBe(
       'withdrawn',
     );
