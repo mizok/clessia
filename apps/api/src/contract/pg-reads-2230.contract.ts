@@ -145,23 +145,29 @@ run('#2230 ③ 到班數與工作台家長走 pg', () => {
        select $1, s, $2, $3 from unnest($4::uuid[]) s`,
       [ctx.orgId, DAY, fx.campus, arrivals.studentIds],
     );
-    // 干擾：第 1 班一位退班的、當天也打了卡（不算）；第 2 班一位在籍、只在前一天打卡（不算）
-    const extra = async (classId: string, status: string, checkinDate: string) => {
+    // 干擾：第 1 班一位退班的、當天也打了卡（不算）；第 2 班一位在籍、只在前一天打卡（不算）。
+    // 退班一定寫 effective_to（#953：在籍只看生效區間，退班不再靠 status 排除）—— 退在 DAY 之前
+    const extra = async (
+      classId: string,
+      status: string,
+      checkinDate: string,
+      effectiveTo: string | null = null,
+    ) => {
       const sid = await one(
         "insert into students (org_id, name, grade) values ($1, '干擾', 'J1')",
         [ctx.orgId],
       );
       await q(
-        `insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from)
-         values ($1, $2, $3, $4::enrollment_status, 'monthly', 1000, '2030-01-01')`,
-        [ctx.orgId, classId, sid, status],
+        `insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from, effective_to)
+         values ($1, $2, $3, $4::enrollment_status, 'monthly', 1000, '2030-01-01', $5::date)`,
+        [ctx.orgId, classId, sid, status, effectiveTo],
       );
       await q(
         'insert into daily_checkins (org_id, student_id, checkin_date, campus_id) values ($1, $2, $3, $4)',
         [ctx.orgId, sid, checkinDate, fx.campus],
       );
     };
-    await extra(arrivals.classIds[0]!, 'withdrawal', DAY);
+    await extra(arrivals.classIds[0]!, 'withdrawal', DAY, '2031-03-02');
     await extra(arrivals.classIds[1]!, 'active', '2031-03-02');
 
     // 2. DAY2：MISSING 人該到沒到，全掛同一位主要家長；其中一位當天有一筆聯絡
