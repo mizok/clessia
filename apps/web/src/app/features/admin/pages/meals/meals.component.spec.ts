@@ -150,6 +150,37 @@ describe('MealsComponent', () => {
       expect(pop.hidePopover).toHaveBeenCalled();
     });
 
+    // 匯出的是「目前篩選」：每一頁都要帶畫面上的學生與頂欄分校，不只第一頁
+    it('有選學生、有頂欄分校：每一頁的 range 參數都帶 studentId／campusId 與同一個區間', async () => {
+      meals.range.mockReturnValue(of(page(1, 1, 1)));
+      component['switchMode']('range');
+      await fixture.whenStable();
+      campusId.set('campus-9');
+      (component as unknown as { student: { set: (v: unknown) => void } }).student.set({
+        id: 'stu-7',
+        name: '陳小明',
+      });
+      const range = component['queriedRange']()!;
+
+      meals.range.mockReset();
+      meals.range
+        .mockReturnValueOnce(of(page(1, 100, 150)))
+        .mockReturnValueOnce(of(page(2, 50, 150)));
+      await component['exportCsv'](popover());
+
+      const calls = meals.range.mock.calls.map((c) => c[0]);
+      expect(calls).toHaveLength(2);
+      for (const call of calls) {
+        expect(call).toMatchObject({
+          dateFrom: range.dateFrom,
+          dateTo: range.dateTo,
+          studentId: 'stu-7',
+          campusId: 'campus-9',
+          pageSize: 100,
+        });
+      }
+    });
+
     it('撈到一半失敗：不下載半份、出錯誤提示、面板留著', async () => {
       meals.range.mockReturnValue(of(page(1, 1, 1)));
       component['switchMode']('range');
