@@ -1146,7 +1146,7 @@ app.openapi(listSessionsRoute, async (c) => {
             .from('enrollments')
             .select('class_id, student_id, effective_from, effective_to')
             .in('class_id', uniqueClassIds)
-            .neq('status', 'void')
+            .in('status', ['active', 'withdrawal'])
             .eq('org_id', orgId)
         : Promise.resolve({ data: [], error: null }),
     ]);
@@ -1439,7 +1439,7 @@ app.openapi(createSessionRoute, async (c) => {
       .from('enrollments')
       .select('class_id, student_id, effective_from, effective_to')
       .eq('class_id', body.classId)
-      .neq('status', 'void')
+      .in('status', ['active', 'withdrawal'])
       .eq('org_id', orgId),
   ]);
   const enrollmentRanges: EnrollmentRange[] = (

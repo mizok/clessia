@@ -67,7 +67,7 @@ export async function attendanceCountsViaSql(
   return expectArray(rows, '出勤') as Array<{ eventId: string; status: string; count: number }>;
 }
 
-/** 這些班非作廢報名的生效區間（#953；在籍人數由 `countEnrolledOn` 照舊在 TS 數） */
+/** 這些班 active＋withdrawal 報名的生效區間（#953；在籍人數由 `countEnrolledOn` 照舊在 TS 數） */
 export async function enrollmentRangesViaSql(
   db: Queryable,
   orgId: string,
@@ -80,7 +80,7 @@ export async function enrollmentRangesViaSql(
         'effective_to', e.effective_to)), '[]'::json) as result
        from public.enrollments e
       where e.org_id = $1::uuid
-        and e.status <> 'void'
+        and e.status in ('active', 'withdrawal')
         and e.class_id = any($2::uuid[])`,
     [orgId, classIds],
   );

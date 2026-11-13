@@ -7,15 +7,18 @@ import { createServiceClientFromEnv } from '../lib/supabase';
 /**
  * **#953：在籍依課堂日期做滿**（計畫席 11-13 裁），對真的本機 PostgREST／Postgres 跑。
  *
- * 在籍＝報名生效區間涵蓋課堂日期＋狀態不是 `void`。退班不再靠 status 排除（退班一定寫 `effective_to`）。
+ * 在籍＝報名生效區間涵蓋課堂日期＋狀態是 `active` 或 `withdrawal`。退班不再靠 status 排除（退班一定寫 `effective_to`）。
  * 契約三條：上個月的課在本月退班後人數不變、未來課堂不含退班生、作廢永遠不算。
+ * 另外：待繳費（還沒生效）與休學（休學期間不在名單）在任何一堂都不出現（計畫席 11-13 裁）。
  * 另外一條：同一天退班又重報同一班（兩筆涵蓋同一天）只算一人、名單一列。
  *
- * fixture：一個班三堂（PAST、MID、FUTURE），四個學生，報名都從 2026-01-01 起
+ * fixture：一個班三堂（PAST、MID、FUTURE），六個學生，報名都從 2026-01-01 起
  * - 在讀：active
  * - 退班：withdrawal，到 WITHDRAWN_ON（PAST 之後、MID 之前）
  * - 作廢：void，到 WITHDRAWN_ON
  * - 重報：withdrawal 到 PAST ＋ active 從 PAST 起（PAST 那天兩筆都涵蓋）
+ * - 待繳費：pending_payment，沒有結束日
+ * - 休學：suspended，沒有結束日
  */
 
 const URL = process.env['SUPABASE_URL'];
@@ -70,12 +73,20 @@ const WITHDRAWN_ON = '2026-02-01';
 const MID = '2026-02-10';
 const FUTURE = '2099-04-10';
 
-run('#953 在籍依課堂日期：只排除作廢，退班靠 effective_to', () => {
+run('#953 在籍依課堂日期：active／withdrawal，退班靠 effective_to', () => {
   let app: { request: (path: string, init?: RequestInit, env?: unknown) => Promise<Response> };
   const env = { ENVIRONMENT: 'contract', WEB_URL: 'http://localhost:4200', ALLOWED_ORIGINS: '' };
   const q = async <T>(text: string, values: unknown[] = []) =>
     (await pool!.query(text, values)).rows as T[];
-  const fx = { classId: '', active: '', withdrawn: '', voided: '', rejoined: '' };
+  const fx = {
+    classId: '',
+    active: '',
+    withdrawn: '',
+    voided: '',
+    rejoined: '',
+    pending: '',
+    suspended: '',
+  };
   const eventOf: Record<string, string> = {};
 
   beforeAll(async () => {
@@ -127,22 +138,35 @@ run('#953 在籍依課堂日期：只排除作廢，退班靠 effective_to', () 
     )) {
       eventOf[r.d] = r.event_id;
     }
-    [fx.active, fx.withdrawn, fx.voided, fx.rejoined] = (
+    [fx.active, fx.withdrawn, fx.voided, fx.rejoined, fx.pending, fx.suspended] = (
       await q<{ id: string }>(
         `insert into students (org_id, name, grade)
-         select $1, n, 'J1' from unnest(array['在讀','退班','作廢','重報']) with ordinality t(n, i)
+         select $1, n, 'J1' from unnest(array['在讀','退班','作廢','重報','待繳費','休學']) with ordinality t(n, i)
          order by i returning id`,
         [ctx.orgId],
       )
-    ).map((r) => r.id) as [string, string, string, string];
+    ).map((r) => r.id) as [string, string, string, string, string, string];
     await q(
       `insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from, effective_to)
        values ($1, $2, $3, 'active', 'monthly', 1000, '2026-01-01', null),
               ($1, $2, $4, 'withdrawal', 'monthly', 1000, '2026-01-01', $8),
               ($1, $2, $5, 'void', 'monthly', 1000, '2026-01-01', $8),
               ($1, $2, $6, 'withdrawal', 'monthly', 1000, '2026-01-01', $7),
-              ($1, $2, $6, 'active', 'monthly', 1000, $7, null)`,
-      [ctx.orgId, fx.classId, fx.active, fx.withdrawn, fx.voided, fx.rejoined, PAST, WITHDRAWN_ON],
+              ($1, $2, $6, 'active', 'monthly', 1000, $7, null),
+              ($1, $2, $9, 'pending_payment', 'monthly', 1000, '2026-01-01', null),
+              ($1, $2, $10, 'suspended', 'monthly', 1000, '2026-01-01', null)`,
+      [
+        ctx.orgId,
+        fx.classId,
+        fx.active,
+        fx.withdrawn,
+        fx.voided,
+        fx.rejoined,
+        PAST,
+        WITHDRAWN_ON,
+        fx.pending,
+        fx.suspended,
+      ],
     );
     app = (await import('../index')).default as never;
   }, 120_000);
@@ -203,6 +227,15 @@ run('#953 在籍依課堂日期：只排除作廢，退班靠 effective_to', () 
     }
   });
 
+  it('待繳費與休學在任何一堂都不在名單、不算人數（休學前的過去課堂也不算＝已知限制）', async () => {
+    for (const d of [PAST, MID, FUTURE]) {
+      const ids = await roster(d);
+      expect(ids).not.toContain(fx.pending);
+      expect(ids).not.toContain(fx.suspended);
+    }
+    // 人數已在上面兩條釘死（3／2），這裡只確認名單
+  });
+
   it('點名寫入跟名單同一條：上個月的課可以替退班生補登，作廢的報名不行', async () => {
     const save = (studentId: string) =>
       app.request(
@@ -221,6 +254,10 @@ run('#953 在籍依課堂日期：只排除作廢，退班靠 effective_to', () 
     expect(voided.status).toBe(400);
     // 確認是被在籍擋下，不是被別的關（例如「未來課堂」）擋下
     expect(((await voided.json()) as { error: string }).error).toBe('部分學生不在此課堂修課名單中');
+    for (const id of [fx.pending, fx.suspended]) {
+      const res = await save(id);
+      expect({ status: res.status, body: await res.text() }).toMatchObject({ status: 400 });
+    }
     const withdrawn = await save(fx.withdrawn);
     expect({ status: withdrawn.status, body: await withdrawn.text() }).toMatchObject({
       status: 200,
