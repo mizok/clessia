@@ -271,6 +271,12 @@
     [head, own].forEach((i) => i && i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const a = res.querySelector('a'); if (a) location.href = a.href; } }));
   }
 
+  // R5 10-16「摺疊摘要列同組互斥」（#2495 B3 回寫）：同一個 .colls 一次只開一個（app 用原生 <details name>）
+  document.addEventListener('toggle', (e) => {
+    const d = e.target;
+    if (d.open && d.matches && d.matches('.colls > details')) d.parentElement.querySelectorAll(':scope > details[open]').forEach((x) => x !== d && (x.open = false));
+  }, true);
+
   // A3 第三輪：<details data-fold> 桌機展開、手機收起；跨過斷點時重設
   const narrow = matchMedia('(max-width: 860px)');
   const fold = (root = document) => root.querySelectorAll('details[data-fold]').forEach((d) => (d.open = !narrow.matches));
