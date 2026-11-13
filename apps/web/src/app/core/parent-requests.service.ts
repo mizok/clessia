@@ -12,7 +12,7 @@ export type TrialRequestStatus = 'pending' | 'scheduled' | 'completed' | 'cancel
 /** 家長登入後在 app 送的報名／試聽申請（`/api/parent-requests`） */
 export interface ParentRequest {
   id: string;
-  kind: 'enrollment' | 'trial';
+  kind: 'enrollment' | 'trial' | 'renewal';
   /** 報名：pending／waitlist／awaiting_payment／completed／rejected／cancelled／expired；試聽見 TrialRequestStatus */
   status: string;
   createdAt: string;
@@ -33,6 +33,10 @@ export interface ParentRequest {
   scheduledDate: string | null;
   scheduledStartTime: string | null;
   scheduledEndTime: string | null;
+  /** 續課異動才有（#1122）：轉班／停課（不續報）／變更繳費方式、想怎麼改、結案備註 */
+  renewalKind: 'transfer' | 'stop' | 'billing_mode' | null;
+  detail: string | null;
+  resolutionNote: string | null;
 }
 
 /** 試聽轉「已排定」：日期必填、時間選填（後端也擋）；已排定再送一次＝改期 */
@@ -76,11 +80,19 @@ export class ParentRequestsService {
 
   list(params: {
     group: ParentRequestGroup;
-    kind?: 'enrollment' | 'trial' | null;
+    kind?: 'enrollment' | 'trial' | 'renewal' | null;
   }): Observable<{ data: ParentRequest[] }> {
     const query: Record<string, string> = { group: params.group };
     if (params.kind) query['kind'] = params.kind;
     return this.http.get<{ data: ParentRequest[] }>(this.endpoint, { params: query });
+  }
+
+  /** 續課異動標為已處理（＝解除這個學生的暫停開單，#1122）；備註選填 */
+  resolveRenewal(id: string, resolutionNote?: string): Observable<{ data: ParentRequest }> {
+    return this.http.patch<{ data: ParentRequest }>(`${this.endpoint}/renewal/${id}`, {
+      status: 'resolved',
+      ...(resolutionNote ? { resolutionNote } : {}),
+    });
   }
 
   /** 拒絕（原因家長看得到） */
