@@ -92,53 +92,6 @@ export const DEVIATIONS = [
     source: 'https://github.com/mizok/clessia/issues/2290#issuecomment-6660276130（計畫席裁定）',
   },
   {
-    // 使用者 11-05 17:10：手機貼底抽屜改白底（--sheet-bg），稿是 --gray-sheet 灰。只拆底色這一項
-    status: '樣式',
-    widths: [360],
-    a6: '^pop\\[[^\\]]*\\]>landmark:(dialog|popover)\\[[^\\]]*\\]$',
-    item: '^backgroundColor rgb\\(235, 231, 228\\) → rgb\\(255, 255, 255\\)$',
-    reason: '手機貼底抽屜白底（稿灰底）',
-    source: `${rule('R5')}「手機貼底抽屜白底」2026-11-05；使用者 11-05 截圖`,
-  },
-  {
-    // #2290：對話框手機的左右內距 16（標頭與內容一致），稿 `.acset__head`／`.acset__body` 手機仍是 24 —— 對話框裡的部件 Δx −8
-    status: '位置',
-    widths: [360],
-    a6: '(^|>)landmark:dialog\\[[^\\]]*\\]>',
-    detail: '^相對「[^」]*」 Δx -8、',
-    reason: '對話框手機左右內距 16（標頭與內容對齊），稿 24',
-    source: `${rule('R5')}「對話框手機標頭左距 16」「對話框手機內容左右 16」2026-11-05；#2290`,
-  },
-  // #2290：寬歸成三種，表單／詳情用 --dlg-w-md 520，稿 `.acset` 是 480 —— 根寬 480→520、置中位移 Δx −20
-  ...[
-    { status: '尺寸', detail: '^寬 480→520' },
-    { status: '位置', detail: 'Δx -20、' },
-  ].map((d) => ({
-    ...d,
-    widths: [1440],
-    a6: '^pop\\[[^\\]]*\\]>landmark:dialog\\[[^\\]]*\\]$',
-    reason: '對話框寬歸成 420／520／760 三種，表單與詳情 520（稿 .acset 480）',
-    source: `${rule('R5')}「對話框寬三種」2026-11-05；#2290`,
-  })),
-  {
-    // #2290：手機貼底抽屜沒有底部列時，內容區底留 --sheet-foot-gap 16（稿 `.acset__body` 24）—— 根高 −8。
-    // 用 delta 只放過預期的 −8，其他高度變化照報（#2322 二讀）
-    status: '尺寸',
-    widths: [360],
-    a6: '^pop\\[[^\\]]*\\]>landmark:dialog\\[[^\\]]*\\]$',
-    delta: -8,
-    reason: '手機貼底抽屜的內容區底留 16＋safe-area（稿 24）',
-    source: `${rule('R5')}「貼底抽屜底部留白 16」2026-11-05；#2290`,
-  },
-  {
-    // #2290：對話框有動作就 sticky（殼的底部列），稿的 `.fdlg__foot` 不黏（只有 `.gdlg__foot` 黏）
-    status: '黏住',
-    a6: '(^|>)landmark:dialog\\[[^\\]]*\\]>',
-    detail: 'app 仍黏在視窗內（多黏）',
-    reason: '對話框的動作列一律 sticky 在捲動容器底（殼的底部列）',
-    source: `${rule('R5')}「對話框動作列一律 sticky」2026-11-05；#2290`,
-  },
-  {
     // 家長頁量的是 parent03 → 張宇軒（國二）；稿的示範孩子是國三。年級不在人名樣板裡
     status: '文案',
     a6: 'control:button\\[目前看的是\\{名\\}，切換孩子\\]>text:span\\[[^\\]]*\\]$',
@@ -789,15 +742,6 @@ const xpSheet = (pop) => [
     reason: '匯出面板的 ✕ 手機 44（稿 36）',
     source: `${rule('R3')}；${hardRule('A27')}`,
   },
-  {
-    status: '樣式',
-    pop,
-    widths: [360],
-    app: '>landmark:form\\[\\]$',
-    detail: '^padding 8px 20px 32px → 8px 20px 24px$',
-    reason: '手機貼底的匯出面板，內容區底留 24＋safe-area（稿 32）',
-    source: `${rule('R5')}「貼底抽屜底部留白 24」2026-11-06；#2396`,
-  },
 ];
 
 export const PAGES = {
@@ -820,27 +764,6 @@ export const PAGES = {
     behaveIgnore: ['^[高國小][一二三四五六]#?$'],
     deviations: [
       // ── 帳號設定內容（#2390）──
-      // 寬 520（稿 .acset 480，寬三種）／手機內容左右 16（稿 24）：整欄寬的部件變寬，靠右的儲存鈕跟著位移
-      ...[
-        { status: '尺寸', widths: [1440], detail: '^寬 (432→472|400→440)$' },
-        { status: '位置', widths: [1440], a6: '>control:button\\[儲存\\](~\\d)?$', detail: '^相對「帳號設定」 Δx \\+40、' },
-      ].map((d) => ({
-        a6: '^pop\\[acset\\]>',
-        ...d,
-        pop: 'acset',
-        reason: '對話框寬歸成 420／520／760 三種，帳號設定用 520（稿 .acset 480）',
-        source: `${rule('R5')}「對話框寬三種」2026-11-05；#2290`,
-      })),
-      ...[
-        { status: '尺寸', widths: [360], detail: '^寬 (312→328|280→296)$' },
-        { status: '位置', widths: [360], a6: '>control:button\\[儲存\\](~\\d)?$', detail: '^相對「帳號設定」 Δx \\+8、' },
-      ].map((d) => ({
-        a6: '^pop\\[acset\\]>',
-        ...d,
-        pop: 'acset',
-        reason: '對話框手機內容左右 16（稿 .acset__body 24）',
-        source: `${rule('R5')}「對話框手機內容左右 16」2026-11-05；#2290`,
-      })),
       // 量的帳號是管理員：有「對外暱稱」一欄（#1665，稿沒畫、R2 保留），下面各欄跟著下移
       ...[
         { status: '多', app: '>landmark:dialog\\[帳號設定\\]>(text:label\\[對外暱稱\\]|text:p\\[公開課程目錄[^\\]]*\\]|control:button\\[儲存\\]~5)$' },
@@ -859,16 +782,6 @@ export const PAGES = {
         reason: '資料：量測帳號沒有家長身份，顯示「請洽補習班行政」那一句（有家長身份時照稿 ✓ 已啟用，spec 守）',
         source: `${rule('R2')}；#1844；#2390`,
       })),
-      // 帳號設定：寬照 #2290「寬三種」用 520（稿 .acset 480），✕ 跟著右移 40
-      {
-        status: '位置',
-        widths: [1440],
-        pop: 'acset',
-        a6: '>landmark:dialog\\[帳號設定\\]>control:button\\[關閉\\]$',
-        detail: '^相對「帳號設定」 Δx \\+40、Δy 0（',
-        reason: '對話框寬歸成 420／520／760 三種，帳號設定用 520（稿 .acset 480）',
-        source: `${rule('R5')}「對話框寬三種」2026-11-05；#2290`,
-      },
       // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 courses／grades-class 那條
       ...['尺寸', '樣式', '位置'].map((status) => ({
         status,
@@ -2187,16 +2100,6 @@ export const PAGES = {
       })),
       // 批次請假的課堂：app-select-field 對稿的 .dd（#2325，全站同一套）
       ...selectFieldInDialog('batch', '課堂', '選擇'),
-      // 批次請假（#2325）：手機內容左右 16（共用殼的規格，稿 24），內容區的段落與欄位寬 +16
-      {
-        status: '尺寸',
-        widths: [360],
-        pop: 'batch',
-        a6: '>landmark:dialog\\[批次請假\\]>(text:p|text:label|control:textbox)\\[[^\\]]*\\]$',
-        detail: '^寬 312→328$',
-        reason: '對話框手機內容左右 16（共用殼），稿 24',
-        source: `${rule('R5', '「對話框手機內容左右 16」2026-11-05')}`,
-      },
       // 登記請假（#2318）：app 的日期、要請假的課、原因三格同層同子元素數，被工具合成一列（README「列是資料」的 div 格線規則）；
       // 稿同樣的三格沒觸發，於是「要請假的課」與空狀態那句報缺、app 報多一列 —— 內容與樣式照稿（.pick、.pick__none）
       ...[
@@ -2211,16 +2114,6 @@ export const PAGES = {
         reason: '工具限制：同層三格被當成資料列，配對錯開',
         source: 'tools/a6-conformance/README.md（part key：列是資料）',
       })),
-      // 登記請假（#2318）：手機內容左右 16（殼的規格，稿 24），欄位寬 +16
-      {
-        status: '尺寸',
-        widths: [360],
-        pop: 'new-leave',
-        a6: '>landmark:dialog\\[登記請假\\]>(text:label|control:textbox)\\[[^\\]]*\\]$',
-        detail: '^寬 312→328$',
-        reason: '對話框手機內容左右 16（共用殼），稿 24',
-        source: `${rule('R5', '「對話框手機內容左右 16」2026-11-05')}`,
-      },
       // 登記請假（#2318）：分校、年級兩個篩選（縮小學生搜尋）現況有、稿沒有，不刪；下面的欄位跟著往下
       ...[
         {
@@ -2410,6 +2303,8 @@ export const PAGES = {
     a6: 'p-renewal.html#none',
     app: '/parent/renewal',
     state: PARENT_STATE,
+    // 切到張宇軒（有月繳）：月繳孩子的空狀態文案（#2498）才量得到；張品妍沒有任何課，只剩一行
+    prep: PARENT_PREP,
     deviations: [
       {
         status: '缺',
@@ -2420,8 +2315,9 @@ export const PAGES = {
       {
         status: '文案',
         a6: 'text:p\\[目前沒有即將到來的續課。下次預計在#開單',
-        reason: '空狀態不寫開單日；孩子有月繳的在讀班時改寫「月繳的課每月照常開單，不列在這裡。」',
-        source: `${rule('R5', ' 2026-10-22 家長續課頁的字')}；計畫席 10-22`,
+        reason:
+          '空狀態不寫開單日；孩子有月繳的在讀班時改寫「月繳的課每月照常開單，不需要續課。要轉班、停課或改繳費方式，請直接聯絡補習班。」',
+        source: `${rule('R5', ' 2026-10-22 家長續課頁的字、2026-11-13 家長續課頁：月繳孩子的空狀態')}；計畫席 10-22、#2498`,
       },
     ],
   },
