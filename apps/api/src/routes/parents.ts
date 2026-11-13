@@ -1557,9 +1557,13 @@ app.openapi(
           .eq('org_id', orgId)
           .in('user_id', matchedUserIds);
 
-        const userIdToParentName = new Map<string, string>();
-        for (const p of (contactParents ?? []) as Array<{ user_id: string; name: string }>) {
-          userIdToParentName.set(p.user_id, p.name.trim());
+        const userIdToParent = new Map<string, { id: string; name: string }>();
+        for (const p of (contactParents ?? []) as Array<{
+          id: string;
+          user_id: string;
+          name: string;
+        }>) {
+          userIdToParent.set(p.user_id, { id: p.id, name: p.name.trim() });
         }
 
         const errorRowIndexSet = new Set<number>();
@@ -1569,8 +1573,9 @@ app.openapi(
           email: string | null;
           username: string | null;
         }>) {
-          const existingName = userIdToParentName.get(u.id);
-          if (!existingName) continue;
+          const existing = userIdToParent.get(u.id);
+          if (!existing) continue;
+          const existingName = existing.name;
 
           const affectedIndexes = new Set<number>();
           if (u.phone) phoneRowMap.get(u.phone)?.forEach((i) => affectedIndexes.add(i));
@@ -1583,10 +1588,14 @@ app.openapi(
             const importName = rows[rowIndex].parentName.trim();
             if (normalizeParentName(importName) === normalizeParentName(existingName)) continue; // 同名 → Step 4 已處理
             if (errorRowIndexSet.has(rowIndex)) continue;
+            // #2493 R10：電話／Email 反查到的家長在範圍外 → 照樣擋（帳號就是那一位），但**不帶姓名**
+            //（同 Step 4 的 C：防重複成立、不洩漏也成立）
             errors.push({
               rowIndex,
               type: 'contact_belongs_to_another_parent',
-              message: `此電話／Email 已屬於家長「${existingName}」，無法建立為「${importName}」`,
+              message: isInScope(existing.id)
+                ? `此電話／Email 已屬於家長「${existingName}」，無法建立為「${importName}」`
+                : `此電話／Email 已屬於一位不在你分校範圍內的家長，無法建立為「${importName}」`,
             });
             errorRowIndexSet.add(rowIndex);
           }
@@ -1779,18 +1788,18 @@ app.openapi(
           if (parentMatch) {
             const existingName = (parentMatch as { id: string; name: string }).name.trim();
             const importedName = representativeRow.parentName.trim();
-            if (normalizeParentName(existingName) !== normalizeParentName(importedName)) {
-              throw new Error(
-                `此電話／Email 已屬於另一位家長「${existingName}」，無法建立為「${importedName}」`,
-              );
-            }
             const matchedParentId = (parentMatch as { id: string }).id;
             // **越權讓「這一筆」失敗，不是整批失敗**（#821）：批次匯入既有的語意
             // 是逐筆 `results.push({ status })`，整批擋掉會讓一個越權列把其餘
             // 合法的列一起關在外面。`throw` 走下面那個 catch 的逐筆標記路徑。
+            // #2493 R10：範圍檢查排在「名字不符」之前，範圍外的訊息不帶姓名 —— 原本名字不符先擋，
+            // 訊息就把範圍外家長的姓名帶出去了（用電話反查別校家長是誰）
             if (scopedParentIds && !scopedParentIds.includes(matchedParentId)) {
+              throw new Error('此電話／Email 已屬於一位不在你分校範圍內的家長，無法匯入');
+            }
+            if (normalizeParentName(existingName) !== normalizeParentName(importedName)) {
               throw new Error(
-                `此電話／Email 已屬於一位不在你分校範圍內的家長「${existingName}」，無法匯入`,
+                `此電話／Email 已屬於另一位家長「${existingName}」，無法建立為「${importedName}」`,
               );
             }
             parentId = matchedParentId;
@@ -1857,16 +1866,15 @@ app.openapi(
                   if (retryParent) {
                     const existingName = (retryParent as { id: string; name: string }).name.trim();
                     const importedName = representativeRow.parentName.trim();
+                    // #1845：同 2b —— 撞到的既有家長在範圍外，這一筆失敗（原本這條路沒驗）
+                    // #2493 R10：同 2b，範圍先擋、範圍外不帶姓名
+                    const retryParentId = (retryParent as { id: string }).id;
+                    if (scopedParentIds && !scopedParentIds.includes(retryParentId)) {
+                      throw new Error('此電話／Email 已屬於一位不在你分校範圍內的家長，無法匯入');
+                    }
                     if (normalizeParentName(existingName) !== normalizeParentName(importedName)) {
                       throw new Error(
                         `此電話／Email 已屬於另一位家長「${existingName}」，無法建立為「${importedName}」`,
-                      );
-                    }
-                    // #1845：同 2b —— 撞到的既有家長在範圍外，這一筆失敗（原本這條路沒驗）
-                    const retryParentId = (retryParent as { id: string }).id;
-                    if (scopedParentIds && !scopedParentIds.includes(retryParentId)) {
-                      throw new Error(
-                        `此電話／Email 已屬於一位不在你分校範圍內的家長「${existingName}」，無法匯入`,
                       );
                     }
                     parentId = retryParentId;

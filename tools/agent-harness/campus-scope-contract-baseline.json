@@ -141,8 +141,6 @@
   "POST /api/meals/batch": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "POST /api/parent-requests/enrollment/:id/approve": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "POST /api/parents": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "POST /api/parents/batch-check": "缺口 R10（#2493 第 12 張 parents）",
-  "POST /api/parents/batch-import": "缺口 R10（#2493 第 12 張 parents）",
   "POST /api/school-exams/:id/scores": "缺口 W5／R6（#2493 第 6 張 school-exams）",
   "POST /api/scores/export": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "POST /api/sessions": "舊端點：#2493 盤點範圍 OK，缺契約認領",
