@@ -170,7 +170,7 @@ describe('POST /api/me/renewal-requests/:id/withdraw', () => {
     const res = await appFor(db, undefined, async (table, ops) => {
       if (table !== 'renewal_requests' || !ops.includes('update') || raced) return undefined;
       raced = true; // 管理員搶先：這支 update 執行前，狀態已經變成 resolved
-      await dbRef!.client.from('renewal_requests').update({ status: 'resolved' }).eq('id', REQ);
+      await (dbRef!.client as any).from('renewal_requests').update({ status: 'resolved' }).eq('id', REQ);
       return undefined;
     }).request(`/${REQ}/withdraw`, { method: 'POST' });
     expect(raced).toBe(true);
