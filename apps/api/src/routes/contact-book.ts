@@ -43,6 +43,8 @@ const ContactBookEntrySchema = z
     entryDate: z.string(),
     content: z.string(),
     lastEditedByName: z.string().nullable(),
+    /** 最後編輯者的 ba_user id（#2499）：老師端判斷「是不是我寫的」，決定給不給「修改」 */
+    lastEditedBy: z.string().nullable(),
     /** 老師／管理員最後改內容的時間（#2080-3）；家長簽收不動它。舊資料未回填前為 null */
     teacherEditedAt: z.string().nullable(),
     signedBy: z.string().nullable(),
@@ -134,6 +136,7 @@ export function toContactBookEntryResponse(row: Record<string, unknown>, visible
     entryDate: typed.entry_date,
     content: typed.content,
     lastEditedByName: typed.editor?.name ?? null,
+    lastEditedBy: typed.last_edited_by,
     teacherEditedAt: typed.teacher_edited_at ?? null,
     signedBy: typed.signed_by,
     signedByName: typed.signer?.name ?? null,
@@ -326,6 +329,18 @@ app.openapi(
         toContactBookEntryResponse(existing as unknown as Record<string, unknown>, visible),
         200,
       );
+    }
+
+    // 老師只能改**自己寫的、當天的**那一則（#2499，計畫席 11-13 裁）：別人寫的、前幾天的都 403。
+    // 新寫不受限 —— 前幾天的缺漏照常可以補寫；管理端不受限（行政補改走這裡）
+    if (scope.teacherStaffId && existing) {
+      const row = existing as unknown as ContactBookRow;
+      if (row.last_edited_by !== userId || entryDate !== getCurrentTaipeiDateString()) {
+        return c.json(
+          { error: '只能修改自己當天寫的聯絡簿', code: 'CONTACT_BOOK_NOT_EDITABLE' },
+          403,
+        );
+      }
     }
 
     // 每生每日一則（rules 1）。共編＝覆寫同一列並換掉 last_edited_by，

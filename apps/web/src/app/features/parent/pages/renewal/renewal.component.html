@@ -138,9 +138,11 @@
             class="m-0 max-w-[56ch] py-6 leading-relaxed text-zinc-700"
             data-testid="renewal-empty"
           >
-            目前沒有即將到來的續課。
+            <!-- #2498：月繳本來就沒有「續課」，只說「沒有」家長會以為找不到入口；告訴他要調整找誰 -->
             @if (preview()?.hasMonthlyEnrollments) {
-              <br />月繳的課每月照常開單，不列在這裡。
+              月繳的課每月照常開單，不需要續課。<br />要轉班、停課或改繳費方式，請直接聯絡補習班。
+            } @else {
+              目前沒有即將到來的續課。
             }
           </p>
         }
