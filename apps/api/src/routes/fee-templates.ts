@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { applyCampusFilter, filtersCampus, getCampusScope } from '../lib/campus-scope';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -149,14 +150,22 @@ app.openapi(
     }
 
     const rows = data ?? [];
+    // #2493 R11：受限管理員只數自己範圍的報名，同 billing-periods（全機構的數字是看別校規模的側管道）。
+    // 代價：別校在用、自己範圍 0 筆時，刪除仍會 409（FK）—— 那是機構層的價目表，訊息會說在用中
+    const scope = getCampusScope(c);
+    const select: string = filtersCampus(scope) ? 'id, classes!inner(campus_id)' : 'id';
     // 每個價目表一支 head count，讓 DB 數 —— 撈列回來數會被 max_rows（1000）靜默截斷
     const counts = await Promise.all(
       rows.map((row) =>
-        supabase
-          .from('enrollments')
-          .select('id', { count: 'exact', head: true })
-          .eq('org_id', orgId)
-          .eq('fee_template_id', row['id'] as string),
+        applyCampusFilter(
+          supabase
+            .from('enrollments')
+            .select(select, { count: 'exact', head: true })
+            .eq('org_id', orgId)
+            .eq('fee_template_id', row['id'] as string),
+          'classes.campus_id',
+          scope,
+        ),
       ),
     );
     // 數不出來就不回 0 —— 「0 筆在用」會讓人去按一個必然 409 的刪除

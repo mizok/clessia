@@ -7,6 +7,8 @@ import { canManageOrgExam } from '../lib/exam-scope';
 import { DbUuidSchema, QueryBooleanSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
+import { studentInScope } from '../lib/invoice-campus-scope';
+import { outOfCampusScope } from './students/read-scope';
 import { fetchAllPages } from '../lib/fetch-all-pages';
 import { splitScoreMutations } from '../lib/score-mutations';
 import { writeExamScores } from '../lib/exam-scores-write';
@@ -377,6 +379,14 @@ async function ensureSchoolExamOwnedByOrg(
  */
 const TODO_SCOPE_PATH = 'students!inner(enrollments!inner(classes!inner()))';
 
+/**
+ * 成績列的分校範圍（#2493 R6）：成績屬於學生，學生的分校經報名的班推得（不濾 status，同 /students）。
+ * 條件放進 embed 的 `!inner`，不先撈範圍內學生 id 再 `.in()`（會 414）。
+ */
+const SCORE_SCOPE_EMBED =
+  'scope_campus:students!inner(enrollments!inner(classes!inner(campus_id)))';
+const SCORE_SCOPE_COLUMN = 'scope_campus.enrollments.classes.campus_id';
+
 function todoSelect(campusIds: readonly string[] | null): string {
   return campusIds
     ? `, todo_scope:schools!inner(${TODO_SCOPE_PATH}), todo_hit:school_scores(${TODO_SCOPE_PATH})`
@@ -520,6 +530,28 @@ app.openapi(listRoute, async (c) => {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
+  // #2493 R6：受限管理員的 scoreCount 只數範圍內學生的成績 —— 全機構的筆數是看別校規模的側管道
+  //（同 billing-periods／fee-templates）。段考目錄本身是機構層，照舊全列
+  const pageExamIds = ((data ?? []) as unknown as Array<{ id: string }>).map((row) => row.id);
+  let scopedCounts: Map<string, number> | null = null;
+  if (todoCampusIds !== null) {
+    scopedCounts = new Map();
+    if (todoCampusIds.length > 0 && pageExamIds.length > 0) {
+      const { rows: scoped, error: scopedError } = await fetchAllPages((from, to) =>
+        supabase
+          .from('school_scores')
+          .select(`id, school_exam_id, ${SCORE_SCOPE_EMBED}`)
+          .in('school_exam_id', pageExamIds)
+          .in(SCORE_SCOPE_COLUMN, [...todoCampusIds])
+          .order('id')
+          .range(from, to),
+      );
+      if (scopedError) return c.json({ error: '查詢失敗', code: 'DB_ERROR' }, 500);
+      for (const row of scoped as Array<{ school_exam_id: string }>)
+        scopedCounts.set(row.school_exam_id, (scopedCounts.get(row.school_exam_id) ?? 0) + 1);
+    }
+  }
+
   const rows = (
     (data ?? []) as unknown as Array<
       SchoolExamRow & {
@@ -544,7 +576,9 @@ app.openapi(listRoute, async (c) => {
       status: row.status,
       schoolId: row.school_id,
       schoolName: school?.name ?? '',
-      scoreCount: row.school_scores?.[0]?.count ?? 0,
+      scoreCount: scopedCounts
+        ? (scopedCounts.get(row.id) ?? 0)
+        : (row.school_scores?.[0]?.count ?? 0),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -1254,12 +1288,17 @@ app.openapi(listScoresRoute, async (c) => {
     return c.json({ error: '找不到學校考試', code: 'NOT_FOUND' }, 404);
   }
 
+  // #2493 R6：受限管理員只看範圍內學生的成績（原本整份全機構名冊）
+  const scoreCampusIds = campusFilterIds(getCampusScope(c), undefined);
+  if (scoreCampusIds !== null && scoreCampusIds.length === 0) return c.json({ data: [] }, 200);
   let query = supabase
     .from('school_scores')
     .select(
-      'student_id, subject_id, score, status, notes, updated_at, students(name, grade), subjects(id, name)',
+      'student_id, subject_id, score, status, notes, updated_at, students(name, grade), subjects(id, name)' +
+        (scoreCampusIds ? `, ${SCORE_SCOPE_EMBED}` : ''),
     )
     .eq('school_exam_id', id);
+  if (scoreCampusIds) query = query.in(SCORE_SCOPE_COLUMN, [...scoreCampusIds]);
 
   if (studentId) {
     query = query.eq('student_id', studentId);
@@ -1271,7 +1310,7 @@ app.openapi(listScoresRoute, async (c) => {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
-  const rows = (data ?? []) as ScoreRowWithRelations[];
+  const rows = (data ?? []) as unknown as ScoreRowWithRelations[];
 
   return c.json(
     {
@@ -1397,6 +1436,29 @@ app.openapi(upsertScoresRoute, async (c) => {
 
     if (requestedStudentIds.some((studentId) => !allowed.has(studentId))) {
       return c.json({ error: '包含非自己任課班的學生', code: 'STUDENT_OUT_OF_SCOPE' }, 403);
+    }
+  } else if (getCampusScope(c) !== null) {
+    // #2493 W5：受限管理員只能登錄範圍內學生的成績（同 academy-exams，studentInScope 判準）
+    const campusScope = getCampusScope(c);
+    const requestedStudentIds = Array.from(new Set(body.scores.map((item) => item.studentId)));
+    const { data: scopedRows, error: scopedError } = await inChunks<{
+      id: string;
+      enrollments: unknown;
+    }>(requestedStudentIds, (part) =>
+      supabase
+        .from('students')
+        .select('id, enrollments(classes(campus_id))')
+        .eq('org_id', orgId)
+        .in('id', part),
+    );
+    if (scopedError) return c.json({ error: scopedError.message, code: 'DB_ERROR' }, 500);
+    const inScope = new Set(
+      (scopedRows ?? [])
+        .filter((row) => studentInScope(row.enrollments, campusScope))
+        .map((row) => row.id),
+    );
+    if (requestedStudentIds.some((studentId) => !inScope.has(studentId))) {
+      return c.json({ error: '包含不在你分校範圍內的學生', code: 'STUDENT_OUT_OF_SCOPE' }, 403);
     }
   }
 
@@ -1705,10 +1767,25 @@ app.openapi(recentStudentsRoute, async (c) => {
     return c.json({ error: '找不到學校考試', code: 'NOT_FOUND' }, 404);
   }
 
-  const { data, error } = await supabase
+  // #2493 R6：受限管理員只看範圍內學生
+  const recentCampusIds = campusFilterIds(getCampusScope(c), undefined);
+  if (recentCampusIds !== null && recentCampusIds.length === 0) return c.json({ data: [] }, 200);
+  let recentQuery = supabase
     .from('school_scores')
-    .select('student_id, updated_at, students(name, grade)')
+    .select(
+      'student_id, updated_at, students(name, grade)' +
+        (recentCampusIds ? `, ${SCORE_SCOPE_EMBED}` : ''),
+    )
     .eq('school_exam_id', id);
+  if (recentCampusIds) recentQuery = recentQuery.in(SCORE_SCOPE_COLUMN, [...recentCampusIds]);
+  const { data, error } = (await recentQuery) as unknown as {
+    data: Array<{
+      student_id: string;
+      updated_at: string;
+      students: { name: string; grade: string | null } | null;
+    }> | null;
+    error: { message: string } | null;
+  };
 
   if (error) {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
@@ -2030,7 +2107,8 @@ app.openapi(byStudentRoute, async (c) => {
     return c.json({ error: studentError.message, code: 'DB_ERROR' }, 500);
   }
 
-  if (!student) {
+  // #2493 R6：範圍外的學生跟不存在一樣（同 GET /students/:id）
+  if (!student || (await outOfCampusScope(supabase, orgId, studentId, getCampusScope(c)))) {
     return c.json({ error: '找不到學生', code: 'NOT_FOUND' }, 404);
   }
 
