@@ -30,6 +30,20 @@ function has(query: RecordedQuery, name: string, ...args: unknown[]): boolean {
   );
 }
 
+/**
+ * #953：替身**照查詢實際下的狀態條件**過濾報名（`in`／`eq` 都認；沒下條件就全回）——
+ * 條件寫成「只收 active」或忘了寫，人數就會跟著錯。
+ */
+function byStatus<T extends { status: string }>(q: RecordedQuery, rows: readonly T[]): T[] {
+  const inOp = q.ops.find((op) => op.name === 'in' && op.args[0] === 'status');
+  const eqOp = q.ops.find((op) => op.name === 'eq' && op.args[0] === 'status');
+  return rows.filter(
+    (r) =>
+      (!inOp || (inOp.args[1] as readonly string[]).includes(r.status)) &&
+      (!eqOp || eqOp.args[1] === r.status),
+  );
+}
+
 function createApp(resolve: Resolver, campusScope: string[] | null = null) {
   const queries: RecordedQuery[] = [];
 
@@ -139,6 +153,57 @@ describe('GET /api/sessions —— 在籍人數依課堂日期（#950）', () =>
     expect(body.data.map((s) => [s.id, s.attendanceEnrolledCount])).toEqual([
       ['s-1', 1],
       ['s-2', 2],
+    ]);
+  });
+
+  // #953：在籍＝active＋withdrawal（退班靠 effective_to 收尾）；待繳費、休學、作廢都不算
+  it('退班生在退班日前的課照算、之後不算；待繳費／休學／作廢不算（#953）', async () => {
+    const rows = [
+      { status: 'active', class_id: 'class-1', effective_from: '2026-01-01', effective_to: null },
+      // 4/10 退班：4/6 那堂算、4/13 那堂不算
+      {
+        status: 'withdrawal',
+        class_id: 'class-1',
+        effective_from: '2026-01-01',
+        effective_to: '2026-04-10',
+      },
+      {
+        status: 'pending_payment',
+        class_id: 'class-1',
+        effective_from: '2026-01-01',
+        effective_to: null,
+      },
+      {
+        status: 'suspended',
+        class_id: 'class-1',
+        effective_from: '2026-01-01',
+        effective_to: null,
+      },
+      {
+        status: 'void',
+        class_id: 'class-1',
+        effective_from: '2026-01-01',
+        effective_to: '2026-04-10',
+      },
+    ];
+    const { app } = createApp((q) => {
+      if (isMainQuery(q)) {
+        return {
+          data: [sessionRow('s-1', '2026-04-06', 'e-1'), sessionRow('s-2', '2026-04-13', 'e-2')],
+          count: 2,
+        };
+      }
+      if (q.table === 'enrollments') return { data: byStatus(q, rows) };
+      return { data: [] };
+    });
+
+    const res = await app.request('/api/sessions?from=2026-04-01&to=2026-04-30');
+    const body = (await res.json()) as {
+      data: Array<{ id: string; attendanceEnrolledCount: number }>;
+    };
+    expect(body.data.map((s) => [s.id, s.attendanceEnrolledCount])).toEqual([
+      ['s-1', 2],
+      ['s-2', 1],
     ]);
   });
 

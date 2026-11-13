@@ -35,6 +35,20 @@ const has = (q: RecordedQuery, name: string, ...args: unknown[]) =>
   );
 const arg = (q: RecordedQuery, name: string) => q.ops.find((op) => op.name === name)?.args[0];
 
+/**
+ * #953：替身**照查詢實際下的狀態條件**過濾報名（`in`／`eq` 都認；沒下條件就全回）——
+ * 條件寫成「只收 active」或忘了寫，人數就會跟著錯。
+ */
+function byStatus<T extends { status: string }>(q: RecordedQuery, rows: readonly T[]): T[] {
+  const inOp = q.ops.find((op) => op.name === 'in' && op.args[0] === 'status');
+  const eqOp = q.ops.find((op) => op.name === 'eq' && op.args[0] === 'status');
+  return rows.filter(
+    (r) =>
+      (!inOp || (inOp.args[1] as readonly string[]).includes(r.status)) &&
+      (!eqOp || eqOp.args[1] === r.status),
+  );
+}
+
 function createApp(resolve: Resolver, campusScope: string[] | null = null) {
   const queries: RecordedQuery[] = [];
   const supabase = {
@@ -204,6 +218,42 @@ describe('POST /api/sessions —— 加開單堂（#1109）', () => {
     expect(queued).toHaveBeenCalledWith(expect.anything(), [
       { session_id: NEW_ID, change_type: 'creation' },
     ]);
+  });
+
+  // #953：讀回的在籍人數跟列表同一個前提 —— active＋withdrawal，依課堂日期
+  it('讀回的在籍人數：退班日之後的退班生不算、退班前的算；待繳費／休學不算（#953）', async () => {
+    const rows = [
+      { status: 'active', class_id: CLASS_ID, effective_from: '2026-01-01', effective_to: null },
+      // 10/31 才退班：10/20 這堂還算
+      {
+        status: 'withdrawal',
+        class_id: CLASS_ID,
+        effective_from: '2026-01-01',
+        effective_to: '2026-10-31',
+      },
+      // 10/1 就退班：不算
+      {
+        status: 'withdrawal',
+        class_id: CLASS_ID,
+        effective_from: '2026-01-01',
+        effective_to: '2026-10-01',
+      },
+      {
+        status: 'pending_payment',
+        class_id: CLASS_ID,
+        effective_from: '2026-01-01',
+        effective_to: null,
+      },
+      { status: 'suspended', class_id: CLASS_ID, effective_from: '2026-01-01', effective_to: null },
+    ];
+    const base = resolver();
+    const { app } = createApp((q) =>
+      q.table === 'enrollments' ? { data: byStatus(q, rows) } : base(q),
+    );
+    const res = await post(app, body);
+    expect(res.status).toBe(201);
+    const json = (await res.json()) as { data: { attendanceEnrolledCount: number } };
+    expect(json.data.attendanceEnrolledCount).toBe(2);
   });
 
   it('不帶老師 → unassigned，不查老師衝突', async () => {

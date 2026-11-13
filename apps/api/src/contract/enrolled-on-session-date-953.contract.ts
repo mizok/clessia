@@ -86,7 +86,13 @@ run('#953 在籍依課堂日期：active／withdrawal，退班靠 effective_to',
     rejoined: '',
     pending: '',
     suspended: '',
+    // 日到班分校（今天一堂）：今天退班的兩個人（一個已打卡）＋一個在讀（已打卡）
+    dailyEvent: '',
+    wdTodayIn: '',
+    wdTodayOut: '',
+    dailyActive: '',
   };
+  let today = '';
   const eventOf: Record<string, string> = {};
 
   beforeAll(async () => {
@@ -168,12 +174,56 @@ run('#953 在籍依課堂日期：active／withdrawal，退班靠 effective_to',
         fx.suspended,
       ],
     );
+    // 日到班：記到班（attendance.ts check-in）與到班數（session-arrivals）也走同一個狀態前提
+    today = (
+      await q<{ d: string }>("select (now() at time zone 'Asia/Taipei')::date::text as d")
+    )[0]!.d;
+    const [daily] = await q<{ id: string }>(
+      "insert into campuses (org_id, name, attendance_mode) values ($1, 'B 校', 'daily_checkin') returning id",
+      [ctx.orgId],
+    );
+    const [dailyClass] = await q<{ id: string }>(
+      "insert into classes (org_id, campus_id, course_id, name) values ($1, $2, $3, '日到班班') returning id",
+      [ctx.orgId, daily!.id, course!.id],
+    );
+    const [dailyEvent] = await q<{ id: string }>(
+      `insert into events (org_id, event_type, title, event_date, start_time, end_time, campus_id)
+       values ($1, 'session', '日到班', $2, '08:00', '09:00', $3) returning id`,
+      [ctx.orgId, today, daily!.id],
+    );
+    fx.dailyEvent = dailyEvent!.id;
+    await q(
+      `insert into sessions (org_id, class_id, session_date, start_time, end_time, status, assignment_status, event_id)
+       values ($1, $2, $3, '08:00', '09:00', 'scheduled', 'unassigned', $4)`,
+      [ctx.orgId, dailyClass!.id, today, fx.dailyEvent],
+    );
+    [fx.wdTodayIn, fx.wdTodayOut, fx.dailyActive] = (
+      await q<{ id: string }>(
+        `insert into students (org_id, name, grade)
+         select $1, n, 'J1' from unnest(array['今天退班已打卡','今天退班沒打卡','日到班在讀']) with ordinality t(n, i)
+         order by i returning id`,
+        [ctx.orgId],
+      )
+    ).map((r) => r.id) as [string, string, string];
+    await q(
+      `insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from, effective_to)
+       values ($1, $2, $3, 'withdrawal', 'monthly', 1000, '2026-01-01', $6),
+              ($1, $2, $4, 'withdrawal', 'monthly', 1000, '2026-01-01', $6),
+              ($1, $2, $5, 'active', 'monthly', 1000, '2026-01-01', null)`,
+      [ctx.orgId, dailyClass!.id, fx.wdTodayIn, fx.wdTodayOut, fx.dailyActive, today],
+    );
+    await q(
+      `insert into daily_checkins (org_id, campus_id, student_id, checkin_date)
+       select $1, $2, s, $3 from unnest($4::uuid[]) s`,
+      [ctx.orgId, daily!.id, today, [fx.wdTodayIn, fx.dailyActive]],
+    );
     app = (await import('../index')).default as never;
   }, 120_000);
 
   afterAll(async () => {
     if (!ctx.orgId) return;
     for (const sql of [
+      'delete from daily_checkins where org_id = $1',
       'delete from attendance_records where org_id = $1',
       'update sessions set event_id = null where org_id = $1',
       'delete from events where org_id = $1',
@@ -237,14 +287,14 @@ run('#953 在籍依課堂日期：active／withdrawal，退班靠 effective_to',
   });
 
   it('點名寫入跟名單同一條：上個月的課可以替退班生補登，作廢的報名不行', async () => {
-    const save = (studentId: string) =>
+    const save = (studentId: string, date = PAST) =>
       app.request(
         '/api/attendance/batch',
         {
           method: 'PATCH',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            eventId: eventOf[PAST],
+            eventId: eventOf[date],
             updates: [{ studentId, status: 'present' }],
           }),
         },
@@ -258,9 +308,37 @@ run('#953 在籍依課堂日期：active／withdrawal，退班靠 effective_to',
       const res = await save(id);
       expect({ status: res.status, body: await res.text() }).toMatchObject({ status: 400 });
     }
+    // 退班生只能補登退班日（effective_to）之前的課；之後那堂一樣擋
+    const after = await save(fx.withdrawn, MID);
+    expect(after.status).toBe(400);
+    expect(((await after.json()) as { error: string }).error).toBe('部分學生不在此課堂修課名單中');
     const withdrawn = await save(fx.withdrawn);
     expect({ status: withdrawn.status, body: await withdrawn.text() }).toMatchObject({
       status: 200,
     });
+  });
+
+  it('日到班：今天退班的學生今天仍算到班（結束當天在籍），也記得了到班', async () => {
+    const res = await app.request(`/api/attendance/sessions?date=${today}&pageSize=100`, {}, env);
+    expect(res.status).toBe(200);
+    const { data } = (await res.json()) as {
+      data: Array<{ eventId: string; enrolledCount: number; checkedInCount: number | null }>;
+    };
+    const s = data.find((row) => row.eventId === fx.dailyEvent);
+    expect({ enrolled: s?.enrolledCount, checkedIn: s?.checkedInCount }).toEqual({
+      enrolled: 3,
+      checkedIn: 2,
+    });
+
+    const mark = await app.request(
+      `/api/attendance/roster/${fx.dailyEvent}/check-in`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ studentId: fx.wdTodayOut }),
+      },
+      env,
+    );
+    expect({ status: mark.status, body: await mark.text() }).toMatchObject({ status: 201 });
   });
 });
