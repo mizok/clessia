@@ -182,7 +182,7 @@
         <div class="acct-menu__me">${av('acct-av--lg')}<div class="acct-menu__txt"><p class="acct-menu__name">${ME.name}</p><p class="acct-menu__mail">${ME.email}</p></div></div>
         <div class="acct-menu__grp" role="group" aria-labelledby="acct-sw">
           <p class="acct-menu__h" id="acct-sw">切換身分</p>
-          ${ME.roles.map((r) => (r === ME.role // R5 11-02（#2495 B2 回寫）：全部身分都列，目前的打勾標「使用中」；不用 disabled（跳過 Tab）
+          ${[ME.role, ...ME.roles.filter((r) => r !== ME.role)].map((r) => (r === ME.role // R5 11-02（#2495 B2 回寫）：全部身分都列，目前的打勾標「使用中」、排第一；不用 disabled（跳過 Tab）
             ? `<button class="acct-menu__item" type="button" aria-current="true" aria-disabled="true">${icon[ROLE[r][1]]}${ROLE[r][0]}<span class="acct-menu__now">${icon.check}使用中</span></button>`
             : `<button class="acct-menu__item" type="button" data-switch="${r}">${icon[ROLE[r][1]]}${ROLE[r][0]}</button>`)).join('')}
         </div>

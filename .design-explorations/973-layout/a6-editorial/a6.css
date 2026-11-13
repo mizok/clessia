@@ -953,8 +953,10 @@ textarea.acset__in { height: auto; min-height: 96px; padding: var(--space-2) var
   .top__tools { flex: 1 1 0; min-width: 0; justify-content: flex-end; }
   .top__campus { min-width: 0; max-width: 10rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .top__bell { width: 44px; height: 44px; }
-  .acct { margin-left: 4px; }
+  .acct { margin-left: 4px; padding: 0 6px; }
   .more { max-height: calc(100% - 72px); overflow-y: auto; }
   .more__grid { display: block; columns: 2; column-gap: var(--space-6); }
-  .more__grid > div { break-inside: avoid; margin-bottom: var(--space-4); }
+  .more__grid > div { break-inside: avoid; margin-bottom: var(--space-6); }
+  .more__grid > div:last-child { margin-bottom: 0; }
+  .more a { display: flex; align-items: center; min-height: 44px; padding: 0; }
 }

@@ -111,9 +111,10 @@ export const DEVIATIONS = [
   {
     status: '樣式',
     a6: '^>landmark:banner\\[\\]>control:link\\[Clessia\\]$',
-    detail: '^fontSize 22px → 20px；lineHeight 22px → 20px(；display block → flex)?$',
-    reason: 'Logo 22 → 20px：頂欄一列放得下',
-    source: `${rule('R5')}「手機頂欄一列」2026-10-22；#1866`,
+    // #2495 B2 起稿的手機 Logo 也是 20px，剩下 display／gap：app 字標前多了品牌 mark（flex 排 mark＋字）
+    detail: '^(fontSize 22px → 20px；lineHeight 22px → 20px；)?display block → flex(；rowGap normal → \\d+px；columnGap normal → \\d+px)?$',
+    reason: '字標前多了品牌 mark（Logo 用 flex 排 mark＋字）；手機字級 20 稿已回寫',
+    source: `${rule('R5')}「品牌 mark 進 app 內（三處）」2026-11-12；「手機頂欄一列」2026-10-22；#1866`,
   },
   // 稿的「新」標記（span.new）是設計說明，不是畫面內容（a6.js 的 ddLabel 也剔掉它）。配對時已經拿掉它比
   // （extract 的 alt，#1314 10-30），剩下的就是「新」那顆小標本身、以及只差一個「新」的文案
@@ -129,6 +130,16 @@ export const DEVIATIONS = [
     detail: '^「(.+)新」→「\\1」$',
     reason: '稿的「新」標記是設計說明，拿掉之後文案相同',
     source: '.design-explorations a6.js ddLabel（剔除 .new）',
+  },
+  {
+    // R5 2026-10-16（#1701）：手機「更多」兩欄流排已回寫稿（#2495 B2）；app 的項目比稿多（R2 收進來的公開申請、到班打卡），
+    // 左欄比較高，分組落在哪一欄跟稿不同
+    status: '位置',
+    widths: [360],
+    pop: 'more',
+    detail: '^相對「popover」 ',
+    reason: '手機「更多」兩欄流排（稿已回寫），app 項目比稿多（R2），分組落在哪一欄不同',
+    source: `${rule('R5')}「手機「更多」選單排法與捲動」2026-10-16；#1701；${rule('R2')}`,
   },
   {
     // R5 2026-10-16：公開頁入口不加「QR 到班打卡」—— 打卡改成先登入行政帳號、移到內部頁面（#1127）
@@ -322,7 +333,7 @@ export const DATA_DEPENDENT = [
     reason: '身分數隨帳號：稿的示範使用者有 3 個身分，seed 的多身分帳號最多 2 個',
   },
   {
-    a6: '^pop\\[acct\\]>.*(text:p\\[切換身分\\]|control:button\\[(管理員|任課老師|家長)\\])',
+    a6: '^pop\\[acct\\]>.*(text:p\\[切換身分\\]|control:button\\[(管理員|任課老師|家長)(使用中)?\\])',
     reason: '「切換身分」只在多身分帳號出現；稿的示範使用者有 3 個身分（app `hasOtherRoles()`）',
   },
 ];
@@ -3795,7 +3806,7 @@ export const PAGES = {
       // 數字的位數、狀態標籤的長度、帳單列數隨資料 →「元」、dt 寬、副行、已繳清章頭、餐費連結跟著移
       ...['位置', '尺寸'].map((status) => ({
         status,
-        a6: '(text:dd\\[#\\](~2)?>text:small\\[元\\]|text:dt\\[本學期已繳\\]|text:span\\[繳費期限#\\]|heading:h2\\[已繳清\\]|control:link\\[看餐費紀錄\\])$',
+        a6: '(text:dd\\[#\\](~2)?>text:small\\[元\\]|text:dt\\[本學期已繳\\]|text:span\\[繳費期限#\\]|heading:h2\\[已繳清\\]|text:span\\[#張\\]~2|control:link\\[看餐費紀錄\\])$',
         reason: '資料：金額位數、狀態標籤長度、帳單列數',
         source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924、#1968`,
       })),
