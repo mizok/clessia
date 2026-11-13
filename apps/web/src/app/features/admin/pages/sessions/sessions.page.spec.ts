@@ -1802,16 +1802,32 @@ describe('SessionsPage', () => {
       expect(c.pendingMenuSession()).toBeNull();
     });
 
-    // #1314 S3：那一堂在課表上找不到（被篩選擋住、或已經不在那天）→ 說出來，不要只切天
-    it('找不到那一堂：出提示，不是什麼都沒發生', async () => {
+    // #1314 S3：那一堂在課表上找不到 → 說出來，不要只切天；有篩選與沒篩選的原因不同，文案分開
+    it.each([
+      [true, '清除篩選'],
+      [false, '刪除或改到別天'],
+    ])('找不到那一堂（有篩選：%s）：出提示，detail 含「%s」', async (filtered, phrase) => {
       const add = vi.spyOn(MessageService.prototype, 'add');
       try {
-        const { f } = await open({ focusDate: '2026-10-20', focusSession: 'no-such-session' });
+        const pending = new Subject<ReturnType<typeof makeListResponse>>();
+        const { f, c } = await open(
+          { focusDate: '2026-10-20', focusSession: 'no-such-session' },
+          pending,
+        );
+        const page = c as unknown as { selectedTeacherIds: { set: (v: string[]) => void } };
+        if (filtered) page.selectedTeacherIds.set(['t-1']);
+        pending.next(makeListResponse());
+        pending.complete();
+        f.detectChanges();
         await f.whenStable();
         f.detectChanges();
         await f.whenStable();
         expect(add).toHaveBeenCalledWith(
-          expect.objectContaining({ severity: 'info', summary: '這一堂在課表上看不到' }),
+          expect.objectContaining({
+            severity: 'info',
+            summary: '這一堂在課表上看不到',
+            detail: expect.stringContaining(phrase),
+          }),
         );
       } finally {
         add.mockRestore();
