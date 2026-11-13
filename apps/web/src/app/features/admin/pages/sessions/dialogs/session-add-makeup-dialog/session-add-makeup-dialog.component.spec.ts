@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { type Session, SessionsService } from '@core/sessions.service';
@@ -102,6 +102,21 @@ describe('SessionAddMakeupDialogComponent（#1314 S7）', () => {
     const { c, ref } = setup({ setMakeup: throwError(() => new Error('boom')) });
     await c.submit();
     expect(ref.close).toHaveBeenCalledWith({ date: '2026-10-09', linked: false });
+  });
+
+  it('按一下送出只走 form 的 submit 一次；送出中再送一次表單，create 仍只打一次', async () => {
+    const pending = new Subject<{ data: { id: string } }>();
+    const { fixture, c, sessions } = setup({ create: pending });
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    // 鈕另外綁 click 的話 submit 會被叫兩次（API 被守門擋成一次，看不出來）
+    const submit = vi.spyOn(c, 'submit');
+    el.querySelector<HTMLButtonElement>('[data-testid="op-submit"]')!.click();
+    expect(submit).toHaveBeenCalledTimes(1);
+    // 送出中（create 還沒回來）：Enter 之類的再送一次表單
+    el.querySelector('form')!.dispatchEvent(new Event('submit'));
+    expect(submit).toHaveBeenCalledTimes(2);
+    expect(sessions.create).toHaveBeenCalledTimes(1);
   });
 
   it('結束早於開始：不送', async () => {

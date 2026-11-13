@@ -67,6 +67,8 @@ export class SessionAddMakeupDialogComponent {
   }
 
   protected async submit(): Promise<void> {
+    // 送出中擋重送（同 #2479）：送出鈕 disabled 擋得住滑鼠，擋不住 Enter 再送一次表單
+    if (this.isSubmitting()) return;
     this.submitError.set(null);
     if (this.form.invalid) {
       this.form.markAllAsTouched();
