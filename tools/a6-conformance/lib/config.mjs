@@ -1984,6 +1984,14 @@ export const PAGES = {
         reason: 'ARIA 角色依元件行為：學生欄有建議清單＝combobox（app-student-autocomplete）',
         source: `${rule('R7')}`,
       })),
+      {
+        status: '文案',
+        pop: 'direct',
+        a6: '>control:button\\[選擇：輸入姓名搜尋\\]>text:span\\[輸入姓名搜尋\\]$',
+        detail: '「學生\\*」$',
+        reason: '可及名稱用欄位標籤「學生」，不用 placeholder（#2468）',
+        source: `${rule('R5', '「學生欄的可及名稱用標籤」2026-11-13')}`,
+      },
       // 「繳費單」欄（SD9 #2296）：radio 群組用 fieldset＋legend（同核准對話框），稿是 label
       {
         status: '角色',
@@ -3109,6 +3117,13 @@ export const PAGES = {
         detail: '^control:searchbox → control:combobox$',
         reason: 'ARIA 角色依元件行為：有建議清單的搜尋是 combobox',
         source: `${rule('R7')}`,
+      },
+      {
+        status: '文案',
+        a6: 'control:searchbox\\[輸入學生姓名篩選\\]$',
+        detail: '「篩選學生」$',
+        reason: '可及名稱用「篩選學生」，不用 placeholder（#2468）',
+        source: `${rule('R5', '「學生欄的可及名稱用標籤」2026-11-13')}`,
       },
       ...['尺寸', '樣式', '位置'].map((status) => ({
         status,
