@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '@env/environment';
+import type { SchoolCalendarKind } from './schools.service';
 
 export interface Schedule {
   id: string;
@@ -168,6 +169,18 @@ export interface SplitScheduleResult {
   createdCount: number;
   /** 有資料而保留的舊課堂，要行政自己用「批次改時間」處理 */
   kept: Array<{ id: string; sessionDate: string; startTime: string; reasons: SplitKeptReason[] }>;
+}
+
+/** 產生課堂的學校行事曆疊圖一筆（#1160）：這班在讀學生的學校、跟區間重疊的事件 */
+export interface ClassSchoolCalendarEvent {
+  readonly kind: SchoolCalendarKind;
+  readonly startDate: string;
+  readonly endDate: string;
+  readonly note: string | null;
+  readonly schoolId: string;
+  readonly schoolName: string;
+  /** 該校在這班有幾位在讀學生 */
+  readonly studentCount: number;
 }
 
 export interface SessionPreview {
@@ -355,6 +368,18 @@ export class ClassesService {
     return this.http.get<{ data: SessionPreview[] }>(
       `${this.endpoint}/${classId}/sessions/preview`,
       { params },
+    );
+  }
+
+  /** `meta.studentCount` 為 0 ＝這班還沒有在讀學生（畫面寫原因、不疊，#1160 Q3） */
+  schoolCalendar(
+    classId: string,
+    from: string,
+    to: string,
+  ): Observable<{ data: ClassSchoolCalendarEvent[]; meta: { studentCount: number } }> {
+    return this.http.get<{ data: ClassSchoolCalendarEvent[]; meta: { studentCount: number } }>(
+      `${this.endpoint}/${classId}/school-calendar`,
+      { params: { from, to } },
     );
   }
 

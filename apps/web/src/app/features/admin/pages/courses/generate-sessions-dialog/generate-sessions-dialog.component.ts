@@ -1,5 +1,7 @@
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { Component, inject, signal, computed } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, catchError, map, of, startWith, switchMap } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
@@ -7,8 +9,10 @@ import {
   ClassesService,
   Class,
   SessionPreview,
+  type ClassSchoolCalendarEvent,
   type GenerateSessionsResult,
 } from '@core/classes.service';
+import { SCHOOL_CALENDAR_KIND_LABELS } from '@core/schools.service';
 import { SystemClockService } from '@core/system-clock.service';
 
 /** 預覽清單的一列：**一天一列**（API 的排除是按日，同一天兩個時段不能各自排除，R7） */
@@ -17,6 +21,30 @@ interface PreviewDay {
   /** 「11/12（三） 18:00–19:30、19:40–21:00 · 王老師」 */
   label: string;
   sessions: number;
+  /** 學校行事曆副標，一種事件一行：「寒假：○○國中、△△國小（共 5 位學生）」（#1160） */
+  marks: string[];
+}
+
+/** 疊圖狀態：讀取失敗只影響摘要那一行，不擋產生（#1160） */
+type CalendarState =
+  | { status: 'loading' }
+  | { status: 'failed' }
+  | { status: 'ok'; events: ClassSchoolCalendarEvent[]; studentCount: number };
+
+/** 某天的副標：同一天同種事件併成一行，學生數依學校去重加總 */
+function marksOn(date: string, events: readonly ClassSchoolCalendarEvent[]): string[] {
+  const byKind = new Map<string, Map<string, ClassSchoolCalendarEvent>>();
+  for (const e of events) {
+    if (e.startDate > date || e.endDate < date) continue;
+    const schools = byKind.get(e.kind) ?? new Map();
+    schools.set(e.schoolId, e);
+    byKind.set(e.kind, schools);
+  }
+  return [...byKind.entries()].map(([kind, schools]) => {
+    const list = [...schools.values()];
+    const students = list.reduce((n, e) => n + e.studentCount, 0);
+    return `${SCHOOL_CALENDAR_KIND_LABELS[kind as ClassSchoolCalendarEvent['kind']]}：${list.map((e) => e.schoolName).join('、')}（共 ${students} 位學生）`;
+  });
 }
 
 const WD = ['', '一', '二', '三', '四', '五', '六', '日'];
@@ -53,6 +81,16 @@ export class GenerateSessionsDialogComponent {
   protected readonly generateTo = signal<string>(this.cls()?.endDate ?? '');
   protected readonly previewSessions = signal<SessionPreview[]>([]);
   protected readonly excluded = signal<ReadonlySet<string>>(new Set());
+  protected readonly calendar = signal<CalendarState | null>(null);
+  /**
+   * 疊圖請求一律走這條 switchMap：新一輪預覽或改日期（null）就取消上一輪 ——
+   * 舊回應晚到不能蓋掉新的，不然摘要與副標對的是上一段日期（#2474 二讀）
+   */
+  private readonly calendarRequests = new Subject<{
+    id: string;
+    from: string;
+    to: string;
+  } | null>();
   /** 底部「還差什麼」（A6 `.fdlg__why`）：按了才出現的原因 */
   private readonly reason = signal<string | null>(null);
 
@@ -80,12 +118,14 @@ export class GenerateSessionsDialogComponent {
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(0, MAX_DAYS)
       .map(([date, list]) => {
+        const cal = this.calendar();
         const times = list.map((s) => `${s.startTime.slice(0, 5)}–${s.endTime.slice(0, 5)}`);
         const teachers = [...new Set(list.map((s) => s.teacherName).filter(Boolean))];
         return {
           date,
           label: `${md(date)}（${WD[list[0]!.weekday] ?? ''}） ${times.join('、')}${teachers.length ? ` · ${teachers.join('、')}` : ''}`,
           sessions: list.length,
+          marks: cal?.status === 'ok' ? marksOn(date, cal.events) : [],
         };
       });
   });
@@ -99,6 +139,18 @@ export class GenerateSessionsDialogComponent {
       .filter((d) => this.excluded().has(d.date))
       .reduce((n, d) => n + d.sessions, 0),
   );
+
+  /** 清單上方一行摘要（Q3 (a)：沒學生不疊、寫原因） */
+  protected readonly calendarSummary = computed(() => {
+    const cal = this.calendar();
+    if (!cal || cal.status === 'loading') return null;
+    if (cal.status === 'failed') return '學校行事曆讀取失敗';
+    if (cal.studentCount === 0) return '這班還沒有學生，看不到學校行事曆';
+    const marked = this.days().filter((d) => d.marks.length > 0);
+    if (marked.length === 0) return '這段期間這班學生的學校沒有行事曆標記';
+    const schools = new Set(cal.events.map((e) => e.schoolId)).size;
+    return `這段期間有 ${schools} 所學校的行事曆標記，共 ${marked.length} 天（只顯示這班學生的學校）`;
+  });
 
   protected readonly why = computed(() => {
     if (this.reason()) return this.reason();
@@ -123,7 +175,34 @@ export class GenerateSessionsDialogComponent {
       this.step.set('input');
       this.previewSessions.set([]);
       this.excluded.set(new Set());
+      this.calendarRequests.next(null);
     }
+  }
+
+  /** 跟預覽同時打；只標示、不自動取消勾選（內文：自動避開之後再談） */
+  private loadCalendar(id: string, from: string, to: string): void {
+    this.calendarRequests.next({ id, from, to });
+  }
+
+  constructor() {
+    this.calendarRequests
+      .pipe(
+        switchMap((req) =>
+          !req
+            ? of(null)
+            : this.classesService.schoolCalendar(req.id, req.from, req.to).pipe(
+                map((res): CalendarState => ({
+                  status: 'ok',
+                  events: res.data,
+                  studentCount: res.meta.studentCount,
+                })),
+                catchError(() => of<CalendarState>({ status: 'failed' })),
+                startWith<CalendarState>({ status: 'loading' }),
+              ),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe((state) => this.calendar.set(state));
   }
 
   protected toggleDay(date: string, included: boolean): void {
@@ -150,6 +229,7 @@ export class GenerateSessionsDialogComponent {
       return;
     }
     this.loading.set(true);
+    this.loadCalendar(c.id, from, to);
     this.classesService.previewSessions(c.id, from, to, []).subscribe({
       next: (res) => {
         this.loading.set(false);

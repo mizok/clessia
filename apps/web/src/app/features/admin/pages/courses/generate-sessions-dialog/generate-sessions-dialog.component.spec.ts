@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { BrowserStateService } from '@core/browser-state.service';
@@ -33,11 +33,15 @@ describe('GenerateSessionsDialogComponent', () => {
       }),
     ),
     generateSessions: vi.fn(),
+    schoolCalendar: vi.fn((_id: string, _from: string, _to: string) =>
+      of({ data: [] as unknown[], meta: { studentCount: 3 } }),
+    ),
   };
 
   beforeEach(async () => {
     classesServiceMock.previewSessions.mockClear();
     classesServiceMock.generateSessions.mockReset();
+    classesServiceMock.schoolCalendar.mockClear();
     dialogRefMock.close.mockClear();
 
     await TestBed.configureTestingModule({
@@ -223,5 +227,92 @@ describe('GenerateSessionsDialogComponent', () => {
     (component as unknown as { cancel: () => void }).cancel();
 
     expect(dialogRefMock.close).toHaveBeenCalledWith('refresh');
+  });
+
+  describe('學校行事曆疊圖（#1160 PR4）', () => {
+    const cal = (
+      kind: string,
+      startDate: string,
+      endDate: string,
+      schoolId: string,
+      n: number,
+    ) => ({
+      kind,
+      startDate,
+      endDate,
+      note: null,
+      schoolId,
+      schoolName: schoolId === 's1' ? '明湖國中' : '麗山國中',
+      studentCount: n,
+    });
+    const summary = () =>
+      el().querySelector('[data-testid="gen-calendar-summary"]')?.textContent?.trim();
+    const marks = () =>
+      [...el().querySelectorAll('[data-part="gen-calendar-mark"]')].map((m) =>
+        m.textContent!.trim(),
+      );
+
+    it('預覽時同區間打疊圖；那天有事件就加副標、上方寫摘要；不自動取消勾選', () => {
+      classesServiceMock.schoolCalendar.mockReturnValueOnce(
+        of({
+          data: [
+            cal('no_class', '2026-03-16', '2026-03-16', 's1', 2),
+            cal('no_class', '2026-03-10', '2026-03-17', 's2', 1),
+          ],
+          meta: { studentCount: 5 },
+        }) as never,
+      );
+      toPreview([sess('2026-03-16', '18:00'), sess('2026-03-23', '18:00')]);
+
+      expect(classesServiceMock.schoolCalendar).toHaveBeenCalledWith(
+        'class-1',
+        '2026-03-16',
+        '2026-03-31',
+      );
+      expect(marks()).toEqual(['停課：明湖國中、麗山國中（共 3 位學生）']);
+      expect(summary()).toBe('這段期間有 2 所學校的行事曆標記，共 1 天（只顯示這班學生的學校）');
+      expect(el().querySelector('[data-testid="gen-sum"]')!.textContent).toContain('排除 0 堂');
+    });
+
+    it('這班沒有學生：寫原因、不疊', () => {
+      classesServiceMock.schoolCalendar.mockReturnValueOnce(
+        of({ data: [], meta: { studentCount: 0 } }) as never,
+      );
+      toPreview([sess('2026-03-16', '18:00')]);
+      expect(summary()).toBe('這班還沒有學生，看不到學校行事曆');
+      expect(marks()).toEqual([]);
+    });
+
+    it('改日期重新預覽：上一輪晚到的回應不蓋掉新的', () => {
+      const first = new Subject<unknown>();
+      const second = new Subject<unknown>();
+      classesServiceMock.schoolCalendar
+        .mockReturnValueOnce(first as never)
+        .mockReturnValueOnce(second as never);
+      toPreview([sess('2026-03-16', '18:00')]);
+      setDate('gen-to', '2026-03-30');
+      classesServiceMock.previewSessions.mockReturnValueOnce(
+        of({ data: [sess('2026-03-16', '18:00')] }) as never,
+      );
+      next();
+
+      second.next({ data: [], meta: { studentCount: 0 } });
+      first.next({
+        data: [cal('no_class', '2026-03-16', '2026-03-16', 's1', 2)],
+        meta: { studentCount: 5 },
+      });
+      fixture.detectChanges();
+      expect(summary()).toBe('這班還沒有學生，看不到學校行事曆');
+      expect(marks()).toEqual([]);
+    });
+
+    it('讀取失敗：只影響摘要那一行，照樣能產生', () => {
+      classesServiceMock.schoolCalendar.mockReturnValueOnce(
+        throwError(() => new Error('x')) as never,
+      );
+      toPreview([sess('2026-03-16', '18:00')]);
+      expect(summary()).toBe('學校行事曆讀取失敗');
+      expect(el().querySelector('[data-testid="gen-sum"]')!.textContent).toContain('將產生 1 堂');
+    });
   });
 });

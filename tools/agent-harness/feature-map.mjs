@@ -93,7 +93,7 @@ const AREAS = [
     routes: ['campuses'],
     specs: ['admin/system/campuses.md', 'admin/system/campus-classrooms.md'],
   },
-  { name: '學校', pages: ['admin/schools'], routes: ['schools'], specs: [] },
+  { name: '學校', pages: ['admin/schools'], routes: ['schools', 'school-calendar-events'], specs: ['admin/system/school-calendar.md'] },
   { name: '科目', pages: ['admin/subjects'], routes: ['subjects'], specs: [] },
   {
     name: '課程與班級',

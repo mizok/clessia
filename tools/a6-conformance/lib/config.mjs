@@ -1976,13 +1976,13 @@ export const PAGES = {
         reason: 'ARIA 角色依元件行為：學生欄有建議清單＝combobox（app-student-autocomplete）',
         source: `${rule('R7')}`,
       })),
-      // 稿的「繳費單」欄＝SD9，不畫
+      // 「繳費單」欄（SD9 #2296）：radio 群組用 fieldset＋legend（同核准對話框），稿是 label
       {
-        status: '缺',
+        status: '角色',
         pop: 'direct',
-        a6: '>landmark:form\\[\\]>text:label\\[(繳費單|建立繳費單（待繳費）|不建立（已收款或免費）)\\](>control:radio\\[[^\\]]*\\])?$',
-        reason: '直接報名不畫「繳費單」欄（SD9 #2296），建正式報名',
-        source: `${rule('R5', '「直接報名不畫繳費單欄」2026-11-05')}`,
+        a6: '>landmark:form\\[\\]>text:label\\[繳費單\\]$',
+        reason: 'radio 群組的標題用 fieldset＋legend（同核准對話框），稿是 label',
+        source: `${rule('R7')}；${rule('R5', '「直接報名畫繳費單欄」2026-11-12')}`,
       },
       // 生效迄可留白＋說明；多一欄「費用方案」—— 下面的欄位跟著往下
       ...[
