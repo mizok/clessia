@@ -26,6 +26,19 @@ describe('StudentAutocompleteComponent', () => {
     expect(autoComplete.forceSelection).toBe(false);
   });
 
+  // #2468：placeholder 不是可及名稱 —— 三種接法都要落在真正的 input 上
+  it('inputId／ariaLabelledBy／ariaLabel 落在真正的 input', () => {
+    const input = () => fixture.nativeElement.querySelector('input') as HTMLInputElement;
+    expect(input().getAttribute('aria-label')).toBeNull();
+    fixture.componentRef.setInput('inputId', 'stu-x');
+    fixture.componentRef.setInput('ariaLabelledBy', 'lbl-x');
+    fixture.componentRef.setInput('ariaLabel', '篩選學生');
+    fixture.detectChanges();
+    expect(input().id).toBe('stu-x');
+    expect(input().getAttribute('aria-labelledby')).toBe('lbl-x');
+    expect(input().getAttribute('aria-label')).toBe('篩選學生');
+  });
+
   // #2205（使用者 11-03 裁定）：登記請假彈窗是 showModal() 的 top layer，手機改成內嵌清單
   describe('inline（#2205）', () => {
     const ac = () =>

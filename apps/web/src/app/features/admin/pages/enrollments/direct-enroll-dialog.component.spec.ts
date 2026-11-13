@@ -72,6 +72,14 @@ function setup(permissions: readonly string[] = []) {
 }
 
 describe('DirectEnrollDialogComponent（#1314 EN2）', () => {
+  it('#2468：「學生」label 指到自動完成真正的 input（可及名稱不靠 placeholder）', () => {
+    const { el } = setup();
+    const label = el.querySelector('label[for="direct-enroll-student"]');
+    const input = el.querySelector('input#direct-enroll-student');
+    expect(label?.textContent).toContain('學生');
+    expect(input?.tagName).toBe('INPUT');
+  });
+
   it('必填沒填：寫還差什麼、不送', () => {
     const { cmp, create, hint } = setup();
     expect(hint()).toBe('還沒填：學生、開課班');

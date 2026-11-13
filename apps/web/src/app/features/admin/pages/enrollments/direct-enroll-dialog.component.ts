@@ -78,10 +78,13 @@ type InvoiceChoice = 'create' | 'none';
             (submit)="$event.preventDefault(); save()"
           >
             <div class="col-span-full min-w-0">
-              <label class="mb-1 block text-md font-semibold text-zinc-700"
+              <label
+                class="mb-1 block text-md font-semibold text-zinc-700"
+                for="direct-enroll-student"
                 >學生 <span class="text-error-700" aria-hidden="true">*</span></label
               >
               <app-student-autocomplete
+                inputId="direct-enroll-student"
                 placeholder="輸入姓名搜尋"
                 [inline]="true"
                 [forceSelection]="true"
