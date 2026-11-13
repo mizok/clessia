@@ -212,8 +212,9 @@ export const DEVIATIONS = [
     // 上一條的連帶（手機）：入口列少了 QR 那一行（56px），品牌面中段用 margin:auto 置中 → 學程管家／標語下移一半
     status: '位置',
     widths: [360],
-    a6: 'landmark:complementary\\[\\]>(heading:h2\\[學程管家\\]|text:p\\[讓學習旅程更輕鬆\\])$',
-    detail: '^相對「complementary」 Δx 0、Δy \\+(2[4-9]|3[0-2])（',
+    // #2495 B6 起標題是補習班名稱、字標已對齊稿，剩下的下移量是 11 左右
+    a6: 'landmark:complementary\\[\\]>(heading:h2\\[[^\\]]*\\]|text:p\\[讓學習旅程更輕鬆\\])$',
+    detail: '^相對「complementary」 Δx 0、Δy \\+(1[0-9]|2[0-9]|3[0-2])（',
     reason: '連帶：入口列少 QR 那一行，品牌面中段置中，下移一半',
     source: `${rule('R5')}「公開頁入口 QR 到班打卡」2026-10-16；#1636`,
   },
@@ -481,7 +482,29 @@ const selectFieldInDialog = (pop, name, ddName = name) =>
  * （稿是大字 Clessia、下面一行學程管家）。字標兩顆的文案、尺寸、樣式，以及多出來的「· 學程管家」字。
  */
 // #2495 B6：品牌面（補習班名稱主標、Clessia · 學程管家小字）已回寫稿，原本的 4 條拿掉
-const PUBLIC_BRAND_DEVIATIONS = [];
+const PUBLIC_BRAND_DEVIATIONS = [
+  // app 字標前多了品牌 mark（20px＋gap）：字標寬 +25、「· 學程管家」右移
+  {
+    status: '尺寸',
+    a6: '^>landmark:complementary\\[\\]>control:link\\[Clessia·學程管家\\]$',
+    detail: '^寬 \\d+→\\d+$',
+    reason: '字標前多了品牌 mark',
+    source: `${rule('R5')}「品牌 mark 進 app 內（三處）」2026-11-12`,
+  },
+  {
+    status: '位置',
+    a6: 'control:link\\[Clessia·學程管家\\]>text:span\\[·學程管家\\]$',
+    detail: '^相對「Clessia·學程管家」 Δx \\+2\\d、',
+    reason: '字標前多了品牌 mark，「· 學程管家」跟著右移',
+    source: `${rule('R5')}「品牌 mark 進 app 內（三處）」2026-11-12`,
+  },
+  {
+    status: '文案',
+    a6: '^>landmark:complementary\\[\\]>heading:h2\\[[^\\]]*\\]$',
+    reason: '資料：補習班名稱（稿的示範名稱；app 讀 GET /api/public/org）',
+    source: `${rule('R5')}「公開頁品牌面的字標與補習班名稱」2026-10-22；#1858`,
+  },
+];
 /**
  * 老師／家長收件匣（通知＋公告）共用的偏離。內容是 seed-demo 寫的（#1314 10-30），標題、則數是資料差；
  * 保留期限句、類型標籤原本是 R5 已裁的偏離，#2495 已回寫稿。

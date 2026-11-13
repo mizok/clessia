@@ -951,7 +951,7 @@ textarea.acset__in { height: auto; min-height: 96px; padding: var(--space-2) var
 .ps__product { font-size: 15px; font-weight: var(--font-semibold); letter-spacing: normal; opacity: 0.8; }
 .ps__tagline { margin: var(--space-6) 0 var(--space-1); font-size: 36px; font-weight: var(--font-bold); line-height: 1.1; letter-spacing: -0.03em; opacity: 1; }
 @media (max-width: 1024px) {
-  .ps__logo { font-size: 20px; letter-spacing: -0.02em; }
+  .ps__logo { align-self: flex-start; min-height: 44px; font-size: 20px; letter-spacing: -0.02em; }
   .ps__tagline { margin: auto 0 var(--space-2); font-size: calc(var(--pw) * 0.1); }
 }
 @media (max-width: 860px) {
