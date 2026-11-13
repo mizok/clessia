@@ -49,6 +49,16 @@ export class NothingToBill extends Error {
   }
 }
 
+/**
+ * 期 run：這位學生有處理中的續課異動（#1122）＝暫停自動開單，整位略過（gate Q3 (a)：只擋期 run 的學費，
+ * 月 run 的月繳學費與餐費照開）。在交易裡判斷 —— 家長送申請與 run 同時發生時以交易時點為準。
+ */
+export class PausedForRenewal extends Error {
+  constructor() {
+    super('PAUSED_FOR_RENEWAL');
+  }
+}
+
 export async function billStudent(db: Queryable, p: StudentBillInput): Promise<StudentBillResult> {
   // 1. 冪等在交易裡重做：先鎖住這位學生要開的報名，別的 run 要等這筆交易結束才查得到
   let tuition = [...p.tuition];
@@ -64,6 +74,14 @@ export async function billStudent(db: Queryable, p: StudentBillInput): Promise<S
       billingPeriodId: p.billingPeriodId,
     });
     tuition = tuition.filter((t) => !billed.has(t.enrollmentId));
+  }
+  if (p.billingPeriodId && tuition.length > 0) {
+    const { rows } = await db.query(
+      `select 1 from public.renewal_requests
+        where org_id = $1::uuid and student_id = $2::uuid and status = 'pending' limit 1`,
+      [p.orgId, p.studentId],
+    );
+    if (rows.length > 0) throw new PausedForRenewal();
   }
   if (tuition.length === 0 && !p.withMeal) throw new NothingToBill();
 

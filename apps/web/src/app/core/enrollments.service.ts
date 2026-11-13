@@ -83,6 +83,13 @@ export interface CreateEnrollmentInput {
   effectiveTo?: string | null;
   notes?: string;
   skipConflictCheck?: boolean;
+  /** 「建立繳費單（待繳費）」：同一個交易開第一期帳單（#2296）。要財務權限；不給＝不建立 */
+  firstInvoice?: {
+    amount?: number;
+    amountNote?: string;
+    dueDate?: string;
+    sessionCount?: number;
+  };
 }
 
 export interface UpdateEnrollmentInput {
@@ -178,6 +185,8 @@ export interface BatchCreateResult {
 export interface CreateEnrollmentResponse {
   data: Enrollment;
   warnings?: ScheduleConflictWarning[];
+  /** 有 `firstInvoice` 時才有 */
+  invoice?: { id: string; invoiceNo: string | null; amount: number; dueDate: string };
 }
 
 export interface ProrationPreviewInput {

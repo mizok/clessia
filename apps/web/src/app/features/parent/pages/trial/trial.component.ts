@@ -15,6 +15,7 @@ import { filter, finalize, switchMap } from 'rxjs';
 import { format, parseISO } from 'date-fns';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
+import { HeightFollowDirective } from '@shared/directives/height-follow.directive';
 import { ChildScopeService } from '@core/child-scope.service';
 import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 import {
@@ -71,7 +72,13 @@ interface CourseOption {
 @Component({
   selector: 'app-trial',
   standalone: true,
-  imports: [DialogFrameComponent, PageOpenComponent, ChildScopeGateComponent, RequestRowComponent],
+  imports: [
+    DialogFrameComponent,
+    PageOpenComponent,
+    ChildScopeGateComponent,
+    RequestRowComponent,
+    HeightFollowDirective,
+  ],
   templateUrl: './trial.component.html',
 })
 export class TrialComponent {
@@ -85,6 +92,7 @@ export class TrialComponent {
     inject(ActivatedRoute).snapshot.fragment === 'records' ? 'records' : 'new',
   );
   protected readonly kids = this.childScope.children;
+  protected readonly kidsPending = computed(() => this.childScope.status() === 'unloaded');
 
   // ── 新增申請 ──
   // linkedSignal：直接打開這頁時孩子名單還沒載完，activeChildId 晚到 —— 跟著它走，家長自己選了才固定
@@ -94,6 +102,8 @@ export class TrialComponent {
   protected readonly slot = signal('');
   protected readonly note = signal('');
   protected readonly classes = signal<ParentCatalogClass[]>([]);
+  /** 目錄第一次回來（或失敗）之前 true；換孩子不回到 true（#2441） */
+  protected readonly catalogPending = signal(true);
   protected readonly sending = signal(false);
   protected readonly sendError = signal<string | null>(null);
 
@@ -190,7 +200,13 @@ export class TrialComponent {
         switchMap((sid) => this.api.catalog(sid)),
         takeUntilDestroyed(),
       )
-      .subscribe({ next: (res) => this.classes.set(res.data) });
+      .subscribe({
+        next: (res) => {
+          this.classes.set(res.data);
+          this.catalogPending.set(false);
+        },
+        error: () => this.catalogPending.set(false),
+      });
   }
 
   protected gradeLabel(grade: string | null): string {

@@ -412,6 +412,37 @@ export function withMaxRows(client: any, maxRows: number): any {
   });
 }
 
+export type Hook = (table: string, ops: string[]) => Promise<unknown> | unknown;
+
+/**
+ * 在替身外面包一層：每支查詢 resolve 前問 `hook(表, 呼叫過的方法)`。
+ * 回傳物件＝改回這個結果（模擬讀取失敗、23505）；回傳 undefined＝照常跑（hook 裡可以先改資料，模擬插隊）。
+ */
+export function hooked(client: any, hook: Hook): any {
+  return {
+    from(table: string) {
+      const ops: string[] = [];
+      const wrap = (b: any): any =>
+        new Proxy(b, {
+          get(target, prop) {
+            if (prop === 'then')
+              return (resolve: (v: unknown) => void, reject: (e: unknown) => void) =>
+                Promise.resolve(hook(table, ops)).then((r) =>
+                  r === undefined ? target.then(resolve, reject) : resolve(r),
+                );
+            const v = Reflect.get(target, prop);
+            if (typeof v !== 'function') return v;
+            return (...args: unknown[]) => {
+              ops.push(String(prop));
+              return wrap(v.apply(target, args));
+            };
+          },
+        });
+      return wrap(client.from(table));
+    },
+  };
+}
+
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

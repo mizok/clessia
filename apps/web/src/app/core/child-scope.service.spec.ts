@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { Observable, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
+import { AuthService } from './auth.service';
 import { ChildrenService, type Child, type ChildrenListResponse } from './children.service';
 import { ChildScopeService } from './child-scope.service';
 
@@ -10,16 +11,52 @@ const CHILDREN: Child[] = [
   { id: 'c2', name: '王小美', grade: 'g6', school: '中山國小' },
 ];
 
-function setup(children: Child[] = CHILDREN) {
+function setup(children: Child[] = CHILDREN, userId = 'u1') {
   const childrenServiceMock = { list: vi.fn(() => of({ data: children })) };
   TestBed.configureTestingModule({
-    providers: [{ provide: ChildrenService, useValue: childrenServiceMock }],
+    providers: [
+      { provide: ChildrenService, useValue: childrenServiceMock },
+      { provide: AuthService, useValue: { user: () => ({ id: userId }) } },
+    ],
   });
   const service = TestBed.inject(ChildScopeService);
   return { service, childrenServiceMock };
 }
 
 describe('ChildScopeService', () => {
+  afterEach(() => localStorage.clear());
+
+  describe('記住選中的孩子（#2449）', () => {
+    it('選過的孩子重新載入（新的 service）時仍選它', () => {
+      const first = setup();
+      first.service.load();
+      first.service.setActiveChild('c2');
+      TestBed.resetTestingModule();
+
+      const again = setup();
+      again.service.load();
+      expect(again.service.activeChildId()).toBe('c2');
+    });
+
+    it('key 帶 user id：換帳號不沿用', () => {
+      const a = setup(CHILDREN, 'u1');
+      a.service.load();
+      a.service.setActiveChild('c2');
+      TestBed.resetTestingModule();
+
+      const b = setup(CHILDREN, 'u2');
+      b.service.load();
+      expect(b.service.activeChildId()).toBe('c1');
+    });
+
+    it('存著的孩子不在清單（解除綁定）→ 第一個', () => {
+      localStorage.setItem('clessia.activeChild.u1', 'gone');
+      const { service } = setup();
+      service.load();
+      expect(service.activeChildId()).toBe('c1');
+    });
+  });
+
   it('load 完成後預設選第一個孩子', () => {
     const { service } = setup();
     service.load();
@@ -78,7 +115,10 @@ describe('ChildScopeService', () => {
       list: vi.fn((): Observable<ChildrenListResponse> => throwError(() => new Error('boom'))),
     };
     TestBed.configureTestingModule({
-      providers: [{ provide: ChildrenService, useValue: childrenServiceMock }],
+      providers: [
+        { provide: ChildrenService, useValue: childrenServiceMock },
+        { provide: AuthService, useValue: { user: () => ({ id: 'u1' }) } },
+      ],
     });
     const service = TestBed.inject(ChildScopeService);
 
@@ -94,7 +134,10 @@ describe('ChildScopeService', () => {
       list: vi.fn((): Observable<ChildrenListResponse> => throwError(() => new Error('boom'))),
     };
     TestBed.configureTestingModule({
-      providers: [{ provide: ChildrenService, useValue: childrenServiceMock }],
+      providers: [
+        { provide: ChildrenService, useValue: childrenServiceMock },
+        { provide: AuthService, useValue: { user: () => ({ id: 'u1' }) } },
+      ],
     });
     const service = TestBed.inject(ChildScopeService);
 

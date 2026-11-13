@@ -27,7 +27,8 @@ export type StaffNotificationKind =
   | 'application_overdue'
   | 'trial_followup'
   | 'leave_streak'
-  | 'contact_book_reminder';
+  | 'contact_book_reminder'
+  | 'renewal_request_received';
 
 export interface StaffNotification {
   readonly orgId: string;

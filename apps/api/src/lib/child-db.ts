@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Pool } from 'pg';
+import { orgTakenSeats } from './catalog-class';
 import { resolveAttendanceMode } from './attendance-mode';
 import type { StudentScope } from './child-scope';
 import {
@@ -11,7 +12,7 @@ import {
 import type { LeaveWindow } from './leave-covers-session';
 import { notifyLeaveStreaks } from './leave-streak';
 import { withTx } from './pg-tx';
-import { notifyNewApplication } from './notify-events';
+import { notifyNewApplication, notifyRenewalRequest } from './notify-events';
 import { notifyLeaveForAdmins, notifyLeaveForTeachers } from './notify-leave';
 import { logAudit } from '../utils/audit';
 
@@ -330,6 +331,35 @@ export function createChildDb(
     },
 
     /**
+     * 家長送出續課異動之後通知分校管理員（#1122）。窄能力，同 `notifyRequests`：
+     * 申請要是 scope 內孩子的、同 org 的，對不上就不發、回 false；學生名、班、分校從 DB 讀，不吃呼叫端。
+     */
+    async notifyRenewalRequest(requestId: string): Promise<boolean> {
+      if (writableIds.length === 0) return false;
+      const { data, error } = await supabase
+        .from('renewal_requests')
+        .select('id, students(name), enrollments(classes(name, campus_id))')
+        .eq('org_id', orgId)
+        .eq('id', requestId)
+        .in('student_id', writableIds)
+        .maybeSingle();
+      const row = data as unknown as {
+        students: { name?: string } | null;
+        enrollments: { classes: { name: string; campus_id: string } | null } | null;
+      } | null;
+      const cls = row?.enrollments?.classes;
+      if (error || !row || !cls) return false;
+      await notifyRenewalRequest(supabase, {
+        orgId,
+        requestId,
+        studentName: row.students?.name ?? '',
+        campusId: cls.campus_id,
+        className: cls.name,
+      });
+      return true;
+    },
+
+    /**
      * 家長請假的寫入（#1970）：**跟管理端同一把鎖**（`lockStudentLeaves`，鍵＝org＋學生）、同一支重疊判準，
      * 一筆交易裡「取鎖 → 查重疊 → 寫假單」—— 家長連點、或家長和行政同時請同一段，只會有一張。
      *
@@ -478,24 +508,13 @@ export function createChildDb(
     },
 
     /**
-     * 多班的佔名額人數（#1118 目錄）。**在這裡聚合成數字才交出去** —— 查詢只撈 `class_id`，
-     * route 拿到的是 `Map<classId, number>`，碰不到任何報名列。單班版是 N 次 head 查詢，目錄不適用。
+     * 各班的佔名額人數（#1118 目錄）。**在這裡聚合成數字才交出去** —— 查詢只撈 `class_id`，
+     * route 拿到的是 `Map<classId, number>`，碰不到任何報名列。
+     * 整個 org 一次數、不帶班 id 清單（#2437 (3)：兩百多班就 414），同公開目錄的 `orgTakenSeats`。
      */
-    async activeEnrollmentCounts(
-      classIds: readonly string[],
-    ): Promise<{ counts: Map<string, number>; error: unknown }> {
-      const counts = new Map<string, number>();
-      if (classIds.length === 0) return { counts, error: null };
-      const { data, error } = await supabase
-        .from('enrollments')
-        .select('class_id')
-        .eq('org_id', orgId)
-        .in('class_id', [...classIds])
-        .in('status', ['active', 'pending_payment']);
-      for (const row of (data ?? []) as Array<{ class_id: string }>) {
-        counts.set(row.class_id, (counts.get(row.class_id) ?? 0) + 1);
-      }
-      return { counts, error };
+    async activeEnrollmentCounts(): Promise<{ counts: Map<string, number>; error: unknown }> {
+      const { taken, error } = await orgTakenSeats(supabase, orgId);
+      return { counts: taken, error };
     },
 
     /**
