@@ -323,7 +323,8 @@
             <p class="m-0 text-sm text-zinc-600">目前沒有過期又還沒繳清的帳單</p>
           } @else {
             <ul class="m-0 flex list-none flex-col p-0">
-              @for (invoice of overdueRows(); track invoice.id) {
+              <!-- 逾期天數多→少：API 整份排好再分頁（#2447），這裡不再頁內排 -->
+              @for (invoice of invoices(); track invoice.id) {
                 <ng-container
                   [ngTemplateOutlet]="chapterRow"
                   [ngTemplateOutletContext]="{ $implicit: invoice, vt: 'inv-main-' }"
@@ -337,6 +338,7 @@
                 [pageSize]="PAGE_SIZE"
                 [page]="pageIndex()"
                 unit="張"
+                [attr.aria-busy]="loading() || null"
                 (pageChange)="onChapterPage($event)"
               />
             }

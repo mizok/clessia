@@ -202,15 +202,6 @@ export class PaymentsPage implements OnInit {
   protected readonly invoices = signal<Invoice[]>([]);
   /** 這張收的是哪一期（#2316）：同一位學生好幾張帳單要分得出來 */
   protected readonly periodLabel = invoicePeriodLabel;
-  /**
-   * 逾期章依逾期天數由多到少（到期日早的在前；#2316）。
-   * ponytail: 只排這一頁 —— API 依開立日分頁；要跨頁排序得讓 `GET /invoices` 收 sort（逾期章一頁 20 張，多半一頁就完）
-   */
-  protected readonly overdueRows = computed(() =>
-    [...this.invoices()].sort((a, b) =>
-      (a.dueDate ?? '9999-12-31').localeCompare(b.dueDate ?? '9999-12-31'),
-    ),
-  );
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
 
