@@ -272,7 +272,13 @@ run('任課判定看日期：現任不少、前任只限任期且唯讀（#2049�
       as(who, '/api/contact-book', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ studentId: fx.student, entryDate: BEFORE, content: `${who} 補寫` }),
+        // BEFORE 那天 fixture 已經有一則：老師不能改別人寫的、前幾天的（#2499），那是另一條規則。
+        // 這裡守任期，所以寫 X 以前、還沒人寫過的那天
+        body: JSON.stringify({
+          studentId: fx.student,
+          entryDate: shift(BEFORE, 1),
+          content: `${who} 補寫`,
+        }),
       });
     expect((await put('A')).status).toBe(403);
     expect((await put('B')).status).toBe(200);
