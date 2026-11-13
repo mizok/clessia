@@ -539,6 +539,11 @@ describe('續課異動（#1122）', () => {
     expect(await ids(await call(db, '/?kind=renewal&group=cancelled'))).toEqual([id(13)]);
   });
 
+  it('不帶 kind（申請頁預設的呼叫）也要含續課異動（B14）', async () => {
+    const all = await ids(await call(seed([], rows()), '/'));
+    expect(all).toEqual(expect.arrayContaining([id(11), id(14)]));
+  });
+
   it('分校受限：看那筆報名的班的分校', async () => {
     expect(await ids(await call(seed([], rows()), '/?kind=renewal', {}, [CAMPUS_A]))).toEqual([
       id(11),
@@ -577,6 +582,8 @@ describe('續課異動（#1122）', () => {
       resource_type: 'student',
       resource_id: 'stu-1',
     });
+    // 記在學生名下，所以要帶是哪一筆申請（B13）
+    expect(JSON.stringify(db.rows('audit_logs')[0])).toContain(id(11));
   });
 
   it('只能標為已處理（400）；已撤回或已結案的 409；範圍外 404', async () => {
@@ -605,7 +612,10 @@ describe('續課異動（#1122）', () => {
       async (table, ops) => {
         if (table !== 'renewal_requests' || !ops.includes('update') || raced) return undefined;
         raced = true;
-        await (db.client as any).from('renewal_requests').update({ status: 'withdrawn' }).eq('id', id(11));
+        await (db.client as any)
+          .from('renewal_requests')
+          .update({ status: 'withdrawn' })
+          .eq('id', id(11));
         return undefined;
       },
     );
