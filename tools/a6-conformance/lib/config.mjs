@@ -928,30 +928,6 @@ export const PAGES = {
         source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2206 issuecomment-6593157592`,
       },
       {
-        status: '多',
-        widths: [360],
-        pop: 'filt',
-        app: 'landmark:dialog\\[篩選\\]>heading:h2\\[篩選\\]$',
-        reason: '手機篩選抽屜的標題「篩選」（稿的浮層沒有標題）',
-        source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2206 issuecomment-6593157592`,
-      },
-      {
-        status: '多',
-        widths: [360],
-        pop: 'filt',
-        app: 'landmark:dialog\\[篩選\\]>control:button\\[完成\\]$',
-        reason: '手機篩選抽屜底部的「完成」（只關閉；稿的浮層點外面關）',
-        source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2206 issuecomment-6593157592`,
-      },
-      {
-        status: '文案',
-        widths: [360],
-        pop: 'filt',
-        a6: 'landmark:popover\\[\\]$',
-        reason: '手機篩選抽屜以標題「篩選」為可及名稱（aria-labelledby），稿的浮層沒有名稱',
-        source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2208 二讀`,
-      },
-      {
         // 「篩選」鈕被「新增學生」「⋯」推到左邊，貼著它開的浮層跟著左移
         status: '位置',
         pop: 'filt',
@@ -1031,14 +1007,6 @@ export const PAGES = {
         app: 'control:button\\[(上一週|下一週)\\]$',
         reason: '換週箭頭：收不進「⋯」的入口，保留',
         source: `${rule('R2', ' 例外')}；#1314 comment 6163635319`,
-      },
-      // 「一次勾：」那列（#2140 起桌機勾第一堂就出現）：完成鈕照工具列控制項同高、兩個下拉是 A6 下拉元件
-      {
-        status: '尺寸',
-        a6: '>landmark:main\\[\\]>control:button\\[完成\\]$',
-        detail: '^高 30→40$',
-        reason: '灰帶工具列控制項全部同高：桌機 40',
-        source: `${rule('R5')}「灰帶工具列控制項高度」2026-10-23；#1903`,
       },
       {
         status: '多',
@@ -3128,14 +3096,6 @@ export const PAGES = {
         reason: SELECT_FIELD,
         source: SELECT_FIELD_SOURCE,
       },
-      {
-        // Δx ±8：展開內容外圍的灰框 4→12px，欄位（含學生名下的班名小字，#2080-1）跟著內縮
-        status: '位置',
-        a6: '>landmark:region\\[這段期間的聯絡簿\\]>row>control:button(~\\d+)?>text:span(~\\d+)?(>text:small)?$',
-        detail: '^相對所在列 Δx [-+]8、Δy -?\\d+（',
-        reason: '連帶：欄位因灰框加寬內縮 8px',
-        source: `${rule('R5')}「摺疊摘要列（\`.coll\`）展開內容外圍的灰框」2026-10-22；#1853`,
-      },
       // 代表列取最常見的變體：稿的示範多是「已簽收」（綠字、不帶底），seed 多是「未簽收」（灰底小標）。
       // 兩種變體都照稿（稿上 button~3 的「未簽收」配上了、樣式一致）；手機上小標寬不同，學生名那欄跟著不同寬
       ...['樣式', '位置'].map((status) => ({
@@ -3452,10 +3412,8 @@ export const PAGES = {
       // #2206：≤860 篩選改成貼底抽屜（全站 p-dialog 手機樣式，#1776）：根貼底、無框、以標題「篩選」為名，
       // 多一個標題列；「完成」是抽屜底部滿寬的主要鈕（稿是浮層右下的小鈕）
       ...[
-        { status: '文案', a6: '(^|>)landmark:popover\\[\\]$' },
         { status: '位置', a6: '(^|>)landmark:popover\\[\\]$' },
         { status: '樣式', a6: '(^|>)landmark:popover\\[\\]$' },
-        { status: '多', app: '(^|>)landmark:dialog\\[篩選\\]>heading:h2\\[篩選\\]$' },
         { status: '位置', a6: '(^|>)landmark:popover\\[\\]>row$' },
         ...['位置', '尺寸', '樣式'].map((status) => ({
           status,
@@ -3522,16 +3480,6 @@ export const PAGES = {
         reason: '語意結構依內容：列表用 ul／li，外觀照稿',
         source: `${rule('R7', '，#1590')}`,
       },
-      // 期間鈕：桌機 40（灰帶工具列控制項同高），稿 34；手機 44 由全站 R3 那條管
-      {
-        status: '尺寸',
-        pop: 'detail',
-        widths: [1440],
-        a6: '(^|>)control:button\\[(近#月|近半年|全部)\\](~\\d+)?$',
-        detail: '^高 34→40$',
-        reason: '工具列控制項全部同高：桌機 40',
-        source: `${rule('R5')}「灰帶工具列控制項高度」2026-10-23；#1903`,
-      },
       // 動作列的上下位置：稿示範學生的紀錄比 seed 多（稿整頁列出、app 每頁 10 場），對話框高度不同
       {
         status: '位置',
@@ -3556,13 +3504,6 @@ export const PAGES = {
         app: 'control:button\\[(上一週|下一週)\\]$',
         reason: '換週箭頭：收不進「⋯」的入口，保留（同日檢視）',
         source: `${rule('R2', ' 例外')}；#1314 comment 6163635319`,
-      },
-      {
-        status: '尺寸',
-        a6: '>landmark:main\\[\\]>control:button\\[快速選取\\]$',
-        detail: '^高 30→40$',
-        reason: '灰帶工具列控制項全部同高：桌機 40',
-        source: `${rule('R5')}「灰帶工具列控制項高度」2026-10-23；#1903`,
       },
       {
         // 連帶：app 的 main 包住色面（全站 #1591），工具列在 main 裡的位置多了色面高（1440：147、360：118）；

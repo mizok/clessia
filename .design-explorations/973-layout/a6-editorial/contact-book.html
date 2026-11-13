@@ -171,7 +171,7 @@
         : `<p class="empty">這段期間沒有聯絡簿。聯絡簿由帶班老師撰寫，只有開了「使用聯絡簿」的班級才會有。</p>`;
       return;
     }
-    box.innerHTML = days.map((d) => [d, hit.filter((e) => e.date === d)]).filter(([, a]) => a.length).map(([d, a], i) => `<details class="coll"${i === 0 || filtered ? ' open' : ''}>
+    box.innerHTML = days.map((d) => [d, hit.filter((e) => e.date === d)]).filter(([, a]) => a.length).map(([d, a], i) => `<details class="coll"${i === 0 ? ' open' : ''}>
         <summary class="coll__sum"><span class="coll__t">${dayLabel(d)}</span><span class="coll__m">${a.length} 則 · ${a.filter((e) => !e.sig).length} 則未簽收</span></summary>
         <div class="coll__body">${a.map(row).join('')}</div></details>`).join('');
   }
