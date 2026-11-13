@@ -1,5 +1,6 @@
 import {
   changedCount,
+  mealRangeCsv,
   chapterOrdered,
   draftSnapshot,
   mealDayChapters,
@@ -368,5 +369,44 @@ describe('mealDayChapters／weekdayLabel（區間依日分章）', () => {
     expect(weekdayLabel('2026-10-12')).toBe('一');
     expect(weekdayLabel('2026-10-14')).toBe('三');
     expect(weekdayLabel('2027-01-01')).toBe('五');
+  });
+});
+
+// #1314 ME3：區間匯出（供對帳）
+describe('mealRangeCsv', () => {
+  const r = (o: Partial<MealRosterRow>): MealRosterRow => ({
+    studentId: 's1',
+    studentName: '陳小明',
+    classNames: [],
+    mealDate: '2026-10-02',
+    mealDefault: false,
+    recordId: 'm1',
+    ordered: true,
+    chargeable: true,
+    unitPrice: 60,
+    note: null,
+    settled: false,
+    onLeave: null,
+    ...o,
+  });
+
+  it('BOM＋表頭；依日期再依姓名排；訂餐／收費／結算寫成字', () => {
+    const csv = mealRangeCsv([
+      r({ mealDate: '2026-10-03', studentName: '王大同', settled: true }),
+      r({ mealDate: '2026-10-02', studentName: '陳小明', ordered: false, chargeable: false }),
+      r({ mealDate: '2026-10-02', studentName: '王大同', unitPrice: null }),
+    ]);
+    expect(csv.startsWith('\uFEFF')).toBe(true);
+    expect(csv.slice(1).split('\r\n')).toEqual([
+      '日期,學生,訂餐,收費,單價,結算,備註',
+      '2026-10-02,王大同,是,是,,未結算,',
+      '2026-10-02,陳小明,否,否,60,未結算,',
+      '2026-10-03,王大同,是,是,60,已結算,',
+    ]);
+  });
+
+  it('備註有逗號、引號、換行就包引號', () => {
+    const csv = mealRangeCsv([r({ note: '少飯, 加"湯"\n改天' })]);
+    expect(csv.split('\r\n')[1]).toBe('2026-10-02,陳小明,是,是,60,未結算,"少飯, 加""湯""\n改天"');
   });
 });

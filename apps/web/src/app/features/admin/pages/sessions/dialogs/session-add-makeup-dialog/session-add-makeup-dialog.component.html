@@ -1,0 +1,94 @@
+<!-- 共用殼（#2290）。A6 schedule 只畫了選單項，表單照調課對話框（#1314 S7 gate） -->
+<app-dialog-frame title="加開一堂補課" (closed)="closeDialog()">
+  <form
+    id="session-add-makeup-form"
+    [formGroup]="form"
+    (ngSubmit)="submit()"
+    class="session-op-form"
+  >
+    <p class="m-0 text-base text-zinc-700" data-testid="add-makeup-target">{{ target }}</p>
+    @if (submitError()) {
+      <app-inline-notice
+        severity="error"
+        [detail]="submitError()"
+        (dismissed)="submitError.set(null)"
+      />
+    }
+    <div class="session-op-form__field">
+      <label for="addMakeupDate" class="session-op-form__label">
+        補課日期<span class="session-op-form__required">*</span>
+      </label>
+      <p-datepicker
+        inputId="addMakeupDate"
+        formControlName="date"
+        [minDate]="minDate"
+        dateFormat="yy-mm-dd"
+        placeholder="選擇日期"
+        styleClass="w-full"
+        appendTo="body"
+      />
+    </div>
+    <div class="session-op-form__row">
+      <div class="session-op-form__field">
+        <label for="addMakeupStart" class="session-op-form__label">
+          開始時間<span class="session-op-form__required">*</span>
+        </label>
+        <p-datepicker
+          inputId="addMakeupStart"
+          formControlName="start"
+          [timeOnly]="true"
+          hourFormat="24"
+          styleClass="w-full"
+          appendTo="body"
+        />
+      </div>
+      <div class="session-op-form__field">
+        <label for="addMakeupEnd" class="session-op-form__label">
+          結束時間<span class="session-op-form__required">*</span>
+        </label>
+        <p-datepicker
+          inputId="addMakeupEnd"
+          formControlName="end"
+          [timeOnly]="true"
+          hourFormat="24"
+          styleClass="w-full"
+          appendTo="body"
+        />
+      </div>
+    </div>
+    @if (cancelled.teacherId) {
+      <label class="flex min-h-11 items-center gap-2 text-base text-zinc-800">
+        <input type="checkbox" formControlName="keepTeacher" class="size-4" />
+        由原老師上（{{ cancelled.teacherName }}）；不勾就先不指派
+      </label>
+    }
+    <div class="session-op-form__field">
+      <label for="addMakeupReason" class="session-op-form__label">原因（選填）</label>
+      <textarea
+        id="addMakeupReason"
+        pTextarea
+        formControlName="reason"
+        class="session-op-form__textarea"
+      ></textarea>
+    </div>
+  </form>
+
+  <ng-container dialogFoot>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+      (click)="closeDialog()"
+    >
+      取消
+    </button>
+    <button
+      type="submit"
+      form="session-add-makeup-form"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 border-accent-vivid bg-accent-vivid text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2"
+      data-testid="op-submit"
+      [disabled]="form.invalid || isSubmitting()"
+    >
+      {{ isSubmitting() ? '處理中…' : '加開補課' }}
+    </button>
+  </ng-container>
+</app-dialog-frame>

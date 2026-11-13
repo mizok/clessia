@@ -46,6 +46,23 @@ export type SchoolCalendarKind =
   | 'no_class'
   | 'other';
 
+export const SCHOOL_CALENDAR_KIND_LABELS: Readonly<Record<SchoolCalendarKind, string>> = {
+  semester_start: '開學',
+  semester_end: '休業式',
+  winter_break: '寒假',
+  summer_break: '暑假',
+  makeup_day: '補課',
+  no_class: '停課',
+  other: '其他',
+};
+
+/** 單日類型：表單不給結束日，API 補成開始日 */
+export const SINGLE_DAY_KINDS: ReadonlySet<SchoolCalendarKind> = new Set([
+  'semester_start',
+  'semester_end',
+  'makeup_day',
+]);
+
 export interface SchoolCalendarEvent {
   readonly id: string;
   readonly schoolId: string;

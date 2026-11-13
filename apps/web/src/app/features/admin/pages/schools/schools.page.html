@@ -92,6 +92,15 @@
                   >
                 </div>
                 <div class="flex gap-1">
+                  <!-- #1160：稿上只有編輯、刪除（R5）；列本身不變成可點 -->
+                  <a
+                    class="grid size-11 place-items-center rounded-md text-zinc-800 no-underline hover:bg-zinc-100"
+                    [routerLink]="[school.id, 'calendar']"
+                    [attr.aria-label]="(school.shortName || school.name) + ' 行事曆'"
+                    data-part="school-calendar-link"
+                  >
+                    <i class="pi pi-calendar" aria-hidden="true"></i>
+                  </a>
                   <button
                     type="button"
                     class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100"

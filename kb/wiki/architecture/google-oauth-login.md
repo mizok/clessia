@@ -114,6 +114,8 @@ Google 的 token 端點用 fetch 替身回一個自己簽的 `id_token`（`getUs
 
 ## 上線前必驗（設計階段驗不到，拿到憑證後的第一步）
 
+> **2026-11-13 已驗**：使用者本人以自己的 Google 帳號在正式站登入成功（#1842 關單留言；依本設計 Google 只能先經綁定連結綁上才能登入，所以綁定路徑一併走過）。下面三條留作下次換憑證／換部署時的清單。
+
 這幾條在拿到真憑證之前沒辦法驗，**實作 PR 的第一個 commit 前要先實打一次**，不能留成文件裡的一句提醒（LINE 那次就是這樣出事的）：
 
 - 只要 `openid` 時，Google 回的 `id_token` 確實有 `sub`，better-auth 的 callback 不會因為少了 `email` 在 `callback.mjs:139` 回 `email_not_found`。`mapProfileToUser` 會先補上合成 email，照原始碼看是過得了，但要用真憑證實際走一次。
