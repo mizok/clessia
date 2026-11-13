@@ -1723,6 +1723,10 @@ describe('DELETE /api/enrollments/:id —— session_packs 守門（真的打路
       async single() {
         return { data: fixture.enrollment, error: null };
       },
+      // #2493 W1：刪之前先過 findEnrollmentInScope（不受限 → 查得到就是範圍內）
+      async maybeSingle() {
+        return { data: { id: fixture.enrollment.id }, error: null };
+      },
       delete: () => enrollmentsQuery,
       then: (onfulfilled?: (value: unknown) => unknown) => {
         enrollmentDeleted = true;
@@ -1906,7 +1910,11 @@ describe('B3 —— 報名的計費 API', () => {
                       ? (fixture.template ?? { amount: 3000 })
                       : table === 'classes'
                         ? { id: 'class-1', max_students: null }
-                        : null,
+                        : // #2493 W1：改／改狀態／刪先過 findEnrollmentInScope —— 範圍內就回一列
+                          table === 'enrollments' &&
+                            selects.at(-1) === 'id, classes!inner(campus_id)'
+                          ? { id: 'enrollment-1' }
+                          : null,
               error: null,
             }),
           // #846：audit 的 resource_name 是「學生 / 班級」，所以這裡要帶得出關聯名稱

@@ -42,6 +42,15 @@ interface ReviewRow {
   readonly result: BatchMatchResultItem | null;
 }
 
+/** 不會被匯入的列：查無、已在班上、或同名的人只在範圍外分校（#2493，不提供新建） */
+function isBlocked(result: BatchMatchResultItem | null): boolean {
+  return (
+    result?.status === 'not_found' ||
+    result?.status === 'already_enrolled' ||
+    result?.status === 'out_of_scope'
+  );
+}
+
 @Component({
   selector: 'app-roster-import-dialog',
   imports: [
@@ -124,10 +133,7 @@ export class RosterImportDialogComponent {
   });
 
   protected readonly blockedCount = computed(
-    () =>
-      this.reviewRows().filter(
-        ({ result }) => result?.status === 'not_found' || result?.status === 'already_enrolled',
-      ).length,
+    () => this.reviewRows().filter(({ result }) => isBlocked(result)).length,
   );
 
   // ── 步驟一：讀檔 ──────────────────────────────────────────────────────
@@ -305,6 +311,8 @@ export class RosterImportDialogComponent {
     this.ambiguousChoice.set({ ...this.ambiguousChoice(), [index]: studentId });
   }
 
+  protected readonly isBlocked = isBlocked;
+
   protected statusLabel(result: BatchMatchResultItem | null): string {
     switch (result?.status) {
       case 'matched':
@@ -315,6 +323,8 @@ export class RosterImportDialogComponent {
         return '已在班上';
       case 'not_found':
         return '查無此學生';
+      case 'out_of_scope':
+        return '此學生已存在於其他分校，請由總管理員處理';
       default:
         return '—';
     }

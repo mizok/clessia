@@ -931,3 +931,15 @@ textarea.acset__in { height: auto; min-height: 96px; padding: var(--space-2) var
   [popover], dialog, .toast { --pop-from: none !important; transition-duration: 0.2s !important; }
   @starting-style { .toast { transform: none; } }
 }
+
+/* ═══ 11-13 #2495 B3：R5 已裁的共用元件規則回寫稿
+ * 灰帶工具列控制項同高（R5 10-23 #1903）：搜尋框、篩選鈕、主鈕、圖示鈕、下拉一律同高同中線 —— 桌機（≥861 且滑鼠）40、手機與觸控 44。
+ * dock 只有一顆時（R5 10-23 #2005）：只包住按鈕、靠右浮動。
+ * 摺疊摘要列展開內容外圍的灰框（R5 10-22 #1853）：4 → 12。同組互斥在 a6.js。
+ */
+.tbar__in > .btn, .tbar__act > .btn, .tbar .tsearch, .qsel .btn, .qsel select, .qsel .dd, .sx__pickmode { height: 40px; }
+@media (max-width: 860px), (pointer: coarse) {
+  .tbar__in > .btn, .tbar__act > .btn, .tbar .tsearch, .qsel .btn, .qsel select, .qsel .dd, .sx__pickmode { height: 44px; }
+}
+@media (max-width: 860px) { .dock:not(:has(> :nth-child(2))) { left: auto; } }
+.coll__body { margin: 0 var(--space-3) var(--space-3); }

@@ -37,6 +37,7 @@ const entry = (overrides?: Partial<ContactBookEntry>): ContactBookEntry => ({
   content: '今天上課很專心。',
   teacherEditedAt: null,
   lastEditedByName: '王老師',
+  lastEditedBy: null,
   signedBy: null,
   signedByName: null,
   signedAt: null,

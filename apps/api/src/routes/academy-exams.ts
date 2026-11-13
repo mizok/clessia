@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { inChunks } from '../lib/in-chunks';
+import { studentInScope } from '../lib/invoice-campus-scope';
 import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { DbUuidSchema, QueryBooleanSchema } from '../lib/validation';
@@ -21,7 +22,13 @@ import { getAuth } from '../lib/get-auth';
 import { loadDisplayName } from '../lib/display-name';
 import { canManageAcademyExam, resolveExamClassIds } from '../lib/exam-scope';
 import { logAudit } from '../utils/audit';
-import { applyCampusFilter, getCampusScope, isCampusAllowed } from '../lib/campus-scope';
+import {
+  applyCampusFilter,
+  campusFilterIds,
+  getCampusScope,
+  isCampusAllowed,
+  type CampusScope,
+} from '../lib/campus-scope';
 import { fetchAllPages } from '../lib/fetch-all-pages';
 import { ID_CHUNK } from '../lib/org-scope';
 const AcademyExamStatusSchema = z.enum(['active', 'closed']).openapi('AcademyExamStatus');
@@ -344,10 +351,17 @@ export function isPassScoreValid(
   return passScore >= 0 && passScore <= totalScore;
 }
 
+/**
+ * 這場考試在不在 org 裡、**也在呼叫者的分校範圍內**（#2493 W4／R5）。範圍外＝不存在（null → 404）。
+ * 讀單筆、改、刪、關、開、讀寫成績都經過這裡 —— 原本只看 org，受限管理員用 id 就碰得到別校的考試。
+ * 判準同列表（`applyCampusFilter('campus_id')`）：`campus_id` 為 null 的全機構考試對受限者也是範圍外。
+ * `campusScope` 為 null（不受限管理員、老師）不多擋；老師另由 `examInScope` 限在任課班。
+ */
 async function ensureExamOwnedByOrg(
   supabase: AppEnv['Variables']['supabase'],
   examId: string,
   orgId: string,
+  campusScope: CampusScope,
 ): Promise<{
   id: string;
   name: string;
@@ -358,12 +372,16 @@ async function ensureExamOwnedByOrg(
 } | null> {
   const { data, error } = await supabase
     .from('academy_exams')
-    .select('id, name, status, created_by, total_score, exam_date')
+    .select('id, name, status, created_by, total_score, exam_date, campus_id')
     .eq('id', examId)
     .eq('org_id', orgId)
     .maybeSingle();
 
   if (error || !data) {
+    return null;
+  }
+  const campusId = (data as { campus_id: string | null }).campus_id;
+  if (campusScope !== null && !(campusId && campusScope.includes(campusId))) {
     return null;
   }
 
@@ -452,21 +470,23 @@ async function examClassIds(
   return (data ?? []).map((row: { class_id: string }) => row.class_id);
 }
 
+/** 參加班都在 org 裡、**也都在呼叫者的分校範圍內**（#2493 W4：原本只看 org，開得出掛別校班的考試） */
 async function ensureClassesInOrg(
   supabase: AppEnv['Variables']['supabase'],
   orgId: string,
   classIds: readonly string[],
+  campusScope: CampusScope,
 ): Promise<boolean> {
   if (classIds.length === 0) {
     return true;
   }
 
   const dedupedClassIds = Array.from(new Set(classIds));
-  const { data, error } = await supabase
-    .from('classes')
-    .select('id')
-    .eq('org_id', orgId)
-    .in('id', dedupedClassIds);
+  let query = supabase.from('classes').select('id').eq('org_id', orgId).in('id', dedupedClassIds);
+  // 直接套 applyCampusFilter 會 TS2589（同 enrollments/validation.ts 的 findClassInScope）
+  const campusIds = campusFilterIds(campusScope, null);
+  if (campusIds) query = query.in('campus_id', [...campusIds]);
+  const { data, error } = await query;
 
   if (error) {
     return false;
@@ -1060,6 +1080,10 @@ app.openapi(getRoute, async (c) => {
   if (!(await examInScope(supabase, id, scope, 'read'))) {
     return c.json({ error: '沒有這場考試的權限', code: 'EXAM_OUT_OF_SCOPE' }, 403);
   }
+  // #2493 R5：分校範圍外的考試跟不存在一樣
+  if (!(await ensureExamOwnedByOrg(supabase, id, orgId, getCampusScope(c)))) {
+    return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
+  }
 
   const { data: examRow, error: examError } = await supabase
     .from('academy_exams')
@@ -1215,7 +1239,11 @@ app.openapi(createRouteDef, async (c) => {
   const body = c.req.valid('json');
 
   // 分校範圍在寫入路徑上也要成立（body 不在 campusRequestGuard 的視野內）
-  if (!isCampusAllowed(getCampusScope(c), body.campusId)) {
+  // #2493 W4：受限者不能開全機構考試（campusId 省略／null）—— 開了自己也看不到，參加班卻在範圍內
+  if (
+    !isCampusAllowed(getCampusScope(c), body.campusId) ||
+    (getCampusScope(c) !== null && !body.campusId)
+  ) {
     return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
 
@@ -1242,7 +1270,7 @@ app.openapi(createRouteDef, async (c) => {
   }
   const classIds = resolved.classIds;
 
-  const isClassValid = await ensureClassesInOrg(supabase, orgId, classIds);
+  const isClassValid = await ensureClassesInOrg(supabase, orgId, classIds, getCampusScope(c));
   if (!isClassValid) {
     return c.json({ error: '包含不合法的 classIds', code: 'INVALID_CLASS_IDS' }, 400);
   }
@@ -1366,7 +1394,7 @@ app.openapi(updateRouteDef, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
 
-  const existing = await ensureExamOwnedByOrg(supabase, id, orgId);
+  const existing = await ensureExamOwnedByOrg(supabase, id, orgId, getCampusScope(c));
   if (!existing) {
     return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
   }
@@ -1405,7 +1433,12 @@ app.openapi(updateRouteDef, async (c) => {
       return c.json({ error: '參加班級超出可管理範圍', code: resolved.error }, 403);
     }
 
-    const isClassValid = await ensureClassesInOrg(supabase, orgId, resolved.classIds);
+    const isClassValid = await ensureClassesInOrg(
+      supabase,
+      orgId,
+      resolved.classIds,
+      getCampusScope(c),
+    );
     if (!isClassValid) {
       return c.json({ error: '包含不合法的 classIds', code: 'INVALID_CLASS_IDS' }, 400);
     }
@@ -1421,7 +1454,11 @@ app.openapi(updateRouteDef, async (c) => {
   }
 
   // PATCH 的分校是「搬家」——同樣要擋，否則受限管理員可以把考試搬出自己的範圍
-  if (body.campusId !== undefined && !isCampusAllowed(getCampusScope(c), body.campusId)) {
+  if (
+    body.campusId !== undefined &&
+    (!isCampusAllowed(getCampusScope(c), body.campusId) ||
+      (getCampusScope(c) !== null && !body.campusId))
+  ) {
     return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
 
@@ -1540,7 +1577,7 @@ app.openapi(deleteRouteDef, async (c) => {
   const userId = c.get('userId');
   const { id } = c.req.valid('param');
 
-  const existing = await ensureExamOwnedByOrg(supabase, id, orgId);
+  const existing = await ensureExamOwnedByOrg(supabase, id, orgId, getCampusScope(c));
   if (!existing) {
     return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
   }
@@ -1656,7 +1693,7 @@ app.openapi(listScoresRoute, async (c) => {
     return c.json({ error: '沒有這場考試的權限', code: 'EXAM_OUT_OF_SCOPE' }, 403);
   }
 
-  const exam = await ensureExamOwnedByOrg(supabase, id, orgId);
+  const exam = await ensureExamOwnedByOrg(supabase, id, orgId, getCampusScope(c));
   if (!exam) {
     return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
   }
@@ -1791,7 +1828,7 @@ app.openapi(upsertScoresRoute, async (c) => {
     return c.json({ error: '沒有這場考試的權限', code: 'EXAM_OUT_OF_SCOPE' }, 403);
   }
 
-  const exam = await ensureExamOwnedByOrg(supabase, id, orgId);
+  const exam = await ensureExamOwnedByOrg(supabase, id, orgId, getCampusScope(c));
   if (!exam) {
     return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
   }
@@ -1823,6 +1860,31 @@ app.openapi(upsertScoresRoute, async (c) => {
     const outOfScope = studentIds.filter((studentId) => !allowed.has(studentId));
     if (outOfScope.length > 0) {
       return c.json({ error: '包含非自己任課班的學生', code: 'STUDENT_OUT_OF_SCOPE' }, 403);
+    }
+  }
+
+  // #2493 W4：受限管理員只能登錄範圍內的學生（同列表的 studentInScope 判準）——
+  // 考試在範圍內，不代表 body 裡的每個 studentId 都是
+  const campusScope = getCampusScope(c);
+  if (scope.isAdmin && campusScope !== null) {
+    const { data: scopedRows, error: scopedError } = await inChunks<{
+      id: string;
+      enrollments: unknown;
+    }>(studentIds, (part) =>
+      supabase
+        .from('students')
+        .select('id, enrollments(classes(campus_id))')
+        .eq('org_id', orgId)
+        .in('id', part),
+    );
+    if (scopedError) return c.json({ error: scopedError.message, code: 'DB_ERROR' }, 500);
+    const inScope = new Set(
+      (scopedRows ?? [])
+        .filter((row) => studentInScope(row.enrollments, campusScope))
+        .map((row) => row.id),
+    );
+    if (studentIds.some((studentId) => !inScope.has(studentId))) {
+      return c.json({ error: '包含不在你分校範圍內的學生', code: 'STUDENT_OUT_OF_SCOPE' }, 403);
     }
   }
 
@@ -1924,7 +1986,7 @@ app.openapi(closeRoute, async (c) => {
   const userId = c.get('userId');
   const { id } = c.req.valid('param');
 
-  const existing = await ensureExamOwnedByOrg(supabase, id, orgId);
+  const existing = await ensureExamOwnedByOrg(supabase, id, orgId, getCampusScope(c));
   if (!existing) {
     return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
   }
@@ -2017,7 +2079,7 @@ app.openapi(reopenRoute, async (c) => {
   const userId = c.get('userId');
   const { id } = c.req.valid('param');
 
-  const existing = await ensureExamOwnedByOrg(supabase, id, orgId);
+  const existing = await ensureExamOwnedByOrg(supabase, id, orgId, getCampusScope(c));
   if (!existing) {
     return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
   }
