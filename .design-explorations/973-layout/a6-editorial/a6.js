@@ -358,7 +358,7 @@
     const input = (f) => {
       if (f.type === 'select') return `<select class="acset__in" id="${fid(f)}" data-k="${f.k}">${(f.ph ? [['', f.ph]] : []).concat(f.options.map((o) => (Array.isArray(o) ? o : [o, o]))).map(([v, l]) => `<option value="${esc(v)}"${String(f.value ?? '') === String(v) ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
       // 多選（#2495 B7 回寫 R5 11-02「新增考試的開課班多選」）：外框寫 placeholder／「N 個班級」，點開勾選清單；值是逗號串在隱藏欄位
-      if (f.type === 'multi') return `<div class="acset__in fdlg__multi" id="${fid(f)}" tabindex="0">${esc(f.ph || '')}</div><input type="hidden" data-k="${f.k}" value=""><div class="fdlg__mlist" hidden>${f.options.map(([v, l]) => `<label class="fdlg__mopt"><input type="checkbox" value="${esc(v)}">${esc(l)}</label>`).join('')}</div>`;
+      if (f.type === 'multi') return `<div class="acset__in fdlg__multi" id="${fid(f)}" tabindex="0"><div class="fdlg__mlabel">${esc(f.ph || '')}</div>${icon.down}</div><input type="hidden" data-k="${f.k}" value=""><div class="fdlg__mlist" hidden>${f.options.map(([v, l]) => `<label class="fdlg__mopt"><input type="checkbox" value="${esc(v)}">${esc(l)}</label>`).join('')}</div>`;
       if (f.type === 'textarea') return `<textarea class="acset__in" id="${fid(f)}" data-k="${f.k}" rows="4"${f.ph ? ` placeholder="${esc(f.ph)}"` : ''}>${esc(f.value ?? '')}</textarea>`;
       if (f.type === 'radio') return `<div class="fdlg__seg" role="radiogroup" aria-labelledby="${fid(f)}-l">${f.options.map((o, i) => `<label class="fdlg__opt"><input type="radio" name="${f.k}" value="${esc(o)}" data-k="${f.k}"${(f.value ?? f.options[0]) === o ? ' checked' : ''}>${esc(o)}</label>`).join('')}</div>`;
       return `<input class="acset__in" id="${fid(f)}" data-k="${f.k}" type="${f.type === 'money' ? 'text' : f.type || 'text'}"${f.type === 'money' ? ' inputmode="numeric"' : ''} value="${esc(f.value ?? '')}"${f.ph ? ` placeholder="${esc(f.ph)}"` : ''} autocomplete="off">`;
@@ -376,9 +376,9 @@
       why.textContent = miss.length ? `還沒填：${miss.map((f) => f.label).join('、')}` : '';
     };
     d.querySelectorAll('.fdlg__multi').forEach((box) => {
-      const list = box.nextElementSibling.nextElementSibling, hid = box.nextElementSibling, ph = box.textContent;
+      const list = box.nextElementSibling.nextElementSibling, hid = box.nextElementSibling, lab = box.firstElementChild, ph = lab.textContent;
       box.addEventListener('click', () => (list.hidden = !list.hidden));
-      list.addEventListener('change', () => { const on = [...list.querySelectorAll(':checked')].map((x) => x.value); hid.value = on.join(','); box.textContent = on.length ? `${on.length} 個班級` : ph; });
+      list.addEventListener('change', () => { const on = [...list.querySelectorAll(':checked')].map((x) => x.value); hid.value = on.join(','); lab.textContent = on.length ? `${on.length} 個班級` : ph; });
     });
     d.addEventListener('input', check); d.addEventListener('change', check);
     d.addEventListener('click', (e) => {
@@ -428,10 +428,10 @@
       });
     },
     // 產品「記錄收款」：收款金額、付款方式（現金／轉帳）、收款日期、備註
-    pay({ name, due, paid = 0, period, dueDate, onDone } = {}) {
+    pay({ name, due, paid = 0, onDone } = {}) {
       const owe = due - paid;
       return form({
-        title: `記錄收款${period ? ` · ${period}` : ''}`, sub: `${name} · 應繳 ${money(due)} 元 · 已收 ${money(paid)} 元 · 尚欠 ${money(owe)} 元${dueDate ? ` · ${md(dueDate)} 到期` : ''}`,
+        title: '記錄收款', sub: `${name} · 應繳 ${money(due)} 元 · 已收 ${money(paid)} 元 · 尚欠 ${money(owe)} 元`,
         fields: [
           { k: 'amt', label: '收款金額', type: 'money', value: String(owe), req: true, hint: '可以少於應繳 —— 部分收款是常態，帳單會自動變成「部分繳」。' },
           { k: 'how', label: '付款方式', type: 'radio', options: ['現金', '轉帳'] },

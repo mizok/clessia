@@ -998,6 +998,23 @@ export const PAGES = {
         reason: '「範圍以這裡為準、不跟畫面篩選；月份看開立日」稿沒有、現況有，保留',
         source: `${rule('R2')}；#2371 描述；https://github.com/mizok/clessia/issues/2381#issuecomment-6675289108`,
       },
+      // #2316：收款彈窗標題寫期別、副標加到期日 —— 標題文字變了，工具把稿的 h2 配到別的字上（#2495 B7 只回寫了逾期列，收款彈窗沒回寫）
+      ...[
+        { status: '文案', a6: '^pop\\[pay\\]>landmark:dialog\\[記錄收款\\]$' },
+        {
+          status: '文案',
+          a6: '>landmark:dialog\\[記錄收款\\]>text:p\\[\\{名\\} ·應繳#元·已收#元·尚欠#元\\]$',
+        },
+        ...['角色', '位置', '尺寸', '樣式'].map((status) => ({
+          status,
+          a6: '>landmark:dialog\\[記錄收款\\]>heading:h2\\[記錄收款\\]$',
+        })),
+      ].map((d) => ({
+        ...d,
+        pop: 'pay',
+        reason: '收款彈窗標題寫期別（「記錄收款 · 11 月學費」）、副標加到期日',
+        source: `${rule('R5', '「帳單列寫期別」2026-11-05')}；#2316`,
+      })),
       {
         status: '多',
         app: 'control:button\\[有#筆生效中的報名還沒開過帳單\\]$',
@@ -2851,7 +2868,7 @@ export const PAGES = {
         // R3 連帶：手機名字連結撐到 44px（稿是行內字，約 21），同列第一行變高，下面的勾選、單價、狀態字整排往下
         status: '位置',
         widths: [360],
-        a6: '>row>(text:label(~[23])?>control:(checkbox|textbox)|text:span)$',
+        a6: '>row>(text:label(~[23])?>control:(checkbox|textbox)|text:span(\\[今天有請假\\])?)$',
         detail: '^相對所在列 Δx 0、Δy \\+(1[0-9]|2[0-9]|3[0-2])',
         reason: '連帶：手機名字連結 44px 觸控高度，列的第一行變高',
         source: `${rule('R3')}`,

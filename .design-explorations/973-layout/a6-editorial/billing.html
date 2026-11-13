@@ -198,7 +198,7 @@
   const byId = (id) => inv.find((i) => i.id === id);
   document.addEventListener('click', (e) => {
     const p = e.target.closest('[data-pay]');
-    if (p) { const i = byId(p.dataset.pay); A2.forms.pay({ name: i.studentName, due: i.total, paid: i.paid, period: period(i), dueDate: i.due, onDone: (amt, v) => {
+    if (p) { const i = byId(p.dataset.pay); A2.forms.pay({ name: i.studentName, due: i.total, paid: i.paid, onDone: (amt, v) => {
       i.paid += amt; i.balance = Math.max(0, i.total - i.paid);
       i.payments.push({ at: C.TODAY, amount: amt, method: v.how });
       if (!i.balance) i.status = 'paid';
