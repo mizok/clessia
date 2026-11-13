@@ -122,7 +122,9 @@
                         >{{
                           r.kind === 'trial'
                             ? (trialStatusLabels[r.status] ?? r.status)
-                            : (parentStatusLabels[r.status] ?? r.status)
+                            : r.kind === 'renewal'
+                              ? (renewalStatusLabels[r.status] ?? r.status)
+                              : (parentStatusLabels[r.status] ?? r.status)
                         }}</span
                       >
                     </p>
@@ -169,6 +171,22 @@
                         已轉正式
                       </p>
                     }
+                    @if (r.kind === 'renewal') {
+                      <p class="m-0 mt-0.5 text-zinc-900" data-testid="renewal-detail">
+                        <b class="font-semibold">{{ renewalKindLabels[r.renewalKind ?? ''] }}</b
+                        >：{{ r.detail }}
+                      </p>
+                      @if (r.status === 'pending') {
+                        <p class="m-0 mt-0.5 text-sm text-zinc-600">
+                          下期期繳暫停開單，處理完才會照常開
+                        </p>
+                      }
+                      @if (r.resolutionNote) {
+                        <p class="m-0 mt-0.5 text-sm text-zinc-700">
+                          處理備註：{{ r.resolutionNote }}
+                        </p>
+                      }
+                    }
                     @if (r.preferredStartDate || r.preferredTimes) {
                       <p class="m-0 mt-0.5 text-sm text-zinc-600">
                         希望：{{ r.preferredStartDate ?? r.preferredTimes }}
@@ -204,6 +222,15 @@
                       >
                         核准
                       </button>
+                    } @else if (r.kind === 'renewal' && r.status === 'pending') {
+                      <button
+                        type="button"
+                        class="inline-flex h-11 cursor-pointer items-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-10"
+                        data-testid="renewal-resolve"
+                        (click)="resolvingId.set(r.id)"
+                      >
+                        標為已處理
+                      </button>
                     } @else if (
                       r.kind === 'trial' && (r.status === 'pending' || r.status === 'scheduled')
                     ) {
@@ -226,6 +253,29 @@
                   </div>
                 </div>
 
+                @if (resolvingId() === r.id) {
+                  <div class="mt-3 flex flex-col gap-2 wide:flex-row wide:items-start">
+                    <input
+                      #resolveNote
+                      type="text"
+                      maxlength="200"
+                      class="h-11 min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit]"
+                      [attr.aria-label]="'處理備註：' + r.student.name"
+                      placeholder="處理備註（選填，例：已電話確認改週六班）"
+                    />
+                    <p-button
+                      label="確定已處理"
+                      styleClass="h-11"
+                      (onClick)="submitResolve(r, resolveNote.value)"
+                    />
+                    <p-button
+                      label="取消"
+                      [text]="true"
+                      styleClass="h-11"
+                      (onClick)="resolvingId.set(null)"
+                    />
+                  </div>
+                }
                 @if (rejectingId() === r.id) {
                   <div class="mt-3 flex flex-col gap-2 wide:flex-row wide:items-start">
                     <textarea
