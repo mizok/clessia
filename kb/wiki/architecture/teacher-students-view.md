@@ -3,7 +3,7 @@ title: 老師端學生名單的設計
 summary: 老師看自己任課班級的學生。同時處理 teacher/attendance 空殼——點名的家是課表，不是另一個選單項目。
 category: architecture
 status: active
-updated: 2026-10-30
+updated: 2026-11-13
 tags: [architecture, teacher-students-view]
 ---
 
@@ -134,6 +134,16 @@ A6 `t-students.html`：點一位學生的名字，開頁內面板 —— 家長�
 **到班格的已知近似**：`attendance-days` 是一天一格（同一天他在老師的兩個班都有課時，格子合併成一種狀態）。
 面板依 `sessions[].className` 挑出這班的那幾天；同日兩班都由同一位老師教的情況少，合併後仍是同一位老師的資料，不越權。
 要精確到逐堂得另開一支老師可讀的逐堂出勤端點（`GET /attendance` 目前只給管理員，#1098），不在這張。
+
+**日到班的「沒到」與主按鈕的落點（#2500，#2494 第三輪走查）**：
+
+- 日到班分校的 `absent` 是「當天沒刷卡」，不是點過名的缺席；同一個學生在到班名單寫「沒有到班紀錄」（中性），
+  在面板卻是紅字「沒到」，老師會以為連幾堂沒來。`attendance-days` 每天多回 `dailyCheckin`
+  （那天的課全在日到班分校；只加不改），面板把這種天寫灰字「無紀錄」，全文「尚無到班紀錄」放 title。
+  逐堂分校點過名的缺席照舊紅字。
+- 主按鈕原本固定連課表的今天；今天沒這班的課時落在「這天沒有你的課」。現在 `attendance-days` 往後多查 14 天：
+  今天有這班（這班那堂沒停課）照舊；沒有就寫「下一堂 M/D（週幾）」，連 `/teacher/schedule?date=` 落在那天；
+  兩週內都沒有就不放主按鈕。課表頁的 `date` 是路由 query input（`withComponentInputBinding`），格式不對就當沒帶。
 
 拒絕的替代方案：
 
