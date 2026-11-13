@@ -72,7 +72,6 @@
   "GET /api/sessions/changes": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/sessions/substituted-away": "缺口 R4（#2493 第 9 張 sessions）",
   "GET /api/staff": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "GET /api/staff/:id": "缺口 W3／R3（#2493 第 4 張 staff）",
   "GET /api/students": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/students/:id": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/students/:id/attendance-days": "舊端點：#2493 盤點範圍 OK，缺契約認領",
@@ -98,9 +97,6 @@
   "PATCH /api/sessions/batch-substitute": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "PATCH /api/sessions/batch-uncancel": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "PATCH /api/sessions/batch-update-time": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "PATCH /api/staff/:id/activate": "缺口 W3／R3（#2493 第 4 張 staff）",
-  "PATCH /api/staff/:id/archive": "缺口 W3／R3（#2493 第 4 張 staff）",
-  "PATCH /api/staff/:id/deactivate": "缺口 W3／R3（#2493 第 4 張 staff）",
   "POST /api/announcements": "缺口 ?1（#2493 第 13 張 announcements）",
   "POST /api/announcements/read-all": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "POST /api/attendance": "舊端點：#2493 盤點範圍 OK，缺契約認領",
@@ -154,6 +150,5 @@
   "PUT /api/classes/:id/schedules/:sid": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "PUT /api/contact-book": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "PUT /api/parents/:id": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "PUT /api/staff/:id": "缺口 W3／R3（#2493 第 4 張 staff）",
   "PUT /api/students/:id": "舊端點：#2493 盤點範圍 OK，缺契約認領"
 }

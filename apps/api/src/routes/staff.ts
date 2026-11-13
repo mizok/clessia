@@ -12,6 +12,7 @@ import {
   campusFilterIds,
   campusIdsWithinScope,
   getCampusScope,
+  type CampusScope,
   grantsWiderThanScope,
 } from '../lib/campus-scope';
 import { DbUuidSchema, NicknameSchema } from '../lib/validation';
@@ -657,6 +658,34 @@ function getStaffById(
   return findInOrg(supabase, 'staff', orgId, id, '*');
 }
 
+/**
+ * 這位人員在不在呼叫者的分校範圍外（#2493 W3／R3）。原本單筆讀寫只看 org：受限管理員用 id
+ * 讀得到別校人員的聯絡方式與權限，改得了他的資料／權限、把他的分校改成自己的、封存停用他。
+ *
+ * - `read`：人員**任一**分校在範圍內就看得到（跨校老師兩邊都要能排課）
+ * - `write`：人員**全部**分校都在範圍內才可寫（計畫席 11-13 裁：跨校人員只有不受限者能改）
+ * - 沒有任何分校的人員推不出歸屬，對受限者是範圍外（同學生沒有報名，#1394）
+ *
+ * `scope === null`（不受限）不多查。範圍外跟不存在一樣回 404。
+ */
+async function staffOutOfScope(
+  supabase: SupabaseClient,
+  staffId: string,
+  scope: CampusScope,
+  mode: 'read' | 'write',
+): Promise<boolean> {
+  if (scope === null) return false;
+  const { data, error } = await supabase
+    .from('staff_campuses')
+    .select('campus_id')
+    .eq('staff_id', staffId);
+  if (error) return true; // 讀不到就拒絕，不放行
+  const campusIds = (data ?? []).map((row) => row.campus_id as string);
+  if (campusIds.length === 0) return true;
+  const inScope = (campusId: string) => scope.includes(campusId);
+  return mode === 'read' ? !campusIds.some(inScope) : !campusIds.every(inScope);
+}
+
 function normalizeAdminPermissions(role: StaffRole, permissions?: Permission[]): Permission[] {
   if (role !== 'admin') {
     return [];
@@ -1063,7 +1092,7 @@ app.openapi(getRoute, async (c) => {
   const { id } = c.req.valid('param');
 
   const staffRow = await getStaffById(supabase, orgId, id);
-  if (!staffRow) {
+  if (!staffRow || (await staffOutOfScope(supabase, id, getCampusScope(c), 'read'))) {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
 
@@ -1490,7 +1519,7 @@ app.openapi(updateRoute, async (c) => {
   const body = c.req.valid('json');
 
   const staffRow = await getStaffById(supabase, orgId, id);
-  if (!staffRow) {
+  if (!staffRow || (await staffOutOfScope(supabase, id, getCampusScope(c), 'write'))) {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
 
@@ -1833,7 +1862,7 @@ app.openapi(archiveRoute, async (c) => {
   const { id } = c.req.valid('param');
 
   const staffRow = await getStaffById(supabase, orgId, id);
-  if (!staffRow) {
+  if (!staffRow || (await staffOutOfScope(supabase, id, getCampusScope(c), 'write'))) {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
 
@@ -1940,7 +1969,7 @@ app.openapi(deactivateRoute, async (c) => {
   const { id } = c.req.valid('param');
 
   const staffRow = await getStaffById(supabase, orgId, id);
-  if (!staffRow) {
+  if (!staffRow || (await staffOutOfScope(supabase, id, getCampusScope(c), 'write'))) {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
 
@@ -2015,7 +2044,7 @@ app.openapi(activateRoute, async (c) => {
   const { id } = c.req.valid('param');
 
   const staffRow = await getStaffById(supabase, orgId, id);
-  if (!staffRow) {
+  if (!staffRow || (await staffOutOfScope(supabase, id, getCampusScope(c), 'write'))) {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
 
