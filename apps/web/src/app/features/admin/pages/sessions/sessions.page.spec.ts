@@ -1802,6 +1802,22 @@ describe('SessionsPage', () => {
       expect(c.pendingMenuSession()).toBeNull();
     });
 
+    // #1314 S3：那一堂在課表上找不到（被篩選擋住、或已經不在那天）→ 說出來，不要只切天
+    it('找不到那一堂：出提示，不是什麼都沒發生', async () => {
+      const add = vi.spyOn(MessageService.prototype, 'add');
+      try {
+        const { f } = await open({ focusDate: '2026-10-20', focusSession: 'no-such-session' });
+        await f.whenStable();
+        f.detectChanges();
+        await f.whenStable();
+        expect(add).toHaveBeenCalledWith(
+          expect.objectContaining({ severity: 'info', summary: '這一堂在課表上看不到' }),
+        );
+      } finally {
+        add.mockRestore();
+      }
+    });
+
     it('壞網址（日期不存在）：維持今天、不設待開', async () => {
       const { c } = await open({ focusDate: '2026-13-45', focusSession: 's-1' });
       expect(format(c.day(), 'yyyy-MM-dd')).toBe('2026-04-15');
