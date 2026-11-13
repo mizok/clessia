@@ -58,6 +58,9 @@ const req = (extra: Partial<ParentRequest> = {}): ParentRequest => ({
   scheduledDate: null,
   scheduledStartTime: null,
   scheduledEndTime: null,
+  renewalKind: null,
+  detail: null,
+  resolutionNote: null,
   ...extra,
 });
 

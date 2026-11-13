@@ -381,6 +381,25 @@ describe('ClassFormDialogComponent', () => {
     });
   });
 
+  // #2445：Esc 修在共用殼上，語意＝✕（各對話框的 closed 處理）—— 表單對話框改過欄位時兩者結果要一樣
+  it('Esc 與 ✕ 走同一條路：改過欄位後兩者都只呼叫一次 close、參數相同', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const input = el.querySelector<HTMLInputElement>('input')!;
+    input.value = '改過的名字';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    el.querySelector<HTMLButtonElement>('.dialog-header-inline__close')!.click();
+    const viaX = dialogRefMock.close.mock.calls.slice();
+    dialogRefMock.close.mockClear();
+
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+    );
+    expect(dialogRefMock.close.mock.calls).toEqual(viaX);
+    expect(viaX).toHaveLength(1);
+  });
+
   it('should not close dialog when add schedule API fails', async () => {
     (classesServiceMock.addSchedule as any).mockReturnValueOnce(
       throwError(() => ({ error: { error: '時段重疊' } })),

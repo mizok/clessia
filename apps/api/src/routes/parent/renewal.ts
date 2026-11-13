@@ -5,6 +5,11 @@ import { prorateByDays } from '../../lib/proration';
 import { getCurrentTaipeiDateString } from '../../lib/taipei-date';
 import { DbUuidSchema } from '../../lib/validation';
 import { scheduleOverlaps, scheduleRangeOf } from '../../lib/schedule-effective';
+import {
+  RenewalRequestSchema,
+  SELECT as REQUEST_SELECT,
+  toRenewalRequest,
+} from './renewal-requests';
 
 /**
  * 家長端續課預覽（#1121）：這個孩子下一期會繼續上哪些課、預估多少錢。
@@ -59,6 +64,8 @@ const ResponseSchema = z
       items: z.array(RenewalItemSchema),
       /** 這個孩子有在讀的月繳報名（月繳不列在預覽裡） */
       hasMonthlyEnrollments: z.boolean(),
+      /** 處理中的續課異動（#1122）；有＝這個孩子暫停自動開單 */
+      pendingRequest: RenewalRequestSchema.nullable(),
     }),
   })
   .openapi('ParentRenewalPreviewResponse');
@@ -119,7 +126,7 @@ app.openapi(
     const orgId = c.get('orgId');
     const today = getCurrentTaipeiDateString();
 
-    const [periodRes, monthlyRes] = await Promise.all([
+    const [periodRes, monthlyRes, pendingRes] = await Promise.all([
       childDb
         .orgRef('billing_periods')
         .select('name, start_date, end_date')
@@ -133,12 +140,23 @@ app.openapi(
         .eq('status', 'active')
         .eq('billing_mode', 'monthly')
         .limit(1),
+      childDb
+        .from('renewal_requests', 'student_id')
+        .select(REQUEST_SELECT)
+        .eq('student_id', childId)
+        .eq('status', 'pending')
+        .limit(1),
     ]);
-    if (periodRes.error || monthlyRes.error) return failed();
+    if (periodRes.error || monthlyRes.error || pendingRes.error) return failed();
+    const pendingRow = ((pendingRes.data ?? []) as unknown as Record<string, unknown>[])[0];
+    const pendingRequest = pendingRow ? toRenewalRequest(pendingRow) : null;
     const hasMonthlyEnrollments = ((monthlyRes.data ?? []) as unknown[]).length > 0;
     const period = ((periodRes.data ?? []) as unknown as Row[])[0];
     if (!period) {
-      return c.json({ data: { nextPeriod: null, items: [], hasMonthlyEnrollments } }, 200);
+      return c.json(
+        { data: { nextPeriod: null, items: [], hasMonthlyEnrollments, pendingRequest } },
+        200,
+      );
     }
     const nextPeriod = {
       name: period['name'] as string,
@@ -158,7 +176,10 @@ app.openapi(
       (row) => !row['effective_to'] || row['effective_to'] >= nextPeriod.startDate,
     );
     if (enrollments.length === 0) {
-      return c.json({ data: { nextPeriod, items: [], hasMonthlyEnrollments } }, 200);
+      return c.json(
+        { data: { nextPeriod, items: [], hasMonthlyEnrollments, pendingRequest } },
+        200,
+      );
     }
 
     const { data: classRows, error: classError } = await childDb
@@ -249,7 +270,7 @@ app.openapi(
       ];
     });
 
-    return c.json({ data: { nextPeriod, items, hasMonthlyEnrollments } }, 200);
+    return c.json({ data: { nextPeriod, items, hasMonthlyEnrollments, pendingRequest } }, 200);
   },
 );
 

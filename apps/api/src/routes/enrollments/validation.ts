@@ -1,3 +1,4 @@
+import { applyCampusFilter, type CampusScope } from '../../lib/campus-scope';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { scheduleOverlaps, scheduleRangeOf } from '../../lib/schedule-effective';
@@ -9,6 +10,11 @@ export interface EnrollmentPreconditionInput {
   readonly studentIds: readonly string[];
   readonly effectiveFrom: string;
   readonly effectiveTo: string | null;
+  /**
+   * 分校範圍（#2443）：班在範圍外**跟不存在一樣**（`CLASS_NOT_FOUND`），而且是第一步 ——
+   * 先查撞課的話，範圍外的班會回 409 並帶出那班的時段。
+   */
+  readonly scope: CampusScope;
 }
 
 export type EnrollmentPreconditionError =
@@ -58,22 +64,43 @@ interface ExistingEnrollmentRow {
   } | null;
 }
 
+type ClassLookup = {
+  in(column: string, values: string[]): ClassLookup;
+  maybeSingle(): PromiseLike<{ data: { id: string } | null; error: { message: string } | null }>;
+};
+
+/**
+ * 查一個班，**範圍外查不到 → 跟不存在一樣**（#2443）。直接報名的前置檢查與 copy-from-class 的
+ * 來源／目標班共用。轉成結構型別再套 `applyCampusFilter`：直接套 supabase builder 會 TS2589。
+ */
+export function findClassInScope(
+  supabase: SupabaseClient,
+  orgId: string,
+  classId: string,
+  scope: CampusScope,
+) {
+  return applyCampusFilter(
+    supabase
+      .from('classes')
+      .select('id')
+      .eq('id', classId)
+      .eq('org_id', orgId) as unknown as ClassLookup,
+    'campus_id',
+    scope,
+  ).maybeSingle();
+}
+
 export async function checkEnrollmentPreconditions(
   input: EnrollmentPreconditionInput,
 ): Promise<EnrollmentPreconditionResult> {
-  const { supabase, orgId, classId, studentIds, effectiveFrom, effectiveTo } = input;
+  const { supabase, orgId, classId, studentIds, effectiveFrom, effectiveTo, scope } = input;
   const uniqueStudentIds = Array.from(new Set(studentIds));
 
   if (uniqueStudentIds.length === 0) {
     return { error: null, conflicts: [] };
   }
 
-  const { data: cls, error: classError } = await supabase
-    .from('classes')
-    .select('id')
-    .eq('id', classId)
-    .eq('org_id', orgId)
-    .maybeSingle();
+  const { data: cls, error: classError } = await findClassInScope(supabase, orgId, classId, scope);
 
   if (classError) {
     return {

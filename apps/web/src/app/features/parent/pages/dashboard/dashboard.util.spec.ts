@@ -168,7 +168,6 @@ describe('dashboard.util', () => {
         payStrip([inv({ dueDate: '2026-11-30' }), inv({ dueDate: '2026-10-24' })], TODAY),
       ).toEqual({
         due: '2026-10-24',
-        items: 0,
         tag: { tone: 'warn', label: '2 天後到期' },
       });
       expect(payStrip([inv({ dueDate: '2026-10-20' })], TODAY)?.tag).toEqual({
