@@ -80,6 +80,7 @@ interface Candidate {
   org_id: string;
   due_date: string;
   offset: number;
+  student_id: string;
   student_name: string;
   user_id: string;
   item_amounts: Array<number | string>;
@@ -93,7 +94,7 @@ interface Candidate {
  */
 const CANDIDATES_SQL = `
 SELECT i.id AS invoice_id, i.org_id, i.due_date::text AS due_date, o.off AS offset,
-       s.name AS student_name, p.user_id,
+       i.student_id, s.name AS student_name, p.user_id,
        COALESCE((SELECT json_agg(ii.amount) FROM invoice_items ii WHERE ii.invoice_id = i.id), '[]') AS item_amounts,
        COALESCE((SELECT json_agg(json_build_object('kind', pr.kind, 'amount', pr.amount))
                    FROM payment_records pr WHERE pr.invoice_id = i.id AND pr.org_id = i.org_id), '[]') AS payments
@@ -108,7 +109,7 @@ WHERE EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = p.user_id AND ur.ro
 
 /** 鎖定畫面與通知中心都看得到 —— **不放金額**（#1626 Q3；排入當下寫好的金額之後也會過時） */
 export function reminderPayload(
-  c: Pick<Candidate, 'invoice_id' | 'due_date' | 'offset' | 'student_name'>,
+  c: Pick<Candidate, 'invoice_id' | 'due_date' | 'offset' | 'student_id' | 'student_name'>,
 ) {
   const [, m, d] = c.due_date.split('-');
   const md = `${Number(m)}/${Number(d)}`;
@@ -121,7 +122,8 @@ export function reminderPayload(
   return {
     title: '繳費提醒',
     body,
-    url: '/parent/payments',
+    // 帶孩子：多孩子家長點進去先切到這個孩子，不是落在目前選中的那個（#2497）
+    url: `/parent/payments?child=${c.student_id}`,
     // 同一張帳單的提醒互相蓋掉（RFC 8030 §5.4，最多 32 字元）
     topic: c.invoice_id.replace(/-/g, ''),
   };

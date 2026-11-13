@@ -1335,6 +1335,8 @@ DECLARE
 BEGIN
   SELECT id INTO v_parent FROM public.ba_user WHERE email = 'parent03@demo.clessia.app';
   SELECT id INTO v_teacher FROM public.ba_user WHERE email = 'teacher0001@demo.clessia.app';
+  -- 家長的通知都是張宇軒的事：連結帶 ?child=，點進去先切到他（#2497，同 API 產的通知）
+  SELECT id INTO v_student FROM public.students WHERE org_id = demo_org_id AND name = '張宇軒' LIMIT 1;
 
   -- (a) 通知：(收件人, 角色, 種類, 幾分鐘前, 已讀?, 標題, 內文, 連結)
   FOR r IN SELECT * FROM (VALUES
@@ -1356,7 +1358,8 @@ BEGIN
     INSERT INTO public.notifications (org_id, user_id, role, kind, dedupe_key, payload, created_at, push_status, read_at)
     VALUES (demo_org_id, r.uid, r.role::public.user_role, r.kind::public.notification_kind,
             'seed-demo:a6-inbox:' || r.kind || ':' || r.mins,
-            jsonb_build_object('title', r.title, 'body', r.body, 'url', r.url),
+            jsonb_build_object('title', r.title, 'body', r.body, 'url',
+              CASE WHEN r.role = 'parent' AND v_student IS NOT NULL THEN r.url || '?child=' || v_student ELSE r.url END),
             now() - make_interval(mins => r.mins), 'skipped',
             CASE WHEN r.is_read THEN now() - make_interval(mins => r.mins - 10) END)
     ON CONFLICT (user_id, dedupe_key) DO NOTHING;
