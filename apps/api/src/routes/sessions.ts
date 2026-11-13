@@ -1144,9 +1144,9 @@ app.openapi(listSessionsRoute, async (c) => {
       uniqueClassIds.length > 0
         ? supabase
             .from('enrollments')
-            .select('class_id, effective_from, effective_to')
+            .select('class_id, student_id, effective_from, effective_to')
             .in('class_id', uniqueClassIds)
-            .eq('status', 'active')
+            .neq('status', 'void')
             .eq('org_id', orgId)
         : Promise.resolve({ data: [], error: null }),
     ]);
@@ -1185,6 +1185,7 @@ app.openapi(listSessionsRoute, async (c) => {
   const attendanceTally = tallyAttendanceCounts(attendanceCounts);
   const enrollmentRanges: EnrollmentRange[] = enrollmentRows.map((row) => ({
     classId: row['class_id'] as string,
+    studentId: row['student_id'] as string,
     effectiveFrom: row['effective_from'] as string,
     effectiveTo: (row['effective_to'] as string | null) ?? null,
   }));
@@ -1436,15 +1437,16 @@ app.openapi(createSessionRoute, async (c) => {
       .single(),
     supabase
       .from('enrollments')
-      .select('class_id, effective_from, effective_to')
+      .select('class_id, student_id, effective_from, effective_to')
       .eq('class_id', body.classId)
-      .eq('status', 'active')
+      .neq('status', 'void')
       .eq('org_id', orgId),
   ]);
   const enrollmentRanges: EnrollmentRange[] = (
     (enrollmentRows ?? []) as Array<Record<string, unknown>>
   ).map((r) => ({
     classId: r['class_id'] as string,
+    studentId: r['student_id'] as string,
     effectiveFrom: r['effective_from'] as string,
     effectiveTo: (r['effective_to'] as string | null) ?? null,
   }));

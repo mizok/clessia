@@ -14,6 +14,11 @@
 
 export interface EnrollmentRange {
   classId: string;
+  /**
+   * 有給就依學生去重（#953）：退班不再靠 status 排除之後，同一天退班又重報同一班的學生
+   * 會有兩筆報名同時涵蓋那一天（舊的 effective_to＝新的 effective_from＝當天）
+   */
+  studentId?: string;
   effectiveFrom: string;
   /** null = 還在讀 */
   effectiveTo: string | null;
@@ -30,7 +35,8 @@ export function countEnrolledOn(
   classId: string,
   date: string | null,
 ): number {
-  return enrollments.filter((row) => row.classId === classId && isEnrolledOn(row, date)).length;
+  const hits = enrollments.filter((row) => row.classId === classId && isEnrolledOn(row, date));
+  return new Set(hits.map((row, i) => row.studentId ?? i)).size;
 }
 
 /**
@@ -42,6 +48,12 @@ export function countEnrolledOn(
  * 筆數形狀會把同一個人算兩次。**形狀不同、規則相同** —— 規則就該只有一份。
  *
  * `date` 是 `null` 時**不套生效區間**（課堂還沒排定時間的情況）。
+ *
+ * **狀態前提（#953，計畫席 11-13 裁「在籍依課堂日期」做滿）**：呼叫端只濾掉 `void`（作廢＝這筆報名不算數），
+ * 其餘狀態都交給生效區間判。退班一定會寫 `effective_to`（唯一入口 `PATCH /enrollments/:id/status`），
+ * 所以上個月的課不會因為這個月退班而少一人，退班日之後的課也不會有他。
+ * 點名名單、點名寫入驗證、課堂列表人數、作業台走這個前提；到班掃碼、請假連動、帳單批次仍是
+ * `status = 'active'`（保留類，不在 #953 範圍）。
  */
 export function isEnrolledOn(
   range: Pick<EnrollmentRange, 'effectiveFrom' | 'effectiveTo'>,
