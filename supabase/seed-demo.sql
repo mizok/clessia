@@ -1421,6 +1421,47 @@ BEGIN
 END $$;
 
 -- ============================================================================
+-- 續課與續課異動的展示資料（#2498，#2494 第三輪走查）
+--
+-- 續課頁（#1121）只列「期繳、而且有下一期」的報名，「申請異動」（#1122）跟著它出現。原本走不到：
+-- (1) 機構的期全部在今天以前開始 → 沒有「下一期」，誰都沒有續課項目；
+-- (2) parent03 的四個孩子都是月繳／堂數。
+-- 補：兩個未來的期（固定日期、名稱同 seed.sql 的寫法；兩期是為了過了 2027-02-01 仍有「下一期」），
+-- 以及 parent03 的出勤測試學生01 期繳報名英文班 B（跟 seed.sql 英文班的期繳設定同一套範本）。
+-- 重跑無害：期靠 (org_id, name) 唯一、報名靠 NOT EXISTS。
+-- ============================================================================
+DO $$
+DECLARE
+  demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
+  v_student UUID;
+  v_class UUID;
+BEGIN
+  INSERT INTO public.billing_periods (org_id, name, start_date, end_date)
+  VALUES
+    (demo_org_id, '2027 上學期 + 暑假', DATE '2027-02-01', DATE '2027-08-31'),
+    (demo_org_id, '2027 下學期 + 寒假', DATE '2027-09-01', DATE '2028-01-31')
+  ON CONFLICT (org_id, name) DO NOTHING;
+
+  SELECT s.id INTO v_student
+    FROM public.students s
+    JOIN public.parent_student_relations r ON r.student_id = s.id
+    JOIN public.parents p ON p.id = r.parent_id
+    JOIN public.ba_user u ON u.id = p.user_id
+   WHERE s.org_id = demo_org_id AND s.name = '出勤測試學生01' AND u.email = 'parent03@demo.clessia.app'
+   LIMIT 1;
+  SELECT id INTO v_class FROM public.classes WHERE org_id = demo_org_id AND name = '英文班 B' LIMIT 1;
+  IF v_student IS NULL OR v_class IS NULL THEN RETURN; END IF;
+
+  INSERT INTO public.enrollments (org_id, class_id, student_id, status, effective_from,
+                                  billing_mode, fee_template_id, notes)
+  SELECT demo_org_id, v_class, v_student, 'active'::public.enrollment_status, CURRENT_DATE - 30,
+         'period'::public.billing_mode,
+         (SELECT id FROM public.fee_templates WHERE org_id = demo_org_id AND name = '國中主科期繳'),
+         '展示用：期繳續課（#2498）'
+  WHERE NOT EXISTS (SELECT 1 FROM public.enrollments WHERE student_id = v_student AND class_id = v_class);
+END $$;
+
+-- ============================================================================
 -- 日到班的展示資料：今天的到班打卡（#976）
 --
 -- #976 起組織預設是日到班，儀表板改看「今日到班」—— 而這支原本一筆 `daily_checkins`
