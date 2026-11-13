@@ -76,6 +76,8 @@ export interface StudentAttendanceDays {
   days: {
     date: string;
     state: 'came' | 'absent' | 'on_leave' | 'cancelled' | 'future';
+    /** 那天的課全在日到班分校（#2500）：這種天的 absent 是「沒刷卡」，不是點過名的缺席 */
+    dailyCheckin: boolean;
     sessions: { sessionId: string; className: string; startTime: string | null; status: string }[];
   }[];
   /** `due` = 非停課非未來的天數（「到班 came／due 天」） */

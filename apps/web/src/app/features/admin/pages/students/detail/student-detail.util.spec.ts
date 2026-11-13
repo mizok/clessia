@@ -181,9 +181,10 @@ describe('buildLog', () => {
           {
             date: '2026-08-22',
             state: 'absent',
+            dailyCheckin: false,
             sessions: [{ sessionId: 's', className: '數學班', startTime: null, status: 'x' }],
           },
-          { date: '2026-08-29', state: 'came', sessions: [] },
+          { date: '2026-08-29', state: 'came', dailyCheckin: false, sessions: [] },
         ],
       }),
       invoices: [{ issuedAt: '2026-10-04T02:00:00Z', total: 4050 }],
