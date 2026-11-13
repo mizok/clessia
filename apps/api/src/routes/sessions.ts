@@ -34,6 +34,7 @@ import {
   type EnrollmentRange,
 } from '../lib/session-roster';
 import { getCampusScope, isCampusAllowed, type CampusScope } from '../lib/campus-scope';
+import { changeLogViaSql } from '../lib/change-log-sql';
 import {
   attendanceCountsViaSql,
   enrollmentRangesViaSql,
@@ -1610,80 +1611,70 @@ const listChangeLogRoute = createRoute({
         'application/json': {
           schema: z.object({
             data: z.array(ChangeLogEntrySchema),
-            meta: z.object({ total: z.number(), page: z.number(), pageSize: z.number() }),
+            /**
+             * total／pageSize 數的是「則」（一批或一筆，#1314 S3）；rowTotal 是列數（＝堂次），
+             * 「停課 N 堂」這種要數堂的用它
+             */
+            meta: z.object({
+              total: z.number(),
+              rowTotal: z.number(),
+              page: z.number(),
+              pageSize: z.number(),
+            }),
           }),
         },
       },
     },
     400: { description: '查詢失敗', content: { 'application/json': { schema: ErrorSchema } } },
+    403: {
+      description: '指名的分校不在範圍內',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
 app.openapi(listChangeLogRoute, async (c) => {
-  const supabase = c.get('supabase');
   const orgId = c.get('orgId');
   const { from, to, changeType, campusId, q, page, pageSize } = c.req.valid('query');
 
-  // 搜尋（#1412）：班名在 sessions→classes 底下，PostgREST 的 top-level `or` 比不到巢狀欄位，
-  // 所以先撈出名字符合的班級／老師 id，再用 `class_match` 這個 embed 判空（被篩掉就是 null）跟老師條件 OR。
+  // 分校範圍（#1314 S3 一併補的既有缺口：舊版完全沒套 campusScope）。指名範圍外的分校 403，
+  // 不默默回空（同 isCampusAllowed 的理由）；沒指名就收斂到範圍內
+  const campusScope = getCampusScope(c);
+  if (campusId && !isCampusAllowed(campusScope, campusId)) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+  }
+  const campusIds = campusId ? [campusId] : campusScope ? [...campusScope] : null;
+
+  // 搜尋（#1412）：剝掉保留字元後空了＝什麼都比不到，回空，不能變成「不篩」
   const term = q?.replace(CHANGE_SEARCH_RESERVED, '');
-  if (q && !term) return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
-  let search: { classIds: string[]; staffIds: string[] } | null = null;
-  if (term) {
-    const [classesResult, staffResult] = await Promise.all([
-      supabase.from('classes').select('id').eq('org_id', orgId).ilike('name', `%${term}%`),
-      supabase.from('staff').select('id').eq('org_id', orgId).ilike('display_name', `%${term}%`),
-    ]);
-    const searchError = classesResult.error ?? staffResult.error;
-    if (searchError) return c.json({ error: searchError.message, code: 'DB_ERROR' }, 500);
-    search = {
-      classIds: (classesResult.data ?? []).map((row) => row.id as string),
-      staffIds: (staffResult.data ?? []).map((row) => row.id as string),
-    };
-  }
+  if (q && !term) return c.json({ data: [], meta: { total: 0, rowTotal: 0, page, pageSize } }, 200);
 
-  // 排序用 created_at 而非課堂日期：這是 log 檢視，關心的是「最近發生了什麼」。
-  // （授課紀錄剛好相反，它用課堂日期排 —— 同一份資料在不同問題下有不同的自然順序。）
-  let query = supabase
-    .from('schedule_changes')
-    .select(
-      `
-      id, session_id, change_type, operation_source, batch_id, reason, created_by_name, created_at,
-      original_session_date, original_start_time, original_end_time,
-      new_session_date, new_start_time, new_end_time,
-      original_teacher_name,
-      sessions!inner ( session_date, start_time, classes!inner ( name, campus_id ) ),
-      staff!substitute_teacher_id ( display_name )${search ? ', class_match:sessions ( id )' : ''}
-    `,
-      { count: 'exact' },
-    )
-    .eq('org_id', orgId)
-    .gte('sessions.session_date', from)
-    .lte('sessions.session_date', to)
-    .order('created_at', { ascending: false })
-    .range((page - 1) * pageSize, page * pageSize - 1);
-
-  if (changeType) query = query.eq('change_type', changeType);
-  if (campusId) query = query.eq('sessions.classes.campus_id', campusId);
-  if (search) {
-    query = query
-      .in('class_match.class_id', search.classIds)
-      .or(
-        `class_match.not.is.null,original_teacher_name.ilike.*${term}*,substitute_teacher_id.in.(${search.staffIds.join(',')})`,
-      );
-  }
-
-  const { data, error, count } = await query;
-
-  if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
+  // 分頁單位是「一則」（一批或一筆，#1314 S3）：在 SQL 裡分組後分頁，見 lib/change-log-sql.ts。
+  // 排序用各組最新的 created_at：這是 log 檢視，關心的是「最近發生了什麼」。
+  const db = c.get('auth')?.pool;
+  if (!db) return c.json({ error: '查詢異動失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
+  let result: Awaited<ReturnType<typeof changeLogViaSql>>;
+  try {
+    result = await changeLogViaSql(db, {
+      orgId,
+      from,
+      to,
+      changeType: changeType ?? null,
+      campusIds,
+      term: term || null,
+      page,
+      pageSize,
+    });
+  } catch (err) {
+    console.error('[sessions/changes] 讀取失敗：', err instanceof Error ? err.message : err);
+    return c.json({ error: '查詢異動失敗', code: 'DB_ERROR' }, 500);
   }
 
   return c.json(
     {
-      data: ((data ?? []) as unknown as ChangeLogRow[]).map(describeChange),
-      meta: { total: count ?? 0, page, pageSize },
+      data: (result.rows as unknown as ChangeLogRow[]).map(describeChange),
+      meta: { total: result.total, rowTotal: result.rowTotal, page, pageSize },
     },
     200,
   );

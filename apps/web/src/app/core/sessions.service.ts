@@ -340,7 +340,14 @@ export class SessionsService {
   /** 跨課堂的課務異動紀錄。依 created_at 由新到舊 —— 這是 log，關心「最近發生什麼」。 */
   listChanges(params: ChangeLogParams): Observable<{
     data: ChangeLogEntry[];
-    meta: { total: number; page: number; pageSize: number };
+    meta: {
+      /** 則數（一批或一筆，#1314 S3）；分頁也是以則計 */
+      total: number;
+      /** 列數（＝堂次）：「停課 N 堂」用它 */
+      rowTotal: number;
+      page: number;
+      pageSize: number;
+    };
   }> {
     const query: Record<string, string> = { from: params.from, to: params.to };
     if (params.changeType) query['changeType'] = params.changeType;
@@ -351,7 +358,14 @@ export class SessionsService {
 
     return this.http.get<{
       data: ChangeLogEntry[];
-      meta: { total: number; page: number; pageSize: number };
+      meta: {
+        /** 則數（一批或一筆，#1314 S3）；分頁也是以則計 */
+        total: number;
+        /** 列數（＝堂次）：「停課 N 堂」用它 */
+        rowTotal: number;
+        page: number;
+        pageSize: number;
+      };
     }>(`${this.endpoint}/changes`, { params: query });
   }
 
