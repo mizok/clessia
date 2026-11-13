@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
-import { createMultiOrgDb } from '../test-utils/multi-org-db';
+import { createMultiOrgDb, hooked, type Hook } from '../test-utils/multi-org-db';
 import parentRequestsRoute, { SELECT } from './parent-requests';
 
 /**
@@ -131,11 +131,12 @@ function call(
   path: string,
   init: RequestInit = {},
   scope: readonly string[] | null = null,
+  hook?: Hook,
 ) {
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
-    set('supabase', db.client);
+    set('supabase', hook ? hooked(db.client, hook) : db.client);
     set('orgId', ORG);
     set('userId', 'admin-1');
     set('roles', ['admin']);
@@ -585,6 +586,32 @@ describe('續課異動（#1122）', () => {
     expect((await patch(db, 12, { status: 'resolved' })).status).toBe(409);
     expect((await patch(db, 14, { status: 'resolved' }, [CAMPUS_A])).status).toBe(404);
     expect(db.rows('renewal_requests').find((r) => r['id'] === id(13))!['status']).toBe(
+      'withdrawn',
+    );
+  });
+
+  it('讀完之後、寫之前家長撤回了（插隊）→ 409，不蓋成 resolved', async () => {
+    const db = seed([], rows());
+    let raced = false;
+    const res = await call(
+      db,
+      `/renewal/${id(11)}`,
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: 'resolved' }),
+      },
+      null,
+      async (table, ops) => {
+        if (table !== 'renewal_requests' || !ops.includes('update') || raced) return undefined;
+        raced = true;
+        await db.client.from('renewal_requests').update({ status: 'withdrawn' }).eq('id', id(11));
+        return undefined;
+      },
+    );
+    expect(raced).toBe(true);
+    expect(res.status).toBe(409);
+    expect(db.rows('renewal_requests').find((r) => r['id'] === id(11))!['status']).toBe(
       'withdrawn',
     );
   });
