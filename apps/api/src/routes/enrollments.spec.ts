@@ -1678,6 +1678,8 @@ describe('B3 —— 報名的計費 API', () => {
       /** 列表回的報名列（預設空）與 renewal_requests 回的列（#1122） */
       list?: Array<Record<string, unknown>>;
       renewals?: Array<Record<string, unknown>>;
+      /** renewal_requests 讀取失敗（D4） */
+      renewalsError?: boolean;
     } = {},
   ) {
     const filters: Array<[string, unknown]> = [];
@@ -1784,7 +1786,11 @@ describe('B3 —— 報名的計費 API', () => {
                   : table === 'renewal_requests'
                     ? (fixture.renewals ?? [])
                     : [];
-            return Promise.resolve({ data, count: 0, error: null }).then(onfulfilled ?? undefined);
+            const error =
+              table === 'renewal_requests' && fixture.renewalsError ? { message: 'boom' } : null;
+            return Promise.resolve({ data, count: 0, error }).then(
+              (onfulfilled ?? undefined) as never,
+            );
           },
         };
         return query;
@@ -1834,6 +1840,15 @@ describe('B3 —— 報名的計費 API', () => {
       expect(filters).toContainEqual(['renewal_requests.org_id', 'org-1']);
       expect(filters).toContainEqual(['renewal_requests.status', 'pending']);
       expect(filters).toContainEqual(['renewal_requests.in.student_id', ['stu-paused', 'stu-ok']]);
+    });
+
+    it('#1122：讀續課異動失敗 → 500（fail-closed，不當成沒有暫停的人，D4）', async () => {
+      const list = [
+        { id: 'e1', student_id: 'stu-paused', status: 'active', classes: { name: 'A' } },
+      ];
+      const { app } = createApp({ list, renewalsError: true });
+      const res = await app.request('/api/enrollments?hasInvoice=false');
+      expect(res.status).toBe(500);
     });
 
     it('#1122：其他列表不查也不帶 renewalPending', async () => {
