@@ -14,6 +14,7 @@ import type { Campus } from '@core/campuses.service';
 import { AttendanceService } from '@core/attendance.service';
 import { CampusContextService } from '@core/campus-context.service';
 import { SystemClockService } from '@core/system-clock.service';
+import { accessibleName, studentInput } from '../../../../testing/accessible-name';
 
 /** 勾堂模式（#2318）用到的三支；不開勾堂的測試只需要它們存在 */
 const studentDayMock = vi.fn();
@@ -255,6 +256,11 @@ describe('LeaveFormDialogComponent', () => {
   it('DialogService 開時的 contentStyle：底部 padding 歸 0、改由動作列撐（--leave-foot-pb）', () => {
     expect(LEAVE_DIALOG_CONTENT_STYLE['padding-bottom']).toBe('0');
     expect(LEAVE_DIALOG_CONTENT_STYLE['--leave-foot-pb']).toBeTruthy();
+  });
+
+  // #2468：學生欄的可及名稱要落在真正的 input 上（placeholder 不算名稱）
+  it('#2468：學生欄的名稱是「學生 *」label（for 指到真正的 input）', () => {
+    expect(accessibleName(studentInput(fixture.nativeElement))).toContain('學生');
   });
 
   it('renders the shared student autocomplete field', () => {

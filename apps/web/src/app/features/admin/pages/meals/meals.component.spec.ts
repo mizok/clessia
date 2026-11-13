@@ -23,6 +23,7 @@ const campusProviders = [
 
 import { MealsComponent } from './meals.component';
 import { rosterToDraft } from './meals.util';
+import { accessibleName, studentInput } from '../../../../../testing/accessible-name';
 
 const row = (overrides?: Partial<MealRosterRow>): MealRosterRow => ({
   studentId: 's1',
@@ -92,6 +93,13 @@ describe('MealsComponent', () => {
     fixture.componentRef.setInput('page', { label: '餐費管理' });
     component = fixture.componentInstance;
     await fixture.whenStable();
+  });
+
+  // #2468：學生欄的可及名稱要落在真正的 input 上（placeholder 不算名稱）
+  it('#2468：學生篩選欄（區間查詢）有可及名稱', async () => {
+    component['switchMode']('range');
+    await fixture.whenStable();
+    expect(accessibleName(studentInput(fixture.nativeElement))).toBe('篩選學生');
   });
 
   it('should create', () => {

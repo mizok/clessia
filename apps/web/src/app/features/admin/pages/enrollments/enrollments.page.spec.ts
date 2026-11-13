@@ -23,6 +23,7 @@ import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { EnrollmentsPage } from './enrollments.page';
 import { EnrollmentBillingDialogComponent } from '../courses/class-detail/enrollment-billing-dialog/enrollment-billing-dialog.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { accessibleName, studentInput } from '../../../../../testing/accessible-name';
 
 function enrollment(overrides: Partial<Enrollment> = {}): Enrollment {
   return {
@@ -142,6 +143,12 @@ describe('EnrollmentsPage', () => {
 
   // #508：載入中原本是整塊被一行文字取代（沒有骨架尺寸，資料到了會跳版）。
   // 改成骨架列表後這裡改斷言骨架元素，不是文字。
+  // #2468：學生欄的可及名稱要落在真正的 input 上（placeholder 不算名稱）
+  it('#2468：學生篩選欄的名稱是旁邊的「學生」', async () => {
+    await setup();
+    expect(accessibleName(studentInput(fixture.nativeElement))).toBe('學生');
+  });
+
   it('日常頁：頂欄沒有「全部分校」（#1607）', async () => {
     await setup();
     const ctx = TestBed.inject(CampusContextService);
