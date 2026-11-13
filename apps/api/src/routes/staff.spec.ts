@@ -608,7 +608,10 @@ describe('#1829 PUT /api/staff/:id —— `*` 與改自己', () => {
                 ? setup.priorRows
                     .filter((row) => !roleIn || roleIn.includes(row.role))
                     .map((row) => ({ ...row, user_id: setup.targetUser }))
-                : [],
+                : // #2493 W3：被改的人在請求者的分校內 —— 這組測的是 `*`，不是分校範圍
+                  table === 'staff_campuses'
+                  ? (setup.scope ?? []).map((campus_id) => ({ staff_id: STAFF, campus_id }))
+                  : [],
             count: 0,
             error: null,
           }),
