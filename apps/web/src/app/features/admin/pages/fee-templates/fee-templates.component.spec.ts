@@ -97,6 +97,38 @@ describe('FeeTemplatesComponent', () => {
   };
   const internals = () => component as unknown as Internals;
 
+  // #1314 F3（A6 fee-templates：停用／啟用 → toast 可復原）
+  describe('停用／啟用的 toast 可復原（#1314 F3）', () => {
+    const setActive = (t: FeeTemplate, v: boolean) =>
+      (
+        component as unknown as { setTemplateActive: (t: FeeTemplate, v: boolean) => void }
+      ).setTemplateActive(t, v);
+
+    it.each([false, true])('改成 isActive=%s 後按復原：打反向的 PATCH、重抓', (isActive) => {
+      const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+      const target = template({ id: 't1', name: '月繳', isActive: !isActive });
+      setActive(target, isActive);
+      expect(feeTemplates.update).toHaveBeenLastCalledWith('t1', { isActive });
+
+      const undo = (toast.mock.calls.at(-1)![0] as { data: { undo: () => void } }).data.undo;
+      const listCalls = feeTemplates.list.mock.calls.length;
+      undo();
+      expect(feeTemplates.update).toHaveBeenLastCalledWith('t1', { isActive: !isActive });
+      expect(feeTemplates.list.mock.calls.length).toBe(listCalls + 1);
+    });
+
+    it('復原失敗：報錯', () => {
+      const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+      setActive(template({ id: 't1', isActive: true }), false);
+      const undo = (toast.mock.calls.at(-1)![0] as { data: { undo: () => void } }).data.undo;
+      feeTemplates.update.mockReturnValueOnce(throwError(() => new Error('boom')) as never);
+      undo();
+      expect(toast).toHaveBeenLastCalledWith(
+        expect.objectContaining({ severity: 'error', summary: '復原失敗，請再試一次' }),
+      );
+    });
+  });
+
   it('should create', () => {
     expect(component).toBeTruthy();
   });

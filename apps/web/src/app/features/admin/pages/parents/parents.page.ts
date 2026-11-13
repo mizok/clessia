@@ -637,6 +637,18 @@ export class ParentsPage implements OnInit {
           severity: 'success',
           summary: successMsg,
           detail: `「${parent.name}」${successMsg}`,
+          // #1314 PA8（A6 parents：停用可以復原，toast 上給「復原」）。封存是單向的、啟用不給。
+          // 「已復原」由 toast 自己出，這裡只打啟用、重抓；失敗才說
+          ...(action === 'deactivate' && {
+            data: {
+              undo: () =>
+                this.parentsService.activate(parent.id).subscribe({
+                  next: () => this.loadParents({ rows: true }),
+                  error: () =>
+                    this.messageService.add({ severity: 'error', summary: '復原失敗，請再試一次' }),
+                }),
+            },
+          }),
         });
         this.loadParents({ quiet: action === 'archive', rows: true });
       },
