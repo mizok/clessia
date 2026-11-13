@@ -107,6 +107,8 @@ function defaultDay(weekStart: Date, todayStr: string): string {
 })
 export class SchedulePage implements OnInit {
   readonly page = input.required<RouteObj>();
+  /** 網址的 `?date=yyyy-MM-dd`：直接落在那天（#2500 學生卡「下一堂」連過來）；格式不對就當沒帶 */
+  readonly date = input<string>();
 
   /** 「N 位學生」連結的目標（A6：連到學生頁） */
   protected readonly studentsPath = RoutesCatalog.TEACHER_STUDENTS.absolutePath;
@@ -318,6 +320,11 @@ export class SchedulePage implements OnInit {
     // `load()` 而不是自己 subscribe —— 原本這裡只有 next 分支，失敗時沒有人接，
     // 而 `isTeacherLed()` 的 `?? 'admin'` 會把它讀成一個真的答案
     this.orgSettingsService.load();
+    const date = this.date();
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      this.currentWeekStart.set(startOfWeek(parseISO(date), { weekStartsOn: 1 }));
+      this.selectedDate.set(date);
+    }
     this.loadSessions();
   }
 

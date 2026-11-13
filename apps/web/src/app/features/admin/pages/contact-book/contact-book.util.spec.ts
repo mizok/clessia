@@ -22,6 +22,7 @@ function entry(overrides: Partial<ContactBookEntry> = {}): ContactBookEntry {
     entryDate: '2026-08-29',
     content: '今天上課很專心。',
     lastEditedByName: '王老師',
+    lastEditedBy: null,
     teacherEditedAt: null,
     signedBy: null,
     signedByName: null,

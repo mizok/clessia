@@ -947,13 +947,6 @@ export const PAGES = {
       },
       // 「一次勾：」那列（#2140 起桌機勾第一堂就出現）：完成鈕照工具列控制項同高、兩個下拉是 A6 下拉元件
       {
-        status: '尺寸',
-        a6: '>landmark:main\\[\\]>control:button\\[完成\\]$',
-        detail: '^高 30→40$',
-        reason: '灰帶工具列控制項全部同高：桌機 40',
-        source: `${rule('R5')}「灰帶工具列控制項高度」2026-10-23；#1903`,
-      },
-      {
         status: '多',
         app: '>landmark:main\\[\\]>control:combobox\\[(某位老師這週的課|某個班整期的課)\\]$',
         reason: SELECT_FIELD,
@@ -3024,14 +3017,6 @@ export const PAGES = {
         reason: SELECT_FIELD,
         source: SELECT_FIELD_SOURCE,
       },
-      {
-        // Δx ±8：展開內容外圍的灰框 4→12px，欄位（含學生名下的班名小字，#2080-1）跟著內縮
-        status: '位置',
-        a6: '>landmark:region\\[這段期間的聯絡簿\\]>row>control:button(~\\d+)?>text:span(~\\d+)?(>text:small)?$',
-        detail: '^相對所在列 Δx [-+]8、Δy -?\\d+（',
-        reason: '連帶：欄位因灰框加寬內縮 8px',
-        source: `${rule('R5')}「摺疊摘要列（\`.coll\`）展開內容外圍的灰框」2026-10-22；#1853`,
-      },
       // 代表列取最常見的變體：稿的示範多是「已簽收」（綠字、不帶底），seed 多是「未簽收」（灰底小標）。
       // 兩種變體都照稿（稿上 button~3 的「未簽收」配上了、樣式一致）；手機上小標寬不同，學生名那欄跟著不同寬
       ...['樣式', '位置'].map((status) => ({
@@ -3418,16 +3403,6 @@ export const PAGES = {
         reason: '語意結構依內容：列表用 ul／li，外觀照稿',
         source: `${rule('R7', '，#1590')}`,
       },
-      // 期間鈕：桌機 40（灰帶工具列控制項同高），稿 34；手機 44 由全站 R3 那條管
-      {
-        status: '尺寸',
-        pop: 'detail',
-        widths: [1440],
-        a6: '(^|>)control:button\\[(近#月|近半年|全部)\\](~\\d+)?$',
-        detail: '^高 34→40$',
-        reason: '工具列控制項全部同高：桌機 40',
-        source: `${rule('R5')}「灰帶工具列控制項高度」2026-10-23；#1903`,
-      },
       // 動作列的上下位置：稿示範學生的紀錄比 seed 多（稿整頁列出、app 每頁 10 場），對話框高度不同
       {
         status: '位置',
@@ -3452,13 +3427,6 @@ export const PAGES = {
         app: 'control:button\\[(上一週|下一週)\\]$',
         reason: '換週箭頭：收不進「⋯」的入口，保留（同日檢視）',
         source: `${rule('R2', ' 例外')}；#1314 comment 6163635319`,
-      },
-      {
-        status: '尺寸',
-        a6: '>landmark:main\\[\\]>control:button\\[快速選取\\]$',
-        detail: '^高 30→40$',
-        reason: '灰帶工具列控制項全部同高：桌機 40',
-        source: `${rule('R5')}「灰帶工具列控制項高度」2026-10-23；#1903`,
       },
       {
         // 連帶：app 的 main 包住色面（全站 #1591），工具列在 main 裡的位置多了色面高（1440：147、360：118）；
@@ -4065,6 +4033,15 @@ export const PAGES = {
         reason:
           '連帶＋資料：文案不同配不上同名鈕；面板上方考試列數與家長電話是資料（稿 3 場、seed 2 場、沒留電話）',
         source: 'kb/wiki/architecture/a6-adoption-rules.md R5「老師學生面板主按鈕」（#2317）',
+      },
+      // #2500：今天沒這班的課、兩週內也沒有 → 不放主按鈕（量測帳號的學生就是這種，seed 沒有未來的課）
+      {
+        status: '缺',
+        pop: 'panel',
+        a6: '>control:link\\[到課表點名\\]$',
+        reason: '今天沒這班的課、兩週內也沒有：不放主按鈕（不給一個落在空白那天的連結）',
+        source:
+          'kb/wiki/architecture/a6-adoption-rules.md R5「老師學生面板：日到班的「無紀錄」與主按鈕落點」（#2500）',
       },
     ],
   },
