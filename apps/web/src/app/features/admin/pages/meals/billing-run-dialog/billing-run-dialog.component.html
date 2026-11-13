@@ -25,6 +25,18 @@
         </div>
       }
 
+      @if (done.pausedStudents?.length) {
+        <!-- #1122：不是錯誤，是家長申請了續課異動、行政還沒處理 —— 用中性灰，不用紅 -->
+        <div class="flex flex-col gap-1 rounded-lg bg-zinc-100 p-4" data-testid="run-paused">
+          <h3 class="m-0 text-sm font-semibold text-zinc-900">
+            {{ done.pausedStudents!.length }} 位學生續課異動處理中，這次略過
+          </h3>
+          <p class="m-0 text-xs leading-relaxed text-zinc-700">
+            {{ pausedNames(done) }}。到「申請」頁處理完，再按一次{{ modeLabel() }}會補開。
+          </p>
+        </div>
+      }
+
       <dl class="m-0 flex flex-wrap gap-5 rounded-lg bg-zinc-50 p-4">
         <div class="flex flex-col gap-1">
           <dt class="text-xs text-zinc-500">開立帳單</dt>

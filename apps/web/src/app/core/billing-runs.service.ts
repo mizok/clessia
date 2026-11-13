@@ -39,6 +39,8 @@ export interface BillingRunResult {
   mealRecordsSettled: number;
   anomalies: BillingRunAnomaly[];
   failedStudents: BillingRunFailedStudent[];
+  /** 期 run 因續課異動處理中略過的學生（#1122）；結案或家長撤回後重跑會補開 */
+  pausedStudents?: Array<{ studentId: string; studentName: string | null }>;
 }
 
 export interface BillingRunInput {

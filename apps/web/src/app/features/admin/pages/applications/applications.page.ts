@@ -78,6 +78,18 @@ const PARENT_STATUS_LABELS: Record<string, string> = {
   expired: '已過期',
 };
 
+/** 續課異動（#1122）：pending＝該生下期期繳暫停開單 */
+const RENEWAL_STATUS_LABELS: Record<string, string> = {
+  pending: '處理中',
+  resolved: '已處理',
+  withdrawn: '家長撤回',
+};
+const RENEWAL_KIND_LABELS: Record<string, string> = {
+  transfer: '轉班',
+  stop: '停課（不續報）',
+  billing_mode: '變更繳費方式',
+};
+
 const TRIAL_STATUS_OPTIONS: Array<{ label: string; value: TrialRequestStatus }> = [
   { label: '待安排', value: 'pending' },
   { label: '已排定', value: 'scheduled' },
@@ -103,14 +115,24 @@ type Item =
  * 章＝這一筆要你做什麼（#1874，使用者 10-22 確認）：家長 App 的報名（核准）、家長 App 的試聽（排時間）、
  * 公開表單（新家長，聯絡過再建檔；報名、試聽都在這章）。狀態已經是工具列的分頁，不再拿來分章
  */
-type ChapterKey = 'enroll' | 'trial' | 'lead';
+type ChapterKey = 'enroll' | 'trial' | 'renewal' | 'lead';
 const CHAPTERS: ReadonlyArray<{ key: ChapterKey; name: string; sub: string }> = [
   { key: 'enroll', name: '報名', sub: '家長在 app 送的。核准會建報名並開首期帳單' },
   { key: 'trial', name: '試聽', sub: '排好時間家長端會看到' },
+  // #1122（gate Q5 (a)：A6 沒畫管理端，併進這頁；R5）
+  { key: 'renewal', name: '續課異動', sub: '處理完標為已處理，該生下期才會照常開單' },
   { key: 'lead', name: '新家長', sub: '公開表單送進來的。聯絡過再建檔' },
 ];
 const chapterOf = (item: Item): ChapterKey =>
-  item.source === 'public' ? 'lead' : item.value.kind === 'trial' ? 'trial' : 'enroll';
+  item.source === 'public'
+    ? 'lead'
+    : item.value.kind === 'trial'
+      ? 'trial'
+      : item.value.kind === 'renewal'
+        ? 'renewal'
+        : 'enroll';
+
+type KindFilter = 'enrollment' | 'trial' | 'renewal' | null;
 
 const RELATION_LABELS = { father: '父親', mother: '母親', other: '其他' } as const;
 
@@ -159,11 +181,14 @@ export class ApplicationsPage {
 
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly filters = FILTERS;
-  protected readonly kindOptions: SelectFieldOption<'enrollment' | 'trial' | null>[] = [
+  protected readonly kindOptions: SelectFieldOption<KindFilter>[] = [
     { label: '全部類型', value: null },
     { label: '報名', value: 'enrollment' },
     { label: '試聽', value: 'trial' },
+    { label: '續課異動', value: 'renewal' },
   ];
+  protected readonly renewalStatusLabels = RENEWAL_STATUS_LABELS;
+  protected readonly renewalKindLabels = RENEWAL_KIND_LABELS;
   protected readonly gradeLabels = GRADE_LEVEL_LABELS;
   protected readonly relationLabels = RELATION_LABELS;
   protected readonly parentStatusLabels = PARENT_STATUS_LABELS;
@@ -178,8 +203,8 @@ export class ApplicationsPage {
    * 通知連過來會帶 `?kind=enrollment|trial`（#1821 申請提醒，點了要落在對應分頁）；其他值當沒帶。
    * 只在進頁時讀一次，之後切換不回寫網址
    */
-  protected readonly kind = signal<'enrollment' | 'trial' | null>(
-    ((k) => (k === 'enrollment' || k === 'trial' ? k : null))(
+  protected readonly kind = signal<KindFilter>(
+    ((k) => (k === 'enrollment' || k === 'trial' || k === 'renewal' ? k : null))(
       inject(ActivatedRoute).snapshot.queryParamMap.get('kind'),
     ),
   );
@@ -284,6 +309,8 @@ export class ApplicationsPage {
 
   /** 正在核准的那一筆（對話框開著） */
   protected readonly approving = signal<ParentRequest | null>(null);
+  /** 正在填續課異動結案備註的那一筆（#1122） */
+  protected readonly resolvingId = signal<string | null>(null);
   /** 正在填拒絕原因的那一筆 */
   protected readonly rejectingId = signal<string | null>(null);
   /** 正在填試聽日期的那一筆（#1747：轉已排定、改時間都走這裡） */
@@ -302,7 +329,10 @@ export class ApplicationsPage {
     const kind = this.kind();
     // ponytail: 一邊失敗整頁算失敗（可重試）；真的常常一邊壞再改成各自顯示
     forkJoin([
-      statuses.length > 0 ? this.service.list({ statuses, kind }) : of({ data: [] }),
+      // 續課異動只有家長 App 那邊有；公開表單不收這一類
+      statuses.length > 0 && kind !== 'renewal'
+        ? this.service.list({ statuses, kind })
+        : of({ data: [] }),
       group ? this.parentRequests.list({ group, kind }) : of({ data: [] }),
     ])
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -324,7 +354,7 @@ export class ApplicationsPage {
     this.load();
   }
 
-  protected setKind(kind: 'enrollment' | 'trial' | null): void {
+  protected setKind(kind: KindFilter): void {
     this.kind.set(kind);
     this.load();
   }
@@ -378,6 +408,31 @@ export class ApplicationsPage {
   }
 
   /** 原因必填（家長看得到）；空白不送 */
+  /** 續課異動標為已處理（＝解除該生暫停）；備註選填 */
+  protected submitResolve(r: ParentRequest, value: string): void {
+    this.parentRequests.resolveRenewal(r.id, value.trim() || undefined).subscribe({
+      next: (res) => {
+        this.replaceRequest(res.data);
+        this.resolvingId.set(null);
+        this.messages.add({ severity: 'success', summary: `已處理 ${r.student.name} 的續課異動` });
+      },
+      error: (err: { status?: number }) => {
+        // 409＝家長同時撤回或別人先結案：說清楚並重抓
+        if (err.status === 409) {
+          this.resolvingId.set(null);
+          this.messages.add({
+            severity: 'warn',
+            summary: '這筆已經結案或被撤回',
+            detail: '已重新整理',
+          });
+          this.load();
+          return;
+        }
+        this.messages.add({ severity: 'error', summary: '沒有標成已處理', detail: '請稍後再試' });
+      },
+    });
+  }
+
   protected submitReject(r: ParentRequest, value: string): void {
     const reason = value.trim();
     if (!reason) return;

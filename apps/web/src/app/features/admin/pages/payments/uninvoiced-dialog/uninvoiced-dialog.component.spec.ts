@@ -180,6 +180,31 @@ describe('UninvoicedDialogComponent', () => {
     });
   });
 
+  describe('續課異動處理中（#1122）', () => {
+    const paused = enrollment({ id: 'en-2', studentId: 'stu-2', renewalPending: true });
+
+    it('那一列標「續課異動處理中」、上方說明；全部開帳不含它', async () => {
+      const c = await setup([enrollment(), paused]);
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelectorAll('[data-testid="uninvoiced-renewal-tag"]').length).toBe(1);
+      expect(el.textContent).toContain('1 筆的學生續課異動處理中');
+      expect(el.textContent).toContain('全部開帳（1）');
+
+      issueAllConfirmed(c);
+      expect(invoicesServiceMock.create).toHaveBeenCalledTimes(1);
+      expect(invoicesServiceMock.create.mock.calls[0]![0]).toMatchObject({ studentId: 'stu-1' });
+    });
+
+    it('手動開單不擋（Q4 (a)）：逐筆按照樣開', async () => {
+      const c = await setup([paused]);
+      c['issueOne'](paused);
+      expect(invoicesServiceMock.create).toHaveBeenCalledWith(
+        expect.objectContaining({ studentId: 'stu-2' }),
+      );
+    });
+  });
+
   describe('開帳', () => {
     it('單筆開帳帶上 enrollmentId，金額用算出來的', async () => {
       const c = await setup([enrollment()]);

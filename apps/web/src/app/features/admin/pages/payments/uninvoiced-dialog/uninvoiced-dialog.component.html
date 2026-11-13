@@ -25,6 +25,16 @@
       />
     }
 
+    @if (pausedCount() > 0) {
+      <app-inline-notice
+        severity="info"
+        [detail]="
+          pausedCount() + ' 筆的學生續課異動處理中：全部開帳不含它們；確定要開就逐筆按「開帳」。'
+        "
+        [dismissible]="false"
+      />
+    }
+
     <div class="flex max-h-90 flex-col overflow-y-auto rounded-md border border-zinc-200">
       @for (row of rows(); track row.id) {
         <div
@@ -32,7 +42,16 @@
           [class.bg-zinc-50]="isIssued(row)"
         >
           <span class="flex min-w-0 flex-1 flex-col">
-            <span class="text-sm font-medium text-zinc-800">{{ row.studentName }}</span>
+            <span class="flex flex-wrap items-center gap-2 text-sm font-medium text-zinc-800"
+              >{{ row.studentName }}
+              @if (row.renewalPending) {
+                <span
+                  class="rounded bg-zinc-100 px-1.5 text-xs font-semibold text-zinc-700"
+                  data-testid="uninvoiced-renewal-tag"
+                  >續課異動處理中</span
+                >
+              }
+            </span>
             <span class="text-xxs text-zinc-500"
               >{{ row.className }} · {{ periodOf(row) }} · {{ row.effectiveFrom }}</span
             >
