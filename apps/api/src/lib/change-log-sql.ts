@@ -38,8 +38,11 @@ export async function changeLogViaSql(
               cl.name as class_name, st.display_name as sub_name,
               coalesce(sc.batch_id::text,
                 case when sc.operation_source = 'batch'
-                  then concat_ws('|', sc.change_type::text, sc.reason, sc.created_by_name,
-                         to_char(sc.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS'))
+                  -- 同前端 [...].join('|')：null 寫成空欄、不略過 —— concat_ws 會略過 null，
+                  -- (原因 null, 操作者 X) 跟 (原因 X, 操作者 null) 就撞成同一組
+                  then sc.change_type::text || '|' || coalesce(sc.reason, '') || '|'
+                       || coalesce(sc.created_by_name, '') || '|'
+                       || to_char(sc.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS')
                   else sc.id::text end) as grp
          from public.schedule_changes sc
          join public.sessions s on s.id = sc.session_id and s.org_id = sc.org_id

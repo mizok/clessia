@@ -137,7 +137,7 @@ run('#1314 S3 課務異動：以「一則」分頁、分校範圍、搜尋', () 
     q(
       `insert into schedule_changes (org_id, session_id, change_type, created_at, created_by_name, reason,
          operation_source, batch_id, original_teacher_name, substitute_teacher_id)
-       values ($1, $2, $3::schedule_change_type, $4::timestamptz, '行政 A', $5, $6, $7::uuid, $8, $9::uuid)`,
+       values ($1, $2, $3::schedule_change_type, $4::timestamptz, $10, $5, $6, $7::uuid, $8, $9::uuid)`,
       [
         orgId,
         sessionId,
@@ -148,6 +148,7 @@ run('#1314 S3 課務異動：以「一則」分頁、分校範圍、搜尋', () 
         extra['batchId'] ?? null,
         extra['originalTeacher'] ?? null,
         extra['substitute'] ?? null,
+        'createdBy' in extra ? extra['createdBy'] : '行政 A',
       ],
     );
 
@@ -189,6 +190,29 @@ run('#1314 S3 課務異動：以「一則」分頁、分校範圍、搜尋', () 
       }); // ⑤
     }
 
+    // 範圍外日期：9/30 那堂（查 10/1 起，不能出現）
+    const [sept] = await q<{ id: string }>(
+      `insert into sessions (org_id, class_id, session_date, start_time, end_time, status, assignment_status)
+       select org_id, class_id, '2026-09-30', '18:00', '19:00', 'scheduled', 'unassigned'
+         from sessions where id = $1 returning id`,
+      [a1[0]],
+    );
+    await change(ctx.orgId, sept!.id, 'cancellation', '2026-10-22T05:00:00Z');
+
+    // 11 月（只給舊批次分組的兩條用）：舊批次只差建立時間（不同秒）＝兩則；
+    // 同一秒但「原因 null、操作者 X」與「原因 X、操作者 null」也是兩則（不能被 concat_ws 撞鍵）
+    const nov = await makeClass(ctx.orgId, fx.campusA, mine.courseId, '英文 N1', 6);
+    const old = (i: number, at: string, extra: Record<string, unknown>) =>
+      change(ctx.orgId, nov[i]!, 'cancellation', at, { source: 'batch', ...extra });
+    await q('update sessions set session_date = session_date + 31 where id = any($1::uuid[])', [
+      nov,
+    ]);
+    await old(0, '2026-10-25T05:10:00.100Z', { reason: '颱風' });
+    await old(1, '2026-10-25T05:10:00.200Z', { reason: '颱風' });
+    await old(2, '2026-10-25T05:10:05.100Z', { reason: '颱風' });
+    await old(3, '2026-10-26T05:00:00.100Z', { reason: null, createdBy: 'X' });
+    await old(4, '2026-10-26T05:00:00.200Z', { reason: 'X', createdBy: null });
+
     const other = await makeOrg('#1314 S3 契約：別的機構');
     fx.otherOrg = other.orgId;
     const [z] = await makeClass(other.orgId, other.campuses[0], other.courseId, '英文 Z', 1);
@@ -215,13 +239,14 @@ run('#1314 S3 課務異動：以「一則」分頁、分校範圍、搜尋', () 
     }
   }, 120_000);
 
-  const list = async (params: string, campusScope: string[] | null = null) => {
+  const list = async (
+    params: string,
+    campusScope: string[] | null = null,
+    from = '2026-10-01',
+    to = '2026-10-31',
+  ) => {
     ctx.campusScope = campusScope;
-    const res = await app.request(
-      `/api/sessions/changes?from=2026-10-01&to=2026-10-31&${params}`,
-      {},
-      env,
-    );
+    const res = await app.request(`/api/sessions/changes?from=${from}&to=${to}&${params}`, {}, env);
     const body = (await res.json()) as {
       data?: Entry[];
       meta?: { total: number; rowTotal: number };
@@ -305,5 +330,22 @@ run('#1314 S3 課務異動：以「一則」分頁、分校範圍、搜尋', () 
 
   it('q 超過 50 字回 400', async () => {
     expect((await list(`q=${'字'.repeat(51)}`)).status).toBe(400);
+  });
+
+  it('受限且範圍為空的管理員：total 0、data []（不是不限）', async () => {
+    const { status, data, total } = await list('pageSize=100', []);
+    expect({ status, total, n: data.length }).toEqual({ status: 200, total: 0, n: 0 });
+  });
+
+  it('from 之前那一堂的異動不出現（9/30 那堂，建立時間比誰都新）', async () => {
+    const { data, total } = await list('pageSize=100');
+    expect(total).toBe(5);
+    expect(data).toHaveLength(8);
+  });
+
+  it('舊批次只差建立時間（不同秒）是兩則；同秒但 原因／操作者 一個 null 一個 X 交換也不撞鍵', async () => {
+    const { total, rowTotal } = await list('pageSize=100', null, '2026-11-01', '2026-11-30');
+    // 颱風 05:10:00（2 列）、颱風 05:10:05（1 列）、(null, X)、(X, null)
+    expect({ total, rowTotal }).toEqual({ total: 4, rowTotal: 5 });
   });
 });
