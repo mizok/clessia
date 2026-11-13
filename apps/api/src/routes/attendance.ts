@@ -27,6 +27,8 @@ import {
   isEnrolledOn,
   tallyAttendance,
   type EnrollmentRange,
+  ENROLLED_STATUSES,
+  ENROLLED_STATUS_OR,
 } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 import {
@@ -688,10 +690,11 @@ app.openapi(
       .from('enrollments')
       .select('student_id')
       .eq('class_id', classId)
-      // 跟名單 GET 同一個前提（#953）：active＋withdrawal，退班靠 effective_to 收尾
-      .in('status', ['active', 'withdrawal'])
+      // 跟名單 GET 同一個前提（#953，session-roster.ts 的 ENROLLED_STATUSES）：active＋withdrawal，
+      // 退班靠 effective_to 收尾。結束日是 null 只放 active —— 退班沒有結束日＝資料不一致，fail-closed
+      .in('status', ENROLLED_STATUSES)
       .lte('effective_from', eventDate)
-      .or(`effective_to.is.null,effective_to.gte.${eventDate}`);
+      .or(`and(status.eq.active,effective_to.is.null),effective_to.gte.${eventDate}`);
 
     const validIds = new Set((validEnrollments ?? []).map((e: any) => e.student_id));
     const invalidIds = updates.filter((u) => !validIds.has(u.studentId));
@@ -1419,7 +1422,8 @@ app.openapi(
         'student_id, effective_from, effective_to, students(name, grade, schools(id, name, short_name))',
       )
       .eq('class_id', classId)
-      .in('status', ['active', 'withdrawal']);
+      .in('status', ENROLLED_STATUSES)
+      .or(ENROLLED_STATUS_OR);
     // 同一天退班又重報同一班會有兩筆涵蓋這一天 —— 名單一人一列
     const enrollments = [
       ...new Map(
@@ -1867,7 +1871,8 @@ app.openapi(
           .eq('org_id', orgId)
           .eq('class_id', classId)
           .eq('student_id', studentId)
-          .in('status', ['active', 'withdrawal'])
+          .in('status', ENROLLED_STATUSES)
+          .or(ENROLLED_STATUS_OR)
       : { data: [], error: null };
     // 讀失敗不是「不在籍」—— 回 404 會讓老師以為這個學生不在這班
     if (enrollmentError) {

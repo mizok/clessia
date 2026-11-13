@@ -34,13 +34,21 @@ function has(query: RecordedQuery, name: string, ...args: unknown[]): boolean {
  * #953：替身**照查詢實際下的狀態條件**過濾報名（`in`／`eq` 都認；沒下條件就全回）——
  * 條件寫成「只收 active」或忘了寫，人數就會跟著錯。
  */
-function byStatus<T extends { status: string }>(q: RecordedQuery, rows: readonly T[]): T[] {
+function byStatus<T extends { status: string; effective_to: string | null }>(
+  q: RecordedQuery,
+  rows: readonly T[],
+): T[] {
   const inOp = q.ops.find((op) => op.name === 'in' && op.args[0] === 'status');
   const eqOp = q.ops.find((op) => op.name === 'eq' && op.args[0] === 'status');
+  // 認得 `.or('status.eq.active,effective_to.not.is.null')`（退班沒結束日 fail-closed）；沒下就不篩
+  const failClosed = q.ops.some(
+    (op) => op.name === 'or' && op.args[0] === 'status.eq.active,effective_to.not.is.null',
+  );
   return rows.filter(
     (r) =>
       (!inOp || (inOp.args[1] as readonly string[]).includes(r.status)) &&
-      (!eqOp || eqOp.args[1] === r.status),
+      (!eqOp || eqOp.args[1] === r.status) &&
+      (!failClosed || r.status === 'active' || r.effective_to !== null),
   );
 }
 
@@ -184,6 +192,13 @@ describe('GET /api/sessions —— 在籍人數依課堂日期（#950）', () =>
         class_id: 'class-1',
         effective_from: '2026-01-01',
         effective_to: '2026-04-10',
+      },
+      // 退班卻沒結束日（資料不一致）：fail-closed，哪一堂都不算
+      {
+        status: 'withdrawal',
+        class_id: 'class-1',
+        effective_from: '2026-01-01',
+        effective_to: null,
       },
     ];
     const { app } = createApp((q) => {

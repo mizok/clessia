@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { resolveAttendanceModes, type AttendanceMode } from './attendance-mode';
 import type { Queryable } from './identity-sql';
-import { isEnrolledOn } from './session-roster';
+import { ENROLLED_STATUS_SQL, isEnrolledOn } from './session-roster';
 
 /**
  * 一筆到班打卡算不算到「這一堂」：打卡沒帶分校、或帶的就是這堂課的分校。
@@ -77,7 +77,7 @@ export async function annotateArrivals<T extends ArrivalSession>(
         `select e.student_id, e.class_id,
                 e.effective_from::text as effective_from, e.effective_to::text as effective_to
            from public.enrollments e
-          where e.org_id = $1::uuid and e.status in ('active', 'withdrawal') and e.class_id = any($2::uuid[])`,
+          where e.org_id = $1::uuid and ${ENROLLED_STATUS_SQL} and e.class_id = any($2::uuid[])`,
         params.slice(0, 2),
       ),
       // 打卡只撈「這些班在籍過的學生」—— 同一個條件用子查詢，不等上一支回來再帶學生 id
@@ -88,7 +88,7 @@ export async function annotateArrivals<T extends ArrivalSession>(
             and d.checkin_date between $3::date and $4::date
             and d.student_id in (
               select e.student_id from public.enrollments e
-               where e.org_id = $1::uuid and e.status in ('active', 'withdrawal') and e.class_id = any($2::uuid[]))`,
+               where e.org_id = $1::uuid and ${ENROLLED_STATUS_SQL} and e.class_id = any($2::uuid[]))`,
         params,
       ),
     ]);

@@ -86,6 +86,8 @@ run('#953 在籍依課堂日期：active／withdrawal，退班靠 effective_to',
     rejoined: '',
     pending: '',
     suspended: '',
+    // 退班卻沒結束日（資料不一致）：fail-closed，哪一堂都不算
+    wdNoEnd: '',
     // 日到班分校（今天一堂）：今天退班的兩個人（一個已打卡）＋一個在讀（已打卡）
     dailyEvent: '',
     wdTodayIn: '',
@@ -144,14 +146,14 @@ run('#953 在籍依課堂日期：active／withdrawal，退班靠 effective_to',
     )) {
       eventOf[r.d] = r.event_id;
     }
-    [fx.active, fx.withdrawn, fx.voided, fx.rejoined, fx.pending, fx.suspended] = (
+    [fx.active, fx.withdrawn, fx.voided, fx.rejoined, fx.pending, fx.suspended, fx.wdNoEnd] = (
       await q<{ id: string }>(
         `insert into students (org_id, name, grade)
-         select $1, n, 'J1' from unnest(array['在讀','退班','作廢','重報','待繳費','休學']) with ordinality t(n, i)
+         select $1, n, 'J1' from unnest(array['在讀','退班','作廢','重報','待繳費','休學','退班無結束日']) with ordinality t(n, i)
          order by i returning id`,
         [ctx.orgId],
       )
-    ).map((r) => r.id) as [string, string, string, string, string, string];
+    ).map((r) => r.id) as [string, string, string, string, string, string, string];
     await q(
       `insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from, effective_to)
        values ($1, $2, $3, 'active', 'monthly', 1000, '2026-01-01', null),
@@ -160,7 +162,8 @@ run('#953 在籍依課堂日期：active／withdrawal，退班靠 effective_to',
               ($1, $2, $6, 'withdrawal', 'monthly', 1000, '2026-01-01', $7),
               ($1, $2, $6, 'active', 'monthly', 1000, $7, null),
               ($1, $2, $9, 'pending_payment', 'monthly', 1000, '2026-01-01', null),
-              ($1, $2, $10, 'suspended', 'monthly', 1000, '2026-01-01', null)`,
+              ($1, $2, $10, 'suspended', 'monthly', 1000, '2026-01-01', null),
+              ($1, $2, $11, 'withdrawal', 'monthly', 1000, '2026-01-01', null)`,
       [
         ctx.orgId,
         fx.classId,
@@ -172,6 +175,7 @@ run('#953 在籍依課堂日期：active／withdrawal，退班靠 effective_to',
         WITHDRAWN_ON,
         fx.pending,
         fx.suspended,
+        fx.wdNoEnd,
       ],
     );
     // 日到班：記到班（attendance.ts check-in）與到班數（session-arrivals）也走同一個狀態前提
@@ -282,6 +286,7 @@ run('#953 在籍依課堂日期：active／withdrawal，退班靠 effective_to',
       const ids = await roster(d);
       expect(ids).not.toContain(fx.pending);
       expect(ids).not.toContain(fx.suspended);
+      expect(ids).not.toContain(fx.wdNoEnd);
     }
     // 人數已在上面兩條釘死（3／2），這裡只確認名單
   });
@@ -304,7 +309,7 @@ run('#953 在籍依課堂日期：active／withdrawal，退班靠 effective_to',
     expect(voided.status).toBe(400);
     // 確認是被在籍擋下，不是被別的關（例如「未來課堂」）擋下
     expect(((await voided.json()) as { error: string }).error).toBe('部分學生不在此課堂修課名單中');
-    for (const id of [fx.pending, fx.suspended]) {
+    for (const id of [fx.pending, fx.suspended, fx.wdNoEnd]) {
       const res = await save(id);
       expect({ status: res.status, body: await res.text() }).toMatchObject({ status: 400 });
     }

@@ -1,4 +1,5 @@
 import type { Queryable } from './identity-sql';
+import { ENROLLED_STATUS_SQL } from './session-roster';
 
 /**
  * `GET /api/sessions` 主查詢之後的三支補充讀取，改走 pg（#1928）。課堂摘要（`lib/session-summary.ts`，
@@ -80,7 +81,7 @@ export async function enrollmentRangesViaSql(
         'effective_to', e.effective_to)), '[]'::json) as result
        from public.enrollments e
       where e.org_id = $1::uuid
-        and e.status in ('active', 'withdrawal')
+        and ${ENROLLED_STATUS_SQL}
         and e.class_id = any($2::uuid[])`,
     [orgId, classIds],
   );

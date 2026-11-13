@@ -12,6 +12,19 @@
  * 每筆課堂的計數在這裡算。
  */
 
+/**
+ * **哪些報名狀態算在籍**（#953，計畫席 11-13 裁）：`active`，或**有結束日的** `withdrawal`。
+ * 退班唯一入口一定寫 `effective_to`；萬一資料不一致（退班卻沒有結束日），**fail-closed 不算** ——
+ * 與其從退班那天起算到永遠，不如不算。生效區間仍由 `isEnrolledOn` 判。
+ *
+ * 規則只寫這裡一份，兩種寫法：REST（PostgREST `.in('status', ENROLLED_STATUSES).or(ENROLLED_STATUS_OR)`）
+ * 與 SQL（`ENROLLED_STATUS_SQL`，報名表別名 `e`）。
+ */
+export const ENROLLED_STATUSES = ['active', 'withdrawal'];
+export const ENROLLED_STATUS_OR = 'status.eq.active,effective_to.not.is.null';
+export const ENROLLED_STATUS_SQL =
+  "e.status in ('active', 'withdrawal') and (e.status = 'active' or e.effective_to is not null)";
+
 export interface EnrollmentRange {
   classId: string;
   /**

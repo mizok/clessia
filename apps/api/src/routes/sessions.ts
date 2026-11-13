@@ -32,6 +32,8 @@ import {
   tallyAttendanceCounts,
   type AttendanceTally,
   type EnrollmentRange,
+  ENROLLED_STATUSES,
+  ENROLLED_STATUS_OR,
 } from '../lib/session-roster';
 import { getCampusScope, isCampusAllowed, type CampusScope } from '../lib/campus-scope';
 import {
@@ -1146,7 +1148,8 @@ app.openapi(listSessionsRoute, async (c) => {
             .from('enrollments')
             .select('class_id, student_id, effective_from, effective_to')
             .in('class_id', uniqueClassIds)
-            .in('status', ['active', 'withdrawal'])
+            .in('status', ENROLLED_STATUSES)
+            .or(ENROLLED_STATUS_OR)
             .eq('org_id', orgId)
         : Promise.resolve({ data: [], error: null }),
     ]);
@@ -1439,7 +1442,8 @@ app.openapi(createSessionRoute, async (c) => {
       .from('enrollments')
       .select('class_id, student_id, effective_from, effective_to')
       .eq('class_id', body.classId)
-      .in('status', ['active', 'withdrawal'])
+      .in('status', ENROLLED_STATUSES)
+      .or(ENROLLED_STATUS_OR)
       .eq('org_id', orgId),
   ]);
   const enrollmentRanges: EnrollmentRange[] = (
