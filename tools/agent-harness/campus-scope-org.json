@@ -1,0 +1,128 @@
+[
+  {
+    "prefix": "/api/me",
+    "reason": "自己的資料（個人設定、推播、家長端子路由由 childDb 限在自己的孩子），不是分校資料",
+    "evidence": "apps/api/src/index.ts mount(/api/me, ANY_ROLE)；routes/me.ts",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "prefix": "/api/notifications",
+    "reason": "每人自己的通知，依 active role 過濾",
+    "evidence": "apps/api/src/index.ts mount(/api/notifications)；routes/notifications.ts",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "prefix": "/api/subjects",
+    "reason": "subjects 表沒有 campus_id，科目是機構層",
+    "evidence": "apps/api/src/routes/subjects.ts:81",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "prefix": "/api/schools",
+    "reason": "schools 與 school_calendar_events 沒有 campus_id，學校與行事曆是機構層、不動課堂",
+    "evidence": "apps/api/src/routes/schools.ts:99；routes/school-calendar-events.ts:118",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "prefix": "/api/org",
+    "reason": "organizations 機構設定（manage_org_settings）",
+    "evidence": "apps/api/src/routes/org-settings.ts:157",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "endpoint": "POST /api/school-exams",
+    "reason": "學校段考目錄是機構層（屬學校不屬分校）；底下每生成績另算",
+    "evidence": "apps/api/src/routes/school-exams.ts canManageOrgExam（:864）",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "endpoint": "PUT /api/school-exams/:id",
+    "reason": "學校段考目錄是機構層（屬學校不屬分校）；底下每生成績另算",
+    "evidence": "apps/api/src/routes/school-exams.ts canManageOrgExam（:864）",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "endpoint": "DELETE /api/school-exams/:id",
+    "reason": "學校段考目錄是機構層（屬學校不屬分校）；底下每生成績另算",
+    "evidence": "apps/api/src/routes/school-exams.ts canManageOrgExam（:864）",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "endpoint": "PATCH /api/school-exams/:id/close",
+    "reason": "學校段考目錄是機構層（屬學校不屬分校）；底下每生成績另算",
+    "evidence": "apps/api/src/routes/school-exams.ts canManageOrgExam（:864）",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "endpoint": "PATCH /api/school-exams/:id/reopen",
+    "reason": "學校段考目錄是機構層（屬學校不屬分校）；底下每生成績另算",
+    "evidence": "apps/api/src/routes/school-exams.ts canManageOrgExam（:864）",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "endpoint": "GET /api/billing-periods",
+    "reason": "計價期間是機構層（表無 campus_id）；GET 的報名計數已收斂到範圍",
+    "evidence": "apps/api/src/routes/billing-periods.ts:180、:363",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "endpoint": "POST /api/billing-periods",
+    "reason": "計價期間是機構層（表無 campus_id）；GET 的報名計數已收斂到範圍",
+    "evidence": "apps/api/src/routes/billing-periods.ts:180、:363",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "endpoint": "PUT /api/billing-periods/:id",
+    "reason": "計價期間是機構層（表無 campus_id）；GET 的報名計數已收斂到範圍",
+    "evidence": "apps/api/src/routes/billing-periods.ts:180、:363",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "endpoint": "DELETE /api/billing-periods/:id",
+    "reason": "計價期間是機構層（表無 campus_id）；GET 的報名計數已收斂到範圍",
+    "evidence": "apps/api/src/routes/billing-periods.ts:180、:363",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "endpoint": "POST /api/fee-templates",
+    "reason": "價目表是機構層（表無 campus_id）",
+    "evidence": "apps/api/src/routes/fee-templates.ts:214",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "endpoint": "PUT /api/fee-templates/:id",
+    "reason": "價目表是機構層（表無 campus_id）",
+    "evidence": "apps/api/src/routes/fee-templates.ts:214",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "endpoint": "DELETE /api/fee-templates/:id",
+    "reason": "價目表是機構層（表無 campus_id）",
+    "evidence": "apps/api/src/routes/fee-templates.ts:214",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "endpoint": "POST /api/students",
+    "reason": "新生沒有報名、不屬任何分校；帶 parentId 時已驗家長範圍",
+    "evidence": "apps/api/src/routes/students.ts:720",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "endpoint": "POST /api/enrollments/proration-preview",
+    "reason": "純計算，只讀計價期間與價目表（機構層）",
+    "evidence": "apps/api/src/routes/enrollments.ts:1229-1280",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "endpoint": "POST /api/announcements/:id/read",
+    "reason": "只寫自己的已讀列",
+    "evidence": "apps/api/src/routes/announcements.ts:299-304",
+    "ruling": "計畫席 11-13（#2493 第一類）"
+  },
+  {
+    "endpoint": "POST /api/classes/check-conflicts",
+    "reason": "老師跨校衝突偵測本來就要看別校時段（R11 裁不修）",
+    "evidence": "apps/api/src/routes/classes.ts:858-864",
+    "ruling": "計畫席 11-13（#2493 R11）"
+  }
+]

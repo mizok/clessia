@@ -43,7 +43,7 @@
       <tr><td>展開</td><td>點擊展開完整內容</td><td>一次只能展開一則；內文＋「—— 發布者」</td><td>照做（原生 details 同名群組，開第二則會收掉第一則）</td></tr>
       <tr><td>全部標為已讀</td><td>有（原子：要嘛全標要嘛都沒標）</td><td>只在有未讀時出現</td><td>照做；沒有未讀就不放這顆按鈕。按了 toast 可復原</td></tr>
       <tr><td>連到相關的頁</td><td>規格沒寫</td><td>沒有</td><td>跟課務有關的公告附「看課表」、跟學生有關的附「看學生」（標「新」，只連老師端的頁）</td></tr>
-      <tr><td>保留</td><td>90 天</td><td>—</td><td>底部寫「通知保留 90 天」</td></tr>
+      <tr><td>保留</td><td>90 天</td><td>—</td><td>底部寫「通知保留 90 天，公告會一直留著。」（API 只清通知，公告永久保存；R5 回寫）</td></tr>
     </tbody>
   </table>
 </template>
@@ -90,7 +90,7 @@
 
   const head = () => {
     const u = unread();
-    document.querySelector('.open__title').innerHTML = u ? `${u} 則未讀，<br>今天 ${N.filter((n) => n.day === T).length} 則新公告。` : '公告都看過了。';
+    document.querySelector('.open__title').innerHTML = u ? `${u} 則未讀，<br>今天 ${N.filter((n) => n.day === T).length} 則新通知。` : '通知都看過了。';
     document.getElementById('ucount').textContent = u ? `${u} 則未讀` : '沒有未讀';
     // 產品規則：沒有未讀就不放這顆按鈕（按了不會發生任何事的按鈕不要放）
     document.querySelector('[data-allread]').hidden = !u;
@@ -100,10 +100,10 @@
     document.getElementById('body').innerHTML = groups.map(([g, a]) => `<section class="chap" aria-label="${g}">
       <div class="chap__side"><div class="chap__big">${g}</div><p class="chap__tally">${a.length} 則${a.some((n) => !n.read) ? ` <span>· 未讀 ${a.filter((n) => !n.read).length}</span>` : ''}</p></div>
       <div>${a.map((n) => `<details class="nt${n.read ? ' is-read' : ''}" name="inbox" data-n="${n.id}">
-        <summary><span class="nt__dot" aria-hidden="true"></span><span class="nt__t">${esc(n.title)}${n.read ? '' : '<span class="sr">（未讀）</span>'}</span><span class="nt__at">${md(n.day)} ${n.at}${n.campus ? ` · ${n.campus}` : ''}</span></summary>
+        <summary><span class="nt__dot" aria-hidden="true"></span><span class="nt__t">${esc(n.title)}${n.read ? '' : '<span class="sr">（未讀）</span>'}</span><span class="nt__at">公告 · ${md(n.day)} ${n.at}${n.campus ? ` · ${n.campus}` : ''}</span></summary>
         <div class="nt__body"><p>${esc(n.body)}<span class="nt__by">—— ${n.by}</span></p>${n.go ? `<a class="btn btn--sm" href="${GO[n.go][1]}">${GO[n.go][0]}<span class="new">新</span>${icon.right}</a>` : ''}</div>
       </details>`).join('')}</div>
-    </section>`).join('') + `<p class="keep">通知保留 90 天。</p>`;
+    </section>`).join('') + `<p class="keep">通知保留 90 天，公告會一直留著。</p>`;
     head();
   };
   render();

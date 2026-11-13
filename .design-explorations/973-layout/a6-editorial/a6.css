@@ -912,3 +912,22 @@ textarea.acset__in { height: auto; min-height: 96px; padding: var(--space-2) var
 }
 @media (max-width: 1024px) and (prefers-reduced-motion: reduce) { .ps { transition: none; } }
 @media (pointer: coarse) { .ps__link { padding: 12px 0; } }
+
+/* ═══ 11-13 #2495 B1：R5 已裁的對話框／抽屜規則回寫稿（實作在先，稿跟上）
+ * 寬三種（R5「對話框寬三種」11-05）：420／520／760，表單與詳情 520 —— .acset 480 → 520（.fdlg 本來就 520）。
+ * 動作列一律黏住（R5「對話框動作列一律 sticky」11-05）：.fdlg__foot 早就黏，唯讀詳情的 .pd-foot／.dfoot 補上。
+ * 手機貼底抽屜白底（R5 11-05）：對話框、匯出面板、帳戶選單不用深灰，欄位靠 zinc-300 框線區隔；下拉、搜尋抽屜不在此列（切換身分區塊的樣式見 B2）。
+ * 手機標頭與內容左右 16（R5 11-05）、貼底抽屜底部 24（R5「貼底抽屜底部留白 24」11-06，.acset__body 本來就 24，匯出面板 32 → 24）。
+ * 減少動態（R5 11-05）：彈出物只淡入淡出、不位移不縮放；其餘照舊全關（:195）。 */
+@media (min-width: 861px) { .acset { width: min(520px, calc(100% - 32px)); } }
+.pd-foot, .dfoot { position: sticky; bottom: 0; z-index: 1; padding-top: var(--space-3); background: inherit; }
+@media (max-width: 860px) {
+  .acset, .xp, .acct-menu { background: #fff; }
+  .acset__head { padding-left: var(--space-4); }
+  .acset__body { padding-left: var(--space-4); padding-right: var(--space-4); }
+  .xp__body, .ps-sheet .xp__body { padding-bottom: var(--space-6); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [popover], dialog, .toast { --pop-from: none !important; transition-duration: 0.2s !important; }
+  @starting-style { .toast { transform: none; } }
+}

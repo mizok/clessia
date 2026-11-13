@@ -29,7 +29,7 @@ import {
  * - `teacherNames`：下期那個班、下期仍有效的時段的老師（`schedules.teacher_id → staff`）。
  *   **只收同機構的 staff、只回 display_name** —— 嵌入不經 orgRef 的 org 過濾（同下一班那條）
  * - `hasMonthlyEnrollments`：這個孩子有沒有在讀的月繳報名。期繳清單是空的時候，前端用它決定要不要說
- *   「月繳的課每月照常開單，不列在這裡」（沒上課的孩子不說）
+ *   「月繳的課每月照常開單，不需要續課」＋要調整找補習班（#2498；沒上課的孩子不說）
  */
 
 const ScheduleSlotSchema = z.object({

@@ -187,7 +187,7 @@
     sub: '依孩子的年級挑過；已經在上的班不列。',
     bar: `<label class="tsearch">${icon.search}<input type="search" placeholder="搜尋課程或班名" aria-label="搜尋課程或班名" id="q"></label>
       <label class="tfilter"><span class="sr">科目</span><select class="acset__in" id="subj"><option value="">全部科目</option>${[...new Set(CLS.map((c) => c.subject))].map((s) => `<option>${s}</option>`).join('')}</select></label>
-      <label class="tfilter"><span class="sr">星期</span><select class="acset__in" id="wd"><option value="">星期不限</option>${[1, 2, 3, 4, 5, 6].map((w) => `<option value="${w}">${C.weekdayLabel[w]}</option>`).join('')}</select></label>`,
+      <label class="tfilter"><span class="sr">星期</span><select class="acset__in" id="wd"><option value="">星期不限</option>${[1, 2, 3, 4, 5, 6, 7].map((w) => `<option value="${w}">${C.weekdayLabel[w]}</option>`).join('')}</select></label>`,
     phase: 5400,
   }, kids.gate(`<p class="count" id="count"></p><div class="cards" id="cards"></div>`));
 
