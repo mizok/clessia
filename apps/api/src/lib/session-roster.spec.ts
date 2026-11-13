@@ -45,6 +45,17 @@ describe('countEnrolledOn', () => {
     expect(countEnrolledOn(rows, 'c1', null)).toBe(3);
   });
 
+  // #953：退班不再靠 status 排除，同一天退班又重報同一班會有兩筆涵蓋那天 —— 一個人只算一次
+  it('有 studentId 時依學生去重：同日退班重報只算一人', () => {
+    const rejoin = [
+      { classId: 'c1', studentId: 's1', effectiveFrom: '2026-01-01', effectiveTo: '2026-02-10' },
+      { classId: 'c1', studentId: 's1', effectiveFrom: '2026-02-10', effectiveTo: null },
+      { classId: 'c1', studentId: 's2', effectiveFrom: '2026-01-01', effectiveTo: null },
+    ];
+    expect(countEnrolledOn(rejoin, 'c1', '2026-02-10')).toBe(2);
+    expect(countEnrolledOn(rejoin, 'c1', '2026-02-09')).toBe(2);
+  });
+
   /**
    * 家長端讀教務日誌（`class_logs`）的授權要靠這支函式擋過度曝光：只用
    * 「曾經在籍的班級清單」查會讓孩子看到**轉出後**的舊班日誌與**轉入前**的

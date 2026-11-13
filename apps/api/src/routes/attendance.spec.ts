@@ -1099,6 +1099,9 @@ function createEnrollmentsQuery(data: MockSupabaseData) {
       if (column === 'class_id') state.classId = String(value);
       return query;
     },
+    neq() {
+      return query;
+    },
     in(column: string, values: readonly string[]) {
       if (column === 'class_id') state.classIds = [...values];
       return query;
@@ -1277,6 +1280,7 @@ describe('PATCH /api/attendance/batch —— recorded_by_role', () => {
         const query: Record<string, unknown> = {
           select: () => query,
           eq: () => query,
+          neq: () => query,
           in: () => query,
           lte: () => query,
           gte: () => query,
@@ -1448,6 +1452,7 @@ describe('PATCH /api/attendance/batch —— 未標記且有生效請假的學�
         const query: Record<string, unknown> = {
           select: () => query,
           eq: () => query,
+          neq: () => query,
           in: () => query,
           lte: () => query,
           gte: () => query,
@@ -1630,6 +1635,7 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
         const query: Record<string, unknown> = {
           select: () => query,
           eq: () => query,
+          neq: () => query,
           in: () => query,
           lte: () => query,
           gte: () => query,
@@ -1933,6 +1939,7 @@ describe('GET /api/attendance/roster/{eventId} —— 老師只能讀自己課�
         const query: Record<string, unknown> = {
           select: () => query,
           eq: () => query,
+          neq: () => query,
           in: () => query,
           lte: () => query,
           gte: () => query,
@@ -2022,6 +2029,7 @@ describe('POST /api/attendance/roster/{eventId}/cancel-leave', () => {
         const query: Record<string, unknown> = {
           select: () => query,
           eq: () => query,
+          neq: () => query,
           in: () => query,
           lte: () => query,
           gte: () => query,
@@ -2187,6 +2195,7 @@ describe('GET /api/attendance/sessions?attendanceTaken', () => {
             return query;
           },
           eq: () => query,
+          neq: () => query,
           in: () => query,
           lte: () => query,
           gte: () => query,

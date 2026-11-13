@@ -3,7 +3,7 @@ title: 出勤與請假規則
 summary: 本文件整理 PRD 8.3-8.4，定義出勤模式、系統推算邏輯、人工修改權限與請假處理規則，作為到班/點名模組的核心行為準則。
 category: rule
 status: active
-updated: 2026-10-22
+updated: 2026-11-13
 tags: [rules, attendance-rules]
 ---
 
@@ -150,15 +150,23 @@ tags: [rules, attendance-rules]
 ## 8. 在籍：某一天這個學生在不在這個班
 
 **一律依課堂（或考試、日誌）當天判定**，不是用今天（使用者 2026-10-01 裁定，#950）：
-`status = 'active'` 且報名生效區間蓋到那一天（`effective_to` 當天仍算在籍）。
+報名生效區間蓋到那一天（`effective_to` 當天仍算在籍），**且狀態是 `active` 或 `withdrawal`**。
+
+**退班不靠 status 排除，靠 `effective_to` 收尾**（#953，計畫席 2026-11-13 裁「依課堂日期」做滿）：
+退班唯一入口（`PATCH /api/enrollments/:id/status`）一定寫 `effective_to`，所以上個月的課不會因為
+這個月退班而少一人，退班日之後的課也不會有他。不算的三種：作廢（這筆報名不算數）、
+待繳費（還沒生效）、休學（休學期間不在名單）。
+
+⚠️ **已知限制（#953）**：休學只改 status、不記日期，沒有結束日可收尾，所以休學生**休學前的過去課堂也不算**
+（人數會因為休學而變）。等休學改成有區間（休學起迄）再做。
+同一天退班又重報同一班會有兩筆涵蓋那天 —— 計數依學生去重（`EnrollmentRange.studentId`）、名單一人一列。
+契約：`apps/api/src/contract/enrolled-on-session-date-953.contract.ts`。
 
 **規則只有一份：`apps/api/src/lib/session-roster.ts` 的 `isEnrolledOn`**（`countEnrolledOn` 是它的計數版）。
-走這一份的：課堂列表與出勤摘要的在籍人數、點名名單、考試分母、家長端日誌的日期邊界。
-新的讀取點要嘛呼叫它，要嘛先撈 active 報名再用它過濾 —— **不要在 SQL 裡再寫一次日期條件**。
+走「active／withdrawal＋日期」這個前提的：課堂列表與出勤摘要的在籍人數、作業台、點名名單、點名寫入的名單驗證
+（`attendance.ts` 的 PATCH batch，跟名單是一對：名單上有的人寫得進去）、日到班的「記到班」。
+新的讀取點要嘛呼叫它，要嘛先撈 active／withdrawal 報名再用它過濾 —— **不要在 SQL 裡再寫一次日期條件**。
 
-⚠️ **還有兩份等價的 SQL / 手寫副本，刻意沒收**：點名寫入的名單驗證（`attendance.ts` 的 PUT）
-與到班掃碼（`lib/enrolled-events.ts`）。它們決定哪些出勤寫得進去，而出勤流進扣堂 ——
-屬保留類，要收斂另開單由使用者親合。
-
-⚠️ **`status = 'active'` 讓「依日期」只做到一半**：退班會把 status 改掉並寫 `effective_to`，
-所以**過去的課堂也不再把已退班的學生算進在籍** —— 退班之後，過去課堂的人數會變。見 #953。
+⚠️ **仍是 `status = 'active'` 的（不在 #953 範圍，保留類）**：到班掃碼（`lib/enrolled-events.ts`）、
+請假連動（`routes/leaves.ts`、`lib/leave-covered-sessions.ts`）、帳單批次。
+考試分母是 `<> void`，跟這裡的差異：待繳費與休學在考試分母算、在這裡不算。

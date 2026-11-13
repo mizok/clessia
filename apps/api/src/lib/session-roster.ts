@@ -12,8 +12,26 @@
  * 每筆課堂的計數在這裡算。
  */
 
+/**
+ * **哪些報名狀態算在籍**（#953，計畫席 11-13 裁）：`active`，或**有結束日的** `withdrawal`。
+ * 退班唯一入口一定寫 `effective_to`；萬一資料不一致（退班卻沒有結束日），**fail-closed 不算** ——
+ * 與其從退班那天起算到永遠，不如不算。生效區間仍由 `isEnrolledOn` 判。
+ *
+ * 規則只寫這裡一份，兩種寫法：REST（PostgREST `.in('status', ENROLLED_STATUSES).or(ENROLLED_STATUS_OR)`）
+ * 與 SQL（`ENROLLED_STATUS_SQL`，報名表別名 `e`）。
+ */
+export const ENROLLED_STATUSES = ['active', 'withdrawal'];
+export const ENROLLED_STATUS_OR = 'status.eq.active,effective_to.not.is.null';
+export const ENROLLED_STATUS_SQL =
+  "e.status in ('active', 'withdrawal') and (e.status = 'active' or e.effective_to is not null)";
+
 export interface EnrollmentRange {
   classId: string;
+  /**
+   * 有給就依學生去重（#953）：退班不再靠 status 排除之後，同一天退班又重報同一班的學生
+   * 會有兩筆報名同時涵蓋那一天（舊的 effective_to＝新的 effective_from＝當天）
+   */
+  studentId?: string;
   effectiveFrom: string;
   /** null = 還在讀 */
   effectiveTo: string | null;
@@ -30,7 +48,8 @@ export function countEnrolledOn(
   classId: string,
   date: string | null,
 ): number {
-  return enrollments.filter((row) => row.classId === classId && isEnrolledOn(row, date)).length;
+  const hits = enrollments.filter((row) => row.classId === classId && isEnrolledOn(row, date));
+  return new Set(hits.map((row, i) => row.studentId ?? i)).size;
 }
 
 /**
@@ -42,6 +61,14 @@ export function countEnrolledOn(
  * 筆數形狀會把同一個人算兩次。**形狀不同、規則相同** —— 規則就該只有一份。
  *
  * `date` 是 `null` 時**不套生效區間**（課堂還沒排定時間的情況）。
+ *
+ * **狀態前提（#953，計畫席 11-13 裁「在籍依課堂日期」做滿）**：呼叫端只撈 `status in ('active', 'withdrawal')`，
+ * 再交給生效區間判。退班一定會寫 `effective_to`（唯一入口 `PATCH /enrollments/:id/status`），
+ * 所以上個月的課不會因為這個月退班而少一人，退班日之後的課也不會有他。
+ * 不算的：作廢（這筆報名不算數）、待繳費（還沒生效）、休學（休學期間不在名單）。
+ * ⚠️ 已知限制：休學沒有結束日可收尾，所以休學生**休學前的過去課堂也不算** —— 等休學改成有區間再做。
+ * 點名名單、點名寫入驗證、課堂列表人數、作業台走這個前提；到班掃碼、請假連動、帳單批次仍是
+ * `status = 'active'`（保留類，不在 #953 範圍）。
  */
 export function isEnrolledOn(
   range: Pick<EnrollmentRange, 'effectiveFrom' | 'effectiveTo'>,

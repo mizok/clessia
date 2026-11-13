@@ -1,4 +1,5 @@
 import type { Queryable } from './identity-sql';
+import { ENROLLED_STATUS_SQL } from './session-roster';
 
 /**
  * `GET /api/sessions` 主查詢之後的三支補充讀取，改走 pg（#1928）。課堂摘要（`lib/session-summary.ts`，
@@ -67,7 +68,7 @@ export async function attendanceCountsViaSql(
   return expectArray(rows, '出勤') as Array<{ eventId: string; status: string; count: number }>;
 }
 
-/** 這些班的 active 報名生效區間（在籍人數由 `countEnrolledOn` 照舊在 TS 數） */
+/** 這些班 active＋withdrawal 報名的生效區間（#953；在籍人數由 `countEnrolledOn` 照舊在 TS 數） */
 export async function enrollmentRangesViaSql(
   db: Queryable,
   orgId: string,
@@ -76,11 +77,11 @@ export async function enrollmentRangesViaSql(
   if (classIds.length === 0) return [];
   const { rows } = await db.query(
     `select coalesce(json_agg(json_build_object(
-        'class_id', e.class_id, 'effective_from', e.effective_from,
+        'class_id', e.class_id, 'student_id', e.student_id, 'effective_from', e.effective_from,
         'effective_to', e.effective_to)), '[]'::json) as result
        from public.enrollments e
       where e.org_id = $1::uuid
-        and e.status = 'active'
+        and ${ENROLLED_STATUS_SQL}
         and e.class_id = any($2::uuid[])`,
     [orgId, classIds],
   );
