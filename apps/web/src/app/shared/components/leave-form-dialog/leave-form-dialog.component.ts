@@ -138,11 +138,12 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
           </div>
 
           <div class="flex w-full flex-col gap-1.5">
-            <label class="text-sm font-medium text-zinc-700"
+            <label class="text-sm font-medium text-zinc-700" for="leave-form-student"
               >學生 <span class="text-error-600">*</span></label
             >
             <!-- 跟儀表板「登記請假」同一組（#2318）：建議列寫分校 · 家長，家長名也找得到 -->
             <app-student-autocomplete
+              inputId="leave-form-student"
               [value]="selectedStudent"
               (valueChange)="onStudent($event)"
               [suggestions]="studentSuggestions()"

@@ -40,6 +40,7 @@
     @if (addingStudent()) {
       <app-dialog-frame title="加入其他學生" (closed)="addingStudent.set(false)">
         <app-student-autocomplete
+          ariaLabel="要加入的學生"
           [suggestions]="studentSuggestions()"
           (queryChange)="onStudentQuery($event)"
           (valueChange)="onStudentPicked($event)"

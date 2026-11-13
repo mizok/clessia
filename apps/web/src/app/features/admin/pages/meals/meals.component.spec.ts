@@ -23,6 +23,7 @@ const campusProviders = [
 
 import { MealsComponent } from './meals.component';
 import { rosterToDraft } from './meals.util';
+import { accessibleName, studentInput } from '../../../../../testing/accessible-name';
 
 const row = (overrides?: Partial<MealRosterRow>): MealRosterRow => ({
   studentId: 's1',
@@ -95,6 +96,13 @@ describe('MealsComponent', () => {
   });
 
   // #1314 ME3：匯出目前篩選的全部餐記錄（逐頁撈完才下載）
+  // #2468：學生欄的可及名稱要落在真正的 input 上（placeholder 不算名稱）
+  it('#2468：學生篩選欄（區間查詢）有可及名稱', async () => {
+    component['switchMode']('range');
+    await fixture.whenStable();
+    expect(accessibleName(studentInput(fixture.nativeElement))).toBe('篩選學生');
+  });
+
   describe('區間匯出 CSV（#1314 ME3）', () => {
     const page = (n: number, count: number, total: number) => ({
       ...roster(

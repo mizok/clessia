@@ -373,6 +373,70 @@ describe('SettingsPage', () => {
       expect(summaryText('誰負責點名')).toBe('誰負責點名 老師負責');
     });
 
+    // #1314 SE1（A6 settings general）：改選後「儲存：改成 X」，按下先確認、寫清楚影響，確認了才寫入
+    describe('出勤模式改之前先確認（#1314 SE1）', () => {
+      const open = () => {
+        const dialog = (component as unknown as { dialogService: DialogService }).dialogService;
+        return vi.spyOn(dialog, 'open');
+      };
+      const modeButton = () =>
+        (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+          '[aria-labelledby="settings-mode-title"] ~ p-button button',
+        );
+
+      it('沒改：鈕是「儲存」，按了不開確認、不寫入', async () => {
+        await setup();
+        const spy = open();
+        expect(modeButton()?.textContent).toContain('儲存');
+        expect(modeButton()?.textContent).not.toContain('改成');
+        component['confirmAttendanceMode']();
+        expect(spy).not.toHaveBeenCalled();
+        expect(orgSettingsServiceMock.updateSettings).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        [false, 0],
+        [true, 1],
+      ])('改了：鈕寫「儲存：改成隨堂點名」；確認框回 %s → 寫入 %i 次', async (answer, times) => {
+        await setup();
+        orgSettingsServiceMock.updateSettings.mockReturnValue(
+          of({ ...DAILY_CHECKIN, attendanceMode: 'per_session' }),
+        );
+        const spy = open().mockReturnValue({ onClose: of(answer) } as unknown as DynamicDialogRef);
+        component['attendanceModeValue'] = 'per_session';
+        fixture.detectChanges();
+        expect(modeButton()?.textContent).toContain('儲存：改成隨堂點名');
+
+        component['confirmAttendanceMode']();
+
+        const config = spy.mock.calls[0]![1] as {
+          header: string;
+          data: { message: string; acceptLabel: string };
+        };
+        expect(config.header).toBe('出勤紀錄模式改成隨堂點名？');
+        expect(config.data.acceptLabel).toBe('改成隨堂點名');
+        // 影響要寫清楚：掃碼、儀表板、沿用的分校、既有紀錄
+        expect(config.data.message).toContain('逐堂確認');
+        expect(config.data.message).toContain('待點名');
+        expect(config.data.message).toContain('沿用機構設定的分校會一起改');
+        expect(config.data.message).toContain('不會被改寫');
+        expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledTimes(times);
+      });
+
+      it('改成日到班：寫掃碼自動算出席、儀表板到班看板', async () => {
+        orgSettingsServiceMock.getSettings.mockReturnValue(
+          of({ ...DAILY_CHECKIN, attendanceMode: 'per_session' }),
+        );
+        await setup();
+        const spy = open().mockReturnValue({ onClose: of(false) } as unknown as DynamicDialogRef);
+        component['attendanceModeValue'] = 'daily_checkin';
+        component['confirmAttendanceMode']();
+        const config = spy.mock.calls[0]![1] as { data: { message: string } };
+        expect(config.data.message).toContain('當天所有的課都會自動算出席');
+        expect(config.data.message).toContain('今天到班');
+      });
+    });
+
     it('儲存失敗：分段鈕退回存著的值、按鈕不再轉圈、出錯誤提示；摘要不變', async () => {
       await setup();
       const toast = vi.spyOn(TestBed.inject(MessageService), 'add');

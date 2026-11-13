@@ -79,9 +79,17 @@ export class UninvoicedDialogComponent {
   protected readonly issuedIds = signal<ReadonlySet<string>>(new Set<string>());
   protected readonly failedIds = signal<ReadonlySet<string>>(new Set<string>());
 
-  /** 還沒開、而且開得了（有金額）的 —— 批次那顆按鈕算的是這個 */
+  /**
+   * 還沒開、而且開得了（有金額）的 —— 批次那顆按鈕算的是這個。
+   * 續課異動處理中的不進批次（#1122 Q4 (a)：手動開單不擋，要開就逐筆按，不讓「全部開帳」一起帶走）
+   */
   protected readonly issuableRows = computed(() =>
-    this.rows().filter((r) => !this.issuedIds().has(r.id) && this.amountOf(r) !== null),
+    this.rows().filter(
+      (r) => !this.issuedIds().has(r.id) && this.amountOf(r) !== null && !r.renewalPending,
+    ),
+  );
+  protected readonly pausedCount = computed(
+    () => this.rows().filter((r) => r.renewalPending && !this.issuedIds().has(r.id)).length,
   );
 
   /** 有報名但**沒有計費設定**的 —— 這些人要先回班級名單設定，清單只能指出來 */
