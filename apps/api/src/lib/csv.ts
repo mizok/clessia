@@ -18,9 +18,10 @@ function escapeField(value: CsvValue): string {
 
   // **公式注入**（CSV injection，#1100 #40）：使用者輸入的字串（學生姓名、考試名稱、收款備註）
   // 開頭是 = + - @（或 tab／CR）時，Excel 會當公式執行 —— 前面補一個單引號讓它當文字。
+  // 前置空白也算（#2488：「 =1+1」Excel 照樣執行）。規則同前端 admin meals 的 `csvCell`。
   // 只處理字串：數字欄（金額、分數）是我們算的，負數要照原樣，不能變成 '-500
   const text =
-    typeof value === 'string' && /^[=+\-@\t\r]/.test(value) ? `'${value}` : String(value);
+    typeof value === 'string' && /^\s*[=+\-@]|^[\t\r]/.test(value) ? `'${value}` : String(value);
   if (!/[",\n\r]/.test(text)) return text;
 
   return `"${text.replace(/"/g, '""')}"`;

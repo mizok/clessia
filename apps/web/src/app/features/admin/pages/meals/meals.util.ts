@@ -158,9 +158,17 @@ export function weekdayLabel(day: string): string {
   return WEEKDAY[new Date(`${day}T00:00:00Z`).getUTCDay()];
 }
 
-/** CSV 一格：有逗號、引號、換行就包引號（姓名、備註是行政打的字） */
+/**
+ * CSV 公式注入（#2488，OWASP）：開頭（可帶前置空白）是 = + - @，或開頭是 tab／CR 的字串，
+ * Excel／Numbers 會當公式執行 —— 前面補一個單引號讓它當文字。規則同 API 的 `lib/csv.ts`
+ * （伺服器出的 CSV 走那支；前端自己組的只有這裡）。
+ */
+const CSV_FORMULA = /^\s*[=+\-@]|^[\t\r]/;
+
+/** CSV 一格：擋公式前綴；有逗號、引號、換行就包引號（姓名、備註是行政打的字） */
 function csvCell(value: string): string {
-  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+  const text = CSV_FORMULA.test(value) ? `'${value}` : value;
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 /**
