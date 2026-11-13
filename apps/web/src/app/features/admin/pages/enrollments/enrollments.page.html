@@ -69,6 +69,7 @@
     >
       <span id="enrollments-student-label">學生</span>
       <app-student-autocomplete
+        ariaLabelledBy="enrollments-student-label"
         placeholder="輸入姓名"
         [value]="studentValue()"
         [suggestions]="studentSuggestions()"
@@ -282,7 +283,9 @@
             class="col-start-3 row-span-2 row-start-1 grid size-11 cursor-pointer place-items-center justify-self-end rounded-md border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 wide:col-start-auto wide:row-span-1 wide:row-start-auto wide:size-9"
             data-testid="row-menu"
             aria-haspopup="menu"
-            [attr.aria-label]="row.enrollment.studentName + ' ' + row.enrollment.className + ' 的更多動作'"
+            [attr.aria-label]="
+              row.enrollment.studentName + ' ' + row.enrollment.className + ' 的更多動作'
+            "
             (click)="openRowMenu($event, row.enrollment)"
             (keydown.enter)="$event.stopPropagation()"
           >

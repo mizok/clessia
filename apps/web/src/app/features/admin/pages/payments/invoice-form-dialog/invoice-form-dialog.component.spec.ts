@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { InvoicesService } from '@core/invoices.service';
 import { StudentsService } from '@core/students.service';
 import { InvoiceFormDialogComponent } from './invoice-form-dialog.component';
+import { accessibleName, studentInput } from '../../../../../../testing/accessible-name';
 
 describe('InvoiceFormDialogComponent', () => {
   // #1641 項 5：原本 track $index —— 刪中間一列時 Angular 移掉的是最後一個節點，
@@ -36,5 +37,21 @@ describe('InvoiceFormDialogComponent', () => {
     fixture.detectChanges();
     expect(rows()).toHaveLength(2);
     expect(rows()[1]).toBe(third);
+  });
+
+  // #2468：學生欄的可及名稱要落在真正的 input 上（placeholder 不算名稱）
+  it('#2468：學生欄的名稱是「學生 *」label（for 指到真正的 input）', async () => {
+    await TestBed.configureTestingModule({
+      imports: [InvoiceFormDialogComponent],
+      providers: [
+        { provide: InvoicesService, useValue: {} },
+        { provide: StudentsService, useValue: { list: vi.fn() } },
+        { provide: MessageService, useValue: { add: vi.fn() } },
+        { provide: DynamicDialogRef, useValue: { close: vi.fn() } },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(InvoiceFormDialogComponent);
+    fixture.detectChanges();
+    expect(accessibleName(studentInput(fixture.nativeElement))).toBe('學生 *');
   });
 });

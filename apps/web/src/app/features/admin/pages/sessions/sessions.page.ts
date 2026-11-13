@@ -627,8 +627,19 @@ export class SessionsPage implements OnInit {
             const el = (this.host.nativeElement as HTMLElement).querySelector<HTMLElement>(
               `[data-session-menu="${id}"]`,
             );
-            // 在目前的篩選下看不到那一堂：不假裝成功，由使用者看到課表沒有它
-            if (!el) return;
+            // 在目前的篩選下看不到那一堂：不假裝成功，而且要說出來（#1314 S3）——
+            // 只切了天、什麼都沒開，使用者會以為點了沒反應
+            if (!el) {
+              this.messageService.add({
+                severity: 'info',
+                summary: '這一堂在課表上看不到',
+                detail:
+                  this.activeFilterCount() > 0
+                    ? '被目前的篩選擋住了，清除篩選就看得到。'
+                    : '它可能已經被刪除或改到別天。',
+              });
+              return;
+            }
             el.scrollIntoView({ block: 'center', inline: 'center' });
             el.click();
           },

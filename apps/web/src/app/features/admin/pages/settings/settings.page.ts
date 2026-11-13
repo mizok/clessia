@@ -217,6 +217,47 @@ export class SettingsPage implements OnInit {
     });
   }
 
+  protected modeLabel(v: AttendanceMode | undefined): string {
+    return this.attendanceModeOptions.find((o) => o.value === v)?.label ?? '';
+  }
+
+  /**
+   * #1314 SE1（A6 settings general）：改選之後先確認，寫清楚會影響什麼。沒改就不打 API。
+   * 分校的 `attendance_mode` 是 null＝沿用機構（`campuses.ts`），所以「沿用的分校一起改」是真的。
+   */
+  protected confirmAttendanceMode(): void {
+    const to = this.attendanceModeValue;
+    if (to === this.settings()?.attendanceMode) return;
+    const label = this.modeLabel(to);
+    const toDaily = to === 'daily_checkin';
+    const data: ConfirmDialogData = {
+      message: [
+        '會影響每天的點名方式，建議在沒有課的時段改。',
+        toDaily
+          ? '・學生掃碼到班後，當天所有的課都會自動算出席，老師不用逐堂點名。'
+          : '・學生掃碼只記到班時間，每堂課的出席要老師或管理員逐堂確認。',
+        toDaily
+          ? '・儀表板：顯示「今天到班」看板（預計幾人、已到、該到沒到）。'
+          : '・儀表板：多一張「待點名」卡，列出還沒點名的課。',
+        '・沿用機構設定的分校會一起改；自己設了模式的分校不動。',
+        '・已經記下的出缺席不會被改寫。',
+      ].join('\n'),
+      acceptLabel: `改成${label}`,
+    };
+    const ref = this.dialogService.open(ConfirmDialogComponent, {
+      header: `出勤紀錄模式改成${label}？`,
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
+      modal: true,
+      appendTo: 'body',
+      data,
+    });
+    if (!ref) return;
+    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((ok) => {
+      if (ok) this.saveAttendanceMode();
+    });
+  }
+
   protected saveAttendanceMode(): void {
     this.saving.set(true);
     this.orgSettingsService.updateSettings({ attendanceMode: this.attendanceModeValue }).subscribe({
@@ -226,7 +267,7 @@ export class SettingsPage implements OnInit {
         this.messageService.add({
           severity: 'success',
           summary: '已儲存',
-          detail: '出勤模式已更新',
+          detail: `出勤紀錄模式已改成${this.modeLabel(s.attendanceMode)}`,
         });
       },
       error: () => {
