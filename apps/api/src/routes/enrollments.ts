@@ -272,7 +272,7 @@ const BatchMatchCandidateSchema = z
 const BatchMatchResultItemSchema = z
   .object({
     index: z.number(),
-    status: z.enum(['matched', 'ambiguous', 'not_found', 'already_enrolled']),
+    status: z.enum(['matched', 'ambiguous', 'not_found', 'already_enrolled', 'out_of_scope']),
     studentId: z.string().optional(),
     candidates: z.array(BatchMatchCandidateSchema).optional(),
   })
@@ -1810,6 +1810,7 @@ app.openapi(
       schools: { name: string } | null;
     };
     let students: CandidateRow[] = [];
+    const inScopeIds = new Set<string>();
     if (uniqueNames.length > 0 && uniqueSchoolIds.length > 0) {
       const { data: allCandidates, error: candidatesError } = await supabase
         .from('students')
@@ -1822,11 +1823,11 @@ app.openapi(
         .in('school_id', uniqueSchoolIds);
 
       if (candidatesError) return c.json({ error: candidatesError.message }, 500);
-      // #2493 R9：候選只留範圍內的學生（同列表與 GET /students/:id 的 studentInScope 判準）——
+      const rows = (allCandidates ?? []) as unknown as (CandidateRow & { enrollments: unknown })[];
+      students = rows;
+      // #2493 R9：候選只能是範圍內的學生（同列表與 GET /students/:id 的 studentInScope 判準）——
       // 原本撈全 org，別校學生的 id、年級、生日都吐得出來
-      students = (
-        (allCandidates ?? []) as unknown as (CandidateRow & { enrollments: unknown })[]
-      ).filter((s) => studentInScope(s.enrollments, scope));
+      for (const s of rows) if (studentInScope(s.enrollments, scope)) inScopeIds.add(s.id);
     }
 
     const toCandidate = (s: CandidateRow): z.infer<typeof BatchMatchCandidateSchema> => ({
@@ -1870,7 +1871,14 @@ app.openapi(
       const exactMatches = exactIndex.get(exactKey) ?? [];
       const ilikeMatches = ilikeIndex.get(ilikeKey) ?? [];
       const rawCandidates = exactMatches.length > 0 ? exactMatches : ilikeMatches;
-      const candidates = rawCandidates.map(toCandidate);
+      const scopedCandidates = rawCandidates.filter((s) => inScopeIds.has(s.id));
+      // #2493 R9（計畫席 11-13 裁 b）：同名同校的人只在別校 —— 不能比成 not_found（前端會當成
+      // 新學生），也不能吐他的個資。只回狀態，由總管理員處理
+      if (rawCandidates.length > 0 && scopedCandidates.length === 0) {
+        results.push({ index, status: 'out_of_scope' });
+        continue;
+      }
+      const candidates = scopedCandidates.map(toCandidate);
 
       const available = candidates.filter((candidate) => !enrolledIds.has(candidate.id));
 

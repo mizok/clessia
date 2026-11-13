@@ -242,7 +242,8 @@ export interface BatchMatchCandidate {
 
 export interface BatchMatchResultItem {
   index: number;
-  status: 'matched' | 'ambiguous' | 'not_found' | 'already_enrolled';
+  /** out_of_scope：同名同校的人只在呼叫者範圍外的分校（#2493），回應不帶任何個資 */
+  status: 'matched' | 'ambiguous' | 'not_found' | 'already_enrolled' | 'out_of_scope';
   studentId?: string;
   candidates?: BatchMatchCandidate[];
 }

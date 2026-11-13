@@ -15,7 +15,7 @@ import { createServiceClientFromEnv } from '../lib/supabase';
  *
  * 原本四支只看 org：受限管理員改得到別校報名的議價與起迄、退得掉別校學生、刪得掉別校報名；
  * 批次比對帶別校班 id 推得出那班名冊，候選學生撈全 org。裁定（11-13）：範圍外＝404、什麼都不寫，
- * 同 #2443；候選只留範圍內學生（studentInScope，同列表）。
+ * 同 #2443；候選只留範圍內學生（studentInScope，同列表）；同名的人只在別校 → `out_of_scope`（不帶個資）。
  *
  * fixture：C1 有 A、B 兩班，C2 有 X 班。學校 S 有兩位「王同名」：w1 報在 A、w2 報在 X。
  * eA＝w1 在 A、eX＝w2 在 X、eX2＝另一位在 X（給刪除用）。管理員只被指派 C1。
@@ -124,6 +124,7 @@ run('#2493 報名改／改狀態／刪／批次比對看分校範圍', () => {
     fx.eA = await enroll(fx.a, fx.w1);
     fx.eX = await enroll(fx.x, fx.w2);
     fx.eX2 = await enroll(fx.x, other);
+    await enroll(fx.x, await student('張別校')); // 只在 C2：batch-match out_of_scope 用
     app = (await import('../index')).default as never;
   }, 120_000);
 
@@ -145,6 +146,7 @@ run('#2493 報名改／改狀態／刪／批次比對看分校範圍', () => {
   }, 120_000);
 
   type Scope = 'all' | 'c1' | 'none';
+  type MatchBody = { results: Array<{ status: string; candidates?: unknown[] }> };
   const call = async (scope: Scope, method: string, path: string, body?: unknown) => {
     ctx.campusScope = scope === 'all' ? null : scope === 'c1' ? [fx.c1] : [];
     try {
@@ -212,8 +214,22 @@ run('#2493 報名改／改狀態／刪／批次比對看分校範圍', () => {
     expect(body).toEqual({ results: [{ index: 0, status: 'matched', studentId: fx.w1 }] });
     expect(JSON.stringify(body)).not.toContain(fx.w2);
 
+    // 計畫席 11-13 裁 b：同名同校的人只在 C2 → out_of_scope，只有 index＋狀態（不是 not_found，
+    // 否則前端當成新學生；也不帶姓名／生日／id）
+    const only = [{ name: '張別校', school: 'S 國中' }];
+    const out = await (
+      await call('c1', 'POST', '/batch-match', { classId: fx.b, items: only })
+    ).json();
+    expect(out).toEqual({ results: [{ index: 0, status: 'out_of_scope' }] });
+    const unscoped = (await (
+      await call('all', 'POST', '/batch-match', { classId: fx.b, items: only })
+    ).json()) as MatchBody;
+    expect(unscoped.results[0].status).toBe('matched');
+
     // 不受限照舊：兩位同名 → ambiguous
-    const all = await (await call('all', 'POST', '/batch-match', { classId: fx.b, items })).json();
+    const all = (await (
+      await call('all', 'POST', '/batch-match', { classId: fx.b, items })
+    ).json()) as MatchBody;
     expect(all.results[0].status).toBe('ambiguous');
     expect(all.results[0].candidates).toHaveLength(2);
   });
