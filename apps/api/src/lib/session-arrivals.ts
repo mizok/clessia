@@ -80,7 +80,9 @@ export async function annotateArrivals<T extends ArrivalSession>(
           where e.org_id = $1::uuid and ${ENROLLED_STATUS_SQL} and e.class_id = any($2::uuid[])`,
         params.slice(0, 2),
       ),
-      // 打卡只撈「這些班在籍過的學生」—— 同一個條件用子查詢，不等上一支回來再帶學生 id
+      // 打卡只撈「這些班報名過的學生」—— 子查詢只是縮小撈的量，不等上一支回來再帶學生 id。
+      // **不帶狀態條件**：算不算到班由上一支的報名（ENROLLED_STATUS_SQL＋isEnrolledOn）決定，
+      // 這裡多撈幾筆作廢生的打卡也不會被算進去；在這裡再複製一份規則只會多一處要對齊（#953）
       db.query(
         `select d.student_id, d.checkin_date::text as checkin_date, d.campus_id
            from public.daily_checkins d
@@ -88,7 +90,7 @@ export async function annotateArrivals<T extends ArrivalSession>(
             and d.checkin_date between $3::date and $4::date
             and d.student_id in (
               select e.student_id from public.enrollments e
-               where e.org_id = $1::uuid and ${ENROLLED_STATUS_SQL} and e.class_id = any($2::uuid[]))`,
+               where e.org_id = $1::uuid and e.class_id = any($2::uuid[]))`,
         params,
       ),
     ]);

@@ -93,6 +93,8 @@ run('#953 在籍依課堂日期：active／withdrawal，退班靠 effective_to',
     wdTodayIn: '',
     wdTodayOut: '',
     dailyActive: '',
+    // 退班卻沒結束日、今天也打了卡：fail-closed，到班數與記到班都不算
+    dailyNoEnd: '',
   };
   let today = '';
   const eventOf: Record<string, string> = {};
@@ -201,25 +203,34 @@ run('#953 在籍依課堂日期：active／withdrawal，退班靠 effective_to',
        values ($1, $2, $3, '08:00', '09:00', 'scheduled', 'unassigned', $4)`,
       [ctx.orgId, dailyClass!.id, today, fx.dailyEvent],
     );
-    [fx.wdTodayIn, fx.wdTodayOut, fx.dailyActive] = (
+    [fx.wdTodayIn, fx.wdTodayOut, fx.dailyActive, fx.dailyNoEnd] = (
       await q<{ id: string }>(
         `insert into students (org_id, name, grade)
-         select $1, n, 'J1' from unnest(array['今天退班已打卡','今天退班沒打卡','日到班在讀']) with ordinality t(n, i)
+         select $1, n, 'J1' from unnest(array['今天退班已打卡','今天退班沒打卡','日到班在讀','退班無結束日已打卡']) with ordinality t(n, i)
          order by i returning id`,
         [ctx.orgId],
       )
-    ).map((r) => r.id) as [string, string, string];
+    ).map((r) => r.id) as [string, string, string, string];
     await q(
       `insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from, effective_to)
        values ($1, $2, $3, 'withdrawal', 'monthly', 1000, '2026-01-01', $6),
               ($1, $2, $4, 'withdrawal', 'monthly', 1000, '2026-01-01', $6),
-              ($1, $2, $5, 'active', 'monthly', 1000, '2026-01-01', null)`,
-      [ctx.orgId, dailyClass!.id, fx.wdTodayIn, fx.wdTodayOut, fx.dailyActive, today],
+              ($1, $2, $5, 'active', 'monthly', 1000, '2026-01-01', null),
+              ($1, $2, $7, 'withdrawal', 'monthly', 1000, '2026-01-01', null)`,
+      [
+        ctx.orgId,
+        dailyClass!.id,
+        fx.wdTodayIn,
+        fx.wdTodayOut,
+        fx.dailyActive,
+        today,
+        fx.dailyNoEnd,
+      ],
     );
     await q(
       `insert into daily_checkins (org_id, campus_id, student_id, checkin_date)
        select $1, $2, s, $3 from unnest($4::uuid[]) s`,
-      [ctx.orgId, daily!.id, today, [fx.wdTodayIn, fx.dailyActive]],
+      [ctx.orgId, daily!.id, today, [fx.wdTodayIn, fx.dailyActive, fx.dailyNoEnd]],
     );
     app = (await import('../index')).default as never;
   }, 120_000);
@@ -323,6 +334,7 @@ run('#953 在籍依課堂日期：active／withdrawal，退班靠 effective_to',
     });
   });
 
+  // 這裡的日到班班還有一位「退班卻沒結束日、今天也打了卡」的學生：算進去的話會是 { 4, 3 }
   it('日到班：今天退班的學生今天仍算到班（結束當天在籍），也記得了到班', async () => {
     const res = await app.request(`/api/attendance/sessions?date=${today}&pageSize=100`, {}, env);
     expect(res.status).toBe(200);
@@ -345,5 +357,20 @@ run('#953 在籍依課堂日期：active／withdrawal，退班靠 effective_to',
       env,
     );
     expect({ status: mark.status, body: await mark.text() }).toMatchObject({ status: 201 });
+  });
+
+  it('日到班：退班卻沒結束日、今天打了卡 → 不算到班、記到班 404 NOT_ENROLLED（fail-closed）', async () => {
+    // 到班數與在籍數不含他：由上一條的 { enrolled: 3, checkedIn: 2 } 守（他有打卡，算進去就是 4／3）
+    const mark = await app.request(
+      `/api/attendance/roster/${fx.dailyEvent}/check-in`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ studentId: fx.dailyNoEnd }),
+      },
+      env,
+    );
+    expect(mark.status).toBe(404);
+    expect(((await mark.json()) as { code: string }).code).toBe('NOT_ENROLLED');
   });
 });
