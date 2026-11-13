@@ -139,7 +139,8 @@ async function diffPage(page) {
         for (const r of diffParts(
           { parts: pa, height: a6.height },
           { parts: pb, height: app.height },
-          { [pa[0].key]: pb[0].key },
+          // 彈出物裡的手動配對（PAGES[頁].popMapping[彈出物]，key 帶 `pop[...]` 前綴，#2468）
+          { [pa[0].key]: pb[0].key, ...(PAGES[page].popMapping?.[ia] ?? {}) },
           opts,
         ))
           rows.push({ ...r, pop: ia, appPop: ib });

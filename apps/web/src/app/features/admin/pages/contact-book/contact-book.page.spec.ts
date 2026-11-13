@@ -19,6 +19,7 @@ import { StudentsService, type Student } from '@core/students.service';
 import { CampusContextService } from '@core/campus-context.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { ContactBookPage } from './contact-book.page';
+import { accessibleName, studentInput } from '../../../../../testing/accessible-name';
 
 /** 頂欄分校（K4）：分校定下來才載、換分校重載 */
 const campusId = signal<string | null>('campus-1');
@@ -95,6 +96,11 @@ describe('ContactBookPage', () => {
     fixture.componentRef.setInput('page', { label: '聯絡簿' });
     component = fixture.componentInstance;
     await fixture.whenStable();
+  });
+
+  // #2468：學生欄的可及名稱要落在真正的 input 上（placeholder 不算名稱）
+  it('#2468：學生篩選欄有可及名稱', () => {
+    expect(accessibleName(studentInput(fixture.nativeElement))).toBe('篩選學生');
   });
 
   it('should create', () => {
