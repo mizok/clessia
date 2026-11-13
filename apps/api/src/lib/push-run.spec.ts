@@ -294,6 +294,7 @@ describe('reminderPayload（Q3：不放金額）', () => {
   const base = {
     invoice_id: '0123abcd-0000-4000-8000-00000000abcd',
     due_date: '2026-10-20',
+    student_id: 's1',
     student_name: '王小明',
   };
   it.each([
@@ -305,7 +306,7 @@ describe('reminderPayload（Q3：不放金額）', () => {
     expect(p).toEqual({
       title: '繳費提醒',
       body,
-      url: '/parent/payments',
+      url: '/parent/payments?child=s1',
       topic: base.invoice_id.replace(/-/g, ''),
     });
     expect(p.topic).toHaveLength(32);

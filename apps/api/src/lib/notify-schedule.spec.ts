@@ -372,7 +372,7 @@ describe('notifyScheduleChange → 家長（#1100 #49）', () => {
     status: 'active',
     effective_from: '2026-09-01',
     effective_to: null,
-    students: { name, parent_student_relations: parents },
+    students: { id: `st-${name}`, name, parent_student_relations: parents },
     ...over,
   });
 
@@ -457,6 +457,21 @@ describe('notifyScheduleChange → 家長（#1100 #49）', () => {
       push_status: 'skipped',
       push_error: 'KIND_PUSH_DISABLED',
     });
+  });
+
+  it('一個孩子 → url 帶 ?child= 那個孩子；兩個孩子同班 → 不帶（不知道該切誰）（#2497）', async () => {
+    const db = seedWithParents();
+    await run(db);
+    const urls = db
+      .rows('notifications')
+      .filter((n) => n['role'] === 'parent')
+      .map((n) => `${n['user_id']}|${(n['payload'] as { url: string }).url}`)
+      .sort();
+    expect(urls).toEqual([
+      'u-lin|/parent/schedule?child=st-林大同',
+      'u-lin|/parent/schedule?child=st-林小同',
+      'u-wang|/parent/schedule',
+    ]);
   });
 
   it('同一批重送：不重複', async () => {

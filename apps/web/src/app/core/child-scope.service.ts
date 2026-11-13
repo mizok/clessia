@@ -1,4 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter } from 'rxjs';
 import { AuthService } from './auth.service';
 import { ChildrenService, type Child } from './children.service';
 
@@ -21,11 +23,16 @@ function readSaved(userId: string | undefined): string | null {
  * 家長端「目前在看哪個孩子」的狀態 —— 授權範圍(`studentScope`)在後端已經限定好，
  * 這裡只決定畫面上顯示哪一個。沒有 APP_INITIALIZER（同族教訓見
  * `OrgSettingsService`），呼叫端要自己叫一次 `load()`。
+ *
+ * **網址帶 `?child=<學生 id>` 就切到那個孩子**（#2497）：通知的連結（站內與推播）由 API 帶上，
+ * 多孩子家長點「逾期帳單」才不會落在目前選的、沒有帳單的那個孩子。讀完就從網址拿掉，
+ * 之後家長自己切孩子、重新整理都不會被網址拉回去。不是他的孩子（解除綁定）就不理。
  */
 @Injectable({ providedIn: 'root' })
 export class ChildScopeService {
   private readonly childrenService = inject(ChildrenService);
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   private readonly _children = signal<Child[]>([]);
   private readonly _activeChildId = signal<string | null>(null);
@@ -40,6 +47,8 @@ export class ChildScopeService {
    */
   private readonly _status = signal<'unloaded' | 'ready' | 'failed'>('unloaded');
   private loaded = false;
+  /** 網址要求的孩子；清單還沒到就先記著，`load()` 完再套 */
+  private requestedChildId: string | null = null;
 
   readonly children = this._children.asReadonly();
   readonly status = this._status.asReadonly();
@@ -52,6 +61,14 @@ export class ChildScopeService {
 
   /** 只有一個以上的孩子才有東西可切——跟角色徽章「單一角色不給互動」同一條規則 */
   readonly canSwitch = computed(() => this._children().length > 1);
+
+  constructor() {
+    // 第一次導頁時這支常常還沒建出來（頁面元件才 inject 它）：先看一次現在的網址，之後每次導頁再看
+    this.takeChildParam();
+    this.router.events
+      .pipe(filter((e) => e instanceof NavigationEnd))
+      .subscribe(() => this.takeChildParam());
+  }
 
   load(): void {
     if (this.loaded || this._loading()) return;
@@ -67,6 +84,7 @@ export class ChildScopeService {
         }
         this._status.set('ready');
         this._loading.set(false);
+        this.applyRequestedChild();
       },
       error: () => {
         this._status.set('failed');
@@ -86,5 +104,22 @@ export class ChildScopeService {
     } catch {
       // 存不了就只在這次瀏覽有效
     }
+  }
+
+  private takeChildParam(): void {
+    const tree = this.router.parseUrl(this.router.url);
+    const id = tree.queryParams['child'];
+    if (typeof id !== 'string') return;
+    delete tree.queryParams['child'];
+    void this.router.navigateByUrl(tree, { replaceUrl: true });
+    this.requestedChildId = id;
+    this.applyRequestedChild();
+  }
+
+  private applyRequestedChild(): void {
+    const id = this.requestedChildId;
+    if (id === null || this._status() !== 'ready') return;
+    this.requestedChildId = null;
+    if (this._children().some((c) => c.id === id)) this.setActiveChild(id);
   }
 }
