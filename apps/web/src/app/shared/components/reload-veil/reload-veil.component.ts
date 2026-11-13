@@ -20,7 +20,8 @@ import {
  *
  * - **只有第一次、還沒載入過**才顯示 `[reloadSkeleton]`。
  * - 之後每次重抓（換條件、新增刪除後的重查）**舊內容留著、變淡到 40%、`inert`**（滑鼠鍵盤都不能對舊資料動手），
- *   頂端疊一個「載入中…」（A6 的處理中：`aria-busy`＋12px 轉圈）。疊在上面而不是插在上方，版面不會被推動。
+ *   頂端疊一個「載入中…」（A6 的處理中：`aria-busy`＋12px 轉圈）。疊在上面而不是插在上方，版面不會被推動；
+ *   膠囊 sticky 貼著可視範圍頂端（#2447），捲到清單底部翻頁時也看得到。
  * - 新資料回來時要平滑換上，由呼叫端把「套資料」那一行包在 `injectViewTransition()` 裡 —— 這裡不管。
  *
  * **呼叫端在重抓期間不能先把資料清掉**，否則留著的是空畫面。
@@ -41,16 +42,22 @@ import {
         [attr.aria-busy]="phase() === 'stale' ? 'true' : null"
       >
         @if (phase() === 'stale') {
-          <p
-            class="reload-veil__status absolute top-0 left-1/2 z-10 m-0 inline-flex -translate-x-1/2 items-center gap-2 rounded-full border border-solid border-zinc-200 bg-white px-3 py-1 text-sm font-medium text-zinc-700 shadow-sm"
-            role="status"
+          <!-- sticky 的零高軌道（#2447）：膠囊貼著可視範圍頂端 —— 人在清單底部按分頁器時也看得到「載入中」。
+               軌道高 0，膠囊溢出疊在內容上，不推版面 -->
+          <div
+            class="reload-veil__rail pointer-events-none sticky top-3 z-10 flex h-0 justify-center"
           >
-            <span
-              class="reload-veil__spin size-3 shrink-0 animate-[spin_0.7s_linear_infinite] rounded-full border-[1.5px] border-solid border-current border-r-transparent motion-reduce:animate-none motion-reduce:border-r-current motion-reduce:opacity-50"
-              aria-hidden="true"
-            ></span>
-            載入中…
-          </p>
+            <p
+              class="reload-veil__status pointer-events-auto m-0 inline-flex items-center gap-2 rounded-full border border-solid border-zinc-200 bg-white px-3 py-1 text-sm font-medium text-zinc-700 shadow-sm"
+              role="status"
+            >
+              <span
+                class="reload-veil__spin size-3 shrink-0 animate-[spin_0.7s_linear_infinite] rounded-full border-[1.5px] border-solid border-current border-r-transparent motion-reduce:animate-none motion-reduce:border-r-current motion-reduce:opacity-50"
+                aria-hidden="true"
+              ></span>
+              載入中…
+            </p>
+          </div>
         }
         <!-- 變淡 140ms --leave、回來 200ms --arrive（同 #1634：出場比進場短）。
              兩條都掛 motion-safe：變淡那條是任意變體，比 motion-reduce:transition-none 更具體，

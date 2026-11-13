@@ -49,6 +49,7 @@ export type OrgTable =
   | 'receipt_counters'
   | 'renewal_requests'
   | 'schedule_changes'
+  | 'school_calendar_events'
   | 'school_exams'
   | 'schools'
   | 'session_packs'
