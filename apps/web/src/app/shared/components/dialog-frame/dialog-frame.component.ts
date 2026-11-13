@@ -22,10 +22,24 @@ import { DialogTitleDirective } from '@shared/directives/dialog-title.directive'
   imports: [DialogTitleDirective],
   templateUrl: './dialog-frame.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'block' },
+  host: { class: 'block', '(keydown.escape)': 'onEscape($event)' },
 })
 export class DialogFrameComponent {
   readonly title = input.required<string>();
-  /** 按 ✕：對話框自己決定關閉的語意（多半等同「取消」） */
+  /** 按 ✕ 或 Esc：對話框自己決定關閉的語意（多半等同「取消」） */
   readonly closed = output<void>();
+
+  /**
+   * Esc＝✕（#2445）。DynamicDialog 開啟設定沒帶 `closable` 時，`p-dialog` 不掛 Esc 監聽
+   * （它只在 `closeOnEscape && closable` 時掛，primeng-dialog.mjs），全站 `showHeader:false` 的開啟點都中。
+   * 修在殼上：焦點在對話框裡按 Esc 就發 `closed`，跟按 ✕ 同一條路 —— 有離開保護的對話框照樣先問。
+   * - `defaultPrevented`：裡面的下拉／選單先吃掉了 Esc（PrimeNG select 關清單時會 preventDefault），不關整個對話框
+   * - 吃掉之後 preventDefault＋stopPropagation：外層原生 `<dialog>` 的 cancel、PrimeNG 的 document 監聽不再各關一次
+   */
+  protected onEscape(event: Event): void {
+    if (event.defaultPrevented) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.closed.emit();
+  }
 }

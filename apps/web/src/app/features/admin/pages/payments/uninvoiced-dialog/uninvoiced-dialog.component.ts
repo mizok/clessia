@@ -11,16 +11,24 @@ import { DecimalPipe } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
-import { DynamicDialogRef } from 'primeng/dynamicdialog';
-import { catchError, forkJoin, map, of } from 'rxjs';
+import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { addDays, format, parseISO } from 'date-fns';
+import { catchError, filter, forkJoin, map, of } from 'rxjs';
 
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import { CampusContextService } from '@core/campus-context.service';
 import { FeeTemplatesService, type FeeTemplate } from '@core/fee-templates.service';
-import { InvoicesService } from '@core/invoices.service';
+import { InvoicesService, type Invoice, type InvoiceItemType } from '@core/invoices.service';
+import { OrgSettingsService } from '@core/org-settings.service';
+import { SystemClockService } from '@core/system-clock.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
+import {
+  ConfirmDialogComponent,
+  type ConfirmDialogData,
+} from '@shared/components/confirm-dialog/confirm-dialog.component';
 
 import { payableAmount } from '../../courses/class-detail/enrollment-billing.util';
+import { invoicePeriodLabel } from '../payments.util';
 
 /**
  * 待開帳清單 —— 已經生效、但從來沒開過任何帳單的報名。
@@ -44,6 +52,8 @@ import { payableAmount } from '../../courses/class-detail/enrollment-billing.uti
     InlineNoticeComponent,
   ],
   templateUrl: './uninvoiced-dialog.component.html',
+  // 確認框從這個對話框裡開（#2445）；元件層提供，跟帳單頁的 DialogService 分開
+  providers: [DialogService],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UninvoicedDialogComponent {
@@ -54,6 +64,11 @@ export class UninvoicedDialogComponent {
   private readonly invoicesService = inject(InvoicesService);
   private readonly ref = inject(DynamicDialogRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly dialogService = inject(DialogService);
+  private readonly orgSettings = inject(OrgSettingsService);
+  private readonly today = inject(SystemClockService).todayTaipei;
+  /** 機構的繳費天數（後端開帳沒給 dueDate 時用它算期限）。沒有 manage_finance 時 API 不給 → null */
+  private readonly dueDays = signal<number | null>(null);
 
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
@@ -85,10 +100,12 @@ export class UninvoicedDialogComponent {
         })
         .pipe(catchError(() => of(null))),
       templates: this.feeTemplatesService.list({ isActive: true }).pipe(catchError(() => of(null))),
+      settings: this.orgSettings.getSettings().pipe(catchError(() => of(null))),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(({ list, templates }) => {
+      .subscribe(({ list, templates, settings }) => {
         this.loading.set(false);
+        this.dueDays.set(settings?.invoiceDueDays ?? null);
         if (!list) {
           this.failed.set(true);
           return;
@@ -107,6 +124,19 @@ export class UninvoicedDialogComponent {
     );
   }
 
+  private itemType(row: Enrollment): InvoiceItemType {
+    return row.billingMode === 'session_pack' ? 'session_pack' : 'tuition';
+  }
+
+  /**
+   * 這筆開出去後帳單列表會寫的期別（#2445，同 `invoicePeriodLabel`）。這裡開的明細不帶 `periodMonth`，
+   * 所以是「學費」「堂數包」—— 不另編月份：編了就跟開出去的帳單對不上。
+   */
+  protected periodOf(row: Enrollment): string {
+    const item = { type: this.itemType(row), periodMonth: null, note: null };
+    return invoicePeriodLabel({ items: [item] } as unknown as Pick<Invoice, 'items'>);
+  }
+
   protected isIssued(row: Enrollment): boolean {
     return this.issuedIds().has(row.id);
   }
@@ -119,8 +149,44 @@ export class UninvoicedDialogComponent {
     this.issue([row]);
   }
 
+  /**
+   * 「全部開帳」先預覽再確認（#2445）：一點就並行開 N 張、按錯要一張張作廢。
+   * 預覽只讀，確認後走跟單筆同一個 `issue()`，開出去的帳單逐欄不變。
+   */
   protected issueAll(): void {
-    this.issue(this.issuableRows());
+    const targets = this.issuableRows();
+    if (targets.length === 0) return;
+    const sum = targets.reduce((acc, row) => acc + this.amountOf(row)!, 0);
+    const periods = [...new Set(targets.map((row) => this.periodOf(row)))].join('、');
+    const days = this.dueDays();
+    // 後端同一個算法：開立日（台北今天）＋機構繳費天數
+    const due =
+      days === null
+        ? '開立日起依機構設定'
+        : format(addDays(parseISO(this.today()), days), 'yyyy/M/d');
+    const data: ConfirmDialogData = {
+      message: [
+        `開 ${targets.length} 張`,
+        `合計 NT$ ${sum.toLocaleString('en-US')}`,
+        `期別 ${periods}`,
+        `期限 ${due}`,
+      ].join('\n'),
+      acceptLabel: `開 ${targets.length} 張`,
+      rejectLabel: '再看看',
+    };
+    this.dialogService
+      .open(ConfirmDialogComponent, {
+        header: '全部開帳？',
+        width: 'var(--dlg-w-md)',
+        modal: true,
+        showHeader: false,
+        data,
+      })
+      ?.onClose.pipe(
+        filter((ok) => ok === true),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => this.issue(targets));
   }
 
   private issue(targets: readonly Enrollment[]): void {
@@ -135,7 +201,7 @@ export class UninvoicedDialogComponent {
             studentId: row.studentId,
             items: [
               {
-                type: row.billingMode === 'session_pack' ? 'session_pack' : 'tuition',
+                type: this.itemType(row),
                 enrollmentId: row.id,
                 amount: this.amountOf(row)!,
               },

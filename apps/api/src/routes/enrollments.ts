@@ -4,8 +4,14 @@ import { requireAdminMiddleware } from '../middleware/auth';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { inOrg } from '../lib/org-scope';
-import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrollments/validation';
+import {
+  checkEnrollmentAttendance,
+  checkEnrollmentPreconditions,
+  findClassInScope,
+} from './enrollments/validation';
 import { enrollWithSeatLock } from '../lib/class-seats';
+import { directEnrollWithFirstInvoice } from '../lib/enrollment-first-invoice';
+import { hasPermission } from '../lib/permissions';
 import { getAuth } from '../lib/get-auth';
 import {
   ENROLLMENT_EVENT_KINDS,
@@ -95,6 +101,11 @@ const EnrollmentSchema = z
     ),
     /** 各時段老師去重、以「、」連；沒有指派 → null */
     teacherName: z.string().nullable(),
+    /**
+     * 只在 `hasInvoice=false`（未開單名單）時帶：這位學生有處理中的續課異動（#1122）＝暫停自動開單。
+     * 名單照樣列出、標示，批次開單預設不勾（gate Q4 (a)：手動開單不擋）
+     */
+    renewalPending: z.boolean().optional(),
   })
   .openapi('Enrollment');
 
@@ -126,7 +137,8 @@ const CreateEnrollmentSchema = z
   .object({
     classId: DbUuidSchema,
     studentId: DbUuidSchema,
-    status: z.enum(['pending_payment', 'active']).default('active'),
+    /** 不給 = `active`；有 `firstInvoice` 時一律 `pending_payment`，明給 `active` 是 400 */
+    status: z.enum(['pending_payment', 'active']).optional(),
     billingMode: BillingModeSchema.optional(),
     feeTemplateId: DbUuidSchema.optional(),
     agreedAmount: z.number().int().min(0).optional(),
@@ -135,6 +147,46 @@ const CreateEnrollmentSchema = z
     effectiveTo: z.string().date().nullable().optional(),
     notes: z.string().max(2000).optional(),
     skipConflictCheck: z.boolean().optional(),
+    /**
+     * 「建立繳費單（待繳費）」（#2296 SD9，A6 直接報名最後一欄）：同一個交易開第一期帳單，
+     * 跟家長申請核准共用 `lib/enrollment-first-invoice.ts`。不給 = 「不建立」，建 `active`。
+     */
+    firstInvoice: z
+      .object({
+        /** 行政改過的首期金額；不給 = 伺服器試算 */
+        amount: z.number().int().min(1).optional(),
+        /** 首期金額跟試算不同時必填 */
+        amountNote: z.string().max(500).optional(),
+        /** 不給 = 開帳日 + 機構預設天數 */
+        dueDate: z.string().date().optional(),
+        /** 堂數制必填 */
+        sessionCount: z.number().int().min(1).optional(),
+      })
+      .optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (!v.firstInvoice) return;
+    if (v.status === 'active') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['status'],
+        message: '建立繳費單時報名是待繳費，不能是 active',
+      });
+    }
+    if (!v.billingMode || !v.feeTemplateId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['feeTemplateId'],
+        message: '建立繳費單要有計費模式與費用方案',
+      });
+    }
+    if (v.billingMode === 'session_pack' && !v.firstInvoice.sessionCount) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['firstInvoice', 'sessionCount'],
+        message: '堂數制要有堂數',
+      });
+    }
   })
   .openapi('CreateEnrollment');
 
@@ -493,9 +545,21 @@ app.openapi(
     if (error) return c.json({ error: error.message }, 500);
 
     const total = count ?? 0;
+    let rows = (data ?? []).map(toEnrollmentResponse);
+    if (hasInvoice === false && rows.length > 0) {
+      const { data: pending, error: pendingError } = await supabase
+        .from('renewal_requests')
+        .select('student_id')
+        .eq('org_id', orgId)
+        .eq('status', 'pending')
+        .in('student_id', [...new Set(rows.map((r) => r.studentId))]);
+      if (pendingError) return c.json({ error: pendingError.message }, 500);
+      const paused = new Set((pending ?? []).map((r) => (r as { student_id: string }).student_id));
+      rows = rows.map((r) => ({ ...r, renewalPending: paused.has(r.studentId) }));
+    }
     return c.json(
       {
-        data: (data ?? []).map(toEnrollmentResponse),
+        data: rows,
         meta: { total, page, pageSize, totalPages: Math.ceil(total / pageSize) },
       },
       200,
@@ -585,6 +649,15 @@ app.openapi(
             schema: z.object({
               data: EnrollmentSchema,
               warnings: z.array(ScheduleConflictWarningSchema).optional(),
+              /** 有 `firstInvoice` 時才有：開出來的第一期帳單 */
+              invoice: z
+                .object({
+                  id: z.string(),
+                  invoiceNo: z.string().nullable(),
+                  amount: z.number(),
+                  dueDate: z.string(),
+                })
+                .optional(),
             }),
           },
         },
@@ -592,7 +665,11 @@ app.openapi(
       },
       400: {
         content: { 'application/json': { schema: OverQuotaErrorSchema } },
-        description: 'Bad Request',
+        description: '額滿；建立繳費單時：費用方案不符、金額改了沒寫原因、金額 0、期限早於開帳日',
+      },
+      403: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: '建立繳費單需要財務權限',
       },
       404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Not Found' },
       409: {
@@ -616,6 +693,18 @@ app.openapi(
     const effectiveFrom = body.effectiveFrom ?? getCurrentTaipeiDateString();
     const effectiveTo = body.effectiveTo ?? null;
     const skipConflictCheck = body.skipConflictCheck === true;
+    const firstInvoice = body.firstInvoice;
+    const issuedAt = getCurrentTaipeiDateString();
+
+    if (firstInvoice) {
+      // 會開帳單：manage_students 之外還要 manage_finance（同家長申請核准 Q6）
+      if (!hasPermission(c.get('permissions') ?? [], 'manage_finance')) {
+        return c.json({ error: '建立繳費單需要財務權限', code: 'FINANCE_REQUIRED' }, 403);
+      }
+      if (firstInvoice.dueDate && firstInvoice.dueDate < issuedAt) {
+        return c.json({ error: '繳費期限不能早於開帳日', code: 'DUE_BEFORE_ISSUE' }, 400);
+      }
+    }
 
     const preconditions = await checkEnrollmentPreconditions({
       supabase,
@@ -624,6 +713,7 @@ app.openapi(
       studentIds: [body.studentId],
       effectiveFrom,
       effectiveTo,
+      scope: getCampusScope(c),
     });
 
     if (preconditions.error) {
@@ -650,57 +740,129 @@ app.openapi(
     // 名額判斷與寫入在同一個交易、鎖住班級（#1726 Q9）—— 先數再另一個請求寫，兩人會同時搶到最後一位
     const pool = getAuth(c).pool;
     if (!pool) return c.json({ error: '建立報名失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
-    let outcome: Awaited<ReturnType<typeof enrollWithSeatLock>>;
-    try {
-      outcome = await enrollWithSeatLock(pool, {
-        orgId,
-        classId: body.classId,
-        rows: [
+
+    let createdId: string;
+    let invoice: { id: string; invoiceNo: string | null; amount: number; dueDate: string } | null =
+      null;
+    if (firstInvoice) {
+      let r: Awaited<ReturnType<typeof directEnrollWithFirstInvoice>>;
+      try {
+        r = await directEnrollWithFirstInvoice(pool, {
+          orgId,
+          userId,
+          studentId: body.studentId,
+          classId: body.classId,
+          // 範圍外跟不存在一樣（c1；不建立那條同 #2443）
+          scope: getCampusScope(c),
+          // superRefine 已擋掉缺的情況
+          billingMode: body.billingMode!,
+          feeTemplateId: body.feeTemplateId!,
+          agreedAmount: body.agreedAmount ?? null,
+          adjustmentNote: body.adjustmentNote ?? null,
+          effectiveFrom,
+          effectiveTo,
+          amount: firstInvoice.amount ?? null,
+          amountNote: firstInvoice.amountNote ?? null,
+          issuedAt,
+          dueDate: firstInvoice.dueDate ?? null,
+          sessionCount: firstInvoice.sessionCount ?? null,
+          notes: body.notes ?? null,
+        });
+      } catch (err) {
+        console.error('[enrollments] create with first invoice failed', err);
+        return c.json({ error: '建立報名失敗' }, 500);
+      }
+      switch (r.status) {
+        case 'not-found':
+          return c.json({ error: '班級不存在', code: 'CLASS_NOT_FOUND' }, 404);
+        case 'over-quota':
+          return c.json(
+            {
+              error: '班級人數已達上限',
+              code: 'OVER_QUOTA',
+              quota: r.quota,
+              currentActive: r.currentActive,
+            },
+            400,
+          );
+        case 'already-enrolled':
+          return c.json({ error: '此學生已在此班', code: 'ALREADY_ENROLLED' }, 409);
+        case 'no-billing-period':
+          return c.json({ error: '沒有涵蓋開始日期的繳費期', code: 'NO_BILLING_PERIOD' }, 409);
+        case 'invalid-fee-template':
+          return c.json(
+            { error: '費用方案不存在、已停用或計費方式不符', code: 'INVALID_FEE_TEMPLATE' },
+            400,
+          );
+        case 'amount-note-required':
+          return c.json(
+            {
+              error: '首期金額跟試算不同，要寫原因',
+              code: 'AMOUNT_NOTE_REQUIRED',
+              details: { suggested: r.suggested },
+            },
+            400,
+          );
+        case 'zero-amount':
+          return c.json({ error: '首期金額不能是 0', code: 'ZERO_AMOUNT' }, 400);
+      }
+      createdId = r.enrollmentId;
+      invoice = { id: r.invoiceId, invoiceNo: r.invoiceNo, amount: r.amount, dueDate: r.dueDate };
+    } else {
+      let outcome: Awaited<ReturnType<typeof enrollWithSeatLock>>;
+      try {
+        outcome = await enrollWithSeatLock(pool, {
+          orgId,
+          scope: getCampusScope(c),
+          classId: body.classId,
+          rows: [
+            {
+              studentId: body.studentId,
+              status: body.status ?? 'active',
+              effectiveFrom,
+              effectiveTo,
+              billingMode: body.billingMode ?? null,
+              feeTemplateId: body.feeTemplateId ?? null,
+              agreedAmount: body.agreedAmount ?? null,
+              adjustmentNote: body.adjustmentNote ?? null,
+              notes: body.notes ?? null,
+              createdBy: userId,
+            },
+          ],
+        });
+      } catch (err) {
+        console.error('[enrollments] create failed', err);
+        return c.json({ error: '建立報名失敗' }, 500);
+      }
+      if (outcome.status === 'not-found') {
+        return c.json({ error: '班級不存在', code: 'CLASS_NOT_FOUND' }, 404);
+      }
+      if (outcome.status === 'over-quota') {
+        return c.json(
           {
-            studentId: body.studentId,
-            status: body.status ?? 'active',
-            effectiveFrom,
-            effectiveTo,
-            billingMode: body.billingMode ?? null,
-            feeTemplateId: body.feeTemplateId ?? null,
-            agreedAmount: body.agreedAmount ?? null,
-            adjustmentNote: body.adjustmentNote ?? null,
-            notes: body.notes ?? null,
-            createdBy: userId,
+            error: '班級人數已達上限',
+            code: 'OVER_QUOTA',
+            quota: outcome.quota,
+            currentActive: outcome.currentActive,
           },
-        ],
-      });
-    } catch (err) {
-      console.error('[enrollments] create failed', err);
-      return c.json({ error: '建立報名失敗' }, 500);
+          400,
+        );
+      }
+      const created = outcome.inserted[0];
+      if (!created) return c.json({ error: '此學生已在此班', code: 'ALREADY_ENROLLED' }, 409);
+      createdId = created.id;
     }
-    if (outcome.status === 'not-found') {
-      return c.json({ error: '班級不存在', code: 'CLASS_NOT_FOUND' }, 404);
-    }
-    if (outcome.status === 'over-quota') {
-      return c.json(
-        {
-          error: '班級人數已達上限',
-          code: 'OVER_QUOTA',
-          quota: outcome.quota,
-          currentActive: outcome.currentActive,
-        },
-        400,
-      );
-    }
-    const created = outcome.inserted[0];
-    if (!created) return c.json({ error: '此學生已在此班', code: 'ALREADY_ENROLLED' }, 409);
 
     const { data, error } = await supabase
       .from('enrollments')
       .select(ENROLLMENT_ROW)
-      .eq('id', created.id)
+      .eq('id', createdId)
       .eq('org_id', orgId)
       .single();
 
     if (error) return c.json({ error: error.message }, 500);
 
-    if ((body.status ?? 'active') === 'active') {
+    if (!firstInvoice && (body.status ?? 'active') === 'active') {
       await syncLeaveAttendanceForEnrollment({
         supabase,
         orgId,
@@ -722,12 +884,20 @@ app.openapi(
         // 報名沒有名字 —— 追問的形狀是「誰把**這個學生**加進**這個班**」（#846）
         resourceName: buildEnrollmentAuditResourceName(data),
         action: 'create',
-        details: buildEnrollmentCreateDetails(data as Record<string, unknown>),
+        details: {
+          ...buildEnrollmentCreateDetails(data as Record<string, unknown>),
+          ...(invoice && {
+            invoice_id: invoice.id,
+            invoice_no: invoice.invoiceNo,
+            amount: invoice.amount,
+            due_date: invoice.dueDate,
+          }),
+        },
       },
       waitUntilFrom(c),
     );
 
-    return c.json({ data: toEnrollmentResponse(data) }, 201);
+    return c.json({ data: toEnrollmentResponse(data), ...(invoice && { invoice }) }, 201);
   },
 );
 
@@ -1166,6 +1336,7 @@ app.openapi(
       studentIds: uniqueStudentIds,
       effectiveFrom: startDate,
       effectiveTo: null,
+      scope: getCampusScope(c),
     });
 
     if (preconditions.error) {
@@ -1196,6 +1367,7 @@ app.openapi(
     try {
       outcome = await enrollWithSeatLock(pool, {
         orgId,
+        scope: getCampusScope(c),
         classId,
         rows: uniqueStudentIds.map((studentId) => ({
           studentId,
@@ -1420,22 +1592,24 @@ app.openapi(
       return c.json({ error: '來源班級不能與目標班級相同', code: 'SAME_CLASS' }, 400);
     }
 
-    const { data: targetClass, error: targetClassError } = await supabase
-      .from('classes')
-      .select('id')
-      .eq('id', targetClassId)
-      .eq('org_id', orgId)
-      .maybeSingle();
+    // 範圍外的班（來源或目標）跟不存在一樣（#2443）：不讀別校的名冊、不報進別校的班
+    const scope = getCampusScope(c);
+    const { data: targetClass, error: targetClassError } = await findClassInScope(
+      supabase,
+      orgId,
+      targetClassId,
+      scope,
+    );
 
     if (targetClassError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
     if (!targetClass) return c.json({ error: 'TARGET_CLASS_NOT_FOUND' }, 404);
 
-    const { data: sourceClass, error: sourceClassError } = await supabase
-      .from('classes')
-      .select('id')
-      .eq('id', sourceClassId)
-      .eq('org_id', orgId)
-      .maybeSingle();
+    const { data: sourceClass, error: sourceClassError } = await findClassInScope(
+      supabase,
+      orgId,
+      sourceClassId,
+      scope,
+    );
 
     if (sourceClassError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
     if (!sourceClass) return c.json({ error: 'SOURCE_CLASS_NOT_FOUND' }, 404);
@@ -1479,6 +1653,7 @@ app.openapi(
     try {
       outcome = await enrollWithSeatLock(pool, {
         orgId,
+        scope: getCampusScope(c),
         classId: targetClassId,
         rows: toInsertStudentIds.map((studentId) => ({
           studentId,

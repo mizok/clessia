@@ -1,5 +1,21 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { AuthService } from './auth.service';
 import { ChildrenService, type Child } from './children.service';
+
+/**
+ * 上次選的孩子（#2449）：重新整理／重開 app 不回到第一個。key 帶 user id，換帳號不沿用。
+ * 便利而已，讀寫都包 try/catch（同 `CampusContextService`）。
+ */
+const storageKey = (userId: string) => `clessia.activeChild.${userId}`;
+
+function readSaved(userId: string | undefined): string | null {
+  if (!userId) return null;
+  try {
+    return localStorage.getItem(storageKey(userId));
+  } catch {
+    return null;
+  }
+}
 
 /**
  * 家長端「目前在看哪個孩子」的狀態 —— 授權範圍(`studentScope`)在後端已經限定好，
@@ -9,6 +25,7 @@ import { ChildrenService, type Child } from './children.service';
 @Injectable({ providedIn: 'root' })
 export class ChildScopeService {
   private readonly childrenService = inject(ChildrenService);
+  private readonly auth = inject(AuthService);
 
   private readonly _children = signal<Child[]>([]);
   private readonly _activeChildId = signal<string | null>(null);
@@ -44,7 +61,9 @@ export class ChildScopeService {
       next: (res) => {
         this._children.set(res.data);
         if (this._activeChildId() === null && res.data.length > 0) {
-          this._activeChildId.set(res.data[0].id);
+          // 存著的孩子還在清單（沒被解除綁定）就選它，不然第一個
+          const saved = readSaved(this.auth.user()?.id);
+          this._activeChildId.set(res.data.find((c) => c.id === saved)?.id ?? res.data[0].id);
         }
         this._status.set('ready');
         this._loading.set(false);
@@ -60,5 +79,12 @@ export class ChildScopeService {
 
   setActiveChild(id: string): void {
     this._activeChildId.set(id);
+    const userId = this.auth.user()?.id;
+    if (!userId) return;
+    try {
+      localStorage.setItem(storageKey(userId), id);
+    } catch {
+      // 存不了就只在這次瀏覽有效
+    }
   }
 }

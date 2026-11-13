@@ -371,16 +371,11 @@ describe('GET /api/me/catalog', () => {
 });
 
 describe('childDb.activeEnrollmentCounts', () => {
-  it('一次查多班，只數 active＋pending_payment、只數本 org', async () => {
+  it('整個 org 一次數（不帶班 id），只數 active＋pending_payment、只數本 org', async () => {
     const childDb = createChildDb(seed().client as never, [CHILD], ORG);
-    const { counts, error } = await childDb.activeEnrollmentCounts([CLS_ENG, CLS_MATH]);
+    const { counts, error } = await childDb.activeEnrollmentCounts();
     expect(error).toBeNull();
     expect(counts.get(CLS_ENG)).toBe(2);
     expect(counts.get(CLS_MATH) ?? 0).toBe(0);
-  });
-
-  it('classIds 為空：回空 Map', async () => {
-    const childDb = createChildDb(seed().client as never, [CHILD], ORG);
-    expect((await childDb.activeEnrollmentCounts([])).counts.size).toBe(0);
   });
 });

@@ -19,7 +19,7 @@ import { INVOICE_SCOPE_EMBED, invoiceInScope } from '../lib/invoice-campus-scope
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { fetchAllPages } from '../lib/fetch-all-pages';
 import { withTx } from '../lib/pg-tx';
-import { billStudent, NothingToBill } from '../lib/billing-run-write';
+import { billStudent, NothingToBill, PausedForRenewal } from '../lib/billing-run-write';
 import type { Queryable } from '../lib/identity-sql';
 import {
   alreadyBilledViaSql,
@@ -125,6 +125,11 @@ const FailedStudentSchema = z
     code: z.enum(['WRITE_FAILED']),
   })
   .openapi('BillingRunFailedStudent');
+
+/** 期 run 因為處理中的續課異動略過的學生（#1122）；結案或家長撤回後重跑會補開 */
+const PausedStudentSchema = z
+  .object({ studentId: DbUuidSchema, studentName: z.string().nullable() })
+  .openapi('BillingRunPausedStudent');
 
 /** 沒開成的學生補上名字（畫面要列出來）；讀名字失敗不影響回應，名字留 null */
 async function namesOf(
@@ -374,6 +379,7 @@ app.openapi(
                * 非空時前端要明顯列出，不能只是一個成功 toast
                */
               failedStudents: z.array(FailedStudentSchema),
+              pausedStudents: z.array(PausedStudentSchema),
             }),
           },
         },
@@ -542,6 +548,7 @@ app.openapi(
     // 沒開成的列在 failedStudents（畫面要明顯列出，重跑會補開，計畫席 10-23）。
     // 原始錯誤只進 log，不放進回應（可能帶 SQL 細節）
     const failed: Array<{ studentId: string; code: string }> = [];
+    const paused: Array<{ studentId: string; code: string }> = [];
     for (const studentId of studentIds) {
       try {
         const result = await withTx(pool, (tx) =>
@@ -567,6 +574,10 @@ app.openapi(
       } catch (err) {
         // 交易裡重查後沒東西可開（別的 run 先開了）：略過，不算失敗
         if (err instanceof NothingToBill) continue;
+        if (err instanceof PausedForRenewal) {
+          paused.push({ studentId, code: 'RENEWAL_PENDING' });
+          continue;
+        }
         const code = (err as { code?: string })?.code;
         console.error(
           `[billing-runs] 學生 ${studentId} 開帳失敗（已回滾）：${code ?? ''} ${err instanceof Error ? err.message : String(err)}`,
@@ -575,6 +586,10 @@ app.openapi(
       }
     }
     const failedStudents = await namesOf(db, orgId, failed);
+    const pausedStudents = (await namesOf(db, orgId, paused)).map(({ studentId, studentName }) => ({
+      studentId,
+      studentName,
+    }));
 
     // 開帳已經寫完；這裡失敗不能當成「沒有異常」回 200。重跑 run 是冪等的（學費查衍生列、餐費靠蓋章）
     let anomalies: MealItemAnomaly[];
@@ -613,6 +628,7 @@ app.openapi(
           anomalies: anomalies.length,
           enrollmentsWithoutBillingMode: enrollmentsWithoutBillingMode.length,
           failedStudents: failedStudents.length,
+          pausedStudents: pausedStudents.length,
         },
       },
       waitUntilFrom(c),
@@ -627,6 +643,7 @@ app.openapi(
         anomalies,
         enrollmentsWithoutBillingMode,
         failedStudents,
+        pausedStudents,
       },
       200,
     );

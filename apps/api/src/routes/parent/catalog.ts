@@ -120,9 +120,7 @@ app.openapi(
         )
         .find((name): name is string => !!name) ?? null;
 
-    const { counts, error: countError } = await childDb.activeEnrollmentCounts(
-      classes.map((row) => row['id'] as string),
-    );
+    const { counts, error: countError } = await childDb.activeEnrollmentCounts();
     if (countError) return failed();
 
     const data = classes
