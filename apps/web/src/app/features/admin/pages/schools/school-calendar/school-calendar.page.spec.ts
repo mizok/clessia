@@ -10,6 +10,7 @@ import {
   type SchoolCalendarEvent,
   type SchoolCalendarPeriod,
 } from '@core/schools.service';
+import { CalendarEventFormDialogComponent } from './calendar-event-form-dialog.component';
 import { SchoolCalendarPage, defaultPeriodId, mdw } from './school-calendar.page';
 
 const school = (id: string, name: string): School =>
@@ -134,5 +135,97 @@ describe('SchoolCalendarPage（#1160 PR3）', () => {
     const { el } = setup([], [], true);
     expect(el.textContent).not.toContain('這期還沒有');
     expect(el.querySelector('app-load-failed')).not.toBeNull();
+  });
+
+  it('新增成功：只把自己這所（data[0]）插進列表', () => {
+    const { el, cmp, fixture } = setup([], []);
+    cmp.onFormClosed({
+      mode: 'create',
+      events: [
+        ev('n1', 'no_class', '2026-12-01'),
+        { ...ev('n2', 'no_class', '2026-12-01'), schoolId: 's2' },
+      ],
+    });
+    fixture.detectChanges();
+    expect(
+      [...el.querySelectorAll('[data-event]')].map((r) => r.getAttribute('data-event')),
+    ).toEqual(['n1']);
+  });
+});
+
+describe('CalendarEventFormDialogComponent（#1160）', () => {
+  function setup() {
+    stubDialog();
+    const created = ev('x', 'semester_start', '2027-02-11');
+    const createCalendarEvent = vi.fn((_id: string, _input: unknown) => of({ data: [created] }));
+    const updateCalendarEvent = vi.fn((_s: string, _e: string, _input: unknown) =>
+      of({ data: created }),
+    );
+    TestBed.configureTestingModule({
+      imports: [CalendarEventFormDialogComponent],
+      providers: [
+        { provide: SchoolsService, useValue: { createCalendarEvent, updateCalendarEvent } },
+        { provide: MessageService, useValue: { add: vi.fn() } },
+      ],
+    });
+    const fixture = TestBed.createComponent(CalendarEventFormDialogComponent);
+    const el = fixture.nativeElement as HTMLElement;
+    const cmp = fixture.componentInstance as any;
+    return { fixture, el, cmp, createCalendarEvent, updateCalendarEvent };
+  }
+
+  it('送出鈕 type=submit 指回 form、單日類型藏結束日且送出不帶 endDate', () => {
+    const { fixture, el, cmp, createCalendarEvent } = setup();
+    cmp.open({ id: 's1', name: '明湖國中' }, null, [school('s2', '麗山國中')]);
+    cmp.kind.set('semester_start');
+    cmp.startDate.set('2027-02-11');
+    fixture.detectChanges();
+
+    const submit = el.querySelector('[data-testid=calendar-submit]') as HTMLButtonElement;
+    expect(submit.type).toBe('submit');
+    expect(submit.getAttribute('form')).toBe('calendar-event-form');
+    expect(el.querySelector('#cal-end')).toBeNull();
+
+    el.querySelector('form')!.dispatchEvent(new Event('submit'));
+    expect(createCalendarEvent).toHaveBeenCalledTimes(1);
+    expect(createCalendarEvent.mock.calls[0]).toEqual([
+      's1',
+      { kind: 'semester_start', startDate: '2027-02-11', note: null },
+    ]);
+  });
+
+  it('區間類型：結束日早於開始日 → 不送、寫原因；勾了其他學校就帶 alsoSchoolIds', () => {
+    const { fixture, el, cmp, createCalendarEvent } = setup();
+    cmp.open({ id: 's1', name: '明湖國中' }, null, [school('s2', '麗山國中')]);
+    cmp.kind.set('winter_break');
+    cmp.startDate.set('2027-01-20');
+    cmp.endDate.set('2027-01-10');
+    fixture.detectChanges();
+    el.querySelector('form')!.dispatchEvent(new Event('submit'));
+    expect(createCalendarEvent).not.toHaveBeenCalled();
+    expect(el.textContent).toContain('結束日不能早於開始日');
+
+    cmp.endDate.set('2027-02-10');
+    cmp.toggleAlso('s2');
+    el.querySelector('form')!.dispatchEvent(new Event('submit'));
+    expect(createCalendarEvent.mock.calls[0]![1]).toMatchObject({
+      endDate: '2027-02-10',
+      alsoSchoolIds: ['s2'],
+    });
+  });
+
+  it('編輯：沒有「同時加到」，送 PATCH', () => {
+    const { fixture, el, cmp, updateCalendarEvent } = setup();
+    cmp.open({ id: 's1', name: '明湖國中' }, ev('e1', 'no_class', '2026-12-01'), [
+      school('s2', '麗山國中'),
+    ]);
+    fixture.detectChanges();
+    expect(el.querySelector('[data-part=also-schools]')).toBeNull();
+    el.querySelector('form')!.dispatchEvent(new Event('submit'));
+    expect(updateCalendarEvent).toHaveBeenCalledWith(
+      's1',
+      'e1',
+      expect.objectContaining({ endDate: '2026-12-01' }),
+    );
   });
 });
