@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { MessageService } from 'primeng/api';
 
@@ -227,5 +227,33 @@ describe('CalendarEventFormDialogComponent（#1160）', () => {
       'e1',
       expect.objectContaining({ endDate: '2026-12-01' }),
     );
+  });
+
+  it('送出中按 Esc／點背景／按取消都不關，回來後照樣帶結果關窗', () => {
+    const { fixture, el, cmp, createCalendarEvent } = setup();
+    const pending = new Subject<{ data: SchoolCalendarEvent[] }>();
+    createCalendarEvent.mockReturnValueOnce(pending as never);
+    const closed = vi.fn();
+    cmp.closed.subscribe(closed);
+    cmp.open({ id: 's1', name: '明湖國中' }, null, []);
+    cmp.kind.set('makeup_day');
+    cmp.startDate.set('2026-12-05');
+    fixture.detectChanges();
+    el.querySelector('form')!.dispatchEvent(new Event('submit'));
+    const dialog = el.querySelector('dialog')!;
+
+    const esc = new Event('cancel', { cancelable: true });
+    dialog.dispatchEvent(esc);
+    expect(esc.defaultPrevented).toBe(true);
+    dialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    cmp.close();
+    expect(dialog.hasAttribute('open')).toBe(true);
+    expect(closed).not.toHaveBeenCalled();
+
+    pending.next({ data: [ev('m', 'makeup_day', '2026-12-05')] });
+    expect(closed).toHaveBeenCalledWith({
+      mode: 'create',
+      events: [ev('m', 'makeup_day', '2026-12-05')],
+    });
   });
 });
