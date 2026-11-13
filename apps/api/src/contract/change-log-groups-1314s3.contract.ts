@@ -180,8 +180,9 @@ run('#1314 S3 課務異動：以「一則」分頁、分校範圍、搜尋', () 
       originalTeacher: '王老師',
       substitute: sub!.id,
     }); // ④
-    for (const s of [a1[4], a1[5], a1[6]]) {
-      await change(ctx.orgId, s!, 'cancellation', '2026-10-16T05:00:00Z', {
+    // 同一批的三列建立時間差幾秒（大批寫入不保證同一秒）：只有 batch_id 收得起來，合成鍵收不起來
+    for (const [i, s] of [a1[4], a1[5], a1[6]].entries()) {
+      await change(ctx.orgId, s!, 'cancellation', `2026-10-16T05:00:0${i * 3}Z`, {
         source: 'batch',
         batchId: fx.batchX,
         reason: '停電',
@@ -265,6 +266,7 @@ run('#1314 S3 課務異動：以「一則」分頁、分校範圍、搜尋', () 
     expect(data.map((e) => e.className)).not.toContain('數學 B1');
   });
 
+  // 範圍外的 campusId 由全域 campusRequestGuard 擋（middleware/auth.ts）；這條守的是這支路由也在它後面
   it('指名範圍外的分校 → 403，不默默回空；範圍內、或不受限時照常', async () => {
     expect((await list(`campusId=${fx.campusB}`, [fx.campusA])).status).toBe(403);
     const inScope = await list(`campusId=${fx.campusA}`, [fx.campusA]);

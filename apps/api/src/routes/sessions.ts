@@ -1638,12 +1638,9 @@ app.openapi(listChangeLogRoute, async (c) => {
   const orgId = c.get('orgId');
   const { from, to, changeType, campusId, q, page, pageSize } = c.req.valid('query');
 
-  // 分校範圍（#1314 S3 一併補的既有缺口：舊版完全沒套 campusScope）。指名範圍外的分校 403，
-  // 不默默回空（同 isCampusAllowed 的理由）；沒指名就收斂到範圍內
+  // 分校範圍（#1314 S3 一併補的既有缺口：舊版沒指名分校時不收斂，受限管理員看得到別校的異動）。
+  // 指名範圍外的 campusId 由全域的 campusRequestGuard 回 403（middleware/auth.ts），這裡不重寫一份
   const campusScope = getCampusScope(c);
-  if (campusId && !isCampusAllowed(campusScope, campusId)) {
-    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
-  }
   const campusIds = campusId ? [campusId] : campusScope ? [...campusScope] : null;
 
   // 搜尋（#1412）：剝掉保留字元後空了＝什麼都比不到，回空，不能變成「不篩」
