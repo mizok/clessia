@@ -15,6 +15,7 @@ import {
 import { loadCourseListViaSql, type CourseListResult } from '../lib/course-list-sql';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { findInOrg, inOrg } from '../lib/org-scope';
+import { resourceCampusAllowed } from '../lib/campus-write-guard';
 import { DbUuidSchema } from '../lib/validation';
 
 // ============================================================
@@ -411,7 +412,8 @@ app.openapi(getRoute, async (c) => {
     id,
     '*, campuses(name), subjects(name)',
   );
-  if (!data) {
+  // #2493 R1：範圍外分校的課程跟不存在一樣
+  if (!data || !resourceCampusAllowed(getCampusScope(c), data['campus_id'] as string)) {
     return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
   }
 
@@ -584,9 +586,19 @@ app.openapi(updateRoute, async (c) => {
   const body = c.req.valid('json');
 
   // 別 org 的 id 跟不存在一樣回 404（c1，#966 B1）
-  const existingCourse = await findInOrg(supabase, 'courses', orgId, id, 'id, is_active');
+  const existingCourse = await findInOrg(
+    supabase,
+    'courses',
+    orgId,
+    id,
+    'id, is_active, campus_id',
+  );
 
-  if (!existingCourse) {
+  // #2493 W2：範圍外分校的課程跟不存在一樣 —— 原本停用別校課程會連帶取消它全部班的未來課堂並通知老師
+  if (
+    !existingCourse ||
+    !resourceCampusAllowed(getCampusScope(c), existingCourse['campus_id'] as string)
+  ) {
     return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
   }
 
@@ -717,8 +729,15 @@ app.openapi(deleteRoute, async (c) => {
   const { id } = c.req.valid('param');
 
   // 刪之前先讀（稽核要名字），同時是 org 範圍的存在檢查（c1，#966 B1）
-  const existing = await findInOrg(supabase, 'courses', orgId, id, 'name, campuses(name)');
-  if (!existing) {
+  const existing = await findInOrg(
+    supabase,
+    'courses',
+    orgId,
+    id,
+    'name, campus_id, campuses(name)',
+  );
+  // #2493 W2：範圍外分校的課程跟不存在一樣
+  if (!existing || !resourceCampusAllowed(getCampusScope(c), existing['campus_id'] as string)) {
     return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
   }
 
