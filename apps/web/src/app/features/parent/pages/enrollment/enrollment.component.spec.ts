@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
 import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -74,6 +75,9 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
     catalog: ReturnType<typeof vi.fn>;
   };
   let toast: ReturnType<typeof vi.fn>;
+  /** 取消前的確認框（#2448）：每次開窗一個新的 Subject，`confirm$` 指向最近那個 */
+  let confirm$: Subject<boolean | undefined>;
+  let dialogOpen: ReturnType<typeof vi.fn>;
   let kidsSig: ReturnType<typeof signal<Array<typeof KID>>>;
   let activeSig: ReturnType<typeof signal<string | null>>;
 
@@ -108,6 +112,10 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       catalog: vi.fn(() => of({ data: opts.classes ?? [cls()] })),
     };
     toast = vi.fn();
+    dialogOpen = vi.fn(() => {
+      confirm$ = new Subject<boolean | undefined>();
+      return { onClose: confirm$ };
+    });
     kidsSig = signal(opts.lateKids ? [] : (opts.kids ?? [KID]));
     activeSig = signal<string | null>(opts.lateKids ? null : KID.id);
     await TestBed.configureTestingModule({
@@ -130,7 +138,12 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
           },
         },
       ],
-    }).compileComponents();
+    })
+      // 元件層的 providers: [DialogService] 會遮蔽 TestBed 的
+      .overrideComponent(EnrollmentComponent, {
+        set: { providers: [{ provide: DialogService, useValue: { open: dialogOpen } }] },
+      })
+      .compileComponents();
     fixture = TestBed.createComponent(EnrollmentComponent);
     fixture.componentRef.setInput('page', PAGE);
     if (opts.fragment === 'records') (fixture.componentInstance as any).tab.set('records');
@@ -516,6 +529,7 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       fixture.detectChanges();
       expect(el().querySelector('dialog')!.open).toBe(true);
       btn(/取消這筆申請/)!.click();
+      confirm$.next(true);
       fixture.detectChanges();
       expect(toast).toHaveBeenCalledWith(
         expect.objectContaining({ severity: 'error', summary: '這筆申請已經在審核' }),
@@ -524,6 +538,7 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       const again = btn(/取消這筆申請/)!;
       expect(again.getAttribute('aria-disabled')).toBe('false');
       again.click();
+      confirm$.next(true);
       expect(api.cancelEnrollmentRequest).toHaveBeenCalledTimes(2);
     });
 
@@ -557,11 +572,53 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       el().querySelector<HTMLButtonElement>('[data-request="r-wl"]')!.click();
       fixture.detectChanges();
       btn(/取消這筆申請/)!.click();
+      confirm$.next(true);
       fixture.detectChanges();
       expect(api.cancelEnrollmentRequest).toHaveBeenCalledWith('r-wl');
       expect(toast).toHaveBeenCalledWith(
         expect.objectContaining({ summary: '已取消 國三理化 A 班 的申請' }),
       );
+    });
+
+    describe('取消前確認（#2448）', () => {
+      const openCancel = async (id: string) => {
+        el().querySelector<HTMLButtonElement>(`[data-request="${id}"]`)!.click();
+        await Promise.resolve();
+        fixture.detectChanges();
+        btn(/取消這筆申請/)!.click();
+      };
+
+      it('按取消先出確認、不打 API；按「先不要」也不打', async () => {
+        await setup({ requests: records, fragment: 'records' });
+        await openCancel('r-pend');
+        expect(dialogOpen).toHaveBeenCalledTimes(1);
+        expect(api.cancelEnrollmentRequest).not.toHaveBeenCalled();
+        confirm$.next(false);
+        expect(api.cancelEnrollmentRequest).not.toHaveBeenCalled();
+      });
+
+      it('確認後打一次 API；確認框掛在詳情的原生 dialog 裡（top layer）', async () => {
+        await setup({ requests: records, fragment: 'records' });
+        await openCancel('r-pend');
+        const [, config] = dialogOpen.mock.calls[0];
+        expect(config.appendTo).toBe(el().querySelector('dialog'));
+        confirm$.next(true);
+        expect(api.cancelEnrollmentRequest).toHaveBeenCalledTimes(1);
+        expect(api.cancelEnrollmentRequest).toHaveBeenCalledWith('r-pend');
+      });
+
+      it('文案：候補寫會失去順位，待審寫補習班不會處理', async () => {
+        await setup({
+          requests: [...records, req({ id: 'r-wl', status: 'waitlist' })],
+          fragment: 'records',
+        });
+        await openCancel('r-wl');
+        expect(dialogOpen.mock.calls[0][1].data.message).toContain('失去候補順位');
+        (fixture.componentInstance as any).closeDetail();
+        fixture.detectChanges();
+        await openCancel('r-pend');
+        expect(dialogOpen.mock.calls[1][1].data.message).toContain('補習班就不會處理');
+      });
     });
   });
 });
