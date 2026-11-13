@@ -405,6 +405,23 @@ describe('mealRangeCsv', () => {
     ]);
   });
 
+  // #2488 CSV 公式注入（OWASP）：= + - @ 開頭（含前置空白）、tab 開頭的字串前面補單引號
+  it.each([
+    ['=HYPERLINK("x")', `"'=HYPERLINK(""x"")"`],
+    ['+1', "'+1"],
+    ['-2+3', "'-2+3"],
+    ['@SUM(A1)', "'@SUM(A1)"],
+    ['  =1+1', "'  =1+1"],
+    ['\t=1', "'\t=1"],
+    // tab 開頭本身就要擋（OWASP），不只「tab＋公式字元」
+    ['\tabc', "'\tabc"],
+    ['王小明', '王小明'],
+    ['1+1', '1+1'],
+  ])('姓名是 %j → 欄位寫 %j', (name, cell) => {
+    const csv = mealRangeCsv([r({ studentName: name })]);
+    expect(csv.split('\r\n')[1]!.split(',').slice(1, -5).join(',')).toBe(cell);
+  });
+
   it('備註有逗號、引號、換行就包引號', () => {
     const csv = mealRangeCsv([r({ note: '少飯, 加"湯"\n改天' })]);
     expect(csv.split('\r\n')[1]).toBe('2026-10-02,陳小明,是,是,60,未結算,"少飯, 加""湯""\n改天"');
