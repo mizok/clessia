@@ -1,6 +1,8 @@
 import { computed, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
 import { of, throwError } from 'rxjs';
 
 import { ChildScopeService } from '@core/child-scope.service';
@@ -8,6 +10,7 @@ import {
   ParentRenewalService,
   type ParentRenewalItem,
   type ParentRenewalPreview,
+  type ParentRenewalRequest,
 } from '@core/parent-renewal.service';
 import { RenewalComponent } from './renewal.component';
 
@@ -44,7 +47,11 @@ const item = (over: Partial<ParentRenewalItem> = {}): ParentRenewalItem => ({
 describe('RenewalComponent', () => {
   let fixture: ComponentFixture<RenewalComponent>;
   let activeId: ReturnType<typeof signal<string | null>>;
-  let api: { preview: ReturnType<typeof vi.fn> };
+  let api: {
+    preview: ReturnType<typeof vi.fn>;
+    createRequest: ReturnType<typeof vi.fn>;
+    withdrawRequest: ReturnType<typeof vi.fn>;
+  };
 
   async function setup(byKid: Record<string, Partial<ParentRenewalPreview> | 'error'>) {
     api = {
@@ -53,9 +60,25 @@ describe('RenewalComponent', () => {
         return v === 'error'
           ? throwError(() => new Error('boom'))
           : of({
-              data: { nextPeriod: PERIOD, items: [], hasMonthlyEnrollments: false, ...v },
+              data: {
+                nextPeriod: PERIOD,
+                items: [],
+                hasMonthlyEnrollments: false,
+                pendingRequest: null,
+                ...v,
+              },
             });
       }),
+      createRequest: vi.fn(() => of({})),
+      withdrawRequest: vi.fn(() => of({ success: true })),
+    };
+    // 原生 dialog：無條件換掉（環境自帶的不一定設 open，#2473）
+    (HTMLDialogElement.prototype as any).showModal = function (this: HTMLDialogElement) {
+      this.setAttribute('open', '');
+    };
+    (HTMLDialogElement.prototype as any).close = function (this: HTMLDialogElement) {
+      this.removeAttribute('open');
+      this.dispatchEvent(new Event('close'));
     };
     activeId = signal<string | null>(KID.id);
     const children = signal([KID, KID2]);
@@ -64,6 +87,7 @@ describe('RenewalComponent', () => {
       providers: [
         provideRouter([]),
         { provide: ParentRenewalService, useValue: api },
+        { provide: MessageService, useValue: { add: vi.fn() } },
         {
           provide: ChildScopeService,
           useValue: {
@@ -99,17 +123,90 @@ describe('RenewalComponent', () => {
     });
     expect(text('h1')).toBe('林子晴下期續 2 個班。');
     expect(el().textContent).toContain('下期 2027 上學期 · 2/1 – 7/31');
-    expect(text('[data-testid="renewal-state"]')).toBe('下期費用將於開學前由補習班開立。');
+    expect(text('[data-testid="renewal-state"]')).toBe('下期費用將於開學前由補習班開立。 申請異動');
     expect(rows()[0]).toBe('國二數學 A 每週三 19:00–21:00 · 游佩珊 老師 18,100 元 期繳，預計');
     expect(text('[data-testid="renewal-sum"]')).toBe('下期合計（預計）27,100 元');
   });
 
-  it('沒有行為的東西不畫：沒有自動開單日、沒有申請異動鈕', async () => {
+  it('沒有自動開單日（系統沒有自動開單）；沒有處理中的申請時沒有處理中標籤、只有「申請異動」', async () => {
     await setup({ 'kid-1': { items: [item()] } });
     expect(el().textContent).not.toContain('自動');
-    expect(el().textContent).not.toContain('異動');
-    // 孩子切換器有自己的鈕；這頁本身不放任何動作鈕
-    expect(el().querySelector('app-child-scope-gate button')).toBeNull();
+    expect(el().querySelector('[data-testid="renewal-pending-tag"]')).toBeNull();
+    expect(el().querySelector('[data-testid="renewal-withdraw"]')).toBeNull();
+    expect(el().querySelector('[data-testid="renewal-change"]')).not.toBeNull();
+  });
+
+  const PENDING: ParentRenewalRequest = {
+    id: 'rr-1',
+    enrollmentId: 'e2',
+    kind: 'transfer',
+    detail: '想改到週六的班',
+    note: null,
+    status: 'pending',
+    // UTC 11/12 晚上 = 台北 11/13
+    createdAt: '2026-11-12T17:00:00Z',
+  };
+
+  it('#1122 處理中：狀態條寫暫停、送出日（台北）與內容；那一列標「異動處理中」；只有撤回鈕', async () => {
+    await setup({
+      'kid-1': {
+        items: [item(), item({ enrollmentId: 'e2', nextClassName: '國二英文 B' })],
+        pendingRequest: PENDING,
+      },
+    });
+    expect(text('[data-testid="renewal-state"]')).toBe(
+      '你已提交異動申請，管理員處理中，自動開單已暫停。 11/13 送出 · 國二英文 B · 轉班：想改到週六的班 撤回申請',
+    );
+    const tagged = [...el().querySelectorAll('[data-testid="renewal-row"]')].map(
+      (r) => !!r.querySelector('[data-testid="renewal-pending-tag"]'),
+    );
+    expect(tagged).toEqual([false, true]);
+    expect(el().querySelector('[data-testid="renewal-change"]')).toBeNull();
+  });
+
+  it('#1122 申請異動：送出帶孩子、課、類型、想怎麼改；成功後重抓', async () => {
+    await setup({
+      'kid-1': { items: [item(), item({ enrollmentId: 'e2', nextClassName: '國二英文 B' })] },
+    });
+    el().querySelector<HTMLButtonElement>('[data-testid="renewal-change"]')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const dialog = el().querySelector('dialog')!;
+    expect(dialog.hasAttribute('open')).toBe(true);
+    const submit = el().querySelector<HTMLButtonElement>('[data-testid="renewal-submit"]')!;
+    expect([submit.type, submit.getAttribute('form')]).toEqual(['submit', 'renewal-request-form']);
+    // 兩門課時不預選；沒選課＋沒填 → 不送
+    el().querySelector('form')!.dispatchEvent(new Event('submit'));
+    expect(api.createRequest).not.toHaveBeenCalled();
+
+    const cmp = fixture.debugElement.query((d) => d.name === 'app-renewal-request-dialog')
+      .componentInstance as any;
+    cmp.enrollmentId.set('e2');
+    cmp.kind.set('stop');
+    cmp.detail.set('  下期社團比賽  ');
+    el().querySelector('form')!.dispatchEvent(new Event('submit'));
+    expect(api.createRequest).toHaveBeenCalledWith({
+      childId: 'kid-1',
+      enrollmentId: 'e2',
+      kind: 'stop',
+      detail: '下期社團比賽',
+      note: null,
+    });
+    expect(api.preview).toHaveBeenCalledTimes(2); // 送出後重抓
+  });
+
+  it('#1122 撤回：先確認，確認了才打 API 並重抓；不確認不打', async () => {
+    await setup({ 'kid-1': { items: [item({ enrollmentId: 'e2' })], pendingRequest: PENDING } });
+    const dialogs = fixture.debugElement.injector.get(DialogService);
+    const open = vi.spyOn(dialogs, 'open');
+    open.mockReturnValueOnce({ onClose: of(false) } as never);
+    el().querySelector<HTMLButtonElement>('[data-testid="renewal-withdraw"]')!.click();
+    expect(api.withdrawRequest).not.toHaveBeenCalled();
+
+    open.mockReturnValueOnce({ onClose: of(true) } as never);
+    el().querySelector<HTMLButtonElement>('[data-testid="renewal-withdraw"]')!.click();
+    expect(api.withdrawRequest).toHaveBeenCalledWith('rr-1');
+    expect(api.preview).toHaveBeenCalledTimes(2);
   });
 
   it('升班：新班名＋「升級」，舊班名劃掉', async () => {

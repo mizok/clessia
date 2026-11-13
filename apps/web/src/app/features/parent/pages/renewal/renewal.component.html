@@ -1,6 +1,6 @@
 <!--
   A6 p-renewal（計畫席 10-22）：色面「{孩子}下期續 N 個班」＋孩子切換器 → 灰面狀態列 → 下期的課（只供檢視）
-  → 合計 → 加選連結。自動開單日、申請異動、異動處理中**不畫**（系統沒有那些行為，#1122；偏離 R5）。
+  → 合計 → 加選連結。自動開單日**不畫**（系統沒有自動開單；偏離 R5）。申請異動與異動處理中照稿（#1122）。
 -->
 <app-page-open>
   <app-child-switcher openBack class="mb-3 block" />
@@ -36,9 +36,38 @@
           <div
             class="mt-8 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg bg-zinc-100 px-5 py-4 max-wide:mt-6 max-wide:p-4"
             data-testid="renewal-state"
+            [attr.role]="pending() ? 'status' : null"
           >
-            <i class="pi pi-info-circle flex-none" aria-hidden="true"></i>
-            <p class="m-0 flex-[1_1_280px] text-base">下期費用將於開學前由補習班開立。</p>
+            @if (pending(); as p) {
+              <i class="pi pi-clock flex-none" aria-hidden="true"></i>
+              <p class="m-0 flex-[1_1_280px] text-base">
+                你已提交異動申請，管理員處理中，<b>自動開單已暫停</b>。
+                <small class="mt-1 block text-sm text-zinc-600"
+                  >{{ sentOn(p.createdAt) }} 送出 · {{ pendingClass() }} ·
+                  {{ kindLabels[p.kind] }}：{{ p.detail }}</small
+                >
+              </p>
+              <!-- 撤回：gate Q2 (b)，稿沒畫（R5） -->
+              <button
+                type="button"
+                class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+                data-testid="renewal-withdraw"
+                (click)="withdraw()"
+              >
+                撤回申請
+              </button>
+            } @else {
+              <i class="pi pi-info-circle flex-none" aria-hidden="true"></i>
+              <p class="m-0 flex-[1_1_280px] text-base">下期費用將於開學前由補習班開立。</p>
+              <button
+                type="button"
+                class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+                data-testid="renewal-change"
+                (click)="openRequest()"
+              >
+                申請異動
+              </button>
+            }
           </div>
 
           <section class="mt-8" aria-labelledby="renewal-h">
@@ -64,6 +93,13 @@
                     <span
                       class="rounded px-2 text-sm font-semibold text-zinc-800 shadow-[inset_0_0_0_1px_var(--zinc-400)]"
                       >升級</span
+                    >
+                  }
+                  @if (pending()?.enrollmentId === item.enrollmentId) {
+                    <span
+                      class="rounded bg-zinc-100 px-2 text-sm font-semibold text-zinc-700"
+                      data-testid="renewal-pending-tag"
+                      >異動處理中</span
                     >
                   }
                 </p>
@@ -123,3 +159,5 @@
     }
   </div>
 </app-child-scope-gate>
+
+<app-renewal-request-dialog (closed)="onRequestClosed($event)" />
