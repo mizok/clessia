@@ -4066,6 +4066,15 @@ export const PAGES = {
           '連帶＋資料：文案不同配不上同名鈕；面板上方考試列數與家長電話是資料（稿 3 場、seed 2 場、沒留電話）',
         source: 'kb/wiki/architecture/a6-adoption-rules.md R5「老師學生面板主按鈕」（#2317）',
       },
+      // #2500：今天沒這班的課、兩週內也沒有 → 不放主按鈕（量測帳號的學生就是這種，seed 沒有未來的課）
+      {
+        status: '缺',
+        pop: 'panel',
+        a6: '>control:link\\[到課表點名\\]$',
+        reason: '今天沒這班的課、兩週內也沒有：不放主按鈕（不給一個落在空白那天的連結）',
+        source:
+          'kb/wiki/architecture/a6-adoption-rules.md R5「老師學生面板：日到班的「無紀錄」與主按鈕落點」（#2500）',
+      },
     ],
   },
 };
