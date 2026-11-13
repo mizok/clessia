@@ -52,8 +52,6 @@
   "GET /api/parents": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/parents/:id": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/public-applications": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "GET /api/reports/revenue": "缺口 R8（#2493 第 11 張 reports）",
-  "GET /api/reports/revenue.csv": "缺口 R8（#2493 第 11 張 reports）",
   "GET /api/school-exams": "缺口 W5／R6（#2493 第 6 張 school-exams）",
   "GET /api/school-exams/:id": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/school-exams/:id/recent-students": "缺口 W5／R6（#2493 第 6 張 school-exams）",

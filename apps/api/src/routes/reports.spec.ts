@@ -37,6 +37,8 @@ interface InvoiceFixture {
   paid: number;
   campusId: string;
   campusName: string;
+  /** #2493 R8：只有餐費明細（沒有班）的帳單 */
+  mealOnly?: boolean;
 }
 
 function invoiceRow(f: InvoiceFixture) {
@@ -44,18 +46,22 @@ function invoiceRow(f: InvoiceFixture) {
     id: f.id,
     issued_at: f.issuedAt,
     due_date: f.dueDate,
+    // 帳單的學生報在 campusId 那個分校（#2493 R8：受限者的第二條判準）
+    scope_student: { enrollments: [{ classes: { campus_id: f.campusId } }] },
     invoice_items: [
-      {
-        amount: f.amount,
-        enrollments: {
-          classes: {
-            campus_id: f.campusId,
-            course_id: 'course-1',
-            campuses: { name: f.campusName },
-            courses: { name: '數學' },
+      f.mealOnly
+        ? { amount: f.amount, enrollments: null }
+        : {
+            amount: f.amount,
+            enrollments: {
+              classes: {
+                campus_id: f.campusId,
+                course_id: 'course-1',
+                campuses: { name: f.campusName },
+                courses: { name: '數學' },
+              },
+            },
           },
-        },
-      },
     ],
     payment_records: f.paid > 0 ? [{ kind: 'payment', amount: f.paid }] : [],
   };
@@ -197,6 +203,37 @@ describe('GET /api/reports/revenue —— 分校範圍要把別校的錢擋在�
     // 替身照實回了兩張帳單 —— 被擋掉是應用層的事，所以這個數字有鑑別力
     expect(body.summary.billed).toBe(10000);
     expect(body.groups.map((g) => g.key)).toEqual(['中正分校']);
+  });
+
+  // #2493 R8：只有餐費（沒有班）的帳單推不出分校 —— 原本 contexts 為空就直接通過，
+  // 別校學生的餐費算進受限者的營收。現在看帳單學生的報名
+  it('別校學生只有餐費的帳單，受限者的報表不算進去', async () => {
+    const body = await revenue(
+      [
+        invoiceRow({
+          id: 'inv-mine',
+          issuedAt: '2026-09-01',
+          dueDate: '2026-09-30',
+          amount: 10000,
+          paid: 0,
+          campusId: CAMPUS_MINE,
+          campusName: '中正分校',
+        }),
+        invoiceRow({
+          id: 'inv-theirs-meal',
+          issuedAt: '2026-09-01',
+          dueDate: '2026-09-30',
+          amount: 3000,
+          paid: 0,
+          campusId: CAMPUS_THEIRS,
+          campusName: '大安分校',
+          mealOnly: true,
+        }),
+      ],
+      [CAMPUS_MINE],
+    );
+
+    expect(body.summary.billed).toBe(10000);
   });
 
   it('不受分校限制的管理員兩校都看得到（確認上一條不是無腦擋）', async () => {
