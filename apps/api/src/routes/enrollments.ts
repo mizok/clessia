@@ -8,6 +8,7 @@ import {
   checkEnrollmentAttendance,
   checkEnrollmentPreconditions,
   findClassInScope,
+  findEnrollmentInScope,
 } from './enrollments/validation';
 import { enrollWithSeatLock } from '../lib/class-seats';
 import { directEnrollWithFirstInvoice } from '../lib/enrollment-first-invoice';
@@ -29,6 +30,7 @@ import {
   type CampusScope,
 } from '../lib/campus-scope';
 import { logAudit, logAuditMany } from '../utils/audit';
+import { studentInScope } from '../lib/invoice-campus-scope';
 import { activatePendingEnrollment, type ChangedRow } from '../lib/record-payment';
 import { notifyEnrollmentCompleted } from '../lib/notify-events';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -933,6 +935,10 @@ app.openapi(
     const userId = c.get('userId');
     const supabase = c.get('supabase');
 
+    // #2493 W1：班在範圍外的報名跟不存在一樣（原本只看 org）
+    const { data: inScope } = await findEnrollmentInScope(supabase, orgId, id, getCampusScope(c));
+    if (!inScope) return c.json({ error: 'NOT_FOUND' }, 404);
+
     /**
      * **改動前先讀一次** —— 這支端點改得動 `agreed_amount` / `billing_mode` /
      * `fee_template_id`，而「誰把這個學生的議價改掉了」正是行政上會被追問的事（#846）。
@@ -1029,6 +1035,10 @@ app.openapi(
     if (['suspended', 'withdrawal', 'void'].includes(status) && !notes?.trim()) {
       return c.json({ error: 'NOTES_REQUIRED' }, 400);
     }
+
+    // #2493 W1：班在範圍外的報名跟不存在一樣（原本只看 org）
+    const { data: inScope } = await findEnrollmentInScope(supabase, orgId, id, getCampusScope(c));
+    if (!inScope) return c.json({ error: 'NOT_FOUND' }, 404);
 
     const { data: existing } = await supabase
       .from('enrollments')
@@ -1484,6 +1494,10 @@ app.openapi(
     const userId = c.get('userId');
     const supabase = c.get('supabase');
 
+    // #2493 W1：班在範圍外的報名跟不存在一樣（原本只看 org）
+    const { data: inScope } = await findEnrollmentInScope(supabase, orgId, id, getCampusScope(c));
+    if (!inScope) return c.json({ error: 'NOT_FOUND' }, 404);
+
     const { data: existing } = await supabase
       .from('enrollments')
       // #846：稽核要答得出「刪掉的是誰的哪一筆」——**刪完就查不到了**，
@@ -1742,12 +1756,14 @@ app.openapi(
     const orgId = c.get('orgId');
     const supabase = c.get('supabase');
 
-    const { data: classData, error: classError } = await supabase
-      .from('classes')
-      .select('id')
-      .eq('id', body.classId)
-      .eq('org_id', orgId)
-      .maybeSingle();
+    // #2493 R9：範圍外的班跟不存在一樣（原本只看 org，帶別校班 id 就推得出那班名冊）
+    const scope = getCampusScope(c);
+    const { data: classData, error: classError } = await findClassInScope(
+      supabase,
+      orgId,
+      body.classId,
+      scope,
+    );
 
     if (classError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
     if (!classData) return c.json({ error: 'CLASS_NOT_FOUND' }, 404);
@@ -1797,14 +1813,20 @@ app.openapi(
     if (uniqueNames.length > 0 && uniqueSchoolIds.length > 0) {
       const { data: allCandidates, error: candidatesError } = await supabase
         .from('students')
-        .select('id, name, grade, birthday, school_id, schools(name)')
+        .select(
+          'id, name, grade, birthday, school_id, schools(name), enrollments(classes(campus_id))',
+        )
         .eq('org_id', orgId)
         .eq('is_active', true)
         .in('name', uniqueNames)
         .in('school_id', uniqueSchoolIds);
 
       if (candidatesError) return c.json({ error: candidatesError.message }, 500);
-      students = (allCandidates ?? []) as unknown as CandidateRow[];
+      // #2493 R9：候選只留範圍內的學生（同列表與 GET /students/:id 的 studentInScope 判準）——
+      // 原本撈全 org，別校學生的 id、年級、生日都吐得出來
+      students = (
+        (allCandidates ?? []) as unknown as (CandidateRow & { enrollments: unknown })[]
+      ).filter((s) => studentInScope(s.enrollments, scope));
     }
 
     const toCandidate = (s: CandidateRow): z.infer<typeof BatchMatchCandidateSchema> => ({
