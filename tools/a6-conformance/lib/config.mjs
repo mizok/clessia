@@ -2432,6 +2432,8 @@ export const PAGES = {
     a6: 'p-renewal.html#none',
     app: '/parent/renewal',
     state: PARENT_STATE,
+    // 切到張宇軒（有月繳）：月繳孩子的空狀態文案（#2498）才量得到；張品妍沒有任何課，只剩一行
+    prep: PARENT_PREP,
     deviations: [
       {
         status: '缺',
