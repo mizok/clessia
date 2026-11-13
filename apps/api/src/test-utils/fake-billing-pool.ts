@@ -230,6 +230,23 @@ export function fakeBillingPool(opts: {
       );
       return { rows: [] };
     }
+    // #1122：期 run 在交易裡查這位學生有沒有處理中的續課異動
+    if (sql.includes('from public.renewal_requests')) {
+      const [orgId, studentId] = params as string[];
+      return {
+        rows: opts
+          .rows('renewal_requests')
+          .filter(
+            // 只套 SQL 裡真的寫了的條件：拿掉某個條件的突變才會被 spec 抓到
+            (r) =>
+              (!sql.includes('org_id = $1') || r['org_id'] === orgId) &&
+              (!sql.includes('student_id = $2') || r['student_id'] === studentId) &&
+              (!sql.includes("status = 'pending'") || r['status'] === 'pending'),
+          )
+          .slice(0, 1)
+          .map(() => ({ '?column?': 1 })),
+      };
+    }
     if (sql.includes('select id, name from public.students')) return { rows: [] };
     throw new Error(`fake pool：認不得的語句：${sql.trim().slice(0, 80)}`);
   };
