@@ -41,11 +41,20 @@ const DETAIL = {
 } as StudentDetail;
 
 type Day = StudentAttendanceDays['days'][number];
-const day = (date: string, state: Day['state'], className = '數學 A'): Day => ({
+const day = (
+  date: string,
+  state: Day['state'],
+  className = '數學 A',
+  dailyCheckin = false,
+): Day => ({
   date,
   state,
+  dailyCheckin,
   sessions: [{ sessionId: date, className, startTime: '18:00', status: 'scheduled' }],
 });
+
+/** 今天（假時鐘 10/30）有這班的課 */
+const TODAY_CLASS = day('2026-10-30', 'future');
 
 const score = (overrides: Partial<ScoreRecord>): ScoreRecord =>
   ({
@@ -111,7 +120,7 @@ describe('StudentPanelComponent（老師的學生面板，TST1）', () => {
   }
 
   it('共用殼：h2 是學生名、年級等在內容區第一行（#2396）；「關閉」與「到課表點名」在 sticky 底部（#2290）', () => {
-    const host = setup();
+    const host = setup({ days: [TODAY_CLASS] });
     expect(host.querySelector('h2')!.textContent?.trim()).toBe(STUDENT.name);
     expect(host.querySelector('[data-part="dialog-context"]')!.textContent?.trim()).not.toBe('');
     const foot = host.querySelector('.form-dialog__footer')!;
@@ -120,21 +129,22 @@ describe('StudentPanelComponent（老師的學生面板，TST1）', () => {
   });
 
   it('行政負責點名的機構：主按鈕寫「看到班名單」，不寫「到課表點名」（課表上沒有點名鈕，#2317）', () => {
-    const host = setup({ responsible: 'admin' });
+    const host = setup({ responsible: 'admin', days: [TODAY_CLASS] });
     const foot = host.querySelector('.form-dialog__footer')!;
     expect(foot.textContent).toContain('看到班名單');
     expect(foot.textContent).not.toContain('到課表點名');
   });
 
   it('老師負責點名的機構：照舊「到課表點名」（#2317）', () => {
-    const host = setup({ responsible: 'teacher' });
+    const host = setup({ responsible: 'teacher', days: [TODAY_CLASS] });
     expect(host.querySelector('.form-dialog__footer')!.textContent).toContain('到課表點名');
   });
 
   it('三份資料都走既有的老師範圍端點；成績帶這班的 id、校內考、3 筆', () => {
     setup();
     expect(get).toHaveBeenCalledWith('s1');
-    expect(attendanceDays).toHaveBeenCalledWith('s1', expect.any(String), '2026-10-30');
+    // 往後多看兩週：今天沒這班的課時，主按鈕要指到下一堂（#2500）
+    expect(attendanceDays).toHaveBeenCalledWith('s1', expect.any(String), '2026-11-13');
     expect(list).toHaveBeenCalledWith({
       studentId: 's1',
       classId: 'k1',
@@ -180,6 +190,67 @@ describe('StudentPanelComponent（老師的學生面板，TST1）', () => {
     );
     expect(el.textContent).toContain('這班最近 5 堂');
     expect(cells).toEqual(['10/5沒到', '10/8請假', '10/15到', '10/19到', '10/22到']);
+  });
+
+  it('日到班的「沒刷卡」寫灰字「無紀錄」，不寫紅字「沒到」；逐堂點過名的缺席照舊紅字（#2500）', () => {
+    const el = setup({
+      days: [day('2026-10-05', 'absent', '數學 A', true), day('2026-10-08', 'absent')],
+    });
+    const cells = [...el.querySelectorAll('[data-day]')];
+    expect(cells.map((c) => c.textContent!.replace(/\s+/g, ''))).toEqual([
+      '10/5無紀錄',
+      '10/8沒到',
+    ]);
+    expect(cells[0].querySelector('.text-error-700')).toBeNull();
+    expect(cells[0].getAttribute('title')).toContain('尚無到班紀錄');
+    expect(cells[1].querySelector('.text-error-700')).not.toBeNull();
+  });
+
+  describe('主按鈕（#2500）', () => {
+    const foot = (el: HTMLElement) => el.querySelector('.form-dialog__footer')!;
+
+    it('今天沒這班的課、兩週內有：寫「下一堂 M/D（週幾）」，連到課表那天', () => {
+      const el = setup({
+        responsible: 'admin',
+        days: [
+          day('2026-10-30', 'future', '英文 B'),
+          day('2026-11-02', 'future'),
+          day('2026-11-04', 'future'),
+        ],
+      });
+      const link = foot(el).querySelector('a')!;
+      expect(link.textContent!.replace(/\s+/g, '')).toBe('下一堂11/2（一）');
+      expect(link.getAttribute('href')).toContain('date=2026-11-02');
+      expect(foot(el).textContent).not.toContain('看到班名單');
+    });
+
+    it('今天沒有、兩週內也沒有這班的課：不放主按鈕（不給一個落空的連結）', () => {
+      const el = setup({ responsible: 'admin', days: [day('2026-10-22', 'came')] });
+      expect(foot(el).querySelector('a')).toBeNull();
+      expect(foot(el).textContent).toContain('關閉');
+    });
+
+    it('今天這班停課：當作今天沒有', () => {
+      const el = setup({
+        responsible: 'admin',
+        days: [
+          // 同一天另一班照上：整天不是 cancelled，但這班那堂停了
+          {
+            date: '2026-10-30',
+            state: 'future',
+            dailyCheckin: false,
+            sessions: [
+              { sessionId: 'x', className: '數學 A', startTime: '18:00', status: 'cancelled' },
+              { sessionId: 'y', className: '英文 B', startTime: '19:00', status: 'scheduled' },
+            ],
+          },
+          day('2026-11-06', 'future'),
+        ],
+      });
+      expect(foot(el).querySelector('a')!.textContent!.replace(/\s+/g, '')).toBe(
+        '下一堂11/6（五）',
+      );
+    });
   });
 
   it('考試：分數、日期、班平均；不及格標出來', () => {

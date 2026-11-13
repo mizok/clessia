@@ -64,9 +64,9 @@ describe('StudentDetailPage', () => {
 
   const attendance: StudentAttendanceDays = {
     days: [
-      { date: '2026-09-05', state: 'came', sessions: [] },
-      { date: '2026-09-12', state: 'absent', sessions: [] },
-      { date: '2026-10-17', state: 'future', sessions: [] },
+      { date: '2026-09-05', state: 'came', dailyCheckin: false, sessions: [] },
+      { date: '2026-09-12', state: 'absent', dailyCheckin: false, sessions: [] },
+      { date: '2026-10-17', state: 'future', dailyCheckin: false, sessions: [] },
     ],
     summary: { due: 2, came: 1, absentDates: ['2026-09-12'] },
     today: null,

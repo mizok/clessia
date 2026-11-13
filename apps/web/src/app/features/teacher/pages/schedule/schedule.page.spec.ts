@@ -56,6 +56,8 @@ describe('SchedulePage', () => {
       nowMs?: number;
       /** `GET /academy-exams?todo=true` 回的考試（TS6） */
       examTodos?: unknown[];
+      /** 網址的 `?date=`（#2500：學生卡「下一堂」連過來） */
+      date?: string;
     } = {},
   ) {
     const orgSettings = signal({
@@ -130,6 +132,7 @@ describe('SchedulePage', () => {
       icon: 'pi pi-calendar',
       showInMenu: true,
     });
+    if (options.date !== undefined) fixture.componentRef.setInput('date', options.date);
     fixture.detectChanges();
     component = fixture.componentInstance;
     await fixture.whenStable();
@@ -1086,6 +1089,21 @@ describe('SchedulePage', () => {
       steps().selectDay('2027-03-02');
       expect(steps().contentMotion()?.dir).toBe('back');
       expect(steps().weekMotion()).toBeNull();
+    });
+  });
+
+  describe('網址帶 ?date=（#2500）', () => {
+    const selected = () => (component as unknown as { selectedDate: () => string }).selectedDate();
+
+    it('落在那天：換到那一週、選中那天', async () => {
+      await setup({ date: '2027-03-16' });
+      expect(selected()).toBe('2027-03-16');
+      expect((sessionsSpy.mock.calls[0][0] as { dateFrom: string }).dateFrom).toBe('2027-03-15');
+    });
+
+    it('格式不對就照舊（今天）', async () => {
+      await setup({ date: 'next-week' });
+      expect(selected()).toBe('2027-03-05');
     });
   });
 });
