@@ -12,7 +12,7 @@ import {
 import type { LeaveWindow } from './leave-covers-session';
 import { notifyLeaveStreaks } from './leave-streak';
 import { withTx } from './pg-tx';
-import { notifyNewApplication } from './notify-events';
+import { notifyNewApplication, notifyRenewalRequest } from './notify-events';
 import { notifyLeaveForAdmins, notifyLeaveForTeachers } from './notify-leave';
 import { logAudit } from '../utils/audit';
 
@@ -326,6 +326,35 @@ export function createChildDb(
         studentName: student?.name ?? '',
         ...(kind === 'enrollment' ? { classIds: targets } : { courseIds: targets }),
         requestCount: rows.length,
+      });
+      return true;
+    },
+
+    /**
+     * 家長送出續課異動之後通知分校管理員（#1122）。窄能力，同 `notifyRequests`：
+     * 申請要是 scope 內孩子的、同 org 的，對不上就不發、回 false；學生名、班、分校從 DB 讀，不吃呼叫端。
+     */
+    async notifyRenewalRequest(requestId: string): Promise<boolean> {
+      if (writableIds.length === 0) return false;
+      const { data, error } = await supabase
+        .from('renewal_requests')
+        .select('id, students(name), enrollments(classes(name, campus_id))')
+        .eq('org_id', orgId)
+        .eq('id', requestId)
+        .in('student_id', writableIds)
+        .maybeSingle();
+      const row = data as unknown as {
+        students: { name?: string } | null;
+        enrollments: { classes: { name: string; campus_id: string } | null } | null;
+      } | null;
+      const cls = row?.enrollments?.classes;
+      if (error || !row || !cls) return false;
+      await notifyRenewalRequest(supabase, {
+        orgId,
+        requestId,
+        studentName: row.students?.name ?? '',
+        campusId: cls.campus_id,
+        className: cls.name,
       });
       return true;
     },

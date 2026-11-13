@@ -16,7 +16,12 @@ type Row = Record<string, unknown>;
  * 替身不篩的話拿掉那幾個 eq 照樣綠（charter 1307 §一）。`gt`／`order`／`limit`／`in` 記下來不執行，
  * 期與班由 fixture 直接給。
  */
-function fakeChildDb(fixture: { periods: Row[]; enrollments: Row[]; classes: Row[] }) {
+function fakeChildDb(fixture: {
+  periods: Row[];
+  enrollments: Row[];
+  classes: Row[];
+  requests?: Row[];
+}) {
   const chain = (rows: Row[]) => {
     const filters: Array<[string, unknown]> = [];
     const q: any = {
@@ -35,7 +40,14 @@ function fakeChildDb(fixture: { periods: Row[]; enrollments: Row[]; classes: Row
   };
   return {
     from: (table: string) => ({
-      select: () => chain(table === 'enrollments' ? fixture.enrollments : []),
+      select: () =>
+        chain(
+          table === 'enrollments'
+            ? fixture.enrollments
+            : table === 'renewal_requests'
+              ? (fixture.requests ?? [])
+              : [],
+        ),
     }),
     orgRef: (table: string) => ({
       select: () =>
@@ -141,7 +153,7 @@ describe('GET /api/me/renewal-preview（#1121）', () => {
   it('沒有下一期 → nextPeriod null、items 空', async () => {
     const res = await request(fakeChildDb({ periods: [], enrollments: [], classes: [] }));
     expect(await res.json()).toEqual({
-      data: { nextPeriod: null, items: [], hasMonthlyEnrollments: false },
+      data: { nextPeriod: null, items: [], hasMonthlyEnrollments: false, pendingRequest: null },
     });
   });
 
@@ -430,5 +442,36 @@ describe('GET /api/me/renewal-preview（#1121）', () => {
     });
     const res = await request(db);
     expect(res.status).toBe(500);
+  });
+
+  it('#1122：這個孩子有處理中的續課異動 → pendingRequest；撤回的、兄弟姊妹的不算', async () => {
+    const req = (student_id: string, status: string) => ({
+      id: `r-${student_id}-${status}`,
+      student_id,
+      status,
+      enrollment_id: 'e1',
+      kind: 'stop',
+      detail: '下期不續',
+      note: null,
+      created_at: '2026-11-13T02:00:00Z',
+    });
+    const res = await request(
+      fakeChildDb({
+        periods: [],
+        enrollments: [],
+        classes: [],
+        requests: [req(CHILD, 'withdrawn'), req(SIBLING, 'pending'), req(CHILD, 'pending')],
+      }),
+    );
+    const body = (await res.json()) as { data: { pendingRequest: unknown } };
+    expect(body.data.pendingRequest).toEqual({
+      id: `r-${CHILD}-pending`,
+      enrollmentId: 'e1',
+      kind: 'stop',
+      detail: '下期不續',
+      note: null,
+      status: 'pending',
+      createdAt: '2026-11-13T02:00:00Z',
+    });
   });
 });

@@ -57,6 +57,8 @@ const KINDS: Record<string, { label: string; icon: string; go: string }> = {
   // #1821：連到申請頁對應的分頁（?kind=）
   application_overdue: { label: '申請待處理', icon: 'pi-clock', go: '看申請' },
   trial_followup: { label: '試聽跟進', icon: 'pi-phone', go: '看試聽' },
+  // #1122：家長送續課異動，處理入口在申請頁
+  renewal_request_received: { label: '續課異動', icon: 'pi-refresh', go: '看申請' },
 };
 const OTHER_KIND = { label: '系統通知', icon: 'pi-bell', go: '前往' };
 
