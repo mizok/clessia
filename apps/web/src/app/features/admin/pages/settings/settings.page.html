@@ -45,11 +45,16 @@
             ariaLabelledBy="settings-mode-title"
           />
           <span class="h-px w-full bg-zinc-200 md:h-6 md:w-px" aria-hidden="true"></span>
+          <!-- #1314 SE1：A6「儲存：改成 X」，按下先確認 -->
           <p-button
-            label="儲存"
+            [label]="
+              attendanceModeValue === settings()?.attendanceMode
+                ? '儲存'
+                : '儲存：改成' + modeLabel(attendanceModeValue)
+            "
             icon="pi pi-check"
             [loading]="saving()"
-            (onClick)="saveAttendanceMode()"
+            (onClick)="confirmAttendanceMode()"
           />
         </div>
       </div>

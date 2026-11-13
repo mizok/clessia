@@ -7,6 +7,7 @@ import { vi } from 'vitest';
 import { AcademyExamsService, type AcademyExamDetail } from '@core/academy-exams.service';
 import { StudentsService, type Student } from '@core/students.service';
 import { AcademyScoreEditorComponent } from './academy-score-editor.component';
+import { accessibleName, studentInput } from '../../../../../../../../testing/accessible-name';
 
 describe('AcademyScoreEditorComponent', () => {
   let fixture: ComponentFixture<AcademyScoreEditorComponent>;
@@ -92,6 +93,13 @@ describe('AcademyScoreEditorComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
+  });
+
+  // #2468：學生欄的可及名稱要落在真正的 input 上（placeholder 不算名稱）
+  it('#2468：「加入其他學生」的搜尋欄有可及名稱', async () => {
+    fixture.componentInstance.addingStudent.set(true);
+    await fixture.whenStable();
+    expect(accessibleName(studentInput(document.body))).toBe('要加入的學生');
   });
 
   it('loads scores on init', () => {

@@ -17,6 +17,13 @@ export class StudentAutocompleteComponent {
   readonly value = input<Student | string | null>(null);
   readonly suggestions = input<Student[]>([]);
   readonly placeholder = input('輸入姓名模糊搜尋');
+  /**
+   * 可及名稱（#2468）：placeholder 不是名稱。有 `<label for>` 就給 `inputId` 讓它指到真正的 input；
+   * 旁邊是不能用 for 的可見文字就給 `ariaLabelledBy`；都沒有才用 `ariaLabel`
+   */
+  readonly inputId = input<string | undefined>(undefined);
+  readonly ariaLabelledBy = input<string | undefined>(undefined);
+  readonly ariaLabel = input<string | undefined>(undefined);
   readonly disabled = input(false);
   readonly forceSelection = input(false);
   /**

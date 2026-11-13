@@ -1,12 +1,10 @@
 <!-- 共用殼（#2290） -->
-<app-dialog-frame
-  title="手動開立帳單"
-  (closed)="cancel()"
->
+<app-dialog-frame title="手動開立帳單" (closed)="cancel()">
   <div class="flex flex-col gap-4">
     <div class="flex flex-col gap-2">
-      <label class="text-sm font-medium text-zinc-600">學生 *</label>
+      <label class="text-sm font-medium text-zinc-600" for="invoice-form-student">學生 *</label>
       <app-student-autocomplete
+        inputId="invoice-form-student"
         [value]="student()"
         (valueChange)="student.set($event)"
         [suggestions]="studentSuggestions()"

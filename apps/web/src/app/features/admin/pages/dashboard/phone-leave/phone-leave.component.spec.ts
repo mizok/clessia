@@ -13,6 +13,7 @@ import { SystemClockService } from '@core/system-clock.service';
 
 import { provideRouter } from '@angular/router';
 import { PhoneLeaveComponent } from './phone-leave.component';
+import { accessibleName, studentInput } from '../../../../../../testing/accessible-name';
 
 /**
  * #964「接到電話 → 不換頁請假」。設計：https://github.com/mizok/clessia/issues/964
@@ -130,6 +131,12 @@ describe('PhoneLeaveComponent', () => {
   }
 
   const text = () => (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+  // #2468：學生欄的可及名稱要落在真正的 input 上（placeholder 不算名稱）
+  it('#2468：找人欄的名稱是旁邊的「學生或家長姓名」label', () => {
+    setup();
+    expect(accessibleName(studentInput(fixture.nativeElement))).toBe('學生或家長姓名');
+  });
 
   it('找人用學生**或家長**姓名（API 預設的搜尋範圍），只找在籍的', () => {
     setup();

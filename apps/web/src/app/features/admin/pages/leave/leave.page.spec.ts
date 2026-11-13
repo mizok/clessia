@@ -24,6 +24,7 @@ import {
   LeaveFormDialogComponent,
 } from '@shared/components/leave-form-dialog/leave-form-dialog.component';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
+import { accessibleName, studentInput } from '../../../../../testing/accessible-name';
 
 describe('LeavePage', () => {
   const leaveServiceMock = {
@@ -134,6 +135,13 @@ describe('LeavePage', () => {
     vi.spyOn(messageService, 'add');
     fixture.detectChanges();
     await fixture.whenStable();
+  });
+
+  // #2468：學生欄的可及名稱要落在真正的 input 上（placeholder 不算名稱）
+  it('#2468：學生篩選欄的名稱是旁邊的「學生」（全部分頁）', () => {
+    component['setTab']('all');
+    fixture.detectChanges();
+    expect(accessibleName(studentInput(fixture.nativeElement))).toBe('學生');
   });
 
   it('日常頁：頂欄沒有「全部分校」（#1607）', () => {
