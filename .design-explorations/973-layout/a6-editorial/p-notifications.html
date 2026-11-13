@@ -48,7 +48,7 @@
       <tr><td>已讀／未讀</td><td>未讀有藍點</td><td>紅點；展開一則就標成已讀</td><td>橘點（accent-500）＋粗體（10/02 裁定：紅留給錯誤與逾期）。展開即已讀，開場的未讀數跟著減</td></tr>
       <tr><td>展開</td><td>原地展開：異動類型與原因、原課堂、新課堂、相關課堂連結</td><td>一次只能展開一則；內文＋「—— 發布者」</td><td>原地展開（同名 details，一次一則）。<b>課務異動那幾則多一塊「原本／改為」</b>（標「新」：要 announcements 帶結構化的課堂資訊才做得到，現在只有內文），附「看課表」連家長端課表（新）</td></tr>
       <tr><td>全部標為已讀</td><td>有</td><td>只在有未讀時出現</td><td>照做；按了 toast 可復原</td></tr>
-      <tr><td>保留</td><td>90 天</td><td>—</td><td>底部寫「通知保留 90 天」</td></tr>
+      <tr><td>保留</td><td>90 天</td><td>—</td><td>底部寫「通知保留 90 天，公告會一直留著。」（API 只清通知，公告永久保存；R5 回寫）</td></tr>
       <tr><td>校區</td><td>—</td><td>有 campusName 時時間後面帶「· 校區」</td><td>保留</td></tr>
     </tbody>
   </table>
@@ -105,10 +105,10 @@
     document.getElementById('body').innerHTML = groups.map(([g, a]) => `<section class="chap" aria-label="${g}">
       <div class="chap__side"><div class="chap__big">${g}</div><p class="chap__tally">${a.length} 則${a.some((n) => !n.read) ? ` <span>· 未讀 ${a.filter((n) => !n.read).length}</span>` : ''}</p></div>
       <div>${a.map((n) => `<details class="nt${n.read ? ' is-read' : ''}" name="inbox" data-n="${n.id}">
-        <summary><span class="nt__dot" aria-hidden="true"></span><span class="nt__t">${esc(n.title)}${n.read ? '' : '<span class="sr">（未讀）</span>'}</span><span class="nt__at">${md(n.day)} ${n.at}${n.campus ? ` · ${n.campus}` : ''}</span></summary>
+        <summary><span class="nt__dot" aria-hidden="true"></span><span class="nt__t">${esc(n.title)}${n.read ? '' : '<span class="sr">（未讀）</span>'}</span><span class="nt__at">${/帳單/.test(n.title) ? '繳費提醒' : '公告'} · ${md(n.day)} ${n.at}${n.campus ? ` · ${n.campus}` : ''}</span></summary>
         <div class="nt__body">${n.chg ? chgBlock(n.chg) : ''}<p>${esc(n.body)}<span class="nt__by">—— ${n.by}</span></p>${n.chg ? `<a class="btn btn--sm" href="p-schedule.html">看課表<span class="new">新</span>${icon.right}</a>` : ''}</div>
       </details>`).join('')}</div>
-    </section>`).join('') + `<p class="keep">通知保留 90 天。</p>`;
+    </section>`).join('') + `<p class="keep">通知保留 90 天，公告會一直留著。</p>`;
     head();
   };
   render();

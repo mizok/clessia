@@ -1,4 +1,6 @@
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -149,5 +151,61 @@ describe('ChildScopeService', () => {
     service.load();
     expect(childrenServiceMock.list).toHaveBeenCalledTimes(2);
     expect(service.activeChildId()).toBe('c1');
+  });
+
+  describe('網址帶 ?child=（從通知點進來，#2497）', () => {
+    @Component({ template: '' })
+    class Blank {}
+
+    function setupWithRouter(children: Child[] = CHILDREN) {
+      TestBed.configureTestingModule({
+        providers: [
+          provideRouter([{ path: '**', component: Blank }]),
+          { provide: ChildrenService, useValue: { list: vi.fn(() => of({ data: children })) } },
+          { provide: AuthService, useValue: { user: () => ({ id: 'u1' }) } },
+        ],
+      });
+      return { router: TestBed.inject(Router), service: TestBed.inject(ChildScopeService) };
+    }
+
+    it('孩子清單還沒載：先記著，load 完切到通知的孩子（蓋過記住的那個），並記住', async () => {
+      localStorage.setItem('clessia.activeChild.u1', 'c1');
+      const { router, service } = setupWithRouter();
+      await router.navigateByUrl('/parent/payments?child=c2');
+      service.load();
+      expect(service.activeChildId()).toBe('c2');
+      expect(localStorage.getItem('clessia.activeChild.u1')).toBe('c2');
+    });
+
+    it('已經載入、正在看別的孩子：導頁時切過去，網址的 child 拿掉（之後自己切孩子不會被網址拉回）', async () => {
+      const { router, service } = setupWithRouter();
+      service.load();
+      expect(service.activeChildId()).toBe('c1');
+      await router.navigateByUrl('/parent/enrollment?child=c2#records');
+      await new Promise((r) => setTimeout(r));
+      expect(service.activeChildId()).toBe('c2');
+      expect(router.url).toBe('/parent/enrollment#records');
+    });
+
+    it('推播點開：導頁完成後頁面才建出這支服務 → 建立時就讀現在的網址', async () => {
+      TestBed.configureTestingModule({
+        providers: [
+          provideRouter([{ path: '**', component: Blank }]),
+          { provide: ChildrenService, useValue: { list: vi.fn(() => of({ data: CHILDREN })) } },
+          { provide: AuthService, useValue: { user: () => ({ id: 'u1' }) } },
+        ],
+      });
+      await TestBed.inject(Router).navigateByUrl('/parent/payments?child=c2');
+      const service = TestBed.inject(ChildScopeService);
+      service.load();
+      expect(service.activeChildId()).toBe('c2');
+    });
+
+    it('不是這個家長的孩子（已解除綁定）→ 不切，維持原本的', async () => {
+      const { router, service } = setupWithRouter();
+      service.load();
+      await router.navigateByUrl('/parent/schedule?child=gone');
+      expect(service.activeChildId()).toBe('c1');
+    });
   });
 });

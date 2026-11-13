@@ -125,7 +125,7 @@ run('核准後通知家長對真 DB（#1726 拆單 6）', () => {
         payload: {
           title: '報名已核准',
           body: '林小華 報名 國二數學 A 已核准，請在 11/4 前繳 3,100 元',
-          url: '/parent/enrollment#records',
+          url: `/parent/enrollment?child=${student}#records`,
         },
       });
     }
@@ -169,7 +169,7 @@ run('核准後通知家長對真 DB（#1726 拆單 6）', () => {
         payload: {
           title: '報名已完成',
           body: '林小華 報名 國二數學 A 已完成',
-          url: '/parent/enrollment#records',
+          url: `/parent/enrollment?child=${student}#records`,
         },
       },
     ]);
