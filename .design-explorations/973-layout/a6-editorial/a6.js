@@ -695,8 +695,8 @@
         <aside class="ps__brand">
           <canvas class="ps__field" aria-hidden="true"></canvas>
           <div class="ps__content">
-            <a class="ps__logo" href="pub-login.html"${o.page === 'pub-login' ? ' aria-current="page"' : ''}>Clessia</a>
-            <h2 class="ps__tagline">學程管家</h2>
+            <a class="ps__logo" href="pub-login.html"${o.page === 'pub-login' ? ' aria-current="page"' : ''}>Clessia<span class="ps__product">· 學程管家</span></a>
+            <h2 class="ps__tagline">${esc(C.org.name)}</h2>
             <p class="ps__slogan">讓學習旅程更輕鬆</p>
           </div>
           <div class="ps__go"></div>

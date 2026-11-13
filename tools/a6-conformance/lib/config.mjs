@@ -480,21 +480,8 @@ const selectFieldInDialog = (pop, name, ddName = name) =>
  * 公開頁（登入、選身分、試聽、報名）的品牌面：補習班名稱當主標，Clessia 退成一行小字併「· 學程管家」
  * （稿是大字 Clessia、下面一行學程管家）。字標兩顆的文案、尺寸、樣式，以及多出來的「· 學程管家」字。
  */
-const PUBLIC_BRAND_SOURCE = `${rule('R5')}「公開頁品牌面的字標與補習班名稱」2026-10-22；#1858、#1871`;
-const PUBLIC_BRAND_DEVIATIONS = [
-  ...['文案', '尺寸', '樣式'].map((status) => ({
-    status,
-    a6: '^>landmark:complementary\\[\\]>(control:link\\[Clessia\\]|heading:h2\\[學程管家\\])$',
-    reason: '品牌面：補習班名稱當主標，Clessia 退成一行小字',
-    source: PUBLIC_BRAND_SOURCE,
-  })),
-  {
-    status: '多',
-    app: '^>landmark:complementary\\[\\]>control:link\\[Clessia·學程管家\\]>text:span\\[·學程管家\\]$',
-    reason: '品牌面：「學程管家」併進 Clessia 那一行',
-    source: PUBLIC_BRAND_SOURCE,
-  },
-];
+// #2495 B6：品牌面（補習班名稱主標、Clessia · 學程管家小字）已回寫稿，原本的 4 條拿掉
+const PUBLIC_BRAND_DEVIATIONS = [];
 /**
  * 老師／家長收件匣（通知＋公告）共用的偏離。內容是 seed-demo 寫的（#1314 10-30），標題、則數是資料差；
  * 保留期限句、類型標籤原本是 R5 已裁的偏離，#2495 已回寫稿。
@@ -1155,15 +1142,6 @@ export const PAGES = {
         reason: 'ARIA 角色依元件行為：手機「登入」打開底部面板，是按鈕',
         source: `${rule('R7')}；#1639`,
       },
-      // 手機登入改成置中彈窗（稿是貼底的底部面板）：寬 calc(100% - 32px)、四角圓角，位置置中
-      ...['位置', '尺寸', '樣式'].map((status) => ({
-        status,
-        pop: 'ps-sheet',
-        widths: [360],
-        a6: '^pop\\[ps-sheet\\]>landmark:popover\\[登入\\]',
-        reason: '手機登入是置中彈窗，不是貼底的底部面板',
-        source: `${rule('R5')}「手機登入：置中彈窗」2026-10-23；#2031`,
-      })),
       // 標題下的「用 LINE 登入，不需要記密碼。」拿掉（表單與手機彈窗兩處）
       {
         status: '缺',
@@ -1196,13 +1174,6 @@ export const PAGES = {
     app: '/trial',
     state: path.join(cache, 'state-guest.json'),
     deviations: [
-      {
-        // #1637 Q1：試聽稿沒有「與學生的關係」，使用者指定補上（版面照報名稿同一欄）
-        status: '多',
-        app: 'landmark:region\\[家長資訊\\]>(text:p\\[與學生的關係\\]|row(>control:radio)?)$',
-        reason: '試聽表單補「與學生的關係」（使用者指定的 A6 偏離）',
-        source: `${rule('R5')}「公開試聽表單與學生的關係」2026-10-16；#1637 Q1`,
-      },
       {
         // 公開表單的課程選項是資料（同 DATA_DEPENDENT 那條）：seed 的組數與項目比稿多，最後那組的列整段往下
         status: '位置',

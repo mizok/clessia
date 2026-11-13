@@ -118,7 +118,7 @@
   const FULL = { c5: 0, c13: 2 };
   const classes = C.classes.map((c) => ({ ...c, left: c.id in FULL ? FULL[c.id] : c.capacity - c.studentIds.length }));
   const fee = (c) => `${A2.money(c.fee)} 元／${c.billingMode === 'session_pack' ? '堂數包' : '月'}`;
-  const pickHtml = (c) => `<label class="pick"><input type="checkbox" name="courses" value="${c.id}"><span style="flex:1;min-width:0"><span class="pick__row"><span><span class="pick__t">${c.name}</span><span class="pick__fitbox" data-grades="${c.grades.join(',')}"></span></span><span class="pick__fee">${fee(c)}</span></span><span class="pick__d" style="display:block">週${WD[c.weekday]} ${c.start}–${c.end} · ${c.teacher} 老師 · ${c.left ? `<span class="pick__seat">剩 ${c.left} 位</span>` : '<span class="pick__seat">已額滿 · 勾選即登記候補</span>'}</span></span></label>`;
+  const pickHtml = (c) => `<label class="pick"><input type="checkbox" name="courses" value="${c.id}"><span style="flex:1;min-width:0"><span class="pick__row"><span><span class="pick__t">${c.name}</span><span class="pick__fitbox" data-grades="${c.grades.join(',')}"></span></span><span class="pick__fee">${fee(c)}</span></span><span class="pick__d" style="display:block">週${WD[c.weekday]} ${c.start}–${c.end} · ${c.teacher} · ${c.left ? `<span class="pick__seat">剩 ${c.left} 位</span>` : '<span class="pick__seat">已額滿 · 勾選即登記候補</span>'}</span></span></label>`;
   const SUBJ = ['數學', '英文', '國文', '自然'];
   const phone = C.campus.phone;
 
@@ -181,7 +181,7 @@
       </form>
       <dialog class="acset" id="privacy" aria-labelledby="privacy-t">
         <div class="acset__head"><h2 class="acset__t" id="privacy-t">個資使用聲明</h2><button class="acset__x" type="button" aria-label="關閉" data-close>${icon.x}</button></div>
-        <div class="acset__body"><p class="acset__hint" style="font-size:var(--text-base);line-height:1.7;color:var(--zinc-800)">${esc(C.org.name)}蒐集你填寫的家長與學生資料，只用於審核報名、開立繳費單與開通帳號。沒有完成報名的資料保存 6 個月；你可以隨時打 ${phone} 要求查詢、更正或刪除。</p></div>
+        <div class="acset__body"><p class="acset__hint" style="font-size:var(--text-base);line-height:1.7;color:var(--zinc-800)">${esc(C.org.name)}蒐集你填寫的家長與學生資料，只用於審核報名、開立繳費單與開通帳號。這份申請保存 6 個月後刪除；你可以隨時打 ${phone} 要求查詢、更正或刪除。</p></div>
       </dialog>`;
   }
 

@@ -943,3 +943,17 @@ textarea.acset__in { height: auto; min-height: 96px; padding: var(--space-2) var
 }
 @media (max-width: 860px) { .dock:not(:has(> :nth-child(2))) { left: auto; } }
 .coll__body { margin: 0 var(--space-3) var(--space-3); }
+
+/* ═══ 11-13 #2495 B6：公開頁回寫稿
+ * 品牌面（R5 10-22 #1858）：補習班名稱當主標（桌機 36、手機 0.1 屏寬），Clessia 退成一行 20px 小字併「· 學程管家」。
+ * 手機登入（R5 10-23 #2031）：置中彈窗 calc(100% - 32px)、上限 400，四角圓角、scale(0.97) 進場，不貼底。 */
+.ps__logo { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 0; font-size: 20px; letter-spacing: -0.02em; }
+.ps__product { font-size: 15px; font-weight: var(--font-semibold); letter-spacing: normal; opacity: 0.8; }
+.ps__tagline { margin: var(--space-6) 0 var(--space-1); font-size: 36px; font-weight: var(--font-bold); line-height: 1.1; letter-spacing: -0.03em; opacity: 1; }
+@media (max-width: 1024px) {
+  .ps__logo { font-size: 20px; letter-spacing: -0.02em; }
+  .ps__tagline { margin: auto 0 var(--space-2); font-size: calc(var(--pw) * 0.1); }
+}
+@media (max-width: 860px) {
+  .ps-sheet.xp { inset: 0; width: calc(100% - 32px); max-width: 400px; height: fit-content; max-height: calc(100% - 48px); margin: auto; border-radius: var(--radius-xl); background: var(--gray-sheet); --pop-from: scale(0.97); }
+}
