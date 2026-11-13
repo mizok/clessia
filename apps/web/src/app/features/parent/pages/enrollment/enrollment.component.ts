@@ -11,6 +11,7 @@ import {
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
 import { filter, finalize, switchMap } from 'rxjs';
 import { format, parseISO } from 'date-fns';
 
@@ -25,6 +26,10 @@ import {
   type ParentEnrollmentRequest,
 } from '@core/parent-applications.service';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import {
+  ConfirmDialogComponent,
+  type ConfirmDialogData,
+} from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { todayLocal } from '@shared/utils/session-time.util';
 import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
 import {
@@ -73,6 +78,7 @@ const PER = { monthly: '月', period: '期', session_pack: '堂數包' } as cons
     HeightFollowDirective,
   ],
   templateUrl: './enrollment.component.html',
+  providers: [DialogService],
 })
 export class EnrollmentComponent {
   readonly page = input.required<RouteObj>();
@@ -80,6 +86,7 @@ export class EnrollmentComponent {
   private readonly api = inject(ParentApplicationsService);
   private readonly childScope = inject(ChildScopeService);
   private readonly messages = inject(MessageService);
+  private readonly dialogService = inject(DialogService);
 
   protected readonly tab = signal<Tab>(
     inject(ActivatedRoute).snapshot.fragment === 'records' ? 'records' : 'new',
@@ -267,7 +274,34 @@ export class EnrollmentComponent {
     return r.status === 'pending' || r.status === 'waitlist';
   }
 
+  /**
+   * 取消前先確認（#2448）：取消不能復原，候補取消後重送會排到最後。
+   * 確認框 appendTo 詳情那個原生 `<dialog>` —— 掛 body 的話會在 top layer 底下、被 inert 蓋住點不到。
+   */
   protected cancel(r: ParentEnrollmentRequest): void {
+    if (this.cancelling()) return;
+    const data: ConfirmDialogData = {
+      message:
+        r.status === 'waitlist'
+          ? '取消後會失去候補順位，之後重新申請會排到最後。'
+          : '取消後補習班就不會處理這筆申請，要再上課得重新申請。',
+      acceptLabel: '取消申請',
+      rejectLabel: '先不要',
+    };
+    this.dialogService
+      .open(ConfirmDialogComponent, {
+        header: '取消這筆申請？',
+        width: 'var(--dlg-w-md)',
+        modal: true,
+        showHeader: false,
+        appendTo: this.detailDialog()?.nativeElement ?? 'body',
+        data,
+      })
+      ?.onClose.pipe(filter((ok) => ok === true))
+      .subscribe(() => this.doCancel(r));
+  }
+
+  private doCancel(r: ParentEnrollmentRequest): void {
     if (this.cancelling()) return;
     this.cancelling.set(true);
     this.api
