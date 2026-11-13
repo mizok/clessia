@@ -32,6 +32,7 @@ describe('toContactBookEntryResponse', () => {
       entryDate: '2026-08-29',
       content: '今天上課很專心，數學小考 95 分。',
       lastEditedByName: '林老師',
+      lastEditedBy: 'user-teacher',
       teacherEditedAt: '2026-08-29T09:30:00Z',
       signedBy: null,
       signedByName: null,

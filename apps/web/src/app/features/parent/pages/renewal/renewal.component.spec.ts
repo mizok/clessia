@@ -236,14 +236,14 @@ describe('RenewalComponent', () => {
     expect(text('[data-testid="renewal-sum"]')).toBe('下期合計（預計）0 元');
   });
 
-  it('沒有續課：有月繳的孩子多一行說明，沒有的不說', async () => {
+  it('沒有續課：有月繳的孩子說「不需要續課、要調整找補習班」（不只說沒有，#2498），沒有的不說', async () => {
     await setup({
       'kid-1': { hasMonthlyEnrollments: true },
       'kid-2': { nextPeriod: null, hasMonthlyEnrollments: false },
     });
     expect(text('h1')).toBe('林子晴目前沒有即將到來的續課。');
     expect(text('[data-testid="renewal-empty"]')).toBe(
-      '目前沒有即將到來的續課。 月繳的課每月照常開單，不列在這裡。',
+      '月繳的課每月照常開單，不需要續課。要轉班、停課或改繳費方式，請直接聯絡補習班。',
     );
 
     activeId.set(KID2.id);

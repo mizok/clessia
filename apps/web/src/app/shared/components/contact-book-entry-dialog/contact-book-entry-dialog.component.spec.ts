@@ -21,6 +21,7 @@ describe('ContactBookEntryDialogComponent', () => {
     content: '今天有練到直式除法。',
     teacherEditedAt: null,
     lastEditedByName: '陳老師',
+    lastEditedBy: null,
     signedBy: 'user-1',
     signedByName: '林太太',
     signedAt: '2026-08-29T12:00:00Z',

@@ -23,6 +23,8 @@ export interface ContactBookEntry {
   content: string;
   /** 共編只記最後編輯者，不做分段作者（rules 3） */
   lastEditedByName: string | null;
+  /** 最後編輯者的 ba_user id（#2499）：老師只能改自己當天寫的，用它決定給不給「修改」 */
+  lastEditedBy: string | null;
   /** 老師／管理員最後改內容的時間（#2080-3）；家長簽收不動它。舊資料未回填為 null */
   teacherEditedAt: string | null;
   signedBy: string | null;
