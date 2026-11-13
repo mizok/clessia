@@ -82,6 +82,45 @@ export async function notifyNewApplication(
 }
 
 /**
+ * 家長送出續課異動申請（#1122）→ 通知那門課的班所在分校、有 `manage_students` 的管理員（gate Q6 (a)：
+ * 處理入口在申請頁，同 `application_received` 的門檻）。不丟例外。
+ */
+export async function notifyRenewalRequest(
+  supabase: SupabaseClient,
+  input: {
+    readonly orgId: string;
+    readonly requestId: string;
+    readonly studentName: string;
+    readonly campusId: string;
+    readonly className: string;
+  },
+): Promise<void> {
+  try {
+    const admins = await adminsForCampuses(supabase, input.orgId, [input.campusId], {
+      permission: 'manage_students',
+    });
+    await notify(
+      supabase,
+      admins.map((userId) => ({
+        orgId: input.orgId,
+        userId,
+        role: 'admin' as const,
+        kind: 'renewal_request_received' as const,
+        dedupeKey: `renewal_request:${input.requestId}`,
+        title: '新的續課異動申請',
+        body: `${input.studentName} 申請異動 ${input.className}，下期自動開單已暫停`,
+        url: '/admin/applications',
+      })),
+    );
+  } catch (err) {
+    console.error(
+      '[notify] 續課異動通知失敗（申請已寫入）:',
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
+/**
  * 這個學生在本 org 的家長帳號：`parent_student_relations` 指到學生、`parents` 在本 org、`status = 'active'`
  * （家長一定有帳號，`user_id` NOT NULL）。關聯表沒有 org 欄，org 由 `parents.org_id` 把關（c1）。查詢失敗丟例外。
  */

@@ -96,7 +96,7 @@ run('班級名額的鎖對真 Postgres（#1726 Q9）', () => {
       );
       // A 還沒 COMMIT：B 必須卡在鎖上，不能先數完
       let bDone = false;
-      const b = enrollWithSeatLock(pool, { orgId, classId, rows: [row(students[1]!)] }).then(
+      const b = enrollWithSeatLock(pool, { orgId, classId, scope: null, rows: [row(students[1]!)] }).then(
         (r) => ((bDone = true), r),
       );
       await new Promise((r) => setTimeout(r, 200));
@@ -113,8 +113,8 @@ run('班級名額的鎖對真 Postgres（#1726 Q9）', () => {
 
   it('已在班上的跳過、不中止交易，其餘照寫', async () => {
     const { orgId, classId, students } = await setup(1000, 2);
-    await enrollWithSeatLock(pool, { orgId, classId, rows: [row(students[0]!)] });
-    const r = await enrollWithSeatLock(pool, { orgId, classId, rows: students.map(row) });
+    await enrollWithSeatLock(pool, { orgId, classId, scope: null, rows: [row(students[0]!)] });
+    const r = await enrollWithSeatLock(pool, { orgId, classId, scope: null, rows: students.map(row) });
     expect(r).toMatchObject({ status: 'done' });
     expect(r.status === 'done' && r.inserted.map((x) => x.studentId)).toEqual([students[1]]);
     expect(await seated(classId)).toBe(2);
@@ -122,15 +122,15 @@ run('班級名額的鎖對真 Postgres（#1726 Q9）', () => {
 
   it('已在班上的不重複算名額：上限 2、已有 1 人，再送同一人＋新一人 → 寫得進', async () => {
     const { orgId, classId, students } = await setup(2, 2);
-    await enrollWithSeatLock(pool, { orgId, classId, rows: [row(students[0]!)] });
-    const r = await enrollWithSeatLock(pool, { orgId, classId, rows: students.map(row) });
+    await enrollWithSeatLock(pool, { orgId, classId, scope: null, rows: [row(students[0]!)] });
+    const r = await enrollWithSeatLock(pool, { orgId, classId, scope: null, rows: students.map(row) });
     expect(r).toMatchObject({ status: 'done' });
     expect(await seated(classId)).toBe(2);
   });
 
   it('超過上限整批不寫', async () => {
     const { orgId, classId, students } = await setup(1, 2);
-    const r = await enrollWithSeatLock(pool, { orgId, classId, rows: students.map(row) });
+    const r = await enrollWithSeatLock(pool, { orgId, classId, scope: null, rows: students.map(row) });
     expect(r).toMatchObject({ status: 'over-quota', quota: 1, currentActive: 0, adding: 2 });
     expect(await seated(classId)).toBe(0);
   });
@@ -140,6 +140,7 @@ run('班級名額的鎖對真 Postgres（#1726 Q9）', () => {
     const b = await setup(1000, 0);
     const r = await enrollWithSeatLock(pool, {
       orgId: b.orgId,
+      scope: null,
       classId: a.classId,
       rows: [row(a.students[0]!)],
     });

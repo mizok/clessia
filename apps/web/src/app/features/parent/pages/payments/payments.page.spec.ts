@@ -12,6 +12,27 @@ import {
 } from '@core/parent-billing.service';
 import { SystemClockService } from '@core/system-clock.service';
 import { PaymentsPage } from './payments.page';
+import { groupInvoices } from './payments.util';
+
+type Meta = ParentInvoiceListResponse['meta'];
+/** fixture 可以不寫 counts／期限：counts 從 data 推（單頁時等於全量），期限預設沒有 */
+type Fixture = {
+  data: ParentInvoice[];
+  meta: Omit<Meta, 'counts' | 'overdueSince' | 'nextDue'> &
+    Partial<Pick<Meta, 'counts' | 'overdueSince' | 'nextDue'>>;
+};
+function full(res: Fixture): ParentInvoiceListResponse {
+  const g = groupInvoices(res.data);
+  return {
+    data: res.data,
+    meta: {
+      counts: { pending: g.pending.length, paid: g.paid.length, voided: g.voided.length },
+      overdueSince: null,
+      nextDue: null,
+      ...res.meta,
+    },
+  };
+}
 
 const PAGE = {
   label: '繳費',
@@ -60,7 +81,7 @@ describe('PaymentsPage', () => {
   });
 
   function createComponent(
-    response: ParentInvoiceListResponse | 'error' = {
+    response: Fixture | 'error' = {
       data: [],
       meta: { total: 0, page: 1, pageSize: 20, totalDue: 0, paymentInfo: [] },
     },
@@ -68,7 +89,7 @@ describe('PaymentsPage', () => {
     activeChildId = signal<string | null>(null);
     childScopeLoad = vi.fn();
     listMock = vi.fn(() =>
-      response === 'error' ? throwError(() => new Error('boom')) : of(response),
+      response === 'error' ? throwError(() => new Error('boom')) : of(full(response)),
     );
 
     TestBed.configureTestingModule({
@@ -122,17 +143,19 @@ describe('PaymentsPage', () => {
       data: [invoice({ id: 'a' })],
       meta: { total: 1, page: 1, pageSize: 20, totalDue: 0, paymentInfo: [] },
     };
-    pending[2].next(forA);
+    pending[2].next(full(forA));
     pending[2].complete();
-    pending[1].next({
-      data: [invoice({ id: 'b' })],
-      meta: { total: 1, page: 1, pageSize: 20, totalDue: 0, paymentInfo: [] },
-    }); // B 晚到
+    pending[1].next(
+      full({
+        data: [invoice({ id: 'b' })],
+        meta: { total: 1, page: 1, pageSize: 20, totalDue: 0, paymentInfo: [] },
+      }),
+    ); // B 晚到
     pending[1].complete();
     fixture.detectChanges();
 
     const comp = fixture.componentInstance as unknown as { invoices: () => unknown };
-    expect(comp.invoices()).toBe(forA.data);
+    expect(comp.invoices()).toEqual(forA.data);
   });
 
   it('進頁呼叫 childScope.load()', () => {
@@ -244,10 +267,19 @@ describe('PaymentsPage', () => {
     );
   });
 
-  it('章頭「待繳／已繳清」；標題句說還要繳多少、最近的期限', () => {
+  it('章頭「待繳／已繳清」；標題句說還要繳多少、最久的逾期與下一張到期（API 全量）', () => {
     createComponent({
       data: [invoice({ id: 'a' }), invoice({ id: 'c', status: 'paid', netPaid: 5000 })],
-      meta: { total: 2, page: 1, pageSize: 20, totalDue: 5000, paymentInfo: [] },
+      meta: {
+        total: 2,
+        page: 1,
+        pageSize: 20,
+        totalDue: 5000,
+        paymentInfo: [],
+        // 已載入的只有 8/15 那張；API 說全量裡最久的逾期是 6/10 —— 要信 API
+        overdueSince: '2026-06-10',
+        nextDue: '2026-08-13',
+      },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -259,7 +291,8 @@ describe('PaymentsPage', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('還要繳');
     expect(text).toContain('5,000 元。');
-    expect(text).toContain('最近的期限是 8/15');
+    expect(text).toContain('最久的逾期 6/10（61 天）。下一張 8/13 到期');
+    expect(text).not.toContain('最近的期限');
   });
 
   it('unpaid/partial 分進待付款組，paid 分進已付款組，沒有已取消組', () => {
@@ -428,7 +461,10 @@ describe('PaymentsPage', () => {
 
     const detail = document.body.querySelector('.payments__detail');
     expect(detail?.textContent).toContain('轉帳');
-    expect(detail?.textContent).toContain('2026-08-10');
+    // #2446：詳情日期跟列表同為 M/D；期別寫「（8 月）」
+    expect(detail?.textContent).toContain('8/10');
+    expect(detail?.textContent).toContain('（8 月）');
+    expect(detail?.textContent).not.toContain('2026-08');
     expect(detail?.textContent).not.toContain('確認人');
   });
 
@@ -444,7 +480,7 @@ describe('PaymentsPage', () => {
     expect(el.querySelector('[data-testid="band-skeleton"]')).not.toBeNull();
     expect(el.querySelectorAll('.payments__stats dd .skeleton')).toHaveLength(2);
 
-    pending.next({ data: [invoice()], meta });
+    pending.next(full({ data: [invoice()], meta }));
     fixture.detectChanges();
     expect(el.querySelector('[data-testid="band-skeleton"]')).toBeNull();
     expect(el.querySelector('.payments__stats dd')?.textContent?.replace(/\s+/g, '')).toBe(
@@ -484,5 +520,60 @@ describe('PaymentsPage', () => {
 
     expect(gate).toBeTruthy();
     expect(gate.querySelector('.payments__content')).toBeTruthy();
+  });
+});
+
+describe('PaymentsPage #2446 張數用全量、列上有期別', () => {
+  it('待繳 · N 張與章頭張數用 meta.counts（只載入 1 張、全量 28 張）；列上寫期別；空的已繳清文案', () => {
+    TestBed.configureTestingModule({
+      imports: [PaymentsPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ChildScopeService,
+          useValue: {
+            activeChildId: signal('child-1').asReadonly(),
+            children: () => [{ id: 'child-1', name: '測試孩子' }],
+            activeChild: () => null,
+            status: () => 'ready' as const,
+            canSwitch: () => false,
+            setActiveChild: vi.fn(),
+            load: vi.fn(),
+          },
+        },
+        {
+          provide: ParentBillingService,
+          useValue: {
+            list: () =>
+              of(
+                full({
+                  data: [invoice()],
+                  meta: {
+                    total: 28,
+                    page: 1,
+                    pageSize: 20,
+                    totalDue: 95630,
+                    paymentInfo: [],
+                    counts: { pending: 28, paid: 0, voided: 0 },
+                  },
+                }),
+              ),
+          },
+        },
+        { provide: SystemClockService, useValue: { todayTaipei: () => '2026-08-10' } },
+      ],
+    });
+    const f = TestBed.createComponent(PaymentsPage);
+    f.componentRef.setInput('page', PAGE);
+    f.detectChanges();
+    const el: HTMLElement = f.nativeElement;
+
+    expect(el.querySelector('.payments__stats dt')?.textContent?.trim()).toBe('待繳 · 28 張');
+    const heads = Array.from(el.querySelectorAll('.payments__section')).map((s) =>
+      s.querySelector('div')?.textContent?.replace(/\s+/g, ' ').trim(),
+    );
+    expect(heads).toEqual(['待繳 28 張', '已繳清 0 張']);
+    expect(el.querySelector('.payments__row-meta')?.textContent).toContain('8 月學費');
+    expect(el.textContent).toContain('還沒有已繳清的帳單。');
   });
 });
