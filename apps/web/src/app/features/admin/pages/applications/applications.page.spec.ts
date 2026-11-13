@@ -78,6 +78,9 @@ async function setup(
     setTrialStatus: vi.fn((id: string, status: string, schedule?: object) =>
       of({ data: req({ id, kind: 'trial', status, ...schedule }) }),
     ),
+    resolveRenewal: vi.fn((id: string, note?: string) =>
+      of({ data: req({ id, kind: 'renewal', status: 'resolved', resolutionNote: note ?? null }) }),
+    ),
   };
   const service = {
     list: vi.fn().mockReturnValue(of({ data: [app()] })),
@@ -120,6 +123,63 @@ async function setup(
 }
 
 describe('ApplicationsPage（#1245）', () => {
+  describe('續課異動（#1122）', () => {
+    const page = (f: { componentInstance: unknown }) => f.componentInstance as any;
+    const renewal = req({
+      id: 'rr-1',
+      kind: 'renewal',
+      status: 'pending',
+      renewalKind: 'transfer',
+      detail: '想改到週日的班',
+      preferredStartDate: null,
+    });
+
+    it('在「續課異動」章；列上寫處理中、類型與內容、暫停說明；主動作「標為已處理」', async () => {
+      const { el } = await setup([renewal]);
+      const card = el.querySelector('[data-testid="parent-request-card"]')!;
+      expect(card.closest('section')!.getAttribute('data-chapter')).toBe('renewal');
+      expect(card.textContent).toContain('處理中');
+      expect(card.querySelector('[data-testid="renewal-detail"]')!.textContent).toContain(
+        '轉班：想改到週日的班',
+      );
+      expect(card.textContent).toContain('下期期繳暫停開單');
+      expect(card.querySelector('[data-testid="renewal-resolve"]')).not.toBeNull();
+    });
+
+    it('標為已處理：帶備註送出、那一列換成已處理；空白備註不帶', async () => {
+      const { fixture, parents, el } = await setup([renewal]);
+      const p = page(fixture);
+      p.submitResolve(renewal, '  已電話確認  ');
+      fixture.detectChanges();
+      expect(parents.resolveRenewal).toHaveBeenLastCalledWith('rr-1', '已電話確認');
+      expect(el.textContent).toContain('已處理');
+      expect(el.querySelector('[data-testid="renewal-resolve"]')).toBeNull();
+      p.submitResolve(renewal, '   ');
+      expect(parents.resolveRenewal).toHaveBeenLastCalledWith('rr-1', undefined);
+    });
+
+    it('409（家長同時撤回）：說清楚、收起備註欄、重抓', async () => {
+      const { fixture, parents } = await setup([renewal]);
+      const p = page(fixture);
+      const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+      parents.resolveRenewal.mockReturnValueOnce(throwError(() => ({ status: 409 })));
+      p.resolvingId.set('rr-1');
+      parents.list.mockClear();
+      p.submitResolve(renewal, '');
+      expect(toast).toHaveBeenLastCalledWith(
+        expect.objectContaining({ summary: '這筆已經結案或被撤回' }),
+      );
+      expect(p.resolvingId()).toBeNull();
+      expect(parents.list).toHaveBeenCalledTimes(1);
+    });
+
+    it('?kind=renewal：只打家長申請（公開表單沒有這一類）', async () => {
+      const { service, parents } = await setup([renewal], ['manage_finance'], { kind: 'renewal' });
+      expect(parents.list).toHaveBeenCalledWith({ group: 'pending', kind: 'renewal' });
+      expect(service.list).not.toHaveBeenCalled();
+    });
+  });
+
   // #1821：申請提醒的連結帶 ?kind=，點進來要落在那個分頁
   it.each([
     ['trial', 'trial'],

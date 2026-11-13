@@ -151,6 +151,10 @@ export class BillingRunDialogComponent {
   }
 
   /** 跑過就回 true，讓名單重新取數看得到新的結算鎖 */
+  protected pausedNames(done: BillingRunResult): string {
+    return (done.pausedStudents ?? []).map((p) => p.studentName ?? '（讀不到姓名）').join('、');
+  }
+
   protected close(): void {
     this.ref.close(this.result() !== null);
   }
