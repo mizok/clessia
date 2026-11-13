@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { BrowserStateService } from '@core/browser-state.service';
@@ -279,6 +279,29 @@ describe('GenerateSessionsDialogComponent', () => {
         of({ data: [], meta: { studentCount: 0 } }) as never,
       );
       toPreview([sess('2026-03-16', '18:00')]);
+      expect(summary()).toBe('這班還沒有學生，看不到學校行事曆');
+      expect(marks()).toEqual([]);
+    });
+
+    it('改日期重新預覽：上一輪晚到的回應不蓋掉新的', () => {
+      const first = new Subject<unknown>();
+      const second = new Subject<unknown>();
+      classesServiceMock.schoolCalendar
+        .mockReturnValueOnce(first as never)
+        .mockReturnValueOnce(second as never);
+      toPreview([sess('2026-03-16', '18:00')]);
+      setDate('gen-to', '2026-03-30');
+      classesServiceMock.previewSessions.mockReturnValueOnce(
+        of({ data: [sess('2026-03-16', '18:00')] }) as never,
+      );
+      next();
+
+      second.next({ data: [], meta: { studentCount: 0 } });
+      first.next({
+        data: [cal('no_class', '2026-03-16', '2026-03-16', 's1', 2)],
+        meta: { studentCount: 5 },
+      });
+      fixture.detectChanges();
       expect(summary()).toBe('這班還沒有學生，看不到學校行事曆');
       expect(marks()).toEqual([]);
     });

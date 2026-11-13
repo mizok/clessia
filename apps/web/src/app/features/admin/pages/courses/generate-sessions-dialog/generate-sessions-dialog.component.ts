@@ -1,5 +1,7 @@
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { Component, inject, signal, computed } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, catchError, map, of, startWith, switchMap } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
@@ -80,6 +82,15 @@ export class GenerateSessionsDialogComponent {
   protected readonly previewSessions = signal<SessionPreview[]>([]);
   protected readonly excluded = signal<ReadonlySet<string>>(new Set());
   protected readonly calendar = signal<CalendarState | null>(null);
+  /**
+   * 疊圖請求一律走這條 switchMap：新一輪預覽或改日期（null）就取消上一輪 ——
+   * 舊回應晚到不能蓋掉新的，不然摘要與副標對的是上一段日期（#2474 二讀）
+   */
+  private readonly calendarRequests = new Subject<{
+    id: string;
+    from: string;
+    to: string;
+  } | null>();
   /** 底部「還差什麼」（A6 `.fdlg__why`）：按了才出現的原因 */
   private readonly reason = signal<string | null>(null);
 
@@ -164,18 +175,34 @@ export class GenerateSessionsDialogComponent {
       this.step.set('input');
       this.previewSessions.set([]);
       this.excluded.set(new Set());
-      this.calendar.set(null);
+      this.calendarRequests.next(null);
     }
   }
 
   /** 跟預覽同時打；只標示、不自動取消勾選（內文：自動避開之後再談） */
-  private loadCalendar(classId: string, from: string, to: string): void {
-    this.calendar.set({ status: 'loading' });
-    this.classesService.schoolCalendar(classId, from, to).subscribe({
-      next: (res) =>
-        this.calendar.set({ status: 'ok', events: res.data, studentCount: res.meta.studentCount }),
-      error: () => this.calendar.set({ status: 'failed' }),
-    });
+  private loadCalendar(id: string, from: string, to: string): void {
+    this.calendarRequests.next({ id, from, to });
+  }
+
+  constructor() {
+    this.calendarRequests
+      .pipe(
+        switchMap((req) =>
+          !req
+            ? of(null)
+            : this.classesService.schoolCalendar(req.id, req.from, req.to).pipe(
+                map((res): CalendarState => ({
+                  status: 'ok',
+                  events: res.data,
+                  studentCount: res.meta.studentCount,
+                })),
+                catchError(() => of<CalendarState>({ status: 'failed' })),
+                startWith<CalendarState>({ status: 'loading' }),
+              ),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe((state) => this.calendar.set(state));
   }
 
   protected toggleDay(date: string, included: boolean): void {
