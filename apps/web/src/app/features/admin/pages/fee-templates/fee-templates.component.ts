@@ -389,6 +389,16 @@ export class FeeTemplatesComponent implements OnInit {
           severity: 'success',
           summary: isActive ? '已啟用' : '已停用',
           detail: `「${target.name}」${isActive ? '已重新啟用' : '不會再出現在報名選單'}`,
+          // #1314 F3（A6 fee-templates：停用／啟用 → toast 可復原）。「已復原」由 toast 自己出，
+          // 這裡只打反向的 PATCH、重抓；失敗才說
+          data: {
+            undo: () =>
+              this.feeTemplatesService.update(target.id, { isActive: !isActive }).subscribe({
+                next: () => this.loadTemplates({ rows: true }),
+                error: () =>
+                  this.messageService.add({ severity: 'error', summary: '復原失敗，請再試一次' }),
+              }),
+          },
         });
         this.loadTemplates({ rows: true });
       },

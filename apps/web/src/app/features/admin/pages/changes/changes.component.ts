@@ -214,7 +214,12 @@ export class ChangesComponent {
       this.sessionsService
         .listChanges({ ...range, changeType, page: 1, pageSize: 1 })
         .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({ next: (res) => target.set(res.meta.total), error: () => target.set(null) });
+        // 「N 則異動」數則、「停課 N 堂」數堂（#1314 S3：分頁改以則計之後兩者不同）
+        .subscribe({
+          next: (res) =>
+            target.set(changeType === 'cancellation' ? res.meta.rowTotal : res.meta.total),
+          error: () => target.set(null),
+        });
     }
   }
 }

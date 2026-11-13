@@ -66,6 +66,10 @@ import {
   type AuditLogDialogData,
 } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { SessionRescheduleDialogComponent } from './dialogs/session-reschedule-dialog/session-reschedule-dialog.component';
+import {
+  SessionAddMakeupDialogComponent,
+  type AddMakeupResult,
+} from './dialogs/session-add-makeup-dialog/session-add-makeup-dialog.component';
 import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/session-assign-dialog.component';
 import { SessionSubstituteDialogComponent } from './dialogs/session-substitute-dialog/session-substitute-dialog.component';
 import { SessionMakeupDialogComponent } from './dialogs/session-makeup-dialog/session-makeup-dialog.component';
@@ -550,6 +554,14 @@ export class SessionsPage implements OnInit {
       });
       items.push({ label: '停課', icon: 'pi pi-ban', command: () => this.openCancelDialog(s) });
     }
+    // #1314 S7（A6 schedule ⋯）：停課那堂另外排一個時間補，已經有補課的就不再出現
+    if (s.status === 'cancelled' && !s.madeUpBy) {
+      items.push({
+        label: '加開一堂補課',
+        icon: 'pi pi-calendar-plus',
+        command: () => this.openAddMakeup(s),
+      });
+    }
     if (s.status === 'cancelled') {
       items.push({
         label: '取消停課',
@@ -852,6 +864,32 @@ export class SessionsPage implements OnInit {
     });
     ref?.onClose.subscribe((result) => {
       if (result === 'refresh') this.loadSessions();
+    });
+  }
+
+  protected openAddMakeup(session: Session): void {
+    const ref = this.dialogService.open(SessionAddMakeupDialogComponent, {
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
+      data: { session },
+      appendTo: this.overlayContainer ?? 'body',
+    });
+    ref?.onClose.subscribe((result?: AddMakeupResult) => {
+      if (!result) return;
+      const day = format(parseISO(result.date), 'M/d');
+      this.messageService.add(
+        result.linked
+          ? { severity: 'success', summary: '已加開補課', detail: `${day} 補這堂停課` }
+          : {
+              severity: 'warn',
+              summary: `已加開 ${day} 的課，但沒標成補課`,
+              detail: '到那堂的「⋯」按「指定為補課」補上。',
+            },
+      );
+      // 切到補課那天看它；本來就在那天的話 setDay 不重讀，要自己讀
+      const target = parseISO(result.date);
+      if (this.mode() === 'day' && isSameDay(target, this.day())) this.loadSessions();
+      else this.setDay(target);
     });
   }
 

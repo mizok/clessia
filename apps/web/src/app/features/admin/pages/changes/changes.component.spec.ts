@@ -289,12 +289,16 @@ describe('ChangesComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('看是哪 2 堂');
   });
 
+  // #1314 S3：分頁改以「則」計後，total 是則、rowTotal 是堂 ——「N 則異動」用則、「停課 N 堂」用堂
   it('開場標題：這個月總共幾則、停課幾堂（不看類型與分校篩選）', async () => {
     listChangesMock.mockReset();
     listChangesMock.mockImplementation((p: { changeType?: string; pageSize: number }) =>
       of({
         data: p.pageSize === 1 ? [] : [entry()],
-        meta: { total: p.changeType === 'cancellation' ? 3 : 6, page: 1, pageSize: p.pageSize },
+        meta:
+          p.changeType === 'cancellation'
+            ? { total: 2, rowTotal: 3, page: 1, pageSize: p.pageSize }
+            : { total: 6, rowTotal: 9, page: 1, pageSize: p.pageSize },
       }),
     );
 

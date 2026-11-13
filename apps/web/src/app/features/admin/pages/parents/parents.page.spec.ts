@@ -274,6 +274,40 @@ describe('ParentsPage', () => {
       expect(ids()).toEqual(['a', 'b']);
     });
 
+    // #1314 PA8（A6 parents：停用可以復原）：停用的 toast 帶「復原」＝打啟用；封存、啟用不給
+    it.each([
+      ['deactivate', true],
+      ['activate', false],
+      ['archive', false],
+    ])('%s 成功的 toast 帶復原：%s', (action, hasUndo) => {
+      const add = vi.spyOn(injected(MessageService), 'add');
+      Object.assign(parentsServiceMock, {
+        [action]: vi.fn(() => of({})),
+        activate: vi.fn(() => of({})),
+      });
+      page().changeStatus({ id: 'b', name: '乙' }, action, '已處理');
+      const msg = add.mock.calls.at(-1)![0] as { data?: { undo?: () => void } };
+      expect(typeof msg.data?.undo === 'function').toBe(hasUndo);
+    });
+
+    it('停用後按復原：打啟用並重抓；復原失敗才報錯', () => {
+      const add = vi.spyOn(injected(MessageService), 'add');
+      const activate = vi.fn(() => of({}));
+      Object.assign(parentsServiceMock, { deactivate: vi.fn(() => of({})), activate });
+      page().changeStatus({ id: 'b', name: '乙' }, 'deactivate', '已停用');
+      const undo = (add.mock.calls.at(-1)![0] as { data: { undo: () => void } }).data.undo;
+      const listCalls = parentsServiceMock.list.mock.calls.length;
+      undo();
+      expect(activate).toHaveBeenCalledWith('b');
+      expect(parentsServiceMock.list.mock.calls.length).toBe(listCalls + 1);
+
+      activate.mockReturnValueOnce(throwError(() => new Error('boom')) as never);
+      undo();
+      expect(add).toHaveBeenLastCalledWith(
+        expect.objectContaining({ severity: 'error', summary: '復原失敗，請再試一次' }),
+      );
+    });
+
     it('編輯家長成功 → 成功 toast，並重抓列表', () => {
       vi.spyOn(injected(DialogService), 'open').mockReturnValue({
         onClose: of({ type: 'updated' }),
