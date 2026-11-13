@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { Subject, of, throwError } from 'rxjs';
@@ -70,7 +71,11 @@ describe('SchoolsPage', () => {
     await TestBed.configureTestingModule({
       imports: [SchoolsPage],
       // 這支 spec 原本**沒有任何 service mock**，於是元件打真的 HTTP。
-      providers: [MessageService, { provide: SchoolsService, useValue: schoolsServiceMock }],
+      providers: [
+        provideRouter([]),
+        MessageService,
+        { provide: SchoolsService, useValue: schoolsServiceMock },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(SchoolsPage);
@@ -288,6 +293,19 @@ describe('SchoolsPage', () => {
     it('每一列帶 vt-row 與以 id 為名的 view-transition-name', () => {
       loaded();
       expect(rowIds()).toEqual(['school-school-0', 'school-school-1']);
+    });
+
+    it('#1160：每一列有行事曆入口，連到 schools/:id/calendar', () => {
+      loaded();
+      const links = [
+        ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLAnchorElement>(
+          '[data-part=school-calendar-link]',
+        ),
+      ];
+      expect(links.map((a) => a.getAttribute('href'))).toEqual([
+        '/school-0/calendar',
+        '/school-1/calendar',
+      ]);
     });
 
     it('刪除成功才拿掉那一列', () => {

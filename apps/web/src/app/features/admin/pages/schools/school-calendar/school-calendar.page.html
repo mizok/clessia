@@ -1,0 +1,119 @@
+<!--
+  #1160 單校整學期視圖。A6 沒畫（R5）：頁首＋期下拉 → 摘要行 → 一張表（依日期）。
+  章節列沿用 settings#schools 的 .chap 形狀：左欄校名、右欄事件列。手機（<wide）每筆兩行、操作收「⋯」。
+-->
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <a
+    class="inline-flex min-h-11 items-center gap-1 text-md font-semibold text-zinc-700 no-underline hover:text-zinc-900"
+    [routerLink]="schoolsHref"
+  >
+    <i class="pi pi-angle-left" aria-hidden="true"></i>學校
+  </a>
+  <div class="flex flex-wrap items-center gap-3 max-wide:w-full">
+    @if (periods().length) {
+      <div class="w-56 max-wide:flex-1">
+        <app-select-field
+          label="期"
+          [hideLabel]="true"
+          [compact]="true"
+          [options]="periodOptions()"
+          [value]="periodId()"
+          (valueChange)="periodId.set($event ?? '')"
+        />
+      </div>
+    }
+  </div>
+</div>
+
+@if (loading()) {
+  <div class="mt-6"><app-skeleton label="行事曆載入中" [count]="4" /></div>
+} @else if (loadFailed()) {
+  <app-load-failed description="沒有讀到這所學校的行事曆，可能是連線問題" (retry)="load()" />
+} @else if (!school()) {
+  <app-empty-state
+    icon="pi pi-building-columns"
+    title="找不到這所學校"
+    description="可能已經刪除了，回學校清單看看"
+  />
+} @else {
+  <section
+    class="grid gap-3 border-0 border-b border-solid border-surface-border py-6 wide:grid-cols-[208px_minmax(0,1fr)] wide:gap-8 wide:py-8"
+    [attr.aria-label]="schoolLabel() + ' 行事曆'"
+    data-part="calendar-chapter"
+  >
+    <div class="wide:sticky wide:top-sticky-chapter wide:self-start">
+      <h2 class="m-0 text-[28px] leading-tight font-bold tracking-[-0.03em] wide:text-[36px]">
+        {{ schoolLabel() }}
+      </h2>
+      <p class="m-0 mt-1 text-md text-zinc-600">
+        {{ levelLabel() ? levelLabel() + ' · ' : '' }}行事曆
+      </p>
+    </div>
+    <div class="min-w-0">
+      <p class="m-0 text-md tabular-nums" data-part="calendar-summary">
+        @if (summary(); as s) {
+          <b class="text-zinc-900">{{ s }}</b>
+        } @else {
+          <span class="text-zinc-600">還沒填開學／休業式</span>
+        }
+      </p>
+
+      @if (rows().length === 0) {
+        <app-empty-state
+          icon="pi pi-calendar"
+          [title]="'這期還沒有 ' + schoolLabel() + ' 的行事曆'"
+          description="每年照學校公告的行事曆填一次"
+        />
+      } @else {
+        <ul class="m-0 mt-2 list-none p-0" aria-label="行事曆事件">
+          @for (row of rows(); track row.event.id) {
+            <li
+              class="flex min-h-[60px] items-center gap-3 border-0 border-b border-solid border-zinc-200 py-3"
+              [attr.data-event]="row.event.id"
+            >
+              <div
+                class="grid min-w-0 flex-1 gap-x-4 gap-y-0.5 wide:grid-cols-[minmax(0,260px)_72px_minmax(0,1fr)] wide:items-center"
+              >
+                <!-- 手機第一行：日期＋標籤；第二行：備註 -->
+                <div class="flex flex-wrap items-center gap-2 wide:contents">
+                  <span class="text-base tabular-nums" [class.font-bold]="row.strong">{{
+                    row.when
+                  }}</span>
+                  <span
+                    class="inline-flex w-fit items-center rounded-sm border border-solid border-zinc-300 px-1.5 text-sm text-zinc-700"
+                    [class.font-bold]="row.strong"
+                    [class.text-zinc-900]="row.strong"
+                    >{{ kindLabels[row.event.kind] }}</span
+                  >
+                </div>
+                <span class="min-w-0 text-sm break-words text-zinc-600">{{
+                  row.event.note ?? ''
+                }}</span>
+              </div>
+              <div class="flex gap-1 max-wide:hidden">
+                <button
+                  type="button"
+                  class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100"
+                  [attr.aria-label]="'刪除 ' + kindLabels[row.event.kind] + ' ' + row.when"
+                  (click)="onDelete(row.event)"
+                >
+                  <i class="pi pi-trash" aria-hidden="true"></i>
+                </button>
+              </div>
+              <button
+                type="button"
+                class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100 wide:hidden"
+                [attr.aria-label]="'更多操作 ' + kindLabels[row.event.kind] + ' ' + row.when"
+                (click)="openRowMenu($event, row.event)"
+              >
+                <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </section>
+}
+
+<app-popup-menu #rowMenu [model]="rowMenuItems()" />
