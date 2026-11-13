@@ -308,7 +308,10 @@ app.openapi(
         content: { 'application/json': { schema: z.object({ data: SessionPackSchema }) } },
       },
       400: { description: '驗證錯誤', content: { 'application/json': { schema: ErrorSchema } } },
-      404: { description: '報名不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      404: {
+        description: '報名或帳單明細不存在',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -330,6 +333,21 @@ app.openapi(
 
     if (!enrollment) {
       return c.json({ error: '報名不存在', code: 'NOT_FOUND' }, 404);
+    }
+
+    // #2493 W6：明細原本連 org 都沒驗（c1）—— 掛到別校／別 org 帳單的明細上，那張帳單就作廢不了
+    //（invoices.ts 的 HAS_SESSION_PACK）。必須是同 org、**同一筆報名**的明細；報名已過分校範圍，分校跟著它走。
+    if (body.invoiceItemId) {
+      const { data: item } = await supabase
+        .from('invoice_items')
+        .select('id, invoices!inner(org_id)')
+        .eq('id', body.invoiceItemId)
+        .eq('enrollment_id', body.enrollmentId)
+        .eq('invoices.org_id', orgId)
+        .maybeSingle();
+      if (!item) {
+        return c.json({ error: '帳單明細不存在', code: 'NOT_FOUND' }, 404);
+      }
     }
 
     const { data, error } = await supabase

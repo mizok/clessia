@@ -162,7 +162,7 @@
 
   const N = () => '<span class="new">新</span>';
   const body = k ? `
-    ${inv ? `<div class="pd-pay"><span class="pd-pay__n">${money(inv.balance)}<small>元待繳</small></span><span class="pd-pay__m">${md(inv.due)}（${wd(inv.due)}）到期 · ${inv.items.length} 個項目</span>${payTag}<a class="btn btn--cta" href="p-payments.html">看帳單${icon.right}</a></div>` : ''}
+    ${inv ? `<div class="pd-pay"><span class="pd-pay__n">${money(inv.balance)}<small>元待繳</small></span><span class="pd-pay__m">${md(inv.due)}（${wd(inv.due)}）到期</span>${payTag}<a class="btn btn--cta" href="p-payments.html">看帳單${icon.right}</a></div>` : ''}
     <div class="pd-renew"><span class="pd-renew__t">2026 冬季 續課預告${N()}</span><span class="pd-renew__m">${cls.length} 個班將自動續課，有要調整請在 ${md(C.TERM_END)} 前申請</span><a class="btn" href="p-renewal.html">申請異動</a></div>
 
     <section class="sec" aria-labelledby="h-today">

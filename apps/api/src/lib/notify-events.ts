@@ -183,7 +183,7 @@ export async function notifyEnrollmentApproved(
         payload: {
           title: '報名已核准',
           body: `${input.studentName} 報名 ${input.className} 已核准，請在 ${Number(m)}/${Number(d)} 前繳 ${input.amount.toLocaleString('zh-TW')} 元`,
-          url: '/parent/enrollment#records',
+          url: `/parent/enrollment?child=${input.studentId}#records`,
         },
       })),
       { onConflict: 'user_id,dedupe_key', ignoreDuplicates: true },
@@ -223,7 +223,7 @@ export async function notifyEnrollmentCompleted(
         payload: {
           title: '報名已完成',
           body: `${input.studentName} 報名 ${input.className} 已完成`,
-          url: '/parent/enrollment#records',
+          url: `/parent/enrollment?child=${input.studentId}#records`,
         },
       })),
       { onConflict: 'user_id,dedupe_key', ignoreDuplicates: true },

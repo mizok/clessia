@@ -221,7 +221,7 @@ async function notifyParents(
     supabase
       .from('enrollments')
       .select(
-        'id, class_id, effective_from, effective_to, students(name, parent_student_relations(parents(user_id, org_id, status)))',
+        'id, class_id, effective_from, effective_to, students(id, name, parent_student_relations(parents(user_id, org_id, status)))',
       )
       .eq('org_id', orgId)
       .in('class_id', [...byClass.keys()])
@@ -238,12 +238,16 @@ async function notifyParents(
     class_id: string;
     effective_from: string;
     effective_to: string | null;
-    students: { name: string; parent_student_relations: { parents: Parent | null }[] } | null;
+    students: {
+      id: string;
+      name: string;
+      parent_student_relations: { parents: Parent | null }[];
+    } | null;
   };
   const rows: Record<string, unknown>[] = [];
   for (const [classId, g] of byClass) {
-    // 家長 user_id → 這一班裡他的孩子（同一位孩子多筆報名只算一次）
-    const children = new Map<string, Set<string>>();
+    // 家長 user_id → 這一班裡他的孩子 id → 名字（同一位孩子多筆報名只算一次）
+    const children = new Map<string, Map<string, string>>();
     for (const e of data as unknown as Row[]) {
       if (e.class_id !== classId || !e.students) continue;
       const range = { effectiveFrom: e.effective_from, effectiveTo: e.effective_to };
@@ -251,12 +255,16 @@ async function notifyParents(
       for (const { parents: p } of e.students.parent_student_relations ?? []) {
         if (!p?.user_id || p.org_id !== orgId || p.status !== 'active') continue;
         if (p.user_id === actorUserId) continue;
-        children.set(p.user_id, (children.get(p.user_id) ?? new Set()).add(e.students.name));
+        children.set(
+          p.user_id,
+          (children.get(p.user_id) ?? new Map()).set(e.students.id, e.students.name),
+        );
       }
     }
     const first = shortDate([...g.dates].sort()[0]!);
     const count = g.dates.length > 1 ? ` 等 ${g.dates.length} 堂` : '';
-    for (const [userId, names] of children) {
+    for (const [userId, kids] of children) {
+      const names = [...kids.values()];
       rows.push({
         org_id: orgId,
         user_id: userId,
@@ -265,8 +273,9 @@ async function notifyParents(
         dedupe_key: `schedule_change:parent:${eventKey}:${classId}`,
         payload: {
           title: `課務異動：${label}`,
-          body: `${[...names].sort().join('、')} ${g.name} ${first}${count} ${label}`,
-          url: '/parent/schedule',
+          body: `${names.sort().join('、')} ${g.name} ${first}${count} ${label}`,
+          // 只有一個孩子就帶他：點進去先切到這個孩子（#2497）；兩個以上不知道該切誰，維持目前選的
+          url: kids.size === 1 ? `/parent/schedule?child=${[...kids.keys()][0]}` : '/parent/schedule',
           sessionIds: g.sessionIds,
         },
         push_status: 'skipped',
