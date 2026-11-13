@@ -100,20 +100,6 @@ export const DEVIATIONS = [
     reason: '資料：孩子的年級（稿國三、量測的張宇軒國二）',
     source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
   },
-  // R5 2026-10-22（#1866）：帳戶鈕只留頭像，手機桌機一致 —— 稿桌機畫「{名} · 身分」＋箭頭。
-  // 名字與身分在帳戶選單頂端、頭像鈕的 aria-label 也有。鈕本身因此變窄，位置／尺寸／樣式連帶不同
-  ...['缺', '樣式'].map((status) => ({
-    status,
-    a6: '>control:button\\[帳戶：[^\\]]*\\]>text:span\\[[^\\]]*\\]$',
-    reason: '帳戶鈕只留頭像：名字與身分移到帳戶選單頂端',
-    source: `${rule('R5')}「手機頂欄一列」2026-10-22；#1866`,
-  })),
-  ...['位置', '尺寸', '樣式'].map((status) => ({
-    status,
-    a6: '^>landmark:banner\\[\\]>control:button\\[帳戶：[^\\]]*\\]$',
-    reason: '帳戶鈕只留頭像：鈕變窄，位置與樣式連帶不同',
-    source: `${rule('R5')}「手機頂欄一列」2026-10-22；#1866`,
-  })),
   // 同一條：Logo 22 → 20px（頂欄一列放得下），寬度跟著窄
   {
     status: '尺寸',
@@ -125,40 +111,10 @@ export const DEVIATIONS = [
   {
     status: '樣式',
     a6: '^>landmark:banner\\[\\]>control:link\\[Clessia\\]$',
-    detail: '^fontSize 22px → 20px；lineHeight 22px → 20px(；display block → flex)?$',
-    reason: 'Logo 22 → 20px：頂欄一列放得下',
-    source: `${rule('R5')}「手機頂欄一列」2026-10-22；#1866`,
-  },
-  {
-    // R5 2026-10-16（#1683）：通知中心從「更多」移到頂欄鈴鐺，三個角色都有（A6 沒有）
-    status: '多',
-    app: '^>landmark:banner\\[\\]>control:link\\[通知[^\\]]*\\]$',
-    reason: '頂欄通知鈴鐺：通知中心的入口（A6 沒有）',
-    source: `${rule('R5')}「頂欄通知鈴鐺」2026-10-16；#1683`,
-  },
-  {
-    // 同一條：通知中心從「更多」移到頂欄鈴鐺，「更多」裡不再有它
-    status: '缺',
-    pop: 'more',
-    a6: '>landmark:popover\\[\\]>control:link\\[通知中心\\]$',
-    reason: '通知中心從「更多」移到頂欄鈴鐺',
-    source: `${rule('R5')}「頂欄通知鈴鐺」2026-10-16；#1683`,
-  },
-  // R5 2026-11-02：切換身分列出全部身分，目前的打勾標「使用中」（A6 只列其他身分）。
-  // 多了一列 → 其他身分的列往下推、文案配錯位、目前那列字重 600
-  ...['文案', '位置', '樣式'].map((status) => ({
-    status,
-    pop: 'acct',
-    a6: '>landmark:popover\\[帳戶\\]>.*control:button\\[(管理員|任課老師|家長)\\]$',
-    reason: '切換身分也列目前身分：多一列，其他身分的位置、文案配對與字重連帶不同',
-    source: `${rule('R5')}「帳戶選單『切換身分』列出全部身分」2026-11-02`,
-  })),
-  {
-    status: '多',
-    pop: 'acct',
-    app: '>control:button\\[[^\\]]*使用中\\]>text:span\\[使用中\\]$',
-    reason: '切換身分的目前身分標「使用中」（A6 沒有）',
-    source: `${rule('R5')}「帳戶選單『切換身分』列出全部身分」2026-11-02`,
+    // #2495 B2 起稿的手機 Logo 也是 20px，剩下 display／gap：app 字標前多了品牌 mark（flex 排 mark＋字）
+    detail: '^(fontSize 22px → 20px；lineHeight 22px → 20px；)?display block → flex(；rowGap normal → \\d+px；columnGap normal → \\d+px)?$',
+    reason: '字標前多了品牌 mark（Logo 用 flex 排 mark＋字）；手機字級 20 稿已回寫',
+    source: `${rule('R5')}「品牌 mark 進 app 內（三處）」2026-11-12；「手機頂欄一列」2026-10-22；#1866`,
   },
   // 稿的「新」標記（span.new）是設計說明，不是畫面內容（a6.js 的 ddLabel 也剔掉它）。配對時已經拿掉它比
   // （extract 的 alt，#1314 10-30），剩下的就是「新」那顆小標本身、以及只差一個「新」的文案
@@ -176,30 +132,14 @@ export const DEVIATIONS = [
     source: '.design-explorations a6.js ddLabel（剔除 .new）',
   },
   {
-    // 手機頂欄一列（稿 ≤860 是兩列）：搜尋鈕跟著上移到第一列、帳戶鈕只剩頭像，位置不同
-    status: '位置',
-    widths: [360],
-    a6: '^>landmark:banner\\[\\]>control:button\\[搜尋\\]$',
-    detail: '^相對「banner」 ',
-    reason: '手機頂欄一列：搜尋鈕在第一列',
-    source: `${rule('R5')}「手機頂欄一列」2026-10-22；#1866`,
-  },
-  {
-    // 同一條：老師頂欄導覽的「通知」一起拿掉（同一個功能不留兩個入口）
-    status: '缺',
-    a6: '>landmark:navigation\\[主要導覽\\]>control:link\\[通知\\]$',
-    reason: '頂欄通知鈴鐺取代導覽的「通知」：同一個功能不留兩個入口',
-    source: `${rule('R5')}「頂欄通知鈴鐺」2026-10-16；#1683`,
-  },
-  {
-    // R5 2026-10-16（#1701）：手機「更多」改兩欄流排（分組各自往下長），不是稿的一列兩組對齊 ——
-    // 管理員項目比稿多，360×640 會被切掉。分組在欄裡的位置跟稿不同是刻意的
+    // R5 2026-10-16（#1701）：手機「更多」兩欄流排已回寫稿（#2495 B2）；app 的項目比稿多（R2 收進來的公開申請、到班打卡），
+    // 左欄比較高，分組落在哪一欄跟稿不同
     status: '位置',
     widths: [360],
     pop: 'more',
     detail: '^相對「popover」 ',
-    reason: '手機「更多」兩欄流排：分組各自往下長，位置跟稿的整列對齊不同',
-    source: `${rule('R5')}「手機「更多」選單排法與捲動」2026-10-16；#1701`,
+    reason: '手機「更多」兩欄流排（稿已回寫），app 項目比稿多（R2），分組落在哪一欄不同',
+    source: `${rule('R5')}「手機「更多」選單排法與捲動」2026-10-16；#1701；${rule('R2')}`,
   },
   {
     // R5 2026-10-16：公開頁入口不加「QR 到班打卡」—— 打卡改成先登入行政帳號、移到內部頁面（#1127）
@@ -393,7 +333,7 @@ export const DATA_DEPENDENT = [
     reason: '身分數隨帳號：稿的示範使用者有 3 個身分，seed 的多身分帳號最多 2 個',
   },
   {
-    a6: '^pop\\[acct\\]>.*(text:p\\[切換身分\\]|control:button\\[(管理員|任課老師|家長)\\])',
+    a6: '^pop\\[acct\\]>.*(text:p\\[切換身分\\]|control:button\\[(管理員|任課老師|家長)(使用中)?\\])',
     reason: '「切換身分」只在多身分帳號出現；稿的示範使用者有 3 個身分（app `hasOtherRoles()`）',
   },
 ];
@@ -3834,7 +3774,7 @@ export const PAGES = {
       // 數字的位數、狀態標籤的長度、帳單列數隨資料 →「元」、dt 寬、副行、已繳清章頭、餐費連結跟著移
       ...['位置', '尺寸'].map((status) => ({
         status,
-        a6: '(text:dd\\[#\\](~2)?>text:small\\[元\\]|text:dt\\[本學期已繳\\]|text:span\\[繳費期限#\\]|heading:h2\\[已繳清\\]|control:link\\[看餐費紀錄\\])$',
+        a6: '(text:dd\\[#\\](~2)?>text:small\\[元\\]|text:dt\\[本學期已繳\\]|text:span\\[繳費期限#\\]|heading:h2\\[已繳清\\]|text:span\\[#張\\]~2|control:link\\[看餐費紀錄\\])$',
         reason: '資料：金額位數、狀態標籤長度、帳單列數',
         source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924、#1968`,
       })),
