@@ -52,7 +52,8 @@ export async function notifyLeaveForTeachers(
           // 同一張假可以延長好幾次，每次只通知新增的堂：鍵帶這一批最早那堂，
           // 重送同一批仍然去重，延長（新的堂）就是新的一則
           dedupeKey: `leave:${input.leaveId}:${classId}:${firstSessionId(g)}`,
-          title: '學生請假',
+          // 標題就寫是誰、哪一班、哪天：老師在通知列表一眼看得到，不用點開（#2501）
+          title: `${input.studentName}（${g.name}）請假 ${first}${count}`,
           body: `${input.studentName} 請假：${g.name} ${first}${count}`,
           url: '/teacher/schedule',
         }));

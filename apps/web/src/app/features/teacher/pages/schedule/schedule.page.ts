@@ -236,6 +236,28 @@ export class SchedulePage implements OnInit {
    * 開場句與副行（#1314 TS2）。只在「已載入的這週含今天」時成立 ——
    * 看別週、載入中、錯誤態都不拿課表說今天的事（回 null，模板退回頁名＋週區間）。
    */
+  /**
+   * 今天之後的第一堂（#2501：今天沒課時色面寫它）。先在已載入的這週找；這週沒有才多查**下一週**一次
+   * （`nextWeekFirst`）。只往後一週：老師打得到的課堂列表（`/attendance/sessions`）查一段就替那段補建
+   * 出勤事件，往後查越遠寫越多。兩週內都沒有＝null
+   */
+  private readonly nextWeekFirst = signal<EventSessionSummary | null | undefined>(undefined);
+  protected readonly upcoming = computed(() => {
+    const later = this.sessions()
+      .filter((s) => s.eventDate > this.todayStr && s.status !== 'cancelled')
+      .sort(
+        (a, b) =>
+          a.eventDate.localeCompare(b.eventDate) ||
+          (a.startTime ?? '99:99').localeCompare(b.startTime ?? '99:99'),
+      )[0];
+    return later ?? this.nextWeekFirst();
+  });
+
+  /** 今天有課（含停課）—— 色面的「看那天的課」只在今天完全沒課時給 */
+  protected readonly hasToday = computed(
+    () => (this.sessionsByDay().get(this.todayStr)?.length ?? 0) > 0,
+  );
+
   protected readonly opener = computed(() => {
     const today = this.sessionsByDay().get(this.todayStr);
     if (this.loading() || this.loadError() || !today) return null;
@@ -254,7 +276,7 @@ export class SchedulePage implements OnInit {
       ? `現在：${live.className}${live.campusName ? `（${live.campusName}）` : ''}上課中 · `
       : '';
     return {
-      title: openerLine(today, this.now),
+      title: openerLine(today, this.now, today.length === 0 ? this.upcoming() : undefined),
       sub: `${liveText}今天 ${counted(today)} 堂 · 本週 ${counted(this.sessions())} 堂`,
     };
   });
@@ -431,6 +453,7 @@ export class SchedulePage implements OnInit {
         next: (response) => {
           this.sessions.set(response.data);
           this.loading.set(false);
+          this.lookAheadIfNeeded(dateFrom, dateTo);
           if (this.pendingWeekStep) {
             const m = stepMotion(this.pendingWeekStep);
             this.contentMotion.set(m);
@@ -445,6 +468,43 @@ export class SchedulePage implements OnInit {
           this.loading.set(false);
         },
       });
+  }
+
+  /** 今天在這週、今天沒課、這週後面也沒有 → 查一次下一週（只查一次） */
+  private lookAheadIfNeeded(dateFrom: string, dateTo: string): void {
+    const todayInWeek = dateFrom <= this.todayStr && this.todayStr <= dateTo;
+    if (!todayInWeek || this.nextWeekFirst() !== undefined) return;
+    const todayHas = this.sessions().some(
+      (s) => s.eventDate === this.todayStr && s.status !== 'cancelled',
+    );
+    if (todayHas || this.upcoming()) return;
+    const start = addWeeks(this.currentWeekStart(), 1);
+    this.attendanceService
+      .sessions({
+        dateFrom: format(start, 'yyyy-MM-dd'),
+        dateTo: format(endOfWeek(start, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+      })
+      .subscribe({
+        next: (res) =>
+          this.nextWeekFirst.set(
+            res.data.find((s) => s.status !== 'cancelled' && s.eventDate > this.todayStr) ?? null,
+          ),
+        // 查不到就維持「今天沒有你的課」，不猜
+        error: () => undefined,
+      });
+  }
+
+  /** 色面「看那天的課」：同一週就換日，別週就換到那週再選那天 */
+  protected goToDay(date: string): void {
+    const start = startOfWeek(parseISO(date), { weekStartsOn: 1 });
+    if (start.getTime() === this.currentWeekStart().getTime()) {
+      this.selectDay(date);
+      return;
+    }
+    this.pendingWeekStep = date > this.selectedDate() ? 'forward' : 'back';
+    this.currentWeekStart.set(start);
+    this.selectedDate.set(date);
+    this.loadSessions();
   }
 
   protected isTeacherLed(): boolean {
