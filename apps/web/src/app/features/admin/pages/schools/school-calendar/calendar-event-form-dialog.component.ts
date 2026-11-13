@@ -51,6 +51,7 @@ export interface CalendarEventFormResult {
       class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(520px,calc(100%-32px))] overflow-y-auto overscroll-contain rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-(--sheet-bg)"
       role="dialog"
       (click)="onBackdrop($event)"
+      (cancel)="onCancel($event)"
       (close)="onClosed()"
     >
       @if (isOpen()) {
@@ -228,8 +229,15 @@ export class CalendarEventFormDialogComponent {
     afterNextRender(() => this.dialog().nativeElement.showModal(), { injector: this.injector });
   }
 
+  /** 送出中不關（Esc、背景、✕、取消都擋）：不然存好的那筆回來時沒人接，列表少一筆 */
   close(): void {
+    if (this.loading()) return;
     this.dialog().nativeElement.close();
+  }
+
+  /** Esc：瀏覽器自己關 dialog，不經 close()，要在 cancel 事件擋 */
+  protected onCancel(event: Event): void {
+    if (this.loading()) event.preventDefault();
   }
 
   protected onBackdrop(event: MouseEvent): void {
