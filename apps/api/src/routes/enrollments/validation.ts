@@ -90,6 +90,27 @@ export function findClassInScope(
   ).maybeSingle();
 }
 
+/**
+ * 查一筆報名，**班在範圍外 → 跟不存在一樣**（#2493 W1）。改、改狀態、刪都先過這裡 ——
+ * 原本三支只看 org，受限管理員改得到別校報名的議價、退得掉別校學生、刪得掉別校報名。
+ */
+export function findEnrollmentInScope(
+  supabase: SupabaseClient,
+  orgId: string,
+  enrollmentId: string,
+  scope: CampusScope,
+) {
+  return applyCampusFilter(
+    supabase
+      .from('enrollments')
+      .select('id, classes!inner(campus_id)')
+      .eq('id', enrollmentId)
+      .eq('org_id', orgId) as unknown as ClassLookup,
+    'classes.campus_id',
+    scope,
+  ).maybeSingle();
+}
+
 export async function checkEnrollmentPreconditions(
   input: EnrollmentPreconditionInput,
 ): Promise<EnrollmentPreconditionResult> {
