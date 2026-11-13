@@ -401,6 +401,12 @@ app.openapi(
       rows = rows.filter((invoice) => dueStateOn(invoice.dueDate, today) === params.dueState);
     }
 
+    // 逾期依到期日升冪（＝逾期天數多→少）整份排好再切頁（#2447）：最該先追的在第 1 頁，
+    // 不是只在頁內排（那樣最久的會落在最後一頁）。sort 是穩定的，同到期日沿用 DB 的開立日新到舊、再 id
+    if (overdue || params.dueState === 'overdue') {
+      rows.sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''));
+    }
+
     const paged = sliceDerivedPage(rows, page, pageSize);
 
     return c.json({ data: paged.rows, meta: { total: paged.total, page, pageSize } }, 200);

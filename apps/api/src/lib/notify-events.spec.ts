@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
-import { notifyNewApplication } from './notify-events';
+import { notifyNewApplication, notifyRenewalRequest } from './notify-events';
 
 /**
  * #1693 各事件的排入點。替身真的套條件（`createMultiOrgDb`）：拿掉 org 或權限條件，
@@ -157,5 +157,56 @@ describe('notifyNewApplication（公開表單的申請 → 分校範圍＋manage
       }),
     ).resolves.toBeUndefined();
     expect(log).toHaveBeenCalledWith(expect.stringContaining('[notify]'), 'db down');
+  });
+});
+
+describe('notifyRenewalRequest（#1122 續課異動 → 那個班的分校＋manage_students 的管理員）', () => {
+  const seed = () =>
+    createMultiOrgDb({
+      staff: [
+        { id: 's-c1', user_id: 'u-c1', org_id: A, status: 'active' },
+        { id: 's-c2', user_id: 'u-c2', org_id: A, status: 'active' },
+        { id: 's-noperm', user_id: 'u-noperm', org_id: A, status: 'active' },
+        { id: 's-fin', user_id: 'u-fin', org_id: A, status: 'active' },
+      ],
+      user_roles: [
+        { user_id: 'u-c1', role: 'admin', permissions: ['manage_students'] },
+        { user_id: 'u-c2', role: 'admin', permissions: ['manage_students'] },
+        // 全分校但沒有 manage_students（處理入口在申請頁，進不去）
+        { user_id: 'u-noperm', role: 'admin', permissions: ['all_campuses'] },
+        // 同分校、只有 manage_finance：擋的是開單，但處理入口不是他的（Q6 (a)）
+        { user_id: 'u-fin', role: 'admin', permissions: ['manage_finance'] },
+      ],
+      staff_campuses: [
+        { staff_id: 's-c1', campus_id: 'c1' },
+        { staff_id: 's-c2', campus_id: 'c2' },
+        { staff_id: 's-fin', campus_id: 'c1' },
+      ],
+      notifications: [],
+    });
+
+  it('只發給該班分校、有 manage_students 的管理員；去重鍵、內容、連結', async () => {
+    const db = seed();
+    await notifyRenewalRequest(db.client as SupabaseClient, {
+      orgId: A,
+      requestId: 'rr-1',
+      studentName: '王小明',
+      campusId: 'c1',
+      className: '國二數學 A',
+    });
+    expect(db.rows('notifications')).toEqual([
+      expect.objectContaining({
+        org_id: A,
+        user_id: 'u-c1',
+        role: 'admin',
+        kind: 'renewal_request_received',
+        dedupe_key: 'renewal_request:rr-1',
+        payload: {
+          title: '新的續課異動申請',
+          body: '王小明 申請異動 國二數學 A，下期自動開單已暫停',
+          url: '/admin/applications',
+        },
+      }),
+    ]);
   });
 });

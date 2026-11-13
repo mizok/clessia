@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
-import { createMultiOrgDb } from '../test-utils/multi-org-db';
+import { createMultiOrgDb, hooked, type Hook } from '../test-utils/multi-org-db';
 import parentRequestsRoute, { SELECT } from './parent-requests';
 
 /**
@@ -71,8 +71,32 @@ const trial = (n: number, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
-function seed(extraEnrollments: Record<string, unknown>[] = []) {
+/** #1122 續課異動：目標是那筆報名的班（替身不做 embed，直接放成正式回傳的巢狀形狀） */
+const renewal = (n: number, extra: Record<string, unknown> = {}) => ({
+  id: id(n),
+  org_id: ORG,
+  student_id: 'stu-1',
+  status: 'pending',
+  kind: 'transfer',
+  detail: '想改到週六的班',
+  note: null,
+  resolution_note: null,
+  requested_by: 'user-parent-1',
+  created_at: `2026-10-0${n % 9}T12:00:00Z`,
+  students: { name: '林小華' },
+  requester: REQUESTER,
+  enrollments: {
+    classes: { name: '國二數學 A', campus_id: CAMPUS_A, campuses: { name: '信義分校' } },
+  },
+  ...extra,
+});
+
+function seed(
+  extraEnrollments: Record<string, unknown>[] = [],
+  renewals: Record<string, unknown>[] = [],
+) {
   return createMultiOrgDb({
+    renewal_requests: renewals,
     enrollment_requests: [
       enrollment(1),
       enrollment(2, { status: 'waitlist' }),
@@ -107,11 +131,12 @@ function call(
   path: string,
   init: RequestInit = {},
   scope: readonly string[] | null = null,
+  hook?: Hook,
 ) {
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
-    set('supabase', db.client);
+    set('supabase', hook ? hooked(db.client, hook) : db.client);
     set('orgId', ORG);
     set('userId', 'admin-1');
     set('roles', ['admin']);
@@ -154,6 +179,9 @@ describe('GET /api/parent-requests', () => {
       scheduledDate: null,
       scheduledStartTime: null,
       scheduledEndTime: null,
+      renewalKind: null,
+      detail: null,
+      resolutionNote: null,
     });
     expect(body.data.find((a: { id: string }) => a.id === id(6))).toMatchObject({
       kind: 'trial',
@@ -482,5 +510,120 @@ describe('PATCH /api/parent-requests/:kind/:id', () => {
         scheduledEndTime: null,
       });
     });
+  });
+});
+
+describe('續課異動（#1122）', () => {
+  const rows = () => [
+    renewal(11),
+    renewal(12, { status: 'resolved' }),
+    renewal(13, { status: 'withdrawn' }),
+    renewal(14, {
+      student_id: 'stu-2',
+      enrollments: { classes: { name: '國小英文', campus_id: CAMPUS_B, campuses: null } },
+    }),
+  ];
+
+  it('?kind=renewal：待處理只有 pending；已完成＝resolved、已取消＝withdrawn；帶類型與想怎麼改', async () => {
+    const db = seed([], rows());
+    const pending = (await (await call(db, '/?kind=renewal')).json()) as any;
+    expect(pending.data.map((a: { id: string }) => a.id)).toEqual([id(14), id(11)]);
+    expect(pending.data.find((a: { id: string }) => a.id === id(11))).toMatchObject({
+      kind: 'renewal',
+      renewalKind: 'transfer',
+      detail: '想改到週六的班',
+      target: { name: '國二數學 A', campusName: '信義分校' },
+      parent: { name: '林媽媽' },
+    });
+    expect(await ids(await call(db, '/?kind=renewal&group=done'))).toEqual([id(12)]);
+    expect(await ids(await call(db, '/?kind=renewal&group=cancelled'))).toEqual([id(13)]);
+  });
+
+  it('不帶 kind（申請頁預設的呼叫）也要含續課異動（B14）', async () => {
+    const all = await ids(await call(seed([], rows()), '/'));
+    expect(all).toEqual(expect.arrayContaining([id(11), id(14)]));
+  });
+
+  it('分校受限：看那筆報名的班的分校', async () => {
+    expect(await ids(await call(seed([], rows()), '/?kind=renewal', {}, [CAMPUS_A]))).toEqual([
+      id(11),
+    ]);
+  });
+
+  const patch = (
+    db: ReturnType<typeof seed>,
+    n: number,
+    body: unknown,
+    scope: string[] | null = null,
+  ) =>
+    call(
+      db,
+      `/renewal/${id(n)}`,
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      scope,
+    );
+
+  it('標為已處理：寫結案者、時間、備註；稽核記在學生名下', async () => {
+    const db = seed([], rows());
+    const res = await patch(db, 11, { status: 'resolved', resolutionNote: '已電話確認，改週六班' });
+    expect(res.status).toBe(200);
+    const row = db.rows('renewal_requests').find((r) => r['id'] === id(11))!;
+    expect(row).toMatchObject({
+      status: 'resolved',
+      resolved_by: 'admin-1',
+      resolution_note: '已電話確認，改週六班',
+    });
+    expect(row['resolved_at']).toBeTruthy();
+    expect(db.rows('audit_logs')[0]).toMatchObject({
+      resource_type: 'student',
+      resource_id: 'stu-1',
+    });
+    // 記在學生名下，所以要帶是哪一筆申請（B13）
+    expect(JSON.stringify(db.rows('audit_logs')[0])).toContain(id(11));
+  });
+
+  it('只能標為已處理（400）；已撤回或已結案的 409；範圍外 404', async () => {
+    const db = seed([], rows());
+    expect((await patch(db, 11, { status: 'withdrawn' })).status).toBe(400);
+    expect((await patch(db, 13, { status: 'resolved' })).status).toBe(409);
+    expect((await patch(db, 12, { status: 'resolved' })).status).toBe(409);
+    expect((await patch(db, 14, { status: 'resolved' }, [CAMPUS_A])).status).toBe(404);
+    expect(db.rows('renewal_requests').find((r) => r['id'] === id(13))!['status']).toBe(
+      'withdrawn',
+    );
+  });
+
+  it('讀完之後、寫之前家長撤回了（插隊）→ 409，不蓋成 resolved', async () => {
+    const db = seed([], rows());
+    let raced = false;
+    const res = await call(
+      db,
+      `/renewal/${id(11)}`,
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: 'resolved' }),
+      },
+      null,
+      async (table, ops) => {
+        if (table !== 'renewal_requests' || !ops.includes('update') || raced) return undefined;
+        raced = true;
+        await (db.client as any)
+          .from('renewal_requests')
+          .update({ status: 'withdrawn' })
+          .eq('id', id(11));
+        return undefined;
+      },
+    );
+    expect(raced).toBe(true);
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { code: string }).code).toBe('NOT_PENDING');
+    expect(db.rows('renewal_requests').find((r) => r['id'] === id(11))!['status']).toBe(
+      'withdrawn',
+    );
   });
 });

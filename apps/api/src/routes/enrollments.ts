@@ -101,6 +101,11 @@ const EnrollmentSchema = z
     ),
     /** 各時段老師去重、以「、」連；沒有指派 → null */
     teacherName: z.string().nullable(),
+    /**
+     * 只在 `hasInvoice=false`（未開單名單）時帶：這位學生有處理中的續課異動（#1122）＝暫停自動開單。
+     * 名單照樣列出、標示，批次開單預設不勾（gate Q4 (a)：手動開單不擋）
+     */
+    renewalPending: z.boolean().optional(),
   })
   .openapi('Enrollment');
 
@@ -540,9 +545,21 @@ app.openapi(
     if (error) return c.json({ error: error.message }, 500);
 
     const total = count ?? 0;
+    let rows = (data ?? []).map(toEnrollmentResponse);
+    if (hasInvoice === false && rows.length > 0) {
+      const { data: pending, error: pendingError } = await supabase
+        .from('renewal_requests')
+        .select('student_id')
+        .eq('org_id', orgId)
+        .eq('status', 'pending')
+        .in('student_id', [...new Set(rows.map((r) => r.studentId))]);
+      if (pendingError) return c.json({ error: pendingError.message }, 500);
+      const paused = new Set((pending ?? []).map((r) => (r as { student_id: string }).student_id));
+      rows = rows.map((r) => ({ ...r, renewalPending: paused.has(r.studentId) }));
+    }
     return c.json(
       {
-        data: (data ?? []).map(toEnrollmentResponse),
+        data: rows,
         meta: { total, page, pageSize, totalPages: Math.ceil(total / pageSize) },
       },
       200,

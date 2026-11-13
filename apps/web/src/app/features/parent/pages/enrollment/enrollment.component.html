@@ -65,7 +65,12 @@
               >1</span
             >幫哪個孩子報名
           </legend>
-          @if (kids().length === 1) {
+          @if (kidsPending()) {
+            <!-- #2441：孩子清單回來之前佔一列孩子鈕的高度，下面幾段不被往下推 -->
+            <div class="flex flex-wrap gap-2" aria-hidden="true" data-testid="kids-skeleton">
+              <span class="skeleton inline-block h-10 w-28 rounded-md max-wide:h-11"></span>
+            </div>
+          } @else if (kids().length === 1) {
             <p class="m-0 text-base font-semibold">
               {{ kids()[0].name }}（{{ gradeLabel(kids()[0].grade) }}）
             </p>
@@ -111,58 +116,84 @@
               (input)="q.set($any($event.target).value)"
             />
           </label>
-          <div>
-            @for (g of groups(); track g.subject) {
-              <h3 class="mt-4 mb-2 text-[13px] font-bold tracking-[0.04em] text-zinc-800">
-                {{ g.subject }}
-              </h3>
-              @for (c of g.items; track c.classId) {
-                @let why = busy(c);
-                <label
-                  class="grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-md border border-solid border-zinc-300 bg-white px-4 py-3 hover:border-zinc-500 has-[input:checked]:border-zinc-900 has-[input:checked]:shadow-[inset_0_0_0_1px_var(--zinc-900)] has-[input:disabled]:cursor-default has-[input:disabled]:bg-zinc-50 has-[input:disabled]:text-zinc-600 max-wide:grid-cols-[auto_minmax(0,1fr)] [&+&]:mt-2"
-                >
-                  <input
-                    type="radio"
-                    name="cid"
-                    class="m-0 size-[18px] accent-zinc-900"
-                    [value]="c.classId"
-                    [checked]="cid() === c.classId"
-                    [disabled]="!!why"
-                    (change)="cid.set(c.classId)"
-                  />
-                  <span class="text-base font-semibold">{{ c.className }}</span>
+          <div appHeightFollow appHeightFollowGrow>
+            <div>
+              @if (catalogPending()) {
+                <!--
+                  #2441：目錄第一次回來之前畫三列同結構的骨架 —— 原本這裡先寫「目前沒有…」（載入中講成沒有），
+                  資料回來才撐開，把下面幾段與送出鈕往下推。換孩子不回到骨架（同 #2435 bandPending）。
+                -->
+                <div aria-hidden="true" data-testid="catalog-skeleton">
                   <span
-                    class="col-start-3 row-span-2 row-start-1 text-right text-md tabular-nums max-wide:col-start-2 max-wide:row-span-1 max-wide:row-start-auto max-wide:text-left"
-                  >
-                    @if (feeText(c); as fee) {
-                      <b class="block text-base text-zinc-900 max-wide:mr-2 max-wide:inline">{{
-                        fee
-                      }}</b>
-                    }
-                    @if (why) {
-                      <span>{{ why }}</span>
-                    } @else if (c.remainingSeats <= 0) {
-                      <span class="font-semibold text-error-700">已額滿 · 可登記候補</span>
-                    } @else {
-                      <span [class]="c.remainingSeats <= 3 ? 'font-semibold text-error-700' : ''"
-                        >剩 {{ c.remainingSeats }} 位</span
+                    class="skeleton mt-4 mb-2 block h-[1.4em] w-[8ch] rounded-sm text-[13px]"
+                  ></span>
+                  @for (i of [1, 2, 3]; track i) {
+                    <div
+                      class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-md border border-solid border-zinc-300 bg-white px-4 py-3 [&+&]:mt-2"
+                    >
+                      <span class="skeleton size-[18px] rounded-sm"></span>
+                      <span class="skeleton block h-[1.5em] w-[12ch] rounded-sm text-base"></span>
+                      <span
+                        class="skeleton col-start-2 block h-[1.5em] w-[20ch] rounded-sm text-md"
+                      ></span>
+                    </div>
+                  }
+                </div>
+              } @else {
+                @for (g of groups(); track g.subject) {
+                  <h3 class="mt-4 mb-2 text-[13px] font-bold tracking-[0.04em] text-zinc-800">
+                    {{ g.subject }}
+                  </h3>
+                  @for (c of g.items; track c.classId) {
+                    @let why = busy(c);
+                    <label
+                      class="grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-md border border-solid border-zinc-300 bg-white px-4 py-3 hover:border-zinc-500 has-[input:checked]:border-zinc-900 has-[input:checked]:shadow-[inset_0_0_0_1px_var(--zinc-900)] has-[input:disabled]:cursor-default has-[input:disabled]:bg-zinc-50 has-[input:disabled]:text-zinc-600 max-wide:grid-cols-[auto_minmax(0,1fr)] [&+&]:mt-2"
+                    >
+                      <input
+                        type="radio"
+                        name="cid"
+                        class="m-0 size-[18px] accent-zinc-900"
+                        [value]="c.classId"
+                        [checked]="cid() === c.classId"
+                        [disabled]="!!why"
+                        (change)="cid.set(c.classId)"
+                      />
+                      <span class="text-base font-semibold">{{ c.className }}</span>
+                      <span
+                        class="col-start-3 row-span-2 row-start-1 text-right text-md tabular-nums max-wide:col-start-2 max-wide:row-span-1 max-wide:row-start-auto max-wide:text-left"
                       >
+                        @if (feeText(c); as fee) {
+                          <b class="block text-base text-zinc-900 max-wide:mr-2 max-wide:inline">{{
+                            fee
+                          }}</b>
+                        }
+                        @if (why) {
+                          <span>{{ why }}</span>
+                        } @else if (c.remainingSeats <= 0) {
+                          <span class="font-semibold text-error-700">已額滿 · 可登記候補</span>
+                        } @else {
+                          <span
+                            [class]="c.remainingSeats <= 3 ? 'font-semibold text-error-700' : ''"
+                            >剩 {{ c.remainingSeats }} 位</span
+                          >
+                        }
+                      </span>
+                      <span class="col-start-2 text-md text-zinc-600 tabular-nums">{{
+                        slotText(c)
+                      }}</span>
+                    </label>
+                  }
+                } @empty {
+                  <p class="m-0 text-md text-zinc-600">
+                    @if (q().trim()) {
+                      沒有符合「{{ q().trim() }}」的開課班。
+                    } @else {
+                      目前沒有開放報名的開課班。
                     }
-                  </span>
-                  <span class="col-start-2 text-md text-zinc-600 tabular-nums">{{
-                    slotText(c)
-                  }}</span>
-                </label>
-              }
-            } @empty {
-              <p class="m-0 text-md text-zinc-600">
-                @if (q().trim()) {
-                  沒有符合「{{ q().trim() }}」的開課班。
-                } @else {
-                  目前沒有開放報名的開課班。
+                  </p>
                 }
-              </p>
-            }
+              }
+            </div>
           </div>
           <p class="m-0 text-md text-zinc-600">
             想先看課程介紹、老師、上課地點？到
