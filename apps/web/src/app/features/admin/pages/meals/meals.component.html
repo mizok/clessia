@@ -114,7 +114,66 @@
           ></span
         >
         <span>{{ summary()?.settledCount ?? 0 }} 筆已結算</span>
+        <!-- #1314 ME3（A6 `.sum__acts`）：匯出目前篩選的餐記錄，先開說明面板再按匯出 -->
+        <span class="ml-auto">
+          <button
+            #exportTrigger
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-3 text-md leading-normal font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
+            popovertarget="meals-export"
+            data-testid="meals-export"
+          >
+            <i class="pi pi-download" aria-hidden="true"></i>匯出 CSV
+          </button>
+        </span>
       </p>
+      <div
+        #exportPopover
+        id="meals-export"
+        popover
+        class="overlay-motion overlay-motion--from-bottom-narrow m-0 w-[340px] rounded-lg border border-surface-border bg-white p-0 text-zinc-900 shadow-[0_12px_32px_-8px_rgb(26_22_20/24%)] max-wide:fixed max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:max-h-[calc(100%-48px)] max-wide:w-full max-wide:max-w-none max-wide:overflow-y-auto max-wide:rounded-none max-wide:rounded-t-xl max-wide:border-0 max-wide:bg-(--sheet-bg) max-wide:backdrop:bg-zinc-900/40"
+        aria-labelledby="meals-export-title"
+        (toggle)="placeExport($event, exportTrigger)"
+      >
+        <div class="flex items-center gap-2 pt-4 pr-3 pb-2 pl-5">
+          <h2 id="meals-export-title" class="m-0 text-lg font-bold">匯出餐記錄</h2>
+          <button
+            type="button"
+            class="ml-auto grid size-11 cursor-pointer place-items-center rounded-full border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 wide:size-9"
+            popovertarget="meals-export"
+            popovertargetaction="hide"
+            aria-label="關閉"
+          >
+            <i class="pi pi-times" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div
+          class="grid gap-4 px-5 pt-2 pb-5 max-wide:pb-[calc(var(--sheet-foot-gap)+env(safe-area-inset-bottom,0px))]"
+        >
+          <p class="m-0 text-base leading-[1.6] text-zinc-700">
+            匯出目前篩選的餐記錄（CSV），供對帳用：{{ summary()?.total ?? 0 }} 筆。
+          </p>
+          <div class="flex justify-end gap-2">
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-[1.5] font-semibold text-zinc-900 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+              popovertarget="meals-export"
+              popovertargetaction="hide"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-[1.5] font-semibold text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 max-wide:flex-1 wide:h-9"
+              data-testid="meals-export-go"
+              [attr.aria-disabled]="exporting()"
+              (click)="exportCsv(exportPopover)"
+            >
+              {{ exporting() ? '匯出中…' : '匯出' }}
+            </button>
+          </div>
+        </div>
+      </div>
     } @else {
       <!-- A6 `p.sum`：已結算那一段帶括號；整天都結算了就沒有可勾的，批次鈕不出現 -->
       <p

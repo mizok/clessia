@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
 import { Subject, of, throwError } from 'rxjs';
-import { vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
 import { DialogService } from 'primeng/dynamicdialog';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
@@ -92,6 +92,81 @@ describe('MealsComponent', () => {
     fixture.componentRef.setInput('page', { label: '餐費管理' });
     component = fixture.componentInstance;
     await fixture.whenStable();
+  });
+
+  // #1314 ME3：匯出目前篩選的全部餐記錄（逐頁撈完才下載）
+  describe('區間匯出 CSV（#1314 ME3）', () => {
+    const page = (n: number, count: number, total: number) => ({
+      ...roster(
+        Array.from({ length: count }, (_, i) =>
+          row({ studentId: `s${n}-${i}`, recordId: `m${n}-${i}`, ordered: true }),
+        ),
+      ),
+      meta: { total, chargeableCount: 0, totalAmount: 0, settledCount: 0, page: n, pageSize: 100 },
+    });
+    const popover = () => ({ hidePopover: vi.fn() }) as unknown as HTMLElement;
+    let created: Blob[];
+    beforeEach(() => {
+      created = [];
+      vi.spyOn(URL, 'createObjectURL').mockImplementation((b) => {
+        created.push(b as Blob);
+        return 'blob:x';
+      });
+      vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    });
+    afterEach(() => vi.restoreAllMocks());
+
+    it('有記錄時出「匯出 CSV」；150 筆分兩頁撈（每頁 100），撈完一次下載 150 列', async () => {
+      meals.range.mockReturnValue(of(page(1, 1, 1)));
+      component['switchMode']('range');
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('[data-testid="meals-export"]')
+          ?.textContent,
+      ).toContain('匯出 CSV');
+
+      meals.range.mockReset();
+      meals.range
+        .mockReturnValueOnce(of(page(1, 100, 150)))
+        .mockReturnValueOnce(of(page(2, 50, 150)));
+      const pop = popover();
+      await component['exportCsv'](pop);
+
+      const calls = meals.range.mock.calls.map((c) => c[0] as { page: number; pageSize: number });
+      expect(calls.map((c) => [c.page, c.pageSize])).toEqual([
+        [1, 100],
+        [2, 100],
+      ]);
+      expect(created).toHaveLength(1);
+      // jsdom 的 Blob 沒有 text()
+      const text = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsText(created[0]!);
+      });
+      expect(text.split('\r\n')).toHaveLength(151);
+      expect(pop.hidePopover).toHaveBeenCalled();
+    });
+
+    it('撈到一半失敗：不下載半份、出錯誤提示、面板留著', async () => {
+      meals.range.mockReturnValue(of(page(1, 1, 1)));
+      component['switchMode']('range');
+      await fixture.whenStable();
+      const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+      meals.range.mockReset();
+      meals.range
+        .mockReturnValueOnce(of(page(1, 100, 150)))
+        .mockReturnValueOnce(throwError(() => new Error('boom')));
+      const pop = popover();
+      await component['exportCsv'](pop);
+
+      expect(created).toHaveLength(0);
+      expect(pop.hidePopover).not.toHaveBeenCalled();
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
+      expect(component['exporting']()).toBe(false);
+    });
   });
 
   it('should create', () => {
