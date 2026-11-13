@@ -55,6 +55,16 @@ describe('ReloadVeilComponent', () => {
     expect(q('[role="status"]')?.textContent).toContain('載入中');
   });
 
+  // #2447：人在清單底部翻頁，膠囊在頂端的話看不到 —— 改成 sticky 零高軌道（jsdom 沒有版面，釘 class）
+  it('重抓：「載入中」掛在 sticky、高度 0 的軌道上（貼可視頂端、不推版面）', () => {
+    const { q, step } = setup();
+    step(false);
+    step(true);
+    const rail = q('[role="status"]')?.parentElement;
+    expect(rail?.classList).toContain('sticky');
+    expect(rail?.classList).toContain('h-0');
+  });
+
   // 審核席 #1648：「變淡、不能操作」是這個元件的核心，要有 spec 釘住
   it('重抓：舊內容變淡（40%）而且 inert；完成後兩者都拿掉', () => {
     const { q, step } = setup();

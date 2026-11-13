@@ -696,3 +696,46 @@ describe('GET /api/invoices —— 作廢單', () => {
     expect(body.meta.total).toBe(1);
   });
 });
+
+describe('GET /api/invoices?overdue 整份依到期日排序再分頁（#2447）', () => {
+  // DB 給的是開立日新到舊；這裡讓「開立越晚、到期越晚」—— 照 DB 順序切頁，最久的逾期會落在最後一頁
+  const rows = Array.from({ length: 25 }, (_, i) => {
+    const n = String(i + 1).padStart(2, '0');
+    return {
+      ...invoiceRow({ id: `00000000-0000-0000-0000-0000000000${n}`, amount: 1000, paid: 0 }),
+      issued_at: `2026-03-${String(31 - i).padStart(2, '0')}`,
+      due_date: `2026-01-${String(26 - (i + 1)).padStart(2, '0')}`,
+    };
+  });
+  const dues = async (qs: string) => {
+    const { client } = fakeSupabase(rows as never);
+    const body = (await (await appWith(client).request(`/?${qs}`)).json()) as {
+      data: Array<{ dueDate: string }>;
+      meta: { total: number };
+    };
+    return { dues: body.data.map((r) => r.dueDate), total: body.meta.total };
+  };
+
+  it('第 1 頁第一張是全量最早到期（逾期最久），第 2 頁最後一張最晚', async () => {
+    const p1 = await dues('overdue=true&page=1&pageSize=20');
+    expect(p1.dues[0]).toBe('2026-01-01');
+    expect(p1.dues).toEqual([...p1.dues].sort());
+    expect(p1.total).toBe(25);
+    const p2 = await dues('overdue=true&page=2&pageSize=20');
+    expect(p2.dues).toEqual(['2026-01-21', '2026-01-22', '2026-01-23', '2026-01-24', '2026-01-25']);
+  });
+
+  it('非逾期的推導篩選維持開立日新到舊（不被這個排序波及）', async () => {
+    const { dues: d } = await dues('outstanding=true&page=1&pageSize=3');
+    expect(d).toEqual(['2026-01-25', '2026-01-24', '2026-01-23']); // 輸入順序＝開立日新到舊
+  });
+
+  it('同到期日：沿用開立日新到舊', async () => {
+    const same = rows.slice(0, 3).map((r) => ({ ...r, due_date: '2026-01-10' }));
+    const { client } = fakeSupabase(same as never);
+    const body = (await (await appWith(client).request('/?overdue=true')).json()) as {
+      data: Array<{ issuedAt: string }>;
+    };
+    expect(body.data.map((r) => r.issuedAt)).toEqual(['2026-03-31', '2026-03-30', '2026-03-29']);
+  });
+});
