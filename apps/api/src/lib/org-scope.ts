@@ -47,6 +47,7 @@ export type OrgTable =
   | 'public_applications'
   | 'push_subscriptions'
   | 'receipt_counters'
+  | 'renewal_requests'
   | 'schedule_changes'
   | 'school_exams'
   | 'schools'
