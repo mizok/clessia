@@ -155,7 +155,6 @@
     // A4：其他白色浮層（篩選、⋯）一樣貼著打開它的按鈕；太靠右就往左貼齊
     document.querySelectorAll('[popover].pop').forEach((p) => p.addEventListener('toggle', (e) => {
       if (e.newState !== 'open') return;
-      if (p.id === 'filt' && matchMedia('(max-width: 860px)').matches) { p.removeAttribute('style'); return; } // 手機篩選是貼底抽屜（見下）
       // 同一份選單可能有很多顆開啟鈕（每列一顆 ⋯）：貼著實際被按的那顆
       const b = (invoker[p.id] && invoker[p.id].isConnected ? invoker[p.id] : document.querySelector(`[popovertarget="${p.id}"]`)).getBoundingClientRect();
       const left = Math.max(16, Math.min(b.left, innerWidth - p.offsetWidth - 16));
@@ -272,17 +271,6 @@
     [head, own].forEach((i) => i && i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const a = res.querySelector('a'); if (a) location.href = a.href; } }));
   }
 
-  // R5 11-03「手機的篩選面板：貼底抽屜」（#2495 B3 回寫）：≤860 篩選浮層變貼底抽屜，標題「篩選」、底部「完成」只關閉，
-  // 條件照舊點了立即套用；桌機照舊是貼著按鈕的浮層。ponytail: 「有條件時右上清除」沒畫（量測狀態沒有條件）
-  document.addEventListener('DOMContentLoaded', () => {
-    const filt = document.querySelector('.pop#filt');
-    if (!filt) return;
-    filt.insertAdjacentHTML('afterbegin', '<h2 class="pop__h" id="filt-h">篩選</h2>');
-    if (!filt.querySelector('.ff__foot')) filt.insertAdjacentHTML('beforeend', '<div class="pop__foot"><button class="btn" type="button" popovertarget="filt" popovertargetaction="hide">完成</button></div>');
-    const mq = matchMedia('(max-width: 860px)');
-    const sheet = () => (mq.matches ? (filt.setAttribute('role', 'dialog'), filt.setAttribute('aria-labelledby', 'filt-h')) : (filt.removeAttribute('role'), filt.removeAttribute('aria-labelledby')));
-    sheet(); mq.addEventListener('change', sheet);
-  });
   // R5 10-16「摺疊摘要列同組互斥」（#2495 B3 回寫）：同一個 .colls 一次只開一個（app 用原生 <details name>）
   document.addEventListener('toggle', (e) => {
     const d = e.target;

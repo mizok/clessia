@@ -917,19 +917,10 @@ textarea.acset__in { height: auto; min-height: 96px; padding: var(--space-2) var
  * 灰帶工具列控制項同高（R5 10-23 #1903）：搜尋框、篩選鈕、主鈕、圖示鈕、下拉一律同高同中線 —— 桌機（≥861 且滑鼠）40、手機與觸控 44。
  * dock 只有一顆時（R5 10-23 #2005）：只包住按鈕、靠右浮動。
  * 摺疊摘要列展開內容外圍的灰框（R5 10-22 #1853）：4 → 12。同組互斥在 a6.js。
- * 手機篩選面板（R5 11-03 #2206）：貼底抽屜，標題與「完成」由 a6.js 插入。 */
-.tbar .btn, .tbar .tsearch, .qsel .btn, .qsel select, .qsel .dd, .sx__pickmode { height: 40px; }
+ */
+.tbar__in > .btn, .tbar__act > .btn, .tbar .tsearch, .qsel .btn, .qsel select, .qsel .dd, .sx__pickmode { height: 40px; }
 @media (max-width: 860px), (pointer: coarse) {
-  .tbar .btn, .tbar .tsearch, .qsel .btn, .qsel select, .qsel .dd, .sx__pickmode { height: 44px; }
+  .tbar__in > .btn, .tbar__act > .btn, .tbar .tsearch, .qsel .btn, .qsel select, .qsel .dd, .sx__pickmode { height: 44px; }
 }
 @media (max-width: 860px) { .dock:not(:has(> :nth-child(2))) { left: auto; } }
 .coll__body { margin: 0 var(--space-3) var(--space-3); }
-.pop__h, .pop__foot { display: none; }
-@media (max-width: 860px) {
-  .pop#filt { position: fixed; inset: auto 0 0 0; width: 100%; max-width: none; max-height: calc(100% - 48px); padding: var(--space-4) var(--space-4) calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
-    border: 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0; background: #fff; box-shadow: 0 -12px 32px -8px rgb(26 22 20 / 28%); --pop-from: translateY(100%); }
-  .pop#filt::backdrop { background: rgb(26 22 20 / 40%); }
-  .pop#filt .pop__h { display: block; margin-bottom: var(--space-4); font-size: var(--text-xl); font-weight: var(--font-bold); }
-  .pop#filt .pop__foot { position: sticky; bottom: 0; display: flex; justify-content: flex-end; margin-top: var(--space-5); background: inherit; }
-  .pop#filt .pop__foot .btn, .pop#filt .ff__foot .btn { flex: 1; height: 44px; }
-}
