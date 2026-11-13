@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 
+import type { CampusScope } from './campus-scope';
 import { withTx } from './pg-tx';
 
 /**
@@ -134,6 +135,9 @@ export type EnrollOutcome =
 /**
  * 直接報名三條路用的：一個交易裡鎖班、數名額、寫報名。
  * 名額不夠整批不寫（同原本的行為：先數、超過就 400，一個都不加）。
+ *
+ * `scope`（#2443）：班在範圍外**跟不存在一樣**（`not-found`、什麼都不寫），同核准路徑
+ * `enrollment-approve.ts`。先判範圍再判名額 —— 範圍外的班不回名額數字。
  */
 export async function enrollWithSeatLock(
   pool: Pool,
@@ -141,6 +145,7 @@ export async function enrollWithSeatLock(
     readonly orgId: string;
     readonly classId: string;
     readonly rows: readonly NewEnrollment[];
+    readonly scope: CampusScope;
   },
 ): Promise<EnrollOutcome> {
   return withTx(pool, async (db) => {
@@ -149,6 +154,10 @@ export async function enrollWithSeatLock(
       classId: input.classId,
       studentIds: input.rows.map((r) => r.studentId),
     });
+    if (seats.status === 'not-found') return seats;
+    if (input.scope !== null && !input.scope.includes(seats.campusId)) {
+      return { status: 'not-found' } as const;
+    }
     if (seats.status !== 'ok') return seats;
     return { status: 'done', inserted: await insertEnrollments(db, input) } as const;
   });

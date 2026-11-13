@@ -3,7 +3,7 @@ title: 學生報名
 summary: 管理員直接將學生加入開課班（跳過申請流程），適用現場報名、老生加報、特殊例外。
 category: spec
 status: active
-updated: 2026-10-02
+updated: 2026-11-12
 tags: [specs, admin, enrollment]
 ---
 
@@ -28,8 +28,13 @@ tags: [specs, admin, enrollment]
 3. 設定計費模式 `billing_mode`（現行值與規則見 [[rules/enrollment-rules]] 的「計費模式規則」，這裡不複述）
 4. 設定生效起迄日期
 5. 選擇是否建立繳費單：
-   - **是**：建立繳費單（`invoices`），狀態 `pending`；Enrollment 狀態設為 `pending_payment`
-   - **否**：直接建立 Enrollment，狀態設為 `active`（現場已收款或特殊免費情況）
+   - **是**：Enrollment 建成 `pending_payment`，**同一個交易**開第一期帳單（明細綁 `enrollment_id`），
+     收第一筆款時轉 `active`（[[specs/admin/enrollment/payment-activation]]）。第一期金額跟家長申請核准
+     **共用同一段**（`apps/api/src/lib/enrollment-first-invoice.ts`，#2296）：月繳＝生效起當月、期繳＝涵蓋
+     生效起的繳費期，依生效起～生效迄比例試算；堂數制不按比例、多一列堂數包。同一學生同一班同一天從兩個
+     入口進來，第一期逐欄相同（contract 釘住）。要 `manage_finance`；受限管理員範圍外的班當作不存在。
+     帳單狀態不存欄位，由收款推導（[[rules/enrollment-rules]] §3）
+   - **否**：直接建立 Enrollment，狀態設為 `active`（現場已收款或特殊免費情況）；帳單由月結 run／未開單名單照常接手
 6. 確認 → 系統建立 Enrollment，學生立即進入課堂名單（若 `active`）
 
 ## 報名狀態與轉換條件

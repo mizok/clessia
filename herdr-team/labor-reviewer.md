@@ -994,3 +994,36 @@ G-1B（`auth-google.contract.ts`）還沒開 PR，進來時要完整二讀（保
 15. **共用元件的回傳值改了，要 grep 全部呼叫端怎麼判**：#2391 讓 ConfirmDialog 的 ✕ 從 `false` 變 `undefined`；查 `=== false` 判確認結果的地方是 0 才放行。
 16. **「沒有 form」也要說出來**：form 送出規則只管有 `<form>` 的對話框；沒有 form 的（補課、批次請假、點名面板）送出只靠點鈕，確認 `submit()` 自己擋「送出中」就好。
 17. **使用者點名的單插隊**：在等 verify 的空檔停掉後面的接力、整串重排成一支；正在合的那段不動。
+
+## 11-12 交接（labor-reviewer-20261106-1228 → 下一任，context 長，輪替）
+
+> 只寫知識。手上的單、鏈狀態在交接回報裡，不在這裡。這一任：11-06～11-12，約 60 支（含 1 支 migration 二讀不代合、2 支金額路徑二讀不代合）。
+
+### 一、CI 紅的三種固定形狀（先對號，再決定誰修）
+
+1. **`list-endpoints.contract.ts`「每支都 200」紅**：新的 GET 端點會被自動列舉，path 參數或必填 query 沒有對應值就紅。log 會直接寫 `<path>：path 參數 {id}，PARAMS 表沒有值`。修法是補對應表，不是改端點：`PARAMS['<path> id'] = '{xxx}'`，seed 沒撈過的實體在 `beforeAll` 加 `ids['{xxx}'] = await first('<table>')`；必填 query 進 `REQUIRED`（日期給 `{monthStart}`／`{today}`）。疊單時兩張都要補，第二張先 merge 第一張再補自己的（#2455／#2456）。
+2. **harness「碰 `campus_id` 但沒有接分校預設過濾」**：手寫 `scope.includes(cls.campus_id)` 邏輯對也會紅。慣例是把範圍下在查詢上：`applyCampusFilter(query, 'campus_id', scope)`，範圍外 `maybeSingle()` 自然回 null → 原本的 NOT_FOUND，行為不變；對 supabase builder 直接套會 TS2589，先轉成只含 `in`／`maybeSingle` 的結構型別（#2458 `findClassInScope`）。
+3. **web spec 隨執行順序紅（matchMedia）**：某支 spec `vi.stubGlobal('matchMedia', …)` 沒還原，同 worker 後面的 spec 吃到。修在弄髒的那支：`afterEach(() => vi.unstubAllGlobals())`（#2412、#2461）。
+
+### 二、合併鏈
+
+4. **背景鏈會被記憶體壓力收掉**：Claude Code 在機器吃緊時會收掉閒置 session 的背景指令（通知寫 low on memory），不是指令失敗。收到後**不自行重起**，先回報計畫席，等它說可以再排。重排時**一條鏈依序**：`chain.sh A shaA B shaB …` 一支跑完，背景同時只掛一支等待。
+5. **等前一張的 main verify 要用完整 SHA**：`gh run list --commit <短 SHA>` 查不到東西、迴圈永遠不結束（我打錯一個字元空等了一輪）。用 `git rev-parse` 取 40 碼再查。
+6. **疊單、同檔多張先模擬**：`git merge-tree --write-tree $C refs/tmp/prN` 依合併順序疊 `git commit-tree`，有衝突就先講；全無衝突才排一條鏈（#2461＋五張）。模擬用的 ref 跑完刪掉。
+
+### 三、保留類與親合
+
+7. **「計畫席已讀 diff」要計畫席本人貼在 PR 留言**：PR 內文裡作者寫的那句不算（#2454）；訊息裡說讀過也不算（#2433）。沒有就回一句請它補，背景輪詢 PR 留言出現再排鏈。
+8. **使用者親合的單（migration、金額路徑）只二讀、不代合**：PR 留「無意見／有意見」；作者補修或 merge main 後再驗一次留「意見已補／確認過」，計畫席再請使用者合。merge main 的新 SHA 照疊單規則驗：merge 外無新 commit、diff 只差解衝突處、同一行數字對得上（例：`scope: getCampusScope(c)` main 5 處＋本張 1 處＝6）。
+9. **有意見要指到行**：#2451 抓到「帶 firstInvoice 時 `body.notes` 沒傳進共用 lib、回 201 但備註消失」—— 抽共用函式時，逐欄比對舊呼叫點傳了什麼、新介面收了什麼。
+
+### 四、圖檔與幾何類 PR（logo／icon 四輪）
+
+10. **二進位圖要重跑產生器比位元組**：暫存 worktree 跑 `node tools/app-icon/make.mjs`，`git status --porcelain` 空＝一致。
+11. **maskable 安全區要量**：內容像素離圖心最遠距離 ≤ 寬×0.4，量圈外像素比例；`make.mjs` 的「內容在中央可直接用同一張」前提換圖就會失效（#2429 4.7% 在圈外）。
+12. **SVG 外框 stroke 會外擴**：round-join stroke 寬 w，頂點外擴 w/2；拿 points 的極值 ± w/2 對 viewBox，超出就會被切（#2431 切 5 單位）。縫寬用點到線距離扣 stroke 寬驗。
+
+### 五、雜項
+
+13. **骨架佔位類 PR 的固定反例**：資料「讀取失敗」的分支常被漏掉 —— 骨架條件只看「還沒回來」，失敗時永遠轉（#2459）；「沒有資料」時佔位縮回是已知取捨，看 PR 有沒有寫出來。
+14. **自己動手改別人的 PR**（作者退場、計畫席授權）：暫存 worktree detach 到 head、改、commit、`git push origin HEAD:<分支>`，PR 留言寫新 SHA 與只動了哪幾行，跑完立刻移除 worktree。

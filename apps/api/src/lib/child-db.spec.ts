@@ -5,13 +5,16 @@ import { notifyLeaveStreaks } from './leave-streak';
 import { notifyLeaveForAdmins, notifyLeaveForTeachers } from './notify-leave';
 
 // notifyLeave 的收件人推導是 notify-leave 自己的事（有自己的 spec）；這裡只驗「發不發、發給哪張假」
-vi.mock('./notify-events', () => ({ notifyNewApplication: vi.fn(async () => undefined) }));
+vi.mock('./notify-events', () => ({
+  notifyNewApplication: vi.fn(async () => undefined),
+  notifyRenewalRequest: vi.fn(async () => undefined),
+}));
 vi.mock('./notify-leave', () => ({
   notifyLeaveForTeachers: vi.fn(async () => undefined),
   notifyLeaveForAdmins: vi.fn(async () => undefined),
 }));
 vi.mock('./leave-streak', () => ({ notifyLeaveStreaks: vi.fn(async () => undefined) }));
-import { notifyNewApplication } from './notify-events';
+import { notifyNewApplication, notifyRenewalRequest } from './notify-events';
 import { createChildDb, type ScopedIds } from './child-db';
 
 /** 只實作 `.from().select().in()` 這條鏈，並記下每次呼叫收到的參數。 */
@@ -737,5 +740,58 @@ describe('createChildDb —— notifyRequests', () => {
     expect(await mine.notifyRequests('enrollment', [])).toBe(false);
     expect(await none.notifyRequests('enrollment', ['er-mine'])).toBe(false);
     expect(notifyNewApplication).not.toHaveBeenCalled();
+  });
+});
+
+/** #1122：續課異動的通知是窄能力 —— 只有 scope 內孩子、同 org 的申請才發 */
+describe('createChildDb —— notifyRenewalRequest', () => {
+  const cls = { classes: { name: '國二數學 A', campus_id: 'c1' } };
+  const tables = {
+    renewal_requests: [
+      {
+        id: 'rr-mine',
+        org_id: 'org-1',
+        student_id: 'stu-mine',
+        students: { name: '林小華' },
+        enrollments: cls,
+      },
+      {
+        id: 'rr-other',
+        org_id: 'org-1',
+        student_id: 'stu-other',
+        students: { name: '別人' },
+        enrollments: cls,
+      },
+      {
+        id: 'rr-org2',
+        org_id: 'org-2',
+        student_id: 'stu-mine',
+        students: { name: '林小華' },
+        enrollments: cls,
+      },
+    ],
+  };
+
+  it('自己孩子的申請 → 發，學生名、班、分校由這裡讀', async () => {
+    vi.mocked(notifyRenewalRequest).mockClear();
+    const db = createMultiOrgDb(tables);
+    const childDb = createChildDb(db.client as never, ['stu-mine'], 'org-1');
+    expect(await childDb.notifyRenewalRequest('rr-mine')).toBe(true);
+    expect(notifyRenewalRequest).toHaveBeenCalledWith(db.client, {
+      orgId: 'org-1',
+      requestId: 'rr-mine',
+      studentName: '林小華',
+      campusId: 'c1',
+      className: '國二數學 A',
+    });
+  });
+
+  it('別人孩子的、別的 org 的申請 id → false、不發', async () => {
+    vi.mocked(notifyRenewalRequest).mockClear();
+    const db = createMultiOrgDb(tables);
+    const childDb = createChildDb(db.client as never, ['stu-mine'], 'org-1');
+    expect(await childDb.notifyRenewalRequest('rr-other')).toBe(false);
+    expect(await childDb.notifyRenewalRequest('rr-org2')).toBe(false);
+    expect(notifyRenewalRequest).not.toHaveBeenCalled();
   });
 });

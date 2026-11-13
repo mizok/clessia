@@ -28,6 +28,18 @@ vi.mock('../lib/class-seats', () => ({
       : Promise.resolve({ status: 'done', inserted: [] as unknown[] }),
 }));
 
+/** #2296：建立繳費單那條走 `lib/enrollment-first-invoice.ts`（真 SQL 在 contract 驗），這裡只看路由接線 */
+const firstInvoice = vi.hoisted(() => ({
+  calls: [] as Array<Record<string, unknown>>,
+  outcome: null as null | Record<string, unknown>,
+}));
+vi.mock('../lib/enrollment-first-invoice', () => ({
+  directEnrollWithFirstInvoice: (_pool: unknown, input: Record<string, unknown>) => {
+    firstInvoice.calls.push(input);
+    return Promise.resolve(firstInvoice.outcome);
+  },
+}));
+
 /** NewEnrollment → supabase insert 的 snake_case 形狀（替身寫進假資料、斷言寫入內容用） */
 function seatRowPayload(input: SeatInput, r: NewEnrollment): Record<string, unknown> {
   return {
@@ -184,6 +196,7 @@ interface MockEnrollmentsRouteData {
   readonly schedules?: MockScheduleRow[];
   readonly enrollments?: MockEnrollmentRow[];
   readonly duplicateOnInsert?: Set<string>;
+  readonly permissions?: readonly string[];
 }
 
 function createEnrollmentsTestApp(data: MockEnrollmentsRouteData) {
@@ -197,6 +210,7 @@ function createEnrollmentsTestApp(data: MockEnrollmentsRouteData) {
     context.set('userId', 'user-1');
     // 主題不是分校範圍 —— 宣告成「不受分校限制」；不宣告會走進 getCampusScope 的缺席分支
     context.set('campusScope', null);
+    context.set('permissions', data.permissions ?? []);
     await next();
   });
 
@@ -695,6 +709,7 @@ describe('checkEnrollmentPreconditions', () => {
     });
 
     const result = await checkEnrollmentPreconditions({
+      scope: null,
       supabase: supabase as never,
       orgId,
       classId,
@@ -757,6 +772,7 @@ describe('checkEnrollmentPreconditions', () => {
     });
 
     const result = await checkEnrollmentPreconditions({
+      scope: null,
       supabase: supabase as never,
       orgId,
       classId,
@@ -804,6 +820,7 @@ describe('checkEnrollmentPreconditions', () => {
         ],
       });
       return checkEnrollmentPreconditions({
+        scope: null,
         supabase: supabase as never,
         orgId,
         classId,
@@ -1013,6 +1030,144 @@ describe('POST /api/enrollments route integration', () => {
       code: 'ALREADY_ENROLLED',
       error: '此學生已在此班',
     });
+  });
+});
+
+describe('POST /api/enrollments 的 firstInvoice（#2296 SD9 建立繳費單）', () => {
+  const classId = '11111111-1111-4111-8111-111111111111';
+  const studentId = '33333333-3333-4333-8333-333333333333';
+  const feeTemplateId = '66666666-6666-4666-8666-666666666666';
+  const enrollmentId = '77777777-7777-4777-8777-777777777777';
+  const today = getCurrentTaipeiDateString();
+  const body = {
+    classId,
+    studentId,
+    billingMode: 'monthly',
+    feeTemplateId,
+    effectiveFrom: '2026-10-22',
+    firstInvoice: {},
+  };
+
+  function appWith(permissions: readonly string[] = ['manage_finance']) {
+    return createEnrollmentsTestApp({
+      classes: [{ id: classId, org_id: 'org-1', max_students: null }],
+      // 路由建完會重讀這一列回應；替身裡先放好（真的寫入在 contract 驗）
+      enrollments: [
+        {
+          id: enrollmentId,
+          org_id: 'org-1',
+          class_id: classId,
+          student_id: studentId,
+          status: 'pending_payment',
+          effective_from: '2026-10-22',
+        },
+      ],
+      permissions,
+    });
+  }
+  const post = (app: ReturnType<typeof appWith>, b: Record<string, unknown>) =>
+    app.request('/api/enrollments', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(b),
+    });
+
+  beforeEach(() => {
+    firstInvoice.calls.length = 0;
+    firstInvoice.outcome = {
+      status: 'done',
+      enrollmentId,
+      invoiceId: 'inv-1',
+      invoiceNo: 'INV-001',
+      amount: 1000,
+      dueDate: '2026-11-04',
+    };
+    seatLock.impl = null;
+  });
+
+  it('有財務權限：走共用交易，帶生效迄、台北今天當開帳日、分校範圍；回應多帶 invoice', async () => {
+    const res = await post(appWith(), {
+      ...body,
+      effectiveTo: '2026-12-31',
+      notes: '週三要早退',
+      firstInvoice: { amount: 900, amountNote: '老生' },
+    });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({
+      data: { id: enrollmentId },
+      invoice: { id: 'inv-1', invoiceNo: 'INV-001', amount: 1000, dueDate: '2026-11-04' },
+    });
+    expect(firstInvoice.calls).toEqual([
+      expect.objectContaining({
+        orgId: 'org-1',
+        userId: 'user-1',
+        studentId,
+        classId,
+        scope: null,
+        billingMode: 'monthly',
+        feeTemplateId,
+        effectiveFrom: '2026-10-22',
+        effectiveTo: '2026-12-31',
+        amount: 900,
+        amountNote: '老生',
+        issuedAt: today,
+        dueDate: null,
+        sessionCount: null,
+        notes: '週三要早退',
+      }),
+    ]);
+  });
+
+  it('沒有財務權限 → 403 FINANCE_REQUIRED，不進交易', async () => {
+    const res = await post(appWith([]), body);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: 'FINANCE_REQUIRED' });
+    expect(firstInvoice.calls).toHaveLength(0);
+  });
+
+  it.each([
+    ['status 明給 active', { ...body, status: 'active' }],
+    ['缺費用方案', { ...body, feeTemplateId: undefined }],
+    ['堂數制缺堂數', { ...body, billingMode: 'session_pack' }],
+  ])('%s → 400，不進交易', async (_, b) => {
+    const res = await post(appWith(), b);
+    expect(res.status).toBe(400);
+    expect(firstInvoice.calls).toHaveLength(0);
+  });
+
+  it('繳費期限早於開帳日 → 400 DUE_BEFORE_ISSUE', async () => {
+    const res = await post(appWith(), { ...body, firstInvoice: { dueDate: '2000-01-01' } });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'DUE_BEFORE_ISSUE' });
+  });
+
+  it.each([
+    [{ status: 'not-found' }, 404, 'CLASS_NOT_FOUND'],
+    [{ status: 'over-quota', quota: 1, currentActive: 1 }, 400, 'OVER_QUOTA'],
+    [{ status: 'already-enrolled' }, 409, 'ALREADY_ENROLLED'],
+    [{ status: 'no-billing-period' }, 409, 'NO_BILLING_PERIOD'],
+    [{ status: 'invalid-fee-template' }, 400, 'INVALID_FEE_TEMPLATE'],
+    [{ status: 'amount-note-required', suggested: 1000 }, 400, 'AMOUNT_NOTE_REQUIRED'],
+    [{ status: 'zero-amount' }, 400, 'ZERO_AMOUNT'],
+  ])('交易回 %o → %i %s', async (outcome, status, code) => {
+    firstInvoice.outcome = outcome;
+    const res = await post(appWith(), body);
+    expect(res.status).toBe(status);
+    expect(await res.json()).toMatchObject({ code });
+  });
+
+  it('沒有 firstInvoice（不建立）：不走開帳交易，照舊建 active', async () => {
+    const seen: string[] = [];
+    const app = appWith([]); // 替身 app 會接上自己的 seatLock.impl，要在它之後蓋掉
+    seatLock.impl = (input) => {
+      seen.push(input.rows[0]!.status);
+      return Promise.resolve({ status: 'done', inserted: [{ id: enrollmentId, studentId }] });
+    };
+    const res = await post(app, { ...body, firstInvoice: undefined });
+    expect(res.status).toBe(201);
+    expect(seen).toEqual(['active']);
+    expect(firstInvoice.calls).toHaveLength(0);
+    expect(await res.json()).not.toHaveProperty('invoice');
   });
 });
 
@@ -1672,6 +1827,11 @@ describe('B3 —— 報名的計費 API', () => {
       template?: { amount: number } | null;
       /** 預設 `null`（不受分校限制）—— 只有 #815 那組測試會給值 */
       campusScope?: readonly string[] | null;
+      /** 列表回的報名列（預設空）與 renewal_requests 回的列（#1122） */
+      list?: Array<Record<string, unknown>>;
+      renewals?: Array<Record<string, unknown>>;
+      /** renewal_requests 讀取失敗（D4） */
+      renewalsError?: boolean;
     } = {},
   ) {
     const filters: Array<[string, unknown]> = [];
@@ -1771,8 +1931,18 @@ describe('B3 —— 報名的計費 API', () => {
               ((value: { data: unknown[]; count: number; error: null }) => unknown) | null,
           ) => {
             const data =
-              table === 'classes' ? [{ id: 'class-1', org_id: 'org-1', max_students: null }] : [];
-            return Promise.resolve({ data, count: 0, error: null }).then(onfulfilled ?? undefined);
+              table === 'classes'
+                ? [{ id: 'class-1', org_id: 'org-1', max_students: null }]
+                : table === 'enrollments'
+                  ? (fixture.list ?? [])
+                  : table === 'renewal_requests'
+                    ? (fixture.renewals ?? [])
+                    : [];
+            const error =
+              table === 'renewal_requests' && fixture.renewalsError ? { message: 'boom' } : null;
+            return Promise.resolve({ data, count: 0, error }).then(
+              (onfulfilled ?? undefined) as never,
+            );
           },
         };
         return query;
@@ -1805,6 +1975,44 @@ describe('B3 —— 報名的計費 API', () => {
       expect(filters).toContainEqual(['enrollments.is.invoice_items', null]);
       // #898：作廢單的明細先被篩掉，只剩作廢單的報名才會落進「沒開過帳」
       expect(filters).toContainEqual(['enrollments.is.invoice_items.invoices.voided_at', null]);
+    });
+
+    it('#1122：未開單名單每列帶 renewalPending；查的是本 org、pending、這一頁的學生', async () => {
+      const list = [
+        { id: 'e1', student_id: 'stu-paused', status: 'active', classes: { name: 'A' } },
+        { id: 'e2', student_id: 'stu-ok', status: 'active', classes: { name: 'A' } },
+      ];
+      const { app, filters } = createApp({ list, renewals: [{ student_id: 'stu-paused' }] });
+      const res = await app.request('/api/enrollments?hasInvoice=false');
+      const body = (await res.json()) as { data: Array<{ id: string; renewalPending?: boolean }> };
+      expect(body.data.map((r) => [r.id, r.renewalPending])).toEqual([
+        ['e1', true],
+        ['e2', false],
+      ]);
+      expect(filters).toContainEqual(['renewal_requests.org_id', 'org-1']);
+      expect(filters).toContainEqual(['renewal_requests.status', 'pending']);
+      expect(filters).toContainEqual(['renewal_requests.in.student_id', ['stu-paused', 'stu-ok']]);
+    });
+
+    it('#1122：讀續課異動失敗 → 500（fail-closed，不當成沒有暫停的人，D4）', async () => {
+      const list = [
+        { id: 'e1', student_id: 'stu-paused', status: 'active', classes: { name: 'A' } },
+      ];
+      const { app } = createApp({ list, renewalsError: true });
+      const res = await app.request('/api/enrollments?hasInvoice=false');
+      expect(res.status).toBe(500);
+    });
+
+    it('#1122：其他列表不查也不帶 renewalPending', async () => {
+      const list = [
+        { id: 'e1', student_id: 'stu-paused', status: 'active', classes: { name: 'A' } },
+      ];
+      const { app, filters } = createApp({ list, renewals: [{ student_id: 'stu-paused' }] });
+      const body = (await (await app.request('/api/enrollments')).json()) as {
+        data: Array<Record<string, unknown>>;
+      };
+      expect(body.data[0]).not.toHaveProperty('renewalPending');
+      expect(filters.some(([k]) => k.startsWith('renewal_requests.'))).toBe(false);
     });
 
     it('要「開過帳」時走 inner join，不下 is.null', async () => {

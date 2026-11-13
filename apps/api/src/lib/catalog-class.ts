@@ -1,6 +1,7 @@
 import { z } from '@hono/zod-openapi';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { fetchAllPages } from './fetch-all-pages';
 import { isScheduleCurrentOrUpcoming, scheduleRangeOf } from './schedule-effective';
 import { DbUuidSchema } from './validation';
 
@@ -108,6 +109,9 @@ export function toCatalogClass(row: Row, takenSeats: number, today: string) {
   };
 }
 
+/** 佔名額（同 `lib/class-seats.ts`） */
+const SEATED = ['active', 'pending_payment'];
+
 /**
  * 各班佔名額人數（active＋pending_payment）。**公開目錄顯示的名額與公開申請判定的額滿用同一支**，
  * 不然會出現「目錄說還有位子、送出卻變候補」。`enrollment_requests`／`public_applications` 不佔名額。
@@ -124,8 +128,35 @@ export async function takenSeats(
     .select('class_id')
     .eq('org_id', orgId)
     .in('class_id', [...classIds])
-    .in('status', ['active', 'pending_payment']);
+    .in('status', SEATED);
   for (const row of (data ?? []) as Array<{ class_id: string }>) {
+    taken.set(row.class_id, (taken.get(row.class_id) ?? 0) + 1);
+  }
+  return { taken, error };
+}
+
+/**
+ * 整個 org 各班的佔名額人數 —— 目錄用（#2437 (3)）。**不帶班 id 清單**：開課班一多（兩百多班）
+ * `.in('class_id', …)` 就 414；也分頁撈齊，佔名額的報名破 `max_rows`（1000）時不會被截斷成「還有位子」。
+ * 多數的班不在目錄上也照數，呼叫端只拿目錄上那幾班去查。
+ *
+ * ponytail: O(org 佔名額報名數) 每次呼叫 —— 量大時改成 DB 側聚合（view／RPC）。
+ */
+export async function orgTakenSeats(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<{ taken: Map<string, number>; error: unknown }> {
+  const taken = new Map<string, number>();
+  const { rows, error } = await fetchAllPages((from, to) =>
+    supabase
+      .from('enrollments')
+      .select('class_id')
+      .eq('org_id', orgId)
+      .in('status', SEATED)
+      .order('id')
+      .range(from, to),
+  );
+  for (const row of rows as Array<{ class_id: string }>) {
     taken.set(row.class_id, (taken.get(row.class_id) ?? 0) + 1);
   }
   return { taken, error };
