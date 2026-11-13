@@ -27,7 +27,6 @@
   "GET /api/campuses/:id": "缺口 R2／?2（#2493 第 8 張 campuses）",
   "GET /api/campuses/:id/classrooms": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/checkin-cards/students/:studentId": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "GET /api/class-logs": "缺口 R7（#2493 第 10 張 class-logs）",
   "GET /api/classes": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/classes/:id": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/classes/:id/school-calendar": "舊端點：#2493 盤點範圍 OK，缺契約認領",
