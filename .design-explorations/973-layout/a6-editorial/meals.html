@@ -127,7 +127,7 @@
   const row = (r, i) => {
     const lock = r.state === 'settled', off = !r.ordered;
     return `<div class="ml${off ? ' ml--off' : ''}" data-i="${i}">
-      <div class="ml__who"><a href="student.html">${esc(r.name)}</a>${st.date === T && leaveToday.has(r.sid) ? `<span class="tag tag--quiet">今天請假 · 別訂他的便當<span class="new">新</span></span>` : ''}</div>
+      <div class="ml__who"><a href="student.html">${esc(r.name)}</a>${st.date === T && leaveToday.has(r.sid) ? `<span class="tag tag--quiet">今天有請假</span>` : ''}</div>
       <label class="tick"><input type="checkbox" data-f="ordered"${r.ordered ? ' checked' : ''}${lock ? ' disabled' : ''}>訂餐</label>
       <label class="price">NT$<input inputmode="numeric" data-f="price" value="${r.price}" aria-label="${esc(r.name)} 的單價"${lock || off ? ' disabled' : ''}></label>
       <label class="tick"><input type="checkbox" data-f="charge"${r.charge ? ' checked' : ''}${lock || off ? ' disabled' : ''}>收費</label>
@@ -146,7 +146,7 @@
     document.getElementById('body').innerHTML = rows.length ? `
       <p class="sum"><span><b>${t.n}</b> 位候選</span><span>訂 <b>${t.o}</b> 份</span><span>要收費 <b>NT$ ${money(t.amt)}</b></span>${t.settled ? `<span>（${t.settled} 筆已結算，鎖住不能改）</span>` : ''}
         ${t.settled ? '' : `<span class="sum__acts"><button class="btn btn--sm" type="button" data-all="1">全部訂</button><button class="btn btn--sm" type="button" data-all="0">全部不訂</button></span>`}</p>
-      <p class="hint">「收不收費」是人工判斷 —— 便當送到了才請假要不要收，由你決定，系統不自動判斷。${leaveToday.size && st.date === T ? `今天請假的 <b>${[...leaveToday].filter((id) => rows.some((r) => r.sid === id)).length} 位</b>名字下有提示，訂不訂照你勾的。` : ''}</p>
+      <p class="hint">「收不收費」是人工判斷 —— 便當送到了才請假要不要收，由你決定，系統不自動判斷。${leaveToday.size && st.date === T ? `今天有請假的 <b>${[...leaveToday].filter((id) => rows.some((r) => r.sid === id)).length} 位</b>名字下有提示，訂不訂照你勾的。` : ''}</p>
       ${groups.map(([c, list]) => `<section class="chap" aria-label="${esc(c)}"><div class="chap__side"><div class="chap__big" style="font-size:24px;letter-spacing:-0.02em">${esc(c)}</div><p class="chap__tally">訂 ${list.filter(([r]) => r.ordered).length}<span>／${list.length}</span></p></div><div>${list.map(([r, i]) => row(r, i)).join('')}</div></section>`).join('')}
       <div id="save"></div>`
       : `<p class="empty">這天沒有候選名單。候選名單來自當天有課的班級 —— 這天可能沒有排課。</p>`;
