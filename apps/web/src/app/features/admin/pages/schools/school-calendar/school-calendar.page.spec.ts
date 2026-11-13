@@ -47,7 +47,8 @@ const P_FALL: SchoolCalendarPeriod = {
 
 function stubDialog() {
   const proto = HTMLDialogElement.prototype as any;
-  proto.showModal ??= function (this: HTMLDialogElement) {
+  // 無條件換掉：環境自帶的 showModal（或沒有）不一定設 open —— `??=` 時 CI 與本機結果不同（#2473 CI）
+  proto.showModal = function (this: HTMLDialogElement) {
     this.setAttribute('open', '');
   };
   proto.close = function (this: HTMLDialogElement) {
@@ -229,7 +230,7 @@ describe('CalendarEventFormDialogComponent（#1160）', () => {
     );
   });
 
-  it('送出中按 Esc／點背景／按取消都不關，回來後照樣帶結果關窗', () => {
+  it('送出中按 Esc／點背景／按取消都不關，回來後照樣帶結果關窗', async () => {
     const { fixture, el, cmp, createCalendarEvent } = setup();
     const pending = new Subject<{ data: SchoolCalendarEvent[] }>();
     createCalendarEvent.mockReturnValueOnce(pending as never);
@@ -239,8 +240,10 @@ describe('CalendarEventFormDialogComponent（#1160）', () => {
     cmp.kind.set('makeup_day');
     cmp.startDate.set('2026-12-05');
     fixture.detectChanges();
-    el.querySelector('form')!.dispatchEvent(new Event('submit'));
+    await fixture.whenStable(); // showModal 在 afterNextRender 裡
     const dialog = el.querySelector('dialog')!;
+    expect(dialog.hasAttribute('open')).toBe(true); // 正控：真的開著，下面的「沒關」才有意義
+    el.querySelector('form')!.dispatchEvent(new Event('submit'));
 
     const esc = new Event('cancel', { cancelable: true });
     dialog.dispatchEvent(esc);
