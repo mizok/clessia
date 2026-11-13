@@ -1675,6 +1675,9 @@ describe('B3 —— 報名的計費 API', () => {
       template?: { amount: number } | null;
       /** 預設 `null`（不受分校限制）—— 只有 #815 那組測試會給值 */
       campusScope?: readonly string[] | null;
+      /** 列表回的報名列（預設空）與 renewal_requests 回的列（#1122） */
+      list?: Array<Record<string, unknown>>;
+      renewals?: Array<Record<string, unknown>>;
     } = {},
   ) {
     const filters: Array<[string, unknown]> = [];
@@ -1774,7 +1777,13 @@ describe('B3 —— 報名的計費 API', () => {
               ((value: { data: unknown[]; count: number; error: null }) => unknown) | null,
           ) => {
             const data =
-              table === 'classes' ? [{ id: 'class-1', org_id: 'org-1', max_students: null }] : [];
+              table === 'classes'
+                ? [{ id: 'class-1', org_id: 'org-1', max_students: null }]
+                : table === 'enrollments'
+                  ? (fixture.list ?? [])
+                  : table === 'renewal_requests'
+                    ? (fixture.renewals ?? [])
+                    : [];
             return Promise.resolve({ data, count: 0, error: null }).then(onfulfilled ?? undefined);
           },
         };
@@ -1808,6 +1817,35 @@ describe('B3 —— 報名的計費 API', () => {
       expect(filters).toContainEqual(['enrollments.is.invoice_items', null]);
       // #898：作廢單的明細先被篩掉，只剩作廢單的報名才會落進「沒開過帳」
       expect(filters).toContainEqual(['enrollments.is.invoice_items.invoices.voided_at', null]);
+    });
+
+    it('#1122：未開單名單每列帶 renewalPending；查的是本 org、pending、這一頁的學生', async () => {
+      const list = [
+        { id: 'e1', student_id: 'stu-paused', status: 'active', classes: { name: 'A' } },
+        { id: 'e2', student_id: 'stu-ok', status: 'active', classes: { name: 'A' } },
+      ];
+      const { app, filters } = createApp({ list, renewals: [{ student_id: 'stu-paused' }] });
+      const res = await app.request('/api/enrollments?hasInvoice=false');
+      const body = (await res.json()) as { data: Array<{ id: string; renewalPending?: boolean }> };
+      expect(body.data.map((r) => [r.id, r.renewalPending])).toEqual([
+        ['e1', true],
+        ['e2', false],
+      ]);
+      expect(filters).toContainEqual(['renewal_requests.org_id', 'org-1']);
+      expect(filters).toContainEqual(['renewal_requests.status', 'pending']);
+      expect(filters).toContainEqual(['renewal_requests.in.student_id', ['stu-paused', 'stu-ok']]);
+    });
+
+    it('#1122：其他列表不查也不帶 renewalPending', async () => {
+      const list = [
+        { id: 'e1', student_id: 'stu-paused', status: 'active', classes: { name: 'A' } },
+      ];
+      const { app, filters } = createApp({ list, renewals: [{ student_id: 'stu-paused' }] });
+      const body = (await (await app.request('/api/enrollments')).json()) as {
+        data: Array<Record<string, unknown>>;
+      };
+      expect(body.data[0]).not.toHaveProperty('renewalPending');
+      expect(filters.some(([k]) => k.startsWith('renewal_requests.'))).toBe(false);
     });
 
     it('要「開過帳」時走 inner join，不下 is.null', async () => {
