@@ -206,6 +206,12 @@ Links to: [[architecture/a6-adoption-rules]], [[architecture/payment-info]], [[s
 
 Tags: `specs`, `admin`, `system`, `students`, `grade`
 
+## [[specs/admin/system/school-calendar|學校行事曆（#1160）]]
+
+各校的開學、休業式、寒暑假、補課、停課，手填，只給排課看。資料表 school_calendar_events 只存日期區間、不存學年學期（疊在機構的「期」裡，不是第二條學期軸）。學校設定頁每校一個「整學期視圖」（期選範圍、一張表、可同時加到多校），產生課堂的預覽清單逐天標出這班學生的學校行事曆，只標示不自動排除。A6 沒有畫這個功能。
+
+Tags: `specs`, `admin`, `system`, `schools`, `calendar`, `migration`, `design`
+
 ## [[specs/admin/system/settings|系統設定]]
 
 全域系統參數設定。

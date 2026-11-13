@@ -36,6 +36,57 @@ export interface UpdateSchoolInput {
   readonly isActive?: boolean;
 }
 
+/** 學校行事曆的事件種類（#1160）：開學／休業式／寒假／暑假／補課／停課／其他 */
+export type SchoolCalendarKind =
+  | 'semester_start'
+  | 'semester_end'
+  | 'winter_break'
+  | 'summer_break'
+  | 'makeup_day'
+  | 'no_class'
+  | 'other';
+
+export interface SchoolCalendarEvent {
+  readonly id: string;
+  readonly schoolId: string;
+  readonly kind: SchoolCalendarKind;
+  readonly startDate: string;
+  readonly endDate: string;
+  readonly note: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/** 期（billing_periods）的起訖；行事曆 GET 順帶回，只有 manage_courses 也能用期選範圍（#1160 Q6） */
+export interface SchoolCalendarPeriod {
+  readonly id: string;
+  readonly name: string;
+  readonly startDate: string;
+  readonly endDate: string;
+}
+
+export interface SchoolCalendarResponse {
+  readonly data: SchoolCalendarEvent[];
+  readonly meta: { readonly periods: SchoolCalendarPeriod[] };
+}
+
+export interface CreateSchoolCalendarEventInput {
+  readonly kind: SchoolCalendarKind;
+  readonly startDate: string;
+  /** 不給＝單日 */
+  readonly endDate?: string;
+  readonly note?: string | null;
+  /** 同時加到這些學校（#1160 Q2） */
+  readonly alsoSchoolIds?: readonly string[];
+}
+
+export interface UpdateSchoolCalendarEventInput {
+  readonly kind?: SchoolCalendarKind;
+  readonly startDate?: string;
+  readonly endDate?: string;
+  readonly note?: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SchoolsService {
   private readonly http = inject(HttpClient);
@@ -63,5 +114,46 @@ export class SchoolsService {
 
   delete(id: string): Observable<{ success: boolean }> {
     return this.http.delete<{ success: boolean }>(`${this.base}/${id}`);
+  }
+
+  /** 某校行事曆：跟 from～to 重疊的事件（都不給＝全部）＋期的起訖 */
+  calendarEvents(
+    schoolId: string,
+    range: { from?: string; to?: string } = {},
+  ): Observable<SchoolCalendarResponse> {
+    const params: Record<string, string> = {};
+    if (range.from) params['from'] = range.from;
+    if (range.to) params['to'] = range.to;
+    return this.http.get<SchoolCalendarResponse>(`${this.base}/${schoolId}/calendar-events`, {
+      params,
+    });
+  }
+
+  /** 回每所學校各一筆，自己那所在第一筆 */
+  createCalendarEvent(
+    schoolId: string,
+    input: CreateSchoolCalendarEventInput,
+  ): Observable<{ data: SchoolCalendarEvent[] }> {
+    return this.http.post<{ data: SchoolCalendarEvent[] }>(
+      `${this.base}/${schoolId}/calendar-events`,
+      input,
+    );
+  }
+
+  updateCalendarEvent(
+    schoolId: string,
+    eventId: string,
+    input: UpdateSchoolCalendarEventInput,
+  ): Observable<{ data: SchoolCalendarEvent }> {
+    return this.http.patch<{ data: SchoolCalendarEvent }>(
+      `${this.base}/${schoolId}/calendar-events/${eventId}`,
+      input,
+    );
+  }
+
+  deleteCalendarEvent(schoolId: string, eventId: string): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(
+      `${this.base}/${schoolId}/calendar-events/${eventId}`,
+    );
   }
 }
