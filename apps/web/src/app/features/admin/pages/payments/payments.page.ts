@@ -311,6 +311,8 @@ export class PaymentsPage implements OnInit {
    * 開面板、改月份時打；還沒回來或失敗就沒有那一格（不寫 0），不擋匯出
    */
   protected readonly exportCounts = signal<Partial<Record<ExportScope, number>>>({});
+  /** 這個範圍確定 0 張（#2444）：匯出鈕停用並寫原因。張數還沒回來或失敗不算 */
+  protected readonly exportEmpty = computed(() => this.exportCounts()[this.exportScope()] === 0);
   private readonly exportCountMonth = new Subject<string>();
   private readonly exportCountLoader = this.exportCountMonth
     .pipe(
@@ -707,7 +709,8 @@ export class PaymentsPage implements OnInit {
 
   private exportQuery(month: string, scope: ExportScope, page: number, pageSize: number) {
     return {
-      issuedMonth: month,
+      // 「只有逾期」不分月份（#2444）：月底拿催收名單，6～10 月開立、現在逾期的都要在裡面
+      issuedMonth: scope === 'overdue' ? undefined : month,
       overdue: scope === 'overdue' || undefined,
       outstanding: scope === 'outstanding' || undefined,
       campusId: this.campusId(),
@@ -745,8 +748,11 @@ export class PaymentsPage implements OnInit {
       );
       const book = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(book, sheet, '帳單');
-      const suffix = scope === 'all' ? '' : `_${EXPORT_SCOPE_LABELS[scope]}`;
-      XLSX.writeFile(book, `帳單_${month}${suffix}.xlsx`);
+      const name =
+        scope === 'overdue'
+          ? `帳單_${EXPORT_SCOPE_LABELS.overdue}_${this.today()}`
+          : `帳單_${month}${scope === 'all' ? '' : `_${EXPORT_SCOPE_LABELS[scope]}`}`;
+      XLSX.writeFile(book, `${name}.xlsx`);
       popover.hidePopover();
       this.messageService.add({
         severity: 'success',
