@@ -4,6 +4,7 @@ import { DbUuidSchema, QueryBooleanSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 import { auditDeleteSnapshot, auditFieldDiff } from '../lib/audit-diff';
 import { waitUntilFrom } from '../lib/wait-until';
+import schoolCalendarEvents from './school-calendar-events';
 
 export function buildSchoolListQuery(params: { search?: string; isActive?: boolean }): {
   searchFilter: string | null;
@@ -366,5 +367,8 @@ app.openapi(deleteRouteDef, async (c) => {
 
   return c.json({ success: true }, 200);
 });
+
+// 學校行事曆（#1160）：同一個 mount、同一組權限（讀 ADMIN_ONLY、寫 manage_courses）
+app.route('/', schoolCalendarEvents);
 
 export default app;

@@ -109,6 +109,8 @@ const REQUIRED: Record<string, string> = {
   '/api/leave-streaks studentIds': '{student}',
   '/api/classes/{id}/sessions/preview from': '{monthStart}',
   '/api/classes/{id}/sessions/preview to': '{today}',
+  '/api/classes/{id}/school-calendar from': '{monthStart}',
+  '/api/classes/{id}/school-calendar to': '{today}',
   '/api/me/attendance childId': '{child}',
   '/api/me/attendance/checkins childId': '{child}',
   '/api/me/attendance/checkins dateFrom': '{monthStart}',
@@ -144,9 +146,12 @@ const PARAMS: Record<string, string> = {
   '/api/courses/{id} id': '{course}',
   '/api/campuses/{id} id': '{campus}',
   '/api/campuses/{id}/classrooms id': '{campus}',
+  // #1160：學校行事曆（seed 的學校沒有行事曆也是 200＋空陣列）
+  '/api/schools/{id}/calendar-events id': '{school}',
   '/api/staff/{id} id': '{teacher}',
   '/api/classes/{id} id': '{class}',
   '/api/classes/{id}/sessions/preview id': '{class}',
+  '/api/classes/{id}/school-calendar id': '{class}',
   '/api/sessions/{id}/changes id': '{session}',
   '/api/sessions/{id}/makeup-candidates id': '{session}',
   '/api/students/{id} id': '{student}',
@@ -353,6 +358,7 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
     ids['{course}'] = await first('courses');
     ids['{campus}'] = await first('campuses');
     ids['{class}'] = await first('classes');
+    ids['{school}'] = await first('schools');
     ids['{session}'] = await first('sessions');
     ids['{event}'] = await first('events');
     ids['{academyExam}'] = await first('academy_exams');

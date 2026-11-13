@@ -24,6 +24,7 @@ describe('BillingRunDialogComponent', () => {
     mealRecordsSettled: 0,
     anomalies: [],
     failedStudents: [] as Array<{ studentId: string; studentName: string | null; code: string }>,
+    pausedStudents: [] as Array<{ studentId: string; studentName: string | null }>,
   };
   const run = vi.fn();
   let fixture: { nativeElement: HTMLElement; detectChanges: () => void };
@@ -122,6 +123,32 @@ describe('BillingRunDialogComponent', () => {
       dialog.run();
       fixture.detectChanges();
       expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+    });
+  });
+
+  describe('#1122 續課異動處理中略過', () => {
+    it('結果頁一行寫幾位、名字、處理完再按一次會補開；不是錯誤（不用 role=alert）', async () => {
+      const dialog = await create(undefined, {
+        ...result,
+        pausedStudents: [
+          { studentId: 's-3', studentName: '林子晴' },
+          { studentId: 's-4', studentName: null },
+        ],
+      });
+      dialog.run();
+      fixture.detectChanges();
+      const box = fixture.nativeElement.querySelector('[data-testid="run-paused"]');
+      expect(box?.textContent).toContain('2 位學生續課異動處理中，這次略過');
+      expect(box?.textContent).toContain('林子晴、（讀不到姓名）');
+      expect(box?.textContent).toContain('再按一次');
+      expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+    });
+
+    it('沒有略過的人：不出這一行', async () => {
+      const dialog = await create();
+      dialog.run();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('[data-testid="run-paused"]')).toBeNull();
     });
   });
 });

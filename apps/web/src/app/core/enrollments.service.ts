@@ -20,6 +20,8 @@ export const ENROLLMENT_STATUS_LABELS: Record<EnrollmentStatus, string> = {
 };
 
 export interface Enrollment {
+  /** 只在 `hasInvoice=false`（未開單名單）時有：這位學生續課異動處理中（#1122） */
+  renewalPending?: boolean;
   id: string;
   orgId: string;
   classId: string;

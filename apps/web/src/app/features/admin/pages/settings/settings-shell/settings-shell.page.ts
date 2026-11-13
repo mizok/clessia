@@ -144,6 +144,7 @@ export class SettingsShellPage {
    * 不必退回第一個。`firstChild` 為 null 的退路留給沒有子路由的情況。
    */
   private currentTab(): string {
-    return this.route.snapshot.firstChild?.routeConfig?.path ?? this.tabs[0].value;
+    // 子頁（`schools/:id/calendar`）亮它所屬的分頁：取第一段
+    return this.route.snapshot.firstChild?.routeConfig?.path?.split('/')[0] ?? this.tabs[0].value;
   }
 }
