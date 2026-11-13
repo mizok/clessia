@@ -174,6 +174,20 @@ describe('GET /students/{id}/attendance-days（#1314 SD2）', () => {
     expect(body.nextSession).toEqual({ date: '2026-03-12', startTime: '18:00', className: '數學' });
   });
 
+  it('每天帶 dailyCheckin：那天的課全在日到班分校 → true（老師端把沒刷卡寫成「無紀錄」，不寫紅字「沒到」，#2500）', async () => {
+    const res = await request(`/${SID}/attendance-days?from=2026-03-01&to=2026-03-31`);
+    const body = (await res.json()) as { days: Array<{ date: string; dailyCheckin: boolean }> };
+    expect(Object.fromEntries(body.days.map((d) => [d.date, d.dailyCheckin]))).toEqual({
+      '2026-03-02': true,
+      '2026-03-03': true,
+      '2026-03-04': false, // 全停課：沒有上的課，不算哪一種
+      '2026-03-05': false,
+      '2026-03-06': false, // 逐堂分校的缺席是真的點過名
+      '2026-03-10': true,
+      '2026-03-12': true,
+    });
+  });
+
   it('今天的課已經開始還沒打卡 → absent（不是 future）', async () => {
     vi.setSystemTime(new Date('2026-03-10T15:30:00+08:00'));
     const res = await request(`/${SID}/attendance-days?from=2026-03-10&to=2026-03-10`);
