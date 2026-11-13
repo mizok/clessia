@@ -27,6 +27,8 @@ import {
   isEnrolledOn,
   tallyAttendance,
   type EnrollmentRange,
+  ENROLLED_STATUSES,
+  ENROLLED_STATUS_OR,
 } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 import {
@@ -688,9 +690,11 @@ app.openapi(
       .from('enrollments')
       .select('student_id')
       .eq('class_id', classId)
-      .eq('status', 'active')
+      // 跟名單 GET 同一個前提（#953，session-roster.ts 的 ENROLLED_STATUSES）：active＋withdrawal，
+      // 退班靠 effective_to 收尾。結束日是 null 只放 active —— 退班沒有結束日＝資料不一致，fail-closed
+      .in('status', ENROLLED_STATUSES)
       .lte('effective_from', eventDate)
-      .or(`effective_to.is.null,effective_to.gte.${eventDate}`);
+      .or(`and(status.eq.active,effective_to.is.null),effective_to.gte.${eventDate}`);
 
     const validIds = new Set((validEnrollments ?? []).map((e: any) => e.student_id));
     const invalidIds = updates.filter((u) => !validIds.has(u.studentId));
@@ -1408,22 +1412,31 @@ app.openapi(
     const eventDate = (ev as any).event_date as string;
 
     // 在籍判定走 `isEnrolledOn`（#950）—— 跟課堂列表的在籍人數同一份規則，不在 SQL 裡
-    // 另寫一份。撈這個班的 active 報名（量級是一個班），在記憶體裡依課堂日期過濾。
-    // ⚠️ 點名寫入的驗證（PUT 那支）與到班掃碼（lib/enrolled-events.ts）仍各有一份
-    // 等價的條件 —— 它們是扣堂的上游，屬保留類，刻意沒在 #950 一起收。
+    // 另寫一份。撈這個班 active＋withdrawal 的報名（量級是一個班），在記憶體裡依課堂日期過濾（#953：
+    // 退班不再靠 status 排除，上個月的課在這個月退班後名單不變）。
+    // ⚠️ 點名寫入的驗證（PUT 那支）是同一個前提；到班掃碼（lib/enrolled-events.ts）仍是
+    // `status = 'active'` —— 保留類，不在 #953 範圍。
     const { data: classEnrollments } = await supabase
       .from('enrollments')
       .select(
         'student_id, effective_from, effective_to, students(name, grade, schools(id, name, short_name))',
       )
       .eq('class_id', classId)
-      .eq('status', 'active');
-    const enrollments = (classEnrollments ?? []).filter((row: any) =>
-      isEnrolledOn(
-        { effectiveFrom: row.effective_from, effectiveTo: row.effective_to ?? null },
-        eventDate,
-      ),
-    );
+      .in('status', ENROLLED_STATUSES)
+      .or(ENROLLED_STATUS_OR);
+    // 同一天退班又重報同一班會有兩筆涵蓋這一天 —— 名單一人一列
+    const enrollments = [
+      ...new Map(
+        (classEnrollments ?? [])
+          .filter((row: any) =>
+            isEnrolledOn(
+              { effectiveFrom: row.effective_from, effectiveTo: row.effective_to ?? null },
+              eventDate,
+            ),
+          )
+          .map((row: any) => [row.student_id as string, row]),
+      ).values(),
+    ];
 
     const rosterIds = enrollments.map((e: any) => e.student_id as string);
     const [
@@ -1858,7 +1871,8 @@ app.openapi(
           .eq('org_id', orgId)
           .eq('class_id', classId)
           .eq('student_id', studentId)
-          .eq('status', 'active')
+          .in('status', ENROLLED_STATUSES)
+          .or(ENROLLED_STATUS_OR)
       : { data: [], error: null };
     // 讀失敗不是「不在籍」—— 回 404 會讓老師以為這個學生不在這班
     if (enrollmentError) {

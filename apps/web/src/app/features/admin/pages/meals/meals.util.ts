@@ -157,3 +157,39 @@ const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六'];
 export function weekdayLabel(day: string): string {
   return WEEKDAY[new Date(`${day}T00:00:00Z`).getUTCDay()];
 }
+
+/** CSV 一格：有逗號、引號、換行就包引號（姓名、備註是行政打的字） */
+function csvCell(value: string): string {
+  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+}
+
+/**
+ * 區間查詢的匯出（#1314 ME3，A6 meals「匯出 CSV」）：供對帳用，所以照日期、學生排，
+ * 寫出訂不訂、收不收、單價、結算沒。備註是行政內部用的，管理端照寫（家長端不回）。
+ * 開頭帶 BOM，Excel 才認得 UTF-8。
+ */
+export function mealRangeCsv(rows: readonly MealRosterRow[]): string {
+  const yn = (v: boolean | null) => (v === null ? '' : v ? '是' : '否');
+  const body = [...rows]
+    .sort((a, b) =>
+      a.mealDate === b.mealDate
+        ? a.studentName.localeCompare(b.studentName, 'zh-Hant')
+        : a.mealDate < b.mealDate
+          ? -1
+          : 1,
+    )
+    .map((r) =>
+      [
+        r.mealDate,
+        r.studentName,
+        yn(r.ordered),
+        yn(r.chargeable),
+        r.unitPrice === null ? '' : String(r.unitPrice),
+        r.settled ? '已結算' : '未結算',
+        r.note ?? '',
+      ]
+        .map(csvCell)
+        .join(','),
+    );
+  return '\uFEFF' + ['日期,學生,訂餐,收費,單價,結算,備註', ...body].join('\r\n');
+}

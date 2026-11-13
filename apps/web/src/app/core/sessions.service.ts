@@ -402,6 +402,18 @@ export class SessionsService {
    * 1:1 由 DB 的 partial unique index 強制，而清單是「取的那一刻」的快照。
    * 兩個人同時對同一堂停課指定補課時，後送出的那個會拿到它。
    */
+  /** 加開單堂（`POST /api/sessions`，#1109）：回列表形狀。409 `CLASS_CONFLICT`＝同班同時段已有課 */
+  create(body: {
+    classId: string;
+    sessionDate: string;
+    startTime: string;
+    endTime: string;
+    teacherId?: string | null;
+    reason?: string;
+  }): Observable<{ data: Session }> {
+    return this.http.post<{ data: Session }>(this.endpoint, body);
+  }
+
   setMakeup(sessionId: string, makeupForSessionId: string | null): Observable<void> {
     return this.http.patch<void>(`${this.endpoint}/${sessionId}/makeup`, { makeupForSessionId });
   }

@@ -157,6 +157,7 @@ export async function summariseSessions(
   const tally = tallyAttendanceCounts(attendanceCounts);
   const enrollmentRanges: EnrollmentRange[] = enrollmentRows.map((row) => ({
     classId: row['class_id'] as string,
+    studentId: row['student_id'] as string,
     effectiveFrom: row['effective_from'] as string,
     effectiveTo: (row['effective_to'] as string | null) ?? null,
   }));

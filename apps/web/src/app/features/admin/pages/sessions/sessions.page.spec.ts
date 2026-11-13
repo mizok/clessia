@@ -21,6 +21,7 @@ import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/se
 import { AttendanceRosterPanelComponent } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
+import { SessionAddMakeupDialogComponent } from './dialogs/session-add-makeup-dialog/session-add-makeup-dialog.component';
 import { SessionMakeupDialogComponent } from './dialogs/session-makeup-dialog/session-makeup-dialog.component';
 import { SessionAdvancedFiltersDialogComponent } from '@shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component';
 
@@ -1136,6 +1137,48 @@ describe('SessionsPage', () => {
     expect(labels).not.toContain('改指定補課');
   });
 
+  // #1314 S7：停課那堂「加開一堂補課」—— 已經有補課的不再出現；關窗結果決定提示
+  describe('加開一堂補課（#1314 S7）', () => {
+    const openSpy = (result: unknown) =>
+      vi
+        .spyOn(
+          (component as unknown as { dialogService: { open: (...args: unknown[]) => unknown } })
+            .dialogService,
+          'open',
+        )
+        .mockReturnValue({ onClose: of(result) });
+
+    it('停課、還沒補的那堂才有；已排定的、已經有補課的沒有', () => {
+      expect(menuFor(makeSession({ status: 'cancelled' })).map((i) => i.label)).toContain(
+        '加開一堂補課',
+      );
+      expect(menuFor(makeSession()).map((i) => i.label)).not.toContain('加開一堂補課');
+      expect(
+        menuFor(
+          makeSession({
+            status: 'cancelled',
+            madeUpBy: { id: 'y', sessionDate: '2026-09-10', status: 'scheduled' },
+          }),
+        ).map((i) => i.label),
+      ).not.toContain('加開一堂補課');
+    });
+
+    it.each([
+      [true, 'success', '已加開補課'],
+      [false, 'warn', '已加開 10/9 的課，但沒標成補課'],
+    ])('點了開加開對話框；回 linked: %s → %s 提示', (linked, severity, summary) => {
+      const spy = openSpy({ date: '2026-10-09', linked });
+      const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+      const session = makeSession({ status: 'cancelled' });
+      menuFor(session).find((i) => i.label === '加開一堂補課')!.command!();
+      expect(spy).toHaveBeenCalledWith(
+        SessionAddMakeupDialogComponent,
+        expect.objectContaining({ data: expect.objectContaining({ session }) }),
+      );
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ severity, summary }));
+    });
+  });
+
   it('adds history entry to context menu and opens session history dialog', () => {
     const session = {
       id: '00000000-0000-0000-0000-000000000021',
@@ -1800,6 +1843,38 @@ describe('SessionsPage', () => {
       f.detectChanges();
       await f.whenStable();
       expect(c.pendingMenuSession()).toBeNull();
+    });
+
+    // #1314 S3：那一堂在課表上找不到 → 說出來，不要只切天；有篩選與沒篩選的原因不同，文案分開
+    it.each([
+      [true, '清除篩選'],
+      [false, '刪除或改到別天'],
+    ])('找不到那一堂（有篩選：%s）：出提示，detail 含「%s」', async (filtered, phrase) => {
+      const add = vi.spyOn(MessageService.prototype, 'add');
+      try {
+        const pending = new Subject<ReturnType<typeof makeListResponse>>();
+        const { f, c } = await open(
+          { focusDate: '2026-10-20', focusSession: 'no-such-session' },
+          pending,
+        );
+        const page = c as unknown as { selectedTeacherIds: { set: (v: string[]) => void } };
+        if (filtered) page.selectedTeacherIds.set(['t-1']);
+        pending.next(makeListResponse());
+        pending.complete();
+        f.detectChanges();
+        await f.whenStable();
+        f.detectChanges();
+        await f.whenStable();
+        expect(add).toHaveBeenCalledWith(
+          expect.objectContaining({
+            severity: 'info',
+            summary: '這一堂在課表上看不到',
+            detail: expect.stringContaining(phrase),
+          }),
+        );
+      } finally {
+        add.mockRestore();
+      }
     });
 
     it('壞網址（日期不存在）：維持今天、不設待開', async () => {

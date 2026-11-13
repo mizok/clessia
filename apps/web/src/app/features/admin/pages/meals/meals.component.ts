@@ -4,7 +4,7 @@ import { DecimalPipe } from '@angular/common';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { Subject, catchError, filter, of, switchMap } from 'rxjs';
+import { Subject, catchError, filter, firstValueFrom, of, switchMap } from 'rxjs';
 
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
@@ -14,7 +14,12 @@ import { DialogService } from 'primeng/dynamicdialog';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
-import { MealsService, MEAL_BATCH_MAX_ROWS, type MealSummary } from '@core/meals.service';
+import {
+  MealsService,
+  MEAL_BATCH_MAX_ROWS,
+  type MealRosterRow,
+  type MealSummary,
+} from '@core/meals.service';
 import { StudentsService, type Student } from '@core/students.service';
 
 import {
@@ -33,6 +38,7 @@ import {
   chapterOrdered,
   draftSnapshot,
   draftTotals,
+  mealRangeCsv,
   monthDay,
   draftToBatchRows,
   mealChapters,
@@ -51,6 +57,8 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
 
 /** 區間模式的每頁筆數。後端 pageSize 上限 100 */
 const RANGE_PAGE_SIZE = 50;
+/** 匯出逐頁撈：後端 pageSize 上限 */
+const EXPORT_PAGE_SIZE = 100;
 
 /**
  * 餐費管理 —— 見 kb/wiki/rules/meal-rules.md 與 kb/wiki/specs/admin/finance/meals.md。
@@ -304,6 +312,74 @@ export class MealsComponent implements OnInit {
     if (!value) return;
     this.dateStr.set(value);
     this.load();
+  }
+
+  /** 匯出中（逐頁撈完才下載）：鈕轉圈、不能連按 */
+  protected readonly exporting = signal(false);
+
+  /**
+   * #1314 ME3（A6 meals「匯出 CSV」）：匯出**目前篩選**（同一個區間、學生、頂欄分校）的全部餐記錄。
+   * 畫面只有當頁，所以照後端上限 100 筆一頁撈完再組檔；撈到一半失敗就不下載半份。
+   * ponytail: 前端逐頁撈，一個區間幾千筆以內夠用；量大到要等很久再改成後端出檔（同 reports 的 revenue.csv）
+   */
+  protected async exportCsv(popover: HTMLElement): Promise<void> {
+    const range = this.queriedRange();
+    if (!range || this.exporting()) return;
+    this.exporting.set(true);
+    try {
+      const rows: MealRosterRow[] = [];
+      for (let page = 1; ; page++) {
+        const res = await firstValueFrom(
+          this.service.range({
+            ...range,
+            studentId: this.selectedStudent()?.id,
+            campusId: this.campusCtx.id() ?? undefined,
+            page,
+            pageSize: EXPORT_PAGE_SIZE,
+          }),
+        );
+        rows.push(...res.data);
+        if (res.data.length < EXPORT_PAGE_SIZE || rows.length >= res.meta.total) break;
+      }
+      const url = URL.createObjectURL(
+        new Blob([mealRangeCsv(rows)], { type: 'text/csv;charset=utf-8' }),
+      );
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `餐費-${range.dateFrom}_${range.dateTo}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      popover.hidePopover();
+      this.messageService.add({
+        severity: 'success',
+        summary: '已匯出',
+        detail: `${monthDay(range.dateFrom)}–${monthDay(range.dateTo)} 的餐記錄 ${rows.length} 筆（CSV）`,
+      });
+    } catch (err) {
+      this.messageService.add({
+        severity: 'error',
+        summary: '匯出失敗',
+        detail: extractErrorMessage(err, '請稍後再試'),
+      });
+    } finally {
+      this.exporting.set(false);
+    }
+  }
+
+  /** A6：桌機貼著匯出鈕右緣往下開；手機是底部面板（CSS 管）—— 同家長餐費頁 */
+  protected placeExport(event: Event, trigger: HTMLElement): void {
+    const popover = event.target as HTMLElement;
+    if ((event as ToggleEvent).newState !== 'open') return;
+    if (matchMedia('(max-width: 860px)').matches) {
+      popover.removeAttribute('style');
+      return;
+    }
+    const box = trigger.getBoundingClientRect();
+    Object.assign(popover.style, {
+      position: 'fixed',
+      left: `${Math.max(16, box.right - popover.offsetWidth)}px`,
+      top: `${box.bottom + 8}px`,
+    });
   }
 
   protected switchMode(mode: 'day' | 'range'): void {
