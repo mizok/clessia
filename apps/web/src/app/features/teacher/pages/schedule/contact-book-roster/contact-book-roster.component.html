@@ -6,26 +6,43 @@
     <app-skeleton label="聯絡簿名單載入中" [count]="3" />
   } @else if (loadError()) {
     <p class="m-0 text-error-600">讀取失敗，請關閉重開。</p>
-  } @else if (empty()) {
-    <!-- 全寫完跟「這班沒人」在畫面上要分得出來，但兩者都不是錯誤 -->
-    <p class="m-0 text-muted">這堂課的聯絡簿都寫完了。</p>
   } @else {
+    @if (empty()) {
+      <!-- 全寫完跟「這班沒人」在畫面上要分得出來，但兩者都不是錯誤 -->
+      <p class="m-0 text-muted">這堂課的聯絡簿都寫完了。</p>
+    }
+    <!-- #2499：寫好的留在名單（在還沒寫的後面），看得到內容；自己當天寫的才給改 -->
     <ul
       class="m-0 flex max-h-[calc(var(--window-height,640px)*0.5)] list-none flex-col overflow-y-auto p-0"
     >
-      @for (student of students(); track student.studentId) {
+      @for (row of ordered(); track row.studentId) {
         <li
-          [style.view-transition-name]="'roster-' + student.studentId"
+          [style.view-transition-name]="'roster-' + row.studentId"
           class="vt-row flex min-h-11 items-center justify-between gap-3 border-b border-b-surface-border p-2"
         >
-          <span class="text-md">{{ student.studentName }}</span>
-          <p-button
-            label="撰寫"
-            size="small"
-            [outlined]="true"
-            [loading]="opening() === student.studentId"
-            (onClick)="open(student)"
-          />
+          <span class="flex min-w-0 flex-col">
+            <span class="text-md">{{ row.studentName }}</span>
+            @if (row.entry; as entry) {
+              <span class="truncate text-sm text-zinc-600">{{ entry.content }}</span>
+            }
+          </span>
+          @if (row.entry; as entry) {
+            @if (canEdit(entry)) {
+              <p-button label="修改" size="small" [text]="true" (onClick)="open(row)" />
+            } @else {
+              <span class="flex-none text-sm text-zinc-600"
+                >{{ entry.lastEditedByName ?? '別人' }} 寫的</span
+              >
+            }
+          } @else {
+            <p-button
+              label="撰寫"
+              size="small"
+              [outlined]="true"
+              [loading]="opening() === row.studentId"
+              (onClick)="open(row)"
+            />
+          }
         </li>
       }
     </ul>

@@ -3,7 +3,7 @@ title: 課表（我的課表）
 summary: 查看自己任課的課堂，進入課堂詳情。
 category: spec
 status: active
-updated: 2026-11-02
+updated: 2026-11-13
 tags: [specs, teacher, schedule]
 ---
 
@@ -86,8 +86,13 @@ tags: [specs, teacher, schedule]
 不是日誌表單 —— **兩型是兩條資料模型**（`studentId+entryDate` 一則自由文字
 vs `classId+logDate` 兩欄），刻意不做成一支元件的 if/else。
 
-- 只列**還沒寫的**：`GET /api/contact-book/missing?date=`（已對老師收斂）。
-  「列出全班」需要 `GET /api/contact-book` 加 `classId` 篩選，尚無
+- **還沒寫的在上、寫好的留在下面**（#2499，原本寫完那列就消失，老師看不到也改不了自己寫的）：
+  還沒寫的來自 `GET /api/contact-book/missing?date=`（已對老師收斂）；寫好的來自當天的
+  `GET /api/contact-book?from=&to=`，用列上的班名（`classNames`，只含老師現任的班）對這一班 ——
+  那支沒有 `classId` 篩選，同一位老師兩個同名的班才會混
+- 寫好的那列顯示內容摘要；**只有自己寫的、當天的才有「修改」**，其餘寫明「X 寫的」。
+  伺服器同一條（`PUT /api/contact-book` 老師改別人寫的或不是今天的 → 403 `CONTACT_BOOK_NOT_EDITABLE`），
+  畫面靠回應的 `lastEditedBy`（使用者 id）判斷
 - **點開之前先查一次那位學生當天有沒有已經被寫過** —— `/missing` 在載入那一刻是準的
   但會過期，直接用空白 draft 開會讓老師蓋掉別人剛寫的、而兩邊都不會知道
 - 撰寫用的是 `shared/components/contact-book-entry-dialog`（原本住 admin，
