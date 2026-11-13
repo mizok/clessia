@@ -687,6 +687,8 @@ app.openapi(deleteRoute, async (c) => {
       resourceId: id,
       resourceName: (existing['name'] as string | null) ?? null,
       action: 'delete',
+      // 刪完 trigger 反查不到（#2496）—— 刪的就是這個分校
+      campusIds: [id],
       // 只挑會被追問的欄位 —— 整列會把 `created_at` / `updated_at` 這些
       // 「不是人改的」欄位一起塞進去（#837）
       details: auditDeleteSnapshot(existing, ['name', 'address', 'phone', 'is_active']),

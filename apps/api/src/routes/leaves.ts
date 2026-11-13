@@ -11,7 +11,7 @@ import { notifyLeaveForTeachers } from '../lib/notify-leave';
 import { notifyLeaveStreaks } from '../lib/leave-streak';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
-import { logAudit } from '../utils/audit';
+import { auditCampusIdsBeforeDelete, logAudit } from '../utils/audit';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { studentWriteScope } from '../lib/campus-write-guard';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
@@ -1505,6 +1505,8 @@ app.openapi(
     const window = toLeaveWindow(leave as Record<string, unknown>);
     const studentId = (leave as any).student_id as string;
     const plan = cancelPlan(mode, window, today);
+    // 完整刪除後 trigger 反查不到這張假（#2496）：刪之前先算好分校（綁的堂次的班，沒綁就看學生）
+    const auditCampusIds = await auditCampusIdsBeforeDelete(supabase, 'leave', id);
 
     const pool = c.get('auth')?.pool;
     if (!pool) {
@@ -1611,6 +1613,7 @@ app.openapi(
           endDate,
         }),
         action: 'delete',
+        campusIds: auditCampusIds,
       },
       waitUntilFrom(c),
     );
@@ -1629,6 +1632,7 @@ app.openapi(
             endDate,
           }),
           action: 'revert_leave_attendance',
+          campusIds: auditCampusIds,
           details: buildLeaveAttendanceAuditDetails(revertedCount),
         },
         waitUntilFrom(c),

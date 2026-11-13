@@ -28,7 +28,7 @@ import {
   getCampusScope,
   type CampusScope,
 } from '../lib/campus-scope';
-import { logAudit, logAuditMany } from '../utils/audit';
+import { auditCampusIdsBeforeDelete, logAudit, logAuditMany } from '../utils/audit';
 import { activatePendingEnrollment, type ChangedRow } from '../lib/record-payment';
 import { notifyEnrollmentCompleted } from '../lib/notify-events';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -1525,6 +1525,10 @@ app.openapi(
       return c.json({ error: 'has_session_pack' }, 409);
     }
 
+    // 刪完 trigger 反查不到這筆報名（#2496）：用它的班算分校（班還在）
+    const auditCampusIds = existing.class_id
+      ? await auditCampusIdsBeforeDelete(supabase, 'class', existing.class_id)
+      : undefined;
     await inOrg(supabase.from('enrollments').delete().eq('id', id), orgId);
 
     // **真刪不是退班** —— 退班走 `PATCH /:id/status`（status → withdrawal）。
@@ -1539,6 +1543,7 @@ app.openapi(
         resourceId: id,
         resourceName: buildEnrollmentAuditResourceName(existing),
         action: 'delete',
+        campusIds: auditCampusIds,
         details: {
           student_id: existing.student_id ?? null,
           class_id: existing.class_id ?? null,

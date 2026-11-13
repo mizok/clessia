@@ -717,7 +717,7 @@ app.openapi(deleteRoute, async (c) => {
   const { id } = c.req.valid('param');
 
   // 刪之前先讀（稽核要名字），同時是 org 範圍的存在檢查（c1，#966 B1）
-  const existing = await findInOrg(supabase, 'courses', orgId, id, 'name, campuses(name)');
+  const existing = await findInOrg(supabase, 'courses', orgId, id, 'name, campus_id, campuses(name)');
   if (!existing) {
     return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
   }
@@ -752,6 +752,8 @@ app.openapi(deleteRoute, async (c) => {
         ] as string | null,
       }),
       action: 'delete',
+      // 刪完 trigger 反查不到（#2496）：刪前讀的那一列就有分校
+      campusIds: [existing['campus_id'] as string],
     },
     waitUntilFrom(c),
   );
