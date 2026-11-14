@@ -3,6 +3,7 @@ import type { AppEnv } from '../index';
 import { aggregateRevenue, type RevenueInvoice, type RevenuePayment } from '../lib/revenue-report';
 import { toCsv, type CsvValue } from '../lib/csv';
 import { type CampusScope, getCampusScope } from '../lib/campus-scope';
+import { studentInScope } from '../lib/invoice-campus-scope';
 import { DbUuidSchema } from '../lib/validation';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
@@ -100,6 +101,7 @@ function matchesFilter(
   campusId: string | undefined,
   courseId: string | undefined,
   campusScope: CampusScope = null,
+  invoice: Record<string, unknown> | null = null,
 ): boolean {
   // 篩選是「沾到就算」—— 一張跨班的帳單只要有一筆明細在這個分校就進來
   if (campusId && !contexts.some((ctx) => ctx.campusId === campusId)) return false;
@@ -110,11 +112,18 @@ function matchesFilter(
   if (campusScope && contexts.some((ctx) => !ctx.campusId || !campusScope.includes(ctx.campusId))) {
     return false;
   }
+  // #2493 R8：只有餐費／調整（沒有班）的帳單 contexts 是空的，上面那條擋不到 —— 別校學生的餐費
+  // 收款就算進受限者的營收。補 invoices.ts 判準的第 1 條：**帳單的學生要在範圍內**
+  //（lib/invoice-campus-scope.ts，學生任一報名的班在範圍內）
+  if (campusScope) {
+    const student = invoice?.['scope_student'] as Record<string, unknown> | null | undefined;
+    if (!studentInScope(student?.['enrollments'], campusScope)) return false;
+  }
   return true;
 }
 
 const INVOICE_SELECT =
-  'id, issued_at, due_date, voided_at,' +
+  'id, issued_at, due_date, voided_at, scope_student:students(enrollments(classes(campus_id))),' +
   ' invoice_items(amount, enrollments(classes(campus_id, course_id, campuses(name), courses(name)))),' +
   ' payment_records(kind, amount)';
 
@@ -185,7 +194,8 @@ app.openapi(
     for (const row of (paymentRows ?? []) as unknown as Record<string, unknown>[]) {
       const invoice = row['invoices'] as Record<string, unknown> | null;
       const contexts = invoice ? classContexts(invoice) : [];
-      if (!matchesFilter(contexts, params.campusId, params.courseId, campusScope)) continue;
+      if (!matchesFilter(contexts, params.campusId, params.courseId, campusScope, invoice))
+        continue;
 
       payments.push({
         kind: (row['kind'] as 'payment' | 'refund') ?? 'payment',
@@ -201,7 +211,7 @@ app.openapi(
       // 在記憶體篩而不是下在查詢上，跟分校過濾同一個理由：替身不模擬過濾，這樣測得到。
       if (row['voided_at']) continue;
       const contexts = classContexts(row);
-      if (!matchesFilter(contexts, params.campusId, params.courseId, campusScope)) continue;
+      if (!matchesFilter(contexts, params.campusId, params.courseId, campusScope, row)) continue;
 
       const items = (row['invoice_items'] as Record<string, unknown>[] | null) ?? [];
       const records = (row['payment_records'] as Record<string, unknown>[] | null) ?? [];
@@ -286,7 +296,8 @@ app.openapi(
     for (const row of (paymentRows ?? []) as unknown as Record<string, unknown>[]) {
       const invoice = row['invoices'] as Record<string, unknown> | null;
       const contexts = invoice ? classContexts(invoice) : [];
-      if (!matchesFilter(contexts, params.campusId, params.courseId, campusScope)) continue;
+      if (!matchesFilter(contexts, params.campusId, params.courseId, campusScope, invoice))
+        continue;
 
       rows.push([
         row['paid_at'] as string,
