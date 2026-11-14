@@ -1453,3 +1453,82 @@ describe('POST /batch-import —— retry 路徑驗範圍、學生＋關聯一�
     expect(writes).not.toContain('delete students');
   });
 });
+
+/**
+ * #2525：Step 2 查不到任何同名家長時原本提早回空結果，Step 5 的電話／Email 反查根本不跑 ——
+ * 匯入「新名字＋別人已經在用的電話」時預檢說沒問題，要到真的匯入才失敗（#2232 要這個檢查不能無聲失效）。
+ * 替身分得出兩次 `parents` 查詢：只有用 `user_id` 反查的那次（Step 5）才回別人的家長，同名查詢（Step 2）是空的。
+ */
+describe('POST /batch-check —— 沒有同名家長也要做電話／Email 反查（#2525）', () => {
+  const OWNER = '王大明';
+
+  function fakeSupabase() {
+    return {
+      from(table: string) {
+        let byUserId = false;
+        const builder: Record<string, unknown> = {};
+        const chain = () => builder as never;
+        Object.assign(builder, {
+          select: () => chain(),
+          eq: () => chain(),
+          in: (column: string) => {
+            if (column === 'user_id') byUserId = true;
+            return chain();
+          },
+          or: () => chain(),
+          order: () => chain(),
+          limit: () => chain(),
+          range: () => chain(),
+          ilike: () => chain(),
+          maybeSingle: () => Promise.resolve({ data: null, error: null }),
+          then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
+            resolve({
+              data:
+                table === 'parents'
+                  ? byUserId
+                    ? [{ id: 'p-owner', name: OWNER, user_id: 'ba-owner' }]
+                    : [] // Step 2：沒有任何同名家長
+                  : table === 'ba_user'
+                    ? [{ id: 'ba-owner', phone: '0955000222', email: null, username: null }]
+                    : [],
+              error: null,
+            }),
+        });
+        return builder;
+      },
+    };
+  }
+
+  it('新名字＋別人的電話：預檢回 contact_belongs_to_another_parent，不是空結果', async () => {
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', fakeSupabase());
+      set('orgId', 'org-1');
+      set('userId', 'user-1');
+      set('roles', ['admin']);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', parentsRoute as unknown as Hono);
+
+    const res = await app.request(
+      '/batch-check',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ rows: [{ parentName: '全新的名字', parentPhone: '0955000222' }] }),
+      },
+      { PLACEHOLDER_EMAIL_DOMAIN: 'placeholder.invalid' },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      warnings: unknown[];
+      errors: Array<{ rowIndex: number; type: string; message: string }>;
+    };
+    expect(body.errors).toEqual([
+      expect.objectContaining({ rowIndex: 0, type: 'contact_belongs_to_another_parent' }),
+    ]);
+    expect(body.warnings).toEqual([]);
+  });
+});
