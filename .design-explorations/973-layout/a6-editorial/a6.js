@@ -20,6 +20,7 @@
     swap: P('<path d="M3 5.5h9l-2.5-2.5M13 10.5H4l2.5 2.5"/>'),
     x: P('<path d="M4 4l8 8M12 4l-8 8"/>'),
     bell: P('<path d="M4 11V7a4 4 0 018 0v4l1.2 1.5H2.8zM6.5 14h3"/>'),
+    send: P('<path d="M2 8l12-5.5L8.5 14 7 9z"/>'),
     leave: P('<rect x="3" y="2.5" width="10" height="11" rx="1.5"/><path d="M5.5 6h5M5.5 9h3"/>'),
     // A4 第四輪
     info: P('<circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.8M8 5h.01"/>'),
