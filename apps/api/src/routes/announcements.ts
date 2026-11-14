@@ -224,7 +224,8 @@ app.openapi(
         content: { 'application/json': { schema: z.object({ data: AnnouncementSchema }) } },
       },
       403: {
-        description: '沒有 send_announcements 權限，或沒有這個分校的權限',
+        description:
+          '沒有 send_announcements 權限、沒有這個分校的權限，或受限管理員沒指定分校（REQUIRES_ALL_CAMPUSES）',
         content: { 'application/json': { schema: ErrorSchema } },
       },
       500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
@@ -238,7 +239,16 @@ app.openapi(
     // **授權先於一切，所以這段在最前面。** body 帶的分校不在 campusRequestGuard
     // 的視野內（它只讀 query string），受限管理員否則可以對自己不管的分校發公告，
     // 而那個分校的老師與家長會收到。做法照 daily-checkins.ts:56-60。
-    if (!isCampusAllowed(getCampusScope(c), body.campusId)) {
+    const scope = getCampusScope(c);
+    // #2493 ?1（計畫席 11-13 裁）：沒帶分校＝全部分校的公告，只有不受限的管理員發得出去。
+    // `isCampusAllowed` 對「沒帶」回 true（那是讀取端「不篩」的語意），所以這裡另外擋 —— 同 grade-promotions
+    if (scope !== null && !body.campusId) {
+      return c.json(
+        { error: '全部分校的公告需要「所有分校」權限，請指定分校', code: 'REQUIRES_ALL_CAMPUSES' },
+        403,
+      );
+    }
+    if (!isCampusAllowed(scope, body.campusId)) {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 

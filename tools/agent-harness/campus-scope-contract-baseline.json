@@ -92,7 +92,6 @@
   "PATCH /api/sessions/batch-substitute": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "PATCH /api/sessions/batch-uncancel": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "PATCH /api/sessions/batch-update-time": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "POST /api/announcements": "缺口 ?1（#2493 第 13 張 announcements）",
   "POST /api/announcements/read-all": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "POST /api/attendance": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "POST /api/attendance/roster/:eventId/cancel-leave": "舊端點：#2493 盤點範圍 OK，缺契約認領",
