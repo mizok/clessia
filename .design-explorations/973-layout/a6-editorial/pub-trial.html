@@ -65,6 +65,10 @@
   .done__login a { font-weight: var(--font-semibold); color: var(--zinc-900); text-underline-offset: 3px; }
   @media (max-width: 1024px) { .pf__title { font-size: 28px; } }
   @media (max-width: 560px) { .pf__two { grid-template-columns: 1fr; } .pf__foot .btn--cta { flex: 1 1 100%; } }
+  .pf__seg { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .pf__seg label { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 44px; padding: 0 var(--space-4); border: 1px solid var(--zinc-300); border-radius: var(--radius-md); font-size: var(--text-base); cursor: pointer; }
+  .pf__seg label:has(input:checked) { border-color: var(--zinc-900); box-shadow: inset 0 0 0 1px var(--zinc-900); font-weight: var(--font-semibold); }
+  .pf__seg input { width: 18px; height: 18px; margin: 0; accent-color: var(--zinc-900); }
 </style>
 </head>
 <body data-direction="a6">
@@ -138,6 +142,12 @@
             ${field('phone', '手機號碼', txt('phone', '0912-345-678', 'tel', ' inputmode="tel"'))}
           </div>
           <p class="pf__hint" style="margin-top:calc(var(--space-2) * -1)">Email 和手機至少填一個，補習班才聯絡得到你。</p>
+          <!-- R5 10-16「公開試聽表單與學生的關係」（#2495 B6 回寫）：照報名稿同一欄 -->
+          <div class="pf__f" data-f="rel" style="margin-top:var(--space-4)" role="radiogroup" aria-labelledby="l-rel" aria-describedby="e-rel">
+            <p class="acset__l" id="l-rel">與學生的關係 <span class="pf__req" aria-hidden="true">*</span></p>
+            <div class="pf__seg">${['父親', '母親', '其他'].map((r) => `<label><input type="radio" name="rel" value="${r}">${r}</label>`).join('')}</div>
+            <p class="pf__err" id="e-rel" hidden>${icon.alert}<span></span></p>
+          </div>
         </section>
 
         <section class="pf__sec" aria-labelledby="h-kid">
@@ -173,7 +183,7 @@
       </form>
       <dialog class="acset" id="privacy" aria-labelledby="privacy-t">
         <div class="acset__head"><h2 class="acset__t" id="privacy-t">個資使用聲明</h2><button class="acset__x" type="button" aria-label="關閉" data-close>${icon.x}</button></div>
-        <div class="acset__body"><p class="acset__hint" style="font-size:var(--text-base);line-height:1.7;color:var(--zinc-800)">${esc(C.org.name)}蒐集你填寫的家長與學生資料，只用於聯絡試聽、安排課程與後續報名。資料保存到試聽結束後 6 個月；你可以隨時打 ${phone} 要求查詢、更正或刪除。</p></div>
+        <div class="acset__body"><p class="acset__hint" style="font-size:var(--text-base);line-height:1.7;color:var(--zinc-800)">本補習班蒐集你填寫的家長與學生資料，只用於聯絡試聽、安排課程與後續報名。這份申請保存 6 個月後刪除；你可以隨時打 ${phone} 要求查詢、更正或刪除。</p></div>
       </dialog>`;
   }
 
