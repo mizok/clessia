@@ -771,6 +771,8 @@ app.openapi(deleteRoute, async (c) => {
         ] as string | null,
       }),
       action: 'delete',
+      // 刪完 trigger 反查不到（#2496）：刪前讀的那一列就有分校
+      campusIds: [existing['campus_id'] as string],
     },
     waitUntilFrom(c),
   );

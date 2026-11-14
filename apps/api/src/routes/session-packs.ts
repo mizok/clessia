@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppEnv } from '../index';
-import { logAudit } from '../utils/audit';
+import { auditCampusIdsBeforeDelete, logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
 import {
   countDeductedSessions,
@@ -424,11 +424,20 @@ app.openapi(
       return c.json({ error: '堂數記錄不存在', code: 'NOT_FOUND' }, 404);
     }
 
+    // 刪完 trigger 反查不到（#2496）：先算好分校
+    const auditCampusIds = await auditCampusIdsBeforeDelete(supabase, 'session_pack', id);
     await supabase.from('session_packs').delete().eq('id', id).eq('org_id', orgId);
 
     logAudit(
       supabase,
-      { orgId, userId, resourceType: 'session_pack', resourceId: id, action: 'delete' },
+      {
+        orgId,
+        userId,
+        resourceType: 'session_pack',
+        resourceId: id,
+        action: 'delete',
+        campusIds: auditCampusIds,
+      },
       waitUntilFrom(c),
     );
 

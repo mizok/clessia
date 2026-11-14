@@ -1510,7 +1510,7 @@ app.openapi(
       'classes',
       orgId,
       id,
-      'name, courses(name), campuses(name)',
+      'name, campus_id, courses(name), campuses(name)',
     );
     if (!existing) {
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
@@ -1546,6 +1546,8 @@ app.openapi(
         resourceId: id,
         resourceName: classAuditResourceName(existing),
         action: 'delete',
+        // 刪完 trigger 反查不到（#2496）：刪前讀的那一列就有分校
+        campusIds: [existing['campus_id'] as string],
       },
       waitUntilFrom(c),
     );

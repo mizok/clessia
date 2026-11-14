@@ -19,7 +19,6 @@
   "GET /api/attendance/roster/:eventId": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/attendance/sessions": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/attendance/student-day": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "GET /api/audit-logs": "缺口 R12（#2496 audit-logs）",
   "GET /api/billing-periods/upcoming-unbilled": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/billing-runs/anomalies": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/campuses": "舊端點：#2493 盤點範圍 OK，缺契約認領",

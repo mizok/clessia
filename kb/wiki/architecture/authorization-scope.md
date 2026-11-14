@@ -3,7 +3,7 @@ title: 授權範圍 —— 分校、職務、細部權限
 summary: 三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。
 category: architecture
 status: active
-updated: 2026-11-02
+updated: 2026-11-13
 tags: [architecture, authorization, campus, teacher-scope, permissions, security]
 ---
 
@@ -190,6 +190,24 @@ URL 裡只該有分校 id。body 帶一批學生 id 的寫入，只查那一批�
 **堂數帳（`session-packs.ts`）是第二支**（#2147，#2139 的試跑名單抓到）：GET／POST／DELETE 原本都只濾 `org_id`。
 堂數帳掛在單筆報名上，判準用「這筆報名的班在範圍內」（同報名列表的 `classes!inner`，不是學生任一報名）；
 範圍外跟不存在同一個 404。守在 `contract/session-packs-scope.contract.ts`。
+
+### 2026-11-13 補：稽核紀錄沒有分校欄 —— 由 DB trigger 寫入時反查（#2496，#2493 R12）
+
+`audit_logs` 原本沒有任何分校資訊，`GET /api/audit-logs` 只篩 org。修法（migration `20261113132234`）：
+
+- **新欄 `campus_ids uuid[]`**，不是單一 `campus_id`：學生、家長、職員、帳單本來就跨分校。讀取用 overlap，
+  跟學生列表「任一報名的班在範圍內就算」同一條。`NULL`＝推不出（受限者看不到，fail-closed）；
+  `'{}'`＝機構層級（科目、學校、帳期、繳費範本、公告、學年升級、公開申請…），受限者也看得到（計畫席 11-13 Q1）。
+- **由 BEFORE INSERT trigger 反查（`audit_campus_ids()`），不在 `logAudit` 反查**：在 API 反查每筆稽核多一個
+  subrequest，請假（≤45）、學生、開帳單都有預算測試。trigger 不花 subrequest，126 處呼叫點不動，
+  backfill 跟寫入共用同一個函式。函式是防禦式的：任何出錯回 NULL，**稽核寫入永遠不因補分校失敗**。
+- **`resource_id` 在同一種 type 裡不統一**（`attendance` 有 event／daily_checkin／leave 三種，`enrollment`
+  有兩處放 classId），所以函式依 type 逐表試；uuid 不會跨表撞號。**新增 resource_type 要記得加進函式**，
+  沒加的落到 NULL（受限者看不到，不會誤放）。
+- **刪除**：寫稽核時那一列已經不在，trigger 反查不到。呼叫端帶 `campusIds`：班、課程用刪前讀的那一列；
+  分校就是自己；報名用它的班；堂數包、請假在刪前呼叫同一個函式（`auditCampusIdsBeforeDelete`）。
+  學生能刪的前提是沒有報名，本來就推不出分校。
+- 舊列的 backfill 另開 after-deploy PR（同一個函式）。
 
 ### 2026-10-01 補：範圍可以從「發給別人」那一側逃出去（#966 A 批）
 
