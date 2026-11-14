@@ -88,6 +88,8 @@ describe('寫入路徑的分校範圍 —— body 帶的 campusId 不能超出�
       staff: { id: STAFF_ID, user_id: 'requester-user', org_id: ORG },
       user_roles: { role: 'admin' },
       campuses: [{ id: THEIRS }],
+      // #2493 W3：被改的人（自己）在 MINE —— 先過人員範圍，才走得到這裡要測的 campusIds 守衛
+      staff_campuses: [{ campus_id: MINE }],
     });
 
     const res = await appWith(staffRoute, [MINE], db).request(`/${STAFF_ID}`, {
@@ -196,6 +198,7 @@ describe('寫入路徑的分校範圍 —— 不能發出 all_campuses', () => {
     const db = fakeDb({
       staff: { id: OTHER_STAFF, user_id: 'other-user', org_id: ORG },
       user_roles: { role: 'admin' },
+      staff_campuses: [{ campus_id: MINE }], // #2493 W3：被改的人在範圍內，測的是權限載體
     });
     const res = await appWith(staffRoute, [MINE], db).request(`/${OTHER_STAFF}`, {
       method: 'PUT',

@@ -943,3 +943,38 @@ textarea.acset__in { height: auto; min-height: 96px; padding: var(--space-2) var
 }
 @media (max-width: 860px) { .dock:not(:has(> :nth-child(2))) { left: auto; } }
 .coll__body { margin: 0 var(--space-3) var(--space-3); }
+
+/* ═══ 11-13 #2495 B2：R5 已裁的頂欄與帳戶選單回寫稿
+ * 頂欄通知鈴鐺（R5 10-16 #1683）：帳戶左邊，桌機 40、手機 44；未讀數徽章從中線偏右往右長。
+ * 手機頂欄一列（R5 10-22 #1866）：帳戶鈕只留頭像（桌機同），工具組跟 Logo 同一列、分校名截斷，Logo 20px；
+ *   第一列上下各 6（R5 10-23 #1850）。
+ * 切換身分區塊黑細框、透明底（R5 10-22 #1856）；目前身分打勾「使用中」（R5 11-02）。
+ * 手機「更多」兩欄流排、選單內捲（R5 10-16 #1701）。 */
+.acct > svg { display: none; }
+.top__bell { position: relative; display: inline-grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: var(--radius-md); color: var(--on-ink-2); text-decoration: none; }
+.top__bell:hover, .top__bell[aria-current='page'] { background: var(--ink-2); color: var(--on-ink); }
+.top__bell svg { width: 18px; height: 18px; }
+.top__badge { position: absolute; top: 2px; left: calc(50% + 3px); height: 18px; min-width: 18px; padding: 0 3px; border-radius: var(--radius-full); background: var(--accent-vivid); color: var(--zinc-900); font-size: 10px; font-weight: var(--font-bold); line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+.acct-menu__grp[role='group'], .acct-menu .acct-menu__grp[role='group'] { border: 1px solid var(--zinc-900); background: transparent; }
+.acct-menu__item[aria-current='true'] { font-weight: var(--font-semibold); cursor: default; }
+.acct-menu__item[aria-current='true']:hover { background: none; }
+.acct-menu__now { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: var(--text-md); font-weight: var(--font-medium); color: var(--zinc-600); }
+@media (max-width: 860px) {
+  .top__in { padding-top: 6px; row-gap: 6px; }
+  .top__mark { font-size: 20px; }
+  .top__tools { flex: 1 1 0; min-width: 0; justify-content: flex-end; }
+  .top__campus { min-width: 0; max-width: 10rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .top__bell { width: 44px; height: 44px; }
+  .acct { margin-left: 4px; padding: 0 6px; }
+  .more { max-height: calc(100% - 72px); overflow-y: auto; }
+  .more__grid { display: block; columns: 2; column-gap: var(--space-6); }
+  .more__grid > div { break-inside: avoid; margin-bottom: var(--space-6); }
+  .more__grid > div:last-child { margin-bottom: 0; }
+  .more a { display: flex; align-items: center; min-height: 44px; padding: 0; }
+}
+
+/* ═══ 11-13 #2495 B4：帳號設定平常唯讀、按「編輯」才變輸入框（R5「帳號設定：編輯 → 一顆儲存」11-11，#2396 拆單 4）
+ * 唯讀：欄名（p）＋值；底部「關閉＋編輯」。編輯（dialog[data-edit]）：欄名換成 label、值換成輸入框，底部「取消＋儲存」。 */
+.acset__form { display: grid; gap: var(--space-5); }
+.acset__v { font-size: var(--text-base); color: var(--zinc-900); }
+.acset:not([data-edit]) .acset__edit, .acset[data-edit] .acset__view { display: none; }

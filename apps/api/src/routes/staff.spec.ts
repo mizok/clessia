@@ -608,7 +608,10 @@ describe('#1829 PUT /api/staff/:id —— `*` 與改自己', () => {
                 ? setup.priorRows
                     .filter((row) => !roleIn || roleIn.includes(row.role))
                     .map((row) => ({ ...row, user_id: setup.targetUser }))
-                : [],
+                : // #2493 W3：被改的人在請求者的分校內 —— 這組測的是 `*`，不是分校範圍
+                  table === 'staff_campuses'
+                  ? (setup.scope ?? []).map((campus_id) => ({ staff_id: STAFF, campus_id }))
+                  : [],
             count: 0,
             error: null,
           }),
@@ -766,5 +769,76 @@ describe('#1829 PUT /api/staff/:id —— `*` 與改自己', () => {
     );
     expect(status).toBe(403);
     expect(db.deletes).toEqual([]);
+  });
+});
+
+/**
+ * #2493 W3（審核席突變存活）：`staffOutOfScope` 讀 `staff_campuses` 失敗時必須**拒絕**，不是放行。
+ * 讀不到就放行＝DB 一閃，受限管理員就讀寫得到別校人員。
+ */
+describe('#2493 人員範圍 —— staff_campuses 讀取失敗時 fail-closed', () => {
+  const ORG = '00000000-0000-0000-0000-0000000000aa';
+  const STAFF = '00000000-0000-0000-0000-0000000000d7';
+
+  function appWith(scope: readonly string[] | null) {
+    const make = (table: string) => {
+      const builder: Record<string, unknown> = {};
+      const chain = () => builder as never;
+      const result =
+        table === 'staff_campuses'
+          ? { data: null, error: { message: 'boom' } }
+          : { data: [], count: 0, error: null };
+      Object.assign(builder, {
+        select: () => chain(),
+        update: () => chain(),
+        insert: () => chain(),
+        delete: () => chain(),
+        eq: () => chain(),
+        in: () => chain(),
+        order: () => chain(),
+        limit: () => chain(),
+        maybeSingle: () =>
+          Promise.resolve({
+            data:
+              table === 'staff'
+                ? { id: STAFF, user_id: 'target-user', org_id: ORG, display_name: '某人' }
+                : table === 'user_roles'
+                  ? { role: 'admin', permissions: [] }
+                  : null,
+            error: null,
+          }),
+        single: () => Promise.resolve({ data: null, error: null }),
+        then: (resolve: (value: unknown) => unknown) => resolve(result),
+      });
+      return builder;
+    };
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', { from: (table: string) => make(table) });
+      set('orgId', ORG);
+      set('userId', 'requester');
+      set('roles', ['admin']);
+      set('permissions', ['*']);
+      set('campusScope', scope);
+      await next();
+    });
+    app.route('/', staffRoute.default as unknown as Hono);
+    return app;
+  }
+
+  it('受限管理員：GET 與 PUT 都 404（讀不到人員的分校就當範圍外）', async () => {
+    const app = appWith(['campus-1']);
+    expect((await app.request(`/${STAFF}`)).status).toBe(404);
+    const put = await app.request(`/${STAFF}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ notes: 'x' }),
+    });
+    expect(put.status).toBe(404);
+  });
+
+  it('不受限管理員不查 staff_campuses 的範圍，照常讀得到', async () => {
+    expect((await appWith(null).request(`/${STAFF}`)).status).not.toBe(404);
   });
 });

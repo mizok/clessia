@@ -442,6 +442,17 @@ describe('openerLine（#1314 TS2 開場句）', () => {
     expect(openerLine([], at('10:00'))).toBe('今天沒有你的課。');
   });
 
+  it('今天沒有課、知道下一堂 → 寫下一堂哪天幾點哪班（#2501）', () => {
+    const next = { eventDate: '2026-11-16', startTime: '10:00', className: '數學班 A' };
+    expect(openerLine([], at('10:00'), next)).toBe(
+      '今天沒有課，下一堂 11/16（一）10:00 數學班 A。',
+    );
+  });
+
+  it('今天沒有課、兩週內也沒有 → 寫明，不只說今天（#2501）', () => {
+    expect(openerLine([], at('10:00'), null)).toBe('今天沒有課，兩週內也沒有你的課。');
+  });
+
   it('沒有時間的課不給倒數，只講班名', () => {
     const n = session({ className: '作文', startTime: null, endTime: null });
     expect(openerLine([n], at('10:00'))).toBe('下一堂 作文。');

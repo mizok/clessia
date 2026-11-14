@@ -1207,6 +1207,10 @@ app.openapi(
         description: '設定目錄參考價需要 manage_finance（#1175）；或課程不在分校範圍（#1797）',
         content: { 'application/json': { schema: ErrorSchema } },
       },
+      404: {
+        description: '下一期班級不存在或不在分校範圍（#2493）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       409: {
         description: '班名重複',
         content: { 'application/json': { schema: ErrorSchema } },
@@ -1237,6 +1241,16 @@ app.openapi(
     }
     if (!(course.is_active as boolean)) {
       return c.json({ error: '課程已停用，無法新增班級', code: 'COURSE_INACTIVE' }, 409);
+    }
+    // #2493 W7：下一期班級原本連 org 都沒驗（c1）—— 指到別校（或別 org）的班，升級時學生會被帶過去
+    if (body.nextClassId) {
+      const nextClass = await findInOrg(supabase, 'classes', orgId, body.nextClassId, 'campus_id');
+      if (
+        !nextClass ||
+        !resourceCampusAllowed(getCampusScope(c), nextClass['campus_id'] as string)
+      ) {
+        return c.json({ error: '下一期班級不存在', code: 'NOT_FOUND' }, 404);
+      }
     }
     const feeRejection = await rejectDefaultFeeTemplate(c, body.defaultFeeTemplateId);
     if (feeRejection?.status === 403) return c.json(feeRejection.body, 403);
@@ -1330,9 +1344,16 @@ app.openapi(
     // 班級本身與 body 指名的下一期班級都要屬於本 org（c1，#966 B2）
     const [current, nextClass] = await Promise.all([
       findInOrg(supabase, 'classes', orgId, id),
-      body.nextClassId ? findInOrg(supabase, 'classes', orgId, body.nextClassId) : null,
+      body.nextClassId
+        ? findInOrg(supabase, 'classes', orgId, body.nextClassId, 'id, campus_id')
+        : null,
     ]);
-    if (!current || (body.nextClassId && !nextClass)) {
+    // #2493 W7：下一期班級也要在呼叫者的分校範圍內（原本只驗 org）
+    if (
+      !current ||
+      (body.nextClassId &&
+        (!nextClass || !resourceCampusAllowed(getCampusScope(c), nextClass['campus_id'] as string)))
+    ) {
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
 
