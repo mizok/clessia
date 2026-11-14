@@ -52,6 +52,11 @@ const AttendanceDaysSchema = z
       z.object({
         date: z.string(),
         state: DayStateSchema,
+        /**
+         * 那天上的課全在日到班分校（#2500）：這種天的 `absent` 是「沒刷卡」，不是點過名的缺席 ——
+         * 老師端寫成灰字「無紀錄」（跟到班名單同一套），不寫紅字「沒到」。全停課的天是 false
+         */
+        dailyCheckin: z.boolean(),
         sessions: z.array(
           z.object({
             sessionId: z.string(),
@@ -317,6 +322,8 @@ app.openapi(
       return {
         date,
         state,
+        dailyCheckin:
+          held.length > 0 && held.every((s) => modeOf(s.campusId) === 'daily_checkin'),
         sessions: list.map((s) => ({
           sessionId: s.sessionId,
           className: s.className,

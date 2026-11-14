@@ -29,14 +29,19 @@ import { OrgSettingsService } from '@core/org-settings.service';
 
 /** 往回找幾天的到班格：一週一堂的班也湊得到 5 堂（API 上限 366 天） */
 const DAYS_BACK = 90;
+/** 往後找幾天的下一堂（#2500）：今天沒這班的課時，主按鈕指到下一堂 */
+const DAYS_AHEAD = 14;
 
 const DAY_LABEL = { came: '到', absent: '沒到', on_leave: '請假' } as const;
 type TakenState = keyof typeof DAY_LABEL;
+const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六'];
 
 interface PanelData {
   readonly parent: StudentDetailParent | null;
-  readonly days: ReadonlyArray<{ date: string; state: TakenState }>;
+  readonly days: ReadonlyArray<{ date: string; state: TakenState; dailyCheckin: boolean }>;
   readonly exams: ScoreRecord[];
+  /** 主按鈕：今天有這班的課 → 'today'；沒有 → 兩週內這班的下一堂；都沒有 → null（不放鈕） */
+  readonly goto: 'today' | { readonly date: string } | null;
 }
 
 /**
@@ -99,17 +104,27 @@ interface PanelData {
                   @for (x of d.days; track x.date) {
                     <li
                       data-day
+                      [attr.title]="
+                        x.state === 'absent' && x.dailyCheckin
+                          ? '尚無到班紀錄（日到班當天沒刷卡，不一定是缺席）'
+                          : null
+                      "
                       class="rounded-md bg-white p-2 text-center shadow-[inset_0_0_0_1px_var(--zinc-200)]"
                     >
                       <small class="block text-xs text-zinc-600 tabular-nums">{{
                         md(x.date)
                       }}</small>
-                      <span
-                        class="text-base font-semibold"
-                        [class.text-error-700]="x.state === 'absent'"
-                        [class.text-zinc-600]="x.state === 'on_leave'"
-                        >{{ dayLabel[x.state] }}</span
-                      >
+                      <!-- #2500：日到班沒刷卡不是點過名的缺席 —— 灰字「無紀錄」（格子窄，全文放 title），跟到班名單同一套 -->
+                      @if (x.state === 'absent' && x.dailyCheckin) {
+                        <span class="text-base font-semibold text-zinc-600">無紀錄</span>
+                      } @else {
+                        <span
+                          class="text-base font-semibold"
+                          [class.text-error-700]="x.state === 'absent'"
+                          [class.text-zinc-600]="x.state === 'on_leave'"
+                          >{{ dayLabel[x.state] }}</span
+                        >
+                      }
                     </li>
                   }
                 </ol>
@@ -151,13 +166,21 @@ interface PanelData {
         >
           關閉
         </button>
-        <a
-          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 no-underline hover:border-accent-vivid-2 hover:bg-accent-vivid-2 wide:h-9"
-          [routerLink]="schedulePath"
-        >
-          {{ teacherLed() ? '到課表點名' : '看到班名單' }}
-          <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
-        </a>
+        <!-- #2500：今天沒這班的課時「看到班名單」只會落在空的今天 —— 改指下一堂那天；兩週內都沒有就不放 -->
+        @if (data()?.goto; as goto) {
+          <a
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 no-underline hover:border-accent-vivid-2 hover:bg-accent-vivid-2 wide:h-9"
+            [routerLink]="schedulePath"
+            [queryParams]="goto === 'today' ? null : { date: goto.date }"
+          >
+            @if (goto === 'today') {
+              {{ teacherLed() ? '到課表點名' : '看到班名單' }}
+            } @else {
+              下一堂 {{ md(goto.date) }}（{{ weekday(goto.date) }}）
+            }
+            <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
+          </a>
+        }
       </ng-container>
     </app-dialog-frame>
   `,
@@ -200,7 +223,11 @@ export class StudentPanelComponent implements OnInit {
     const today = this.clock.todayTaipei();
     forkJoin({
       detail: this.studentsService.get(id),
-      days: this.studentsService.attendanceDays(id, addDaysToDateString(today, -DAYS_BACK), today),
+      days: this.studentsService.attendanceDays(
+        id,
+        addDaysToDateString(today, -DAYS_BACK),
+        addDaysToDateString(today, DAYS_AHEAD),
+      ),
       scores: this.scoresService.list({
         studentId: id,
         classId: this.classId(),
@@ -214,6 +241,7 @@ export class StudentPanelComponent implements OnInit {
           parent: parents.find((p) => p.isPrimary) ?? parents[0] ?? null,
           days: this.classDays(days),
           exams: scores.data,
+          goto: this.gotoOf(days, today),
         });
         this.state.set('ready');
       },
@@ -235,7 +263,22 @@ export class StudentPanelComponent implements OnInit {
           d.state in DAY_LABEL && d.sessions.some((s) => s.className === this.className()),
       )
       .slice(-5)
-      .map((d) => ({ date: d.date, state: d.state }));
+      .map((d) => ({ date: d.date, state: d.state, dailyCheckin: d.dailyCheckin }));
+  }
+
+  /** 這班今天有沒有上課（停課不算）；沒有就找兩週內這班的下一堂 */
+  private gotoOf(res: StudentAttendanceDays, today: string): PanelData['goto'] {
+    // 看這班那一堂自己的狀態，不看整天（同一天另一班照上、這班停課時整天不是 cancelled）
+    const mine = res.days.filter((d) =>
+      d.sessions.some((s) => s.className === this.className() && s.status !== 'cancelled'),
+    );
+    if (mine.some((d) => d.date === today)) return 'today';
+    const next = mine.find((d) => d.date > today);
+    return next ? { date: next.date } : null;
+  }
+
+  protected weekday(date: string): string {
+    return WEEKDAY[new Date(`${date}T00:00:00Z`).getUTCDay()];
   }
 
   protected copyPhone(name: string, phone: string): void {
