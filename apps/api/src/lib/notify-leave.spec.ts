@@ -120,10 +120,23 @@ describe('notifyLeaveForTeachers（#1693：學生請了老師的課）', () => {
       role: 'teacher',
       kind: 'leave_for_my_class',
       dedupe_key: 'leave:leave-1:k2:ses-3',
-      payload: { title: '學生請假', url: '/teacher/schedule' },
+      // 標題就寫是誰、哪一班、哪天（#2501：原本只寫「學生請假」，要點開才知道是誰）
+      payload: { title: '王小明（英文 B 班）請假 10/21', url: '/teacher/schedule' },
       push_status: 'skipped',
       push_error: 'ROLE_PUSH_DISABLED',
     });
+  });
+
+  it('好幾堂：標題寫第一堂＋「等 N 堂」（#2501）', async () => {
+    const db = seed();
+    await notifyLeaveForTeachers(db.client as SupabaseClient, input());
+    expect(
+      (
+        db.rows('notifications').find((n) => n['user_id'] === 'u-main')!['payload'] as {
+          title: string;
+        }
+      ).title,
+    ).toBe('王小明（數學 A 班）請假 10/20 等 2 堂');
   });
 
   it('只請了一班的課：別班的老師收不到', async () => {

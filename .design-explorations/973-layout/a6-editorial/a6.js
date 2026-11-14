@@ -37,10 +37,12 @@
   // #990 批 4：老師端／家長端各自的頁首選單（產品是同一個 ShellLayoutComponent、依角色換選單）。老師端 t-*.html、家長端 p-*.html
   const NAVS = {
     admin: NAV,
-    teacher: [['t-schedule', '課表', 't-schedule.html'], ['t-students', '學生', 't-students.html'], ['t-notifications', '通知', 't-notifications.html']],
+    teacher: [['t-schedule', '課表', 't-schedule.html'], ['t-students', '學生', 't-students.html']],
     parent: [['p-dashboard', '首頁', 'p-dashboard.html'], ['p-attendance', '到班', 'p-attendance.html'], ['p-grades', '成績', 'p-grades.html'], ['p-payments', '繳費', 'p-payments.html']],
   };
   const HOME = { admin: 'dashboard.html', teacher: 't-schedule.html', parent: 'p-dashboard.html' };
+  // R5 10-16「頂欄通知鈴鐺」（#2495 B2 回寫）：通知從「更多」／老師導覽移到頂欄鈴鐺，三個角色都有、帳戶左邊；管理員到通知中心，老師家長到收件匣
+  const INBOX = { admin: 'notifications.html', teacher: 't-notifications.html', parent: 'p-notifications.html' };
   // 10/02 計畫席裁定 A：「更多」照產品選單的分組與名稱（RoutesCatalog），產品沒有的頁不出現。
   // 已在頁首的（課堂管理＝課表、學生管理＝學生、繳費紀錄＝帳單）不重複。[名稱, 檔名, 在哪一批補上]
   const MORE = [
@@ -50,7 +52,6 @@
     ['行政財務', [['費用方案管理', 'fee-templates.html', 3], ['餐費管理', 'meals.html', 3], ['營收報表', 'reports.html', 3]]],
     ['人事管理', [['人員管理', 'staff.html', 3]]],
     ['系統設定', [['系統設定', 'settings.html', 3]]],
-    ['', [['通知中心', 'notifications.html', 2]]],
   ];
   // 家長端「更多」照產品選單（學習狀況／生活與繳費／行政服務）；已在頁首的到班、成績、繳費不重複
   const MORES = {
@@ -59,7 +60,6 @@
       ['學習狀況', [['課表查看', 'p-schedule.html', 5]]],
       ['生活與繳費', [['餐費紀錄', 'p-meals.html', 5]]],
       ['行政服務', [['報名申請', 'p-enrollment.html', 5], ['試聽申請', 'p-trial.html', 5], ['加選課程', 'p-add-course.html', 5], ['續課資訊', 'p-renewal.html', 5]]],
-      ['', [['通知中心', 'p-notifications.html', 5]]],
     ],
   };
   // 已經做出來的頁；其餘連結點了跳「這一頁在批 N 補上」（計畫席裁定 A），每批做完把檔名加進來
@@ -108,6 +108,7 @@
           ${role === 'admin' ? `<label class="top__search">${icon.search}<input type="search" placeholder="找學生、家長電話、帳單" aria-label="全站搜尋"></label>
           <button class="top__searchbtn" type="button" aria-label="搜尋">${icon.search}</button>
           <select class="top__campus" aria-label="切換分校">${C.campuses.map((c) => `<option>${c}</option>`).join('')}</select>` : ''}
+          <a class="top__bell" href="${INBOX[role]}"${INBOX[role] === o.page + '.html' ? ' aria-current="page"' : ''} aria-label="通知，3 則未讀">${icon.bell}<span class="top__badge" aria-hidden="true">3</span></a>
           ${acctBtn()}
         </div>
       </div></header>
@@ -174,14 +175,17 @@
   const ROLE = { admin: ['管理員', 'shield'], teacher: ['任課老師', 'book'], parent: ['家長', 'users'] };
   const av = (cls) => `<span class="acct-av ${cls}" aria-hidden="true">${ME.name[0]}</span>`;
   const acctBtn = () => `<button class="acct" type="button" popovertarget="acct" aria-label="帳戶：${ME.name}，目前身分 ${ROLE[ME.role][0]}">
-      ${av('acct-av--sm')}<span class="top__who acct__who">${ME.name} · ${ROLE[ME.role][0]}</span><span class="acct__role">${ROLE[ME.role][0]}</span>${icon.down}</button>`;
-  const field = (label, input, hint) => `<div class="acset__f"><label class="acset__l">${label}</label><div class="acset__row">${input}<button class="btn btn--sm" type="button" data-busy="儲存中…" data-ok="已儲存${label}">儲存</button></div>${hint ? `<p class="acset__hint">${hint}</p>` : ''}</div>`;
+      ${av('acct-av--sm')}</button>`; // R5 10-22「手機頂欄一列」（#2495 B2 回寫）：只留頭像，手機桌機一致；名字與身分在選單頂端與 aria-label
+  // R5 11-11「帳號設定：編輯 → 一顆儲存」（#2495 B4 回寫）：平常唯讀（欄名＋值），按「編輯」才變輸入框，底部「取消＋儲存」一次存
+  const field = (id, label, input, value, hint) => `<div class="acset__f"><p class="acset__l acset__view">${label}</p><label class="acset__l acset__edit" for="acset-${id}">${label}</label><p class="acset__v acset__view">${value || '未填'}</p>${input.replace('<input class="acset__in"', `<input id="acset-${id}" class="acset__in acset__edit"`)}${hint ? `<p class="acset__hint">${hint}</p>` : ''}</div>`;
   const acctParts = () => `
       <div class="acct-menu" id="acct" popover aria-label="帳戶">
         <div class="acct-menu__me">${av('acct-av--lg')}<div class="acct-menu__txt"><p class="acct-menu__name">${ME.name}</p><p class="acct-menu__mail">${ME.email}</p></div></div>
         <div class="acct-menu__grp" role="group" aria-labelledby="acct-sw">
           <p class="acct-menu__h" id="acct-sw">切換身分</p>
-          ${ME.roles.filter((r) => r !== ME.role).map((r) => `<button class="acct-menu__item" type="button" data-switch="${r}">${icon[ROLE[r][1]]}${ROLE[r][0]}</button>`).join('')}
+          ${[ME.role, ...ME.roles.filter((r) => r !== ME.role)].map((r) => (r === ME.role // R5 11-02（#2495 B2 回寫）：全部身分都列，目前的打勾標「使用中」、排第一；不用 disabled（跳過 Tab）
+            ? `<button class="acct-menu__item" type="button" aria-current="true" aria-disabled="true">${icon[ROLE[r][1]]}${ROLE[r][0]}<span class="acct-menu__now">${icon.check}使用中</span></button>`
+            : `<button class="acct-menu__item" type="button" data-switch="${r}">${icon[ROLE[r][1]]}${ROLE[r][0]}</button>`)).join('')}
         </div>
         <div class="acct-menu__grp">
           <button class="acct-menu__item" type="button" data-acset>${icon.edit}帳號設定</button>
@@ -191,12 +195,16 @@
       <dialog class="acset" aria-labelledby="acset-t">
         <div class="acset__head"><h2 class="acset__t" id="acset-t">帳號設定</h2><button class="acset__x" type="button" aria-label="關閉" data-acset-close>${icon.x}</button></div>
         <div class="acset__body">
-          ${field('顯示名稱', `<input class="acset__in" value="${ME.name}">`)}
-          ${field('生日', `<input class="acset__in" type="date" value="${ME.birthday}">`)}
-          ${field('Email', `<input class="acset__in" type="email" value="${ME.email}">`, '補習班用這個 Email 幫你產生一次性登入連結')}
-          ${field('電話', `<input class="acset__in" type="tel" value="${phone(ME.phone)}">`)}
+          <form class="acset__form" id="acset-form" aria-label="個人資料">
+            ${field('name', '顯示名稱', `<input class="acset__in" value="${ME.name}">`, ME.name)}
+            ${field('nickname', '對外暱稱', `<input class="acset__in" maxlength="20" placeholder="例：王老師">`, '', '公開課程目錄顯示你的暱稱，沒填就顯示本名')}
+            ${field('birthday', '生日', `<input class="acset__in" type="date" value="${ME.birthday}">`, ME.birthday)}
+            ${field('email', 'Email', `<input class="acset__in" type="email" value="${ME.email}">`, ME.email, '補習班用這個 Email 幫你產生一次性登入連結')}
+            ${field('phone', '電話', `<input class="acset__in" type="tel" value="${phone(ME.phone)}">`, phone(ME.phone))}
+          </form>
           <section class="acset__sec" aria-labelledby="acset-p"><p class="acset__l" id="acset-p">家長身份</p><p class="acset__on">${icon.check}已啟用</p></section>
         </div>
+        <div class="fdlg__foot"><button class="btn acset__view" type="button" data-acset-close>關閉</button><button class="btn btn--cta acset__view" type="button" data-acset-edit>編輯</button><button class="btn acset__edit" type="button" data-acset-cancel>取消</button><button class="btn btn--cta acset__edit" type="submit" form="acset-form">儲存</button></div>
       </dialog>
       <div class="switching" role="status" aria-live="polite" hidden></div>`;
 
@@ -217,11 +225,19 @@
     });
     pop.addEventListener('click', (e) => {
       const s = e.target.closest('[data-switch]');
-      if (s) { pop.hidePopover(); switchTo(ROLE[s.dataset.switch][0]); setTimeout(() => (location.href = HOME[s.dataset.switch]), 700); }
+      // R5 11-02「切換身分成功的提示」（#2495 B2 回寫）：toast，不用整面過場
+      if (s) { pop.hidePopover(); toast(`已切換到 ${ROLE[s.dataset.switch][0]}`); setTimeout(() => (location.href = HOME[s.dataset.switch]), 700); }
       if (e.target.closest('[data-acset]')) { pop.hidePopover(); dlg.showModal(); }
       if (e.target.closest('[data-signout]')) { pop.hidePopover(); switchTo('', true); }
     });
-    dlg.addEventListener('click', (e) => { if (e.target === dlg || e.target.closest('[data-acset-close]')) dlg.close(); });
+    const edit = (on) => dlg.toggleAttribute('data-edit', on);
+    dlg.addEventListener('click', (e) => {
+      if (e.target === dlg || e.target.closest('[data-acset-close]')) dlg.close();
+      if (e.target.closest('[data-acset-edit]')) { edit(true); dlg.querySelector('.acset__in').focus(); }
+      if (e.target.closest('[data-acset-cancel]')) { dlg.querySelector('form').reset(); edit(false); }
+    });
+    dlg.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); edit(false); toast('已儲存'); });
+    dlg.addEventListener('close', () => edit(false));
     // 過場：產品是就地切換（navigateToRoleShell），這裡只演到「已切換」為止 —— 設計稿沒有家長頁
     // 登出用同一個過場：產品登出後回到登入頁；這裡停在「已登出」，按「重新登入」到 pub-login.html（批 6）
     function switchTo(label, out) {

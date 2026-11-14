@@ -272,8 +272,25 @@ export function sessionStateText(session: EventSessionSummary, now: Date): strin
  * 呼叫端只傳**今天**的課。上課中的課 `nextSession` 也算「接下來」，所以拆成兩種句子；
  * 分鐘數進位，避免最後半分鐘寫「還有 0 分」。
  */
-export function openerLine(todaySessions: readonly EventSessionSummary[], now: Date): string {
-  if (todaySessions.length === 0) return '今天沒有你的課。';
+const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六'];
+
+/** 今天之後的第一堂（色面用）：`undefined`＝還不知道（下一週還在查），`null`＝兩週內都沒有 */
+export type UpcomingSession = Pick<EventSessionSummary, 'eventDate' | 'startTime' | 'className'>;
+
+export function openerLine(
+  todaySessions: readonly EventSessionSummary[],
+  now: Date,
+  upcoming?: UpcomingSession | null,
+): string {
+  if (todaySessions.length === 0) {
+    // #2501：只說「今天沒有」老師還得自己翻週找下一堂在哪天
+    if (upcoming === null) return '今天沒有課，兩週內也沒有你的課。';
+    if (!upcoming) return '今天沒有你的課。';
+    const [, m, d] = upcoming.eventDate.split('-');
+    const wd = WEEKDAY[new Date(`${upcoming.eventDate}T00:00:00Z`).getUTCDay()];
+    const time = upcoming.startTime ? `${upcoming.startTime} ` : '';
+    return `今天沒有課，下一堂 ${Number(m)}/${Number(d)}（${wd}）${time}${upcoming.className}。`;
+  }
   const next = nextSession(todaySessions, now);
   if (!next) return '今天的課都上完了。';
   if (!next.startTime || !next.endTime) return `下一堂 ${next.className}。`;
