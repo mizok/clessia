@@ -2225,7 +2225,18 @@ export const PAGES = {
     state: PARENT_STATE,
     prep: PARENT_PREP,
     // 篩選換成 A6 下拉（app-select-field），結構不同、外觀對齊 —— 同 p-grades
-    deviations: selectFieldDeviations('科目|星期'),
+    deviations: [
+      ...selectFieldDeviations('科目|星期'),
+      {
+        // 稿的課程詳情在課程列上方有一句簡介（ABOUT）；app 有簡介才畫（courseDescription），seed-demo 的課程都沒有，列整段往上
+        status: '位置',
+        pop: 'detail',
+        a6: '>landmark:dialog\\[[^\\]]*\\]>row$',
+        detail: '^相對「[^」]*」 Δx 0、Δy -\\d+（',
+        reason: '資料：seed-demo 的課程沒有簡介（稿每門課一句），詳情裡的課程列整段往上',
+        source: 'supabase/seed-demo.sql（courses 沒有 description）；add-course.component.html courseDescription 有才畫；#2495',
+      },
+    ],
   },
   // 家長端續課資訊（計畫席 10-22）：只量「沒有即將到來的續課」那一態 —— 本機 seed 沒有未來的繳費期，
   // app 只畫得出這一態；稿的有續課那一態要有下期資料才量得了（偏離見 R5 2026-10-22）
