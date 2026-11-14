@@ -978,3 +978,10 @@ textarea.acset__in { height: auto; min-height: 96px; padding: var(--space-2) var
 .acset__form { display: grid; gap: var(--space-5); }
 .acset__v { font-size: var(--text-base); color: var(--zinc-900); }
 .acset:not([data-edit]) .acset__edit, .acset[data-edit] .acset__view { display: none; }
+
+/* ═══ 11-13 #2495 B7：多選欄型（新增考試的開課班，R5 11-02） */
+.fdlg__multi { display: flex; align-items: center; padding: 0; cursor: pointer; color: var(--zinc-500); }
+.fdlg__mlabel { display: flex; gap: 4px; flex: 1; min-width: 0; padding: 8px 12px; font-size: var(--text-base); line-height: 21px; }
+.fdlg__multi > svg { flex: none; width: 42px; }
+.fdlg__mlist { display: grid; gap: var(--space-1); max-height: 200px; overflow-y: auto; margin-top: var(--space-2); padding: var(--space-2); border: 1px solid var(--zinc-300); border-radius: var(--radius-md); }
+.fdlg__mopt { display: flex; align-items: center; gap: var(--space-2); min-height: 36px; }

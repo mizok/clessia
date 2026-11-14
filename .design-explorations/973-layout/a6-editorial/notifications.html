@@ -28,7 +28,7 @@
   .nt__body { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: 0 0 var(--space-4) calc(12px + 96px + var(--space-3) * 2); }
   .nt__body p { margin-right: auto; max-width: 64ch; font-size: var(--text-md); color: var(--zinc-800); line-height: var(--leading-relaxed); }
   .keep { padding: var(--space-6) 0; font-size: var(--text-sm); color: var(--zinc-600); }
-  /* 發布公告：頁內表單（產品是頁面內表單，不是對話框） */
+  /* 發布公告：#2495 B7 起改成彈窗（R5 10-16 #1689），下面的 .pub 樣式留著不用 */
   .pub { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-4); max-width: 760px; margin-top: var(--space-8); padding: var(--space-6); border-radius: var(--radius-lg); background: var(--zinc-100); }
   .pub__f { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: var(--text-md); font-weight: var(--font-semibold); color: var(--zinc-700); }
   .pub__f--w { grid-column: 1 / -1; }
@@ -50,6 +50,7 @@
     .pub { grid-template-columns: minmax(0, 1fr); margin-left: calc(var(--space-4) * -1); margin-right: calc(var(--space-4) * -1); padding: var(--space-4); border-radius: 0; }
     .pub .acset__in { height: 44px; }
   }
+  .dock:has(> [data-send][hidden]) { display: none !important; }
 </style>
 </head>
 <body data-direction="a6">
@@ -141,14 +142,8 @@
 
   function publish() {
     const byMonth = [...new Set(SENT.map((s) => s.at.slice(0, 7)))];
-    return `<form class="pub" id="pub" novalidate>
-        <label class="pub__f pub__f--w">標題<input class="acset__in" id="p-t" autocomplete="off"><span class="pub__err" id="p-t-e" aria-live="polite"></span></label>
-        <label class="pub__f pub__f--w">內容<textarea class="acset__in" id="p-c" rows="5"></textarea><span class="pub__err" id="p-c-e" aria-live="polite"></span></label>
-        <label class="pub__f">發送對象<select class="acset__in" id="p-a">${AUD.map((a) => `<option>${a}</option>`).join('')}</select></label>
-        <label class="pub__f">分校範圍<select class="acset__in" id="p-s"><option>全部分校</option>${C.campuses.map((c) => `<option>${c}</option>`).join('')}</select></label>
-        <div class="pub__foot"><button class="btn btn--cta" type="submit" id="p-go">發布</button></div>
-      </form>
-      <div id="sent">${byMonth.map((m) => `<section class="chap" aria-label="${+m.slice(5)} 月">
+    // R5 10-16「通知中心發布表單」（#2495 B7 回寫）：發布改成彈窗（工具列「發送通知」），頁面只放已發布列表
+    return `<div id="sent">${byMonth.map((m) => `<section class="chap" aria-label="${+m.slice(5)} 月">
         <div class="chap__side"><div class="chap__big">${+m.slice(5)} 月</div><p class="chap__tally">${SENT.filter((s) => s.at.startsWith(m)).length} 則</p></div>
         <div data-m="${m}">${SENT.filter((s) => s.at.startsWith(m)).map(sentRow).join('')}</div></section>`).join('')}</div>`;
   }
@@ -160,6 +155,7 @@
     document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === st.tab));
     document.querySelector('[data-tab="inbox"] .tlink__n').textContent = u ? `未讀 ${u}` : '';
     document.querySelectorAll('[data-allread]').forEach((b) => { b.hidden = st.tab !== 'inbox'; b.setAttribute('aria-disabled', u ? 'false' : 'true'); });
+    document.querySelectorAll('[data-send]').forEach((b) => (b.hidden = st.tab !== 'publish'));
     document.getElementById('body').innerHTML = st.tab === 'inbox' ? inbox() : publish();
   }
 
@@ -167,7 +163,9 @@
     page: 'notifications',
     title: '',
     bar: `<nav class="tabs" aria-label="通知"><button class="tlink" type="button" data-tab="inbox">收到的 <span class="tlink__n"></span><span class="new">新</span></button><button class="tlink" type="button" data-tab="publish">發布公告</button></nav>
-      <div class="tbar__act"><button class="btn" type="button" data-allread>${icon.check}全部標為已讀<span class="new">新</span></button></div>`,
+      <div class="tbar__act"><button class="btn" type="button" data-allread>${icon.check}全部標為已讀<span class="new">新</span></button><button class="btn btn--cta only-d" type="button" data-send hidden>${icon.send}發送通知</button></div>`,
+    // 手機：主要動作在底部 dock（同 app-page-actions）
+    dock: `<button class="btn btn--cta" type="button" data-send hidden>${icon.send}發送通知</button>`,
     phase: 3600,
   }, `<div id="body"></div>`);
   render();
@@ -198,27 +196,19 @@
     document.querySelectorAll('[data-allread]').forEach((b) => b.setAttribute('aria-disabled', u ? 'false' : 'true'));
   }, true);
 
-  // 發布：不停用按鈕；按了才在欄位旁寫錯在哪（產品是 [disabled]，見設計說明）
-  document.addEventListener('submit', (e) => {
-    if (e.target.id !== 'pub') return;
-    e.preventDefault();
-    const t = document.getElementById('p-t'), c = document.getElementById('p-c');
-    document.getElementById('p-t-e').textContent = t.value.trim() ? '' : '標題還沒填';
-    document.getElementById('p-c-e').textContent = c.value.trim() ? '' : '內容還沒填';
-    if (!t.value.trim() || !c.value.trim()) { (t.value.trim() ? c : t).focus(); return; }
-    const aud = document.getElementById('p-a').value, camp = document.getElementById('p-s').value;
-    A2.act(document.getElementById('p-go'), {
-      busy: '發布中…', ok: `已發布給${aud}（${camp}）`,
-      run: () => {
-        const s = { t: t.value.trim(), aud, camp, at: `${T} ${C.NOW}` };
-        SENT.unshift(s);
-        let box = document.querySelector(`[data-m="${T.slice(0, 7)}"]`);
-        if (!box) { document.getElementById('sent').insertAdjacentHTML('afterbegin', `<section class="chap" aria-label="${+T.slice(5, 7)} 月"><div class="chap__side"><div class="chap__big">${+T.slice(5, 7)} 月</div><p class="chap__tally"></p></div><div data-m="${T.slice(0, 7)}"></div></section>`); box = document.querySelector(`[data-m="${T.slice(0, 7)}"]`); }
-        box.insertAdjacentHTML('afterbegin', sentRow(s).replace('class="sent"', 'class="sent is-new"'));
-        box.closest('.chap').querySelector('.chap__tally').textContent = `${box.children.length} 則`;
-        t.value = ''; c.value = '';
-        document.querySelector('.open__title').innerHTML = `已發布 ${SENT.length} 則公告，<br>上一則是 ${md(T)}。`;
-      },
+  // 發布彈窗：共用 A2.form（必填沒填時送出鈕說還沒填哪一欄）
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-send]')) return;
+    A2.form({
+      title: '發送通知', submit: '發布', busy: '發布中…',
+      fields: [
+        { k: 't', label: '標題', req: true },
+        { k: 'c', label: '內容', type: 'textarea', req: true },
+        { k: 'aud', label: '發送對象', type: 'select', options: AUD, value: AUD[0], half: true },
+        { k: 'camp', label: '分校範圍', type: 'select', options: ['全部分校', ...C.campuses], value: '全部分校', half: true },
+      ],
+      ok: (v) => `已發布給${v.aud}（${v.camp}）`,
+      apply: (v) => { SENT.unshift({ t: v.t, aud: v.aud, camp: v.camp, at: `${T} ${C.NOW}` }); render(); },
     });
   });
 })();

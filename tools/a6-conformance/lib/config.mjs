@@ -928,7 +928,7 @@ export const PAGES = {
         reason: '「範圍以這裡為準、不跟畫面篩選；月份看開立日」稿沒有、現況有，保留',
         source: `${rule('R2')}；#2371 描述；https://github.com/mizok/clessia/issues/2381#issuecomment-6675289108`,
       },
-      // #2316：收款彈窗標題寫期別、副標加到期日 —— 標題文字變了，工具把稿的 h2 配到別的字上
+      // #2316：收款彈窗標題寫期別、副標加到期日 —— 標題文字變了，工具把稿的 h2 配到別的字上（#2495 B7 只回寫了逾期列，收款彈窗沒回寫）
       ...[
         { status: '文案', a6: '^pop\\[pay\\]>landmark:dialog\\[記錄收款\\]$' },
         {
@@ -943,15 +943,6 @@ export const PAGES = {
         ...d,
         pop: 'pay',
         reason: '收款彈窗標題寫期別（「記錄收款 · 11 月學費」）、副標加到期日',
-        source: `${rule('R5', '「帳單列寫期別」2026-11-05')}；#2316`,
-      })),
-      // #2316：逾期章每列多一行期別（稿沒有），列內 span 序號跟著錯開
-      ...[
-        { status: '樣式', a6: '>landmark:region\\[逾期\\]>row>text:span~2$' },
-        { status: '多', app: '>landmark:region\\[逾期\\]>list>row>text:span~3$' },
-      ].map((d) => ({
-        ...d,
-        reason: '每列多一行期別（同一位學生好幾張帳單要分得出來），列內 span 序號錯開',
         source: `${rule('R5', '「帳單列寫期別」2026-11-05')}；#2316`,
       })),
       {
@@ -1352,16 +1343,6 @@ export const PAGES = {
         reason: '關聯學生用遠端搜尋的 autocomplete（combobox），選了的學生是框裡的標籤清單',
         source: `${rule('R7')}；同學生篩選的 app-student-autocomplete（聯絡簿那條）`,
       })),
-      // 稿的提示句（Email 和手機至少填一個…）是 JS 插在 Email 欄後面，手機因此掉到下一列的左半格；
-      // app 照意圖排在 Email、手機兩欄之後 —— 手機與它下面的欄位、提示句都跟著換位置
-      {
-        status: '位置',
-        pop: 'new-parent',
-        a6: 'landmark:form\\[\\]>((text:label|control:textbox)\\[(手機|關聯學生|備註)\\*?\\]|text:p\\[Email和手機至少填一個)',
-        reason: '提示句排在 Email、手機兩欄之後（稿的插入位置讓手機掉到半格）',
-        source:
-          '稿的 JS 插入位置在手機會掉到半格，屬於稿的瑕疵，計畫席 10-30 裁定（parents.html parentForm 的 insertAdjacentHTML）',
-      },
       // 手機關閉鈕 44（稿 38）
       ...[
         { status: '尺寸', detail: '^寬 38→44$' },
@@ -2753,20 +2734,6 @@ export const PAGES = {
     deviations: [
       noCampusSwitch('發公告的對象分校是頁面自己的選單（可選全部分校），不該被頂欄改掉'),
       ...NOTIFICATIONS_TABS,
-      {
-        // #1689：發布表單改成彈窗，頁面只放已發布列表 —— 稿的頁內表單（缺）與 app 工具列的入口（多）是同一件事
-        status: '缺',
-        whole: true, // 整個表單搬進彈窗：裡面的列、「發布」鈕跟著歸偏離
-        a6: 'landmark:main\\[\\]>landmark:form\\[\\]$',
-        reason: '發布表單改成彈窗，頁面只放已發布列表（使用者指定）',
-        source: `${rule('R5')}「通知中心發布表單」2026-10-16；#1689`,
-      },
-      {
-        status: '多',
-        app: 'landmark:main\\[\\]>control:button\\[發送通知\\]$',
-        reason: '發布表單改成彈窗：工具列「發送通知」是它的入口',
-        source: `${rule('R5')}「通知中心發布表單」2026-10-16；#1689`,
-      },
       // 稿有 3 個月份章、本機公告只有 2 個月（多出的那章工具已歸資料差）；那章的章名被後綴配對配到 app 第一章的清單上
       ...['角色', '文案', '黏住', '樣式'].map((status) => ({
         status,
@@ -2831,7 +2798,7 @@ export const PAGES = {
         // R3 連帶：手機名字連結撐到 44px（稿是行內字，約 21），同列第一行變高，下面的勾選、單價、狀態字整排往下
         status: '位置',
         widths: [360],
-        a6: '>row>(text:label(~[23])?>control:(checkbox|textbox)|text:span)$',
+        a6: '>row>(text:label(~[23])?>control:(checkbox|textbox)|text:span(\\[今天有請假\\])?)$',
         detail: '^相對所在列 Δx 0、Δy \\+(1[0-9]|2[0-9]|3[0-2])',
         reason: '連帶：手機名字連結 44px 觸控高度，列的第一行變高',
         source: `${rule('R3')}`,
@@ -3018,8 +2985,6 @@ export const PAGES = {
       ].map((d) => ({ ...d, pop: 'new-exam', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
       // 參加的開課班多選（稿單選「選一個班」）；科目、分校、範圍說明、及格分數的「留空＝總分的 60%」保留（R2）
       ...[
-        { status: '缺', a6: 'landmark:form\\[\\]>control:button\\[選擇：選一個班\\]$' },
-        { status: '多', app: 'landmark:form\\[\\]>text:div\\[選擇班級（至少一項）\\]$' },
         {
           status: '多',
           app: 'landmark:form\\[\\]>(text:span\\[留空＝總分的#%\\]|control:textbox\\[範圍說明\\])$',

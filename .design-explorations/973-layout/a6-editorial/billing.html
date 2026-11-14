@@ -40,6 +40,7 @@
     .chap__side .chap__tally { margin-top: 0; }
     .chap__act { display: none; }
   }
+  .row__per { display: block; font-size: var(--text-sm); color: var(--zinc-600); }
 </style>
 </head>
 <body data-direction="a6">
@@ -126,6 +127,8 @@
   const order = ['overdue', 'due_soon', 'open', 'paid'];
   const state = { q: '' };
 
+  // R5 11-05「帳單列寫期別」（#2495 B7 回寫）：同一位學生好幾張帳單要分得出來，到期上面一行寫期別
+  const period = (i) => `${+i.due.slice(5, 7)} 月學費`;
   const dueText = (i) => {
     if (i.status === 'overdue') return `<span class="row__due row__due--overdue">${icon.alert}逾期 ${days(i.due, C.TODAY)} 天</span><div class="row__sub">${i.lastReminder ? `${md(i.lastReminder)} 提醒過` : '還沒提醒'}</div>`;
     if (i.status === 'due_soon') { const n = days(C.TODAY, i.due); return `<span class="row__due row__due--due_soon">${n === 0 ? '今天到期' : `${n} 天後到期`}</span>`; }
@@ -163,7 +166,7 @@
   const sumOf = (k, a) => a.reduce((s, i) => s + (k === 'paid' ? i.paid : i.balance), 0);
   const rows = (a) => a.map((i) => `<div class="row">
     <div class="row__name"><a href="student.html">${i.studentName}</a> <span class="muted" style="font-weight:400">· ${i.gradeLabel}</span></div>
-    <div>${dueText(i)}</div>
+    <div><span class="row__per">${period(i)}</span>${dueText(i)}</div>
     <div class="row__amt">${money(i.status === 'paid' ? i.total : i.balance)}</div>
     <div class="row__act">${act(i)}</div>
   </div>`).join('');

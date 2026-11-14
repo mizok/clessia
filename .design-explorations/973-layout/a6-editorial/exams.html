@@ -200,7 +200,7 @@
     { k: 'name', label: '考試名稱', value: x.name || '', req: true, ph: '例如：第五次小考' },
     { k: 'kind', label: '類別', type: 'select', options: KIND, value: x.kind || '小考', half: true },
     { k: 'date', label: '考試日期', type: 'date', value: x.date || T, half: true, req: true },
-    { k: 'cid', label: '參加的開課班', type: 'select', ph: '選一個班', req: true, value: x.classId || '', options: C.classes.map((c) => [c.id, `${c.name}（${c.teacher}）`]) },
+    { k: 'cid', label: '參加的開課班', type: 'multi', ph: '選擇班級（至少一項）', req: true, options: C.classes.map((c) => [c.id, `${c.name}（${c.teacher}）`]) },
     { k: 'full', label: '滿分', type: 'money', value: '100', half: true },
     { k: 'pass', label: '及格分數', type: 'money', value: '60', half: true },
   ];
@@ -213,8 +213,8 @@
     if (t.closest('[data-clear]')) { Object.assign(st, { q: '', campus: '', subj: '', status: '', only: '' }); ['f-q'].forEach((id) => (document.getElementById(id).value = '')); ['f-campus', 'f-subj', 'f-status'].forEach((id) => (document.getElementById(id).value = '')); render(); }
     if (t.closest('[data-new]')) A2.form({
       title: '新增考試', sub: '建好之後就可以進去登成績', fields: examFields(), submit: '建立考試', busy: '建立中…',
-      ok: (v) => `已建立「${v.name}」，${C.classById[v.cid].name} ${C.classById[v.cid].studentIds.length} 人`,
-      apply: (v) => { const c = C.classById[v.cid]; E.unshift({ id: 'new' + E.length, type: 'academy', name: v.name, kind: v.kind, classId: c.id, date: v.date, total: c.studentIds.length, done: 0, closed: false }); Object.assign(st, { tab: 'pending', type: 'academy', only: '' }); render(); },
+      ok: (v) => `已建立「${v.name}」，${v.cid.split(',').length} 個班`,
+      apply: (v) => { v.cid.split(',').forEach((id) => { const c = C.classById[id]; E.unshift({ id: 'new' + E.length, type: 'academy', name: v.name, kind: v.kind, classId: c.id, date: v.date, total: c.studentIds.length, done: 0, closed: false }); }); Object.assign(st, { tab: 'pending', type: 'academy', only: '' }); render(); },
     });
     const ed = t.closest('[data-edit]');
     if (ed) { pop(); const x = byId(ed.dataset.edit); A2.form({ title: '編輯基本資料', sub: x.name, fields: examFields(x).filter((f) => x.type === 'academy' || !['cid'].includes(f.k)), submit: '儲存', busy: '儲存中…', ok: (v) => `已更新「${v.name}」`, apply: (v) => { Object.assign(x, { name: v.name, kind: v.kind, date: v.date }, v.cid ? { classId: v.cid } : {}); render(); } }); }
