@@ -333,8 +333,13 @@ export class NotificationsComponent {
     };
   });
 
+  /**
+   * 只管部分分校的管理員發不了全部分校的公告（後端 403 `REQUIRES_ALL_CAMPUSES`，#2493 ?1）——
+   * 不給「全部分校」這一項，預設範圍內第一個分校（分校清單本身已經依範圍篩過）。判準同後端 `resolveCampusScope`
+   */
+  private readonly allCampuses = computed(() => this.auth.hasPermission('all_campuses'));
   protected readonly campusOptions = computed(() => [
-    { label: '全部分校', value: null as string | null },
+    ...(this.allCampuses() ? [{ label: '全部分校', value: null as string | null }] : []),
     ...this.campuses().map((c) => ({ label: c.name, value: c.id as string | null })),
   ]);
 
@@ -401,7 +406,12 @@ export class NotificationsComponent {
       .list()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (res) => this.campuses.set(res.data),
+        next: (res) => {
+          this.campuses.set(res.data);
+          if (!this.allCampuses() && this.campusId() === null) {
+            this.campusId.set(res.data[0]?.id ?? null);
+          }
+        },
         error: () => this.campuses.set([]),
       });
 
