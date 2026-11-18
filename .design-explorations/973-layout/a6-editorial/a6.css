@@ -999,3 +999,24 @@ textarea.acset__in { height: auto; min-height: 96px; padding: var(--space-2) var
 .fdlg__multi > svg { flex: none; width: 42px; }
 .fdlg__mlist { display: grid; gap: var(--space-1); max-height: 200px; overflow-y: auto; margin-top: var(--space-2); padding: var(--space-2); border: 1px solid var(--zinc-300); border-radius: var(--radius-md); }
 .fdlg__mopt { display: flex; align-items: center; gap: var(--space-2); min-height: 36px; }
+
+/* ═══ 11-14 #2495 B8：手機篩選面板貼底抽屜（R5 11-03 #2206，同 app-filter-panel 手機版）
+ * 根沒有內距；標頭列「篩選」16px 粗體＋下框線；內容四邊 16；底部列上框線、滿寬深色「完成」44 高。
+ * 內距照 app 全站 .p-dialog：標頭／底部列 16 24（≤640 是 12），底部列下緣 24＋safe-area（--sheet-foot-gap）。
+ * 成績兩頁的稿原本就有自己的「完成」（.ff__foot），手機改成同一個樣子、「清除篩選」連結藏起來（app 的清除只在標頭、有條件才出現）。 */
+.pop__headrow, .pop__foot { display: none; }
+@media (max-width: 860px) {
+  .pop#filt { position: fixed; inset: auto 0 0 0; width: 100%; max-width: none; max-height: calc(100% - 48px); padding: 0; border: 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0; background: #fff; box-shadow: 0 -12px 32px -8px rgb(26 22 20 / 28%); --pop-from: translateY(100%); }
+  .pop#filt::backdrop { background: rgb(26 22 20 / 40%); }
+  .pop#filt .pop__headrow { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) var(--space-6); border-bottom: 1px solid var(--zinc-200); }
+  .pop#filt .pop__h { margin: 0; font-size: var(--text-lg); font-weight: var(--font-bold); }
+  .pop#filt .pop__body { padding: var(--space-4); }
+  .pop#filt .pop__foot, .pop#filt .ff__foot { position: sticky; bottom: 0; display: block; margin: 0; padding: var(--space-4) var(--space-6) calc(var(--space-6) + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--zinc-200); background: #fff; }
+  .pop#filt .ff__foot [data-clear] { display: none; }
+  .pop#filt .pop__done, .pop#filt .ff__foot .btn { display: block; width: 100%; min-height: 44px; border: 0; border-radius: var(--radius-md); background: var(--zinc-900); color: #fff; padding: 0 var(--space-4); font: inherit; font-size: var(--text-md); font-weight: var(--font-semibold); line-height: normal; cursor: pointer; }
+}
+/* ≤640：標頭列、底部列內距 12（同 app 全站 .p-dialog 的 ≤640 規則；底部列下緣仍是 24＋safe-area） */
+@media (max-width: 640px) {
+  .pop#filt .pop__headrow { padding: var(--space-3); }
+  .pop#filt .pop__foot, .pop#filt .ff__foot { padding: var(--space-3) var(--space-3) calc(var(--space-6) + env(safe-area-inset-bottom, 0px)); }
+}
