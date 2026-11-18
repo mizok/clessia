@@ -3,7 +3,7 @@ title: Gate 網地圖
 summary: 這個 repo 有哪些自動檢查、各自守什麼、各自看不到什麼，以及要新增一道之前該先問的四個問題。按 gate 組織，與按 clause 組織的 constitution-enforcement 互補。
 category: architecture
 status: active
-updated: 2026-09-03
+updated: 2026-11-18
 tags: [architecture, harness, gate, ci]
 ---
 
@@ -30,6 +30,12 @@ tags: [architecture, harness, gate, ci]
 
 `A1`–`A18` 對應 c1 / c3 / c6 / c7 / c8 / c9 / c10 / c11 / c12 與 c5、c2。
 **編號只增不重用**（A4 不存在，退掉的檢查留著洞）。
+
+### ESLint（#2542）
+
+`npm run lint`，CI verify 在 typecheck 之後。**只開抓真 bug 的規則**（unused、沒人接的 Promise、
+await 非 Promise、output 撞 DOM 事件、幾條模板規則），存量記在 ESLint 原生的 `eslint-suppressions.json`，
+帳只減不增由 **A31** 守。c5 不在 ESLint、在 A18。規則清單與理由：[[architecture/lint]]
 
 ### 不對應任何 clause 的（沒有 A 編號）
 
@@ -133,7 +139,10 @@ tags: [architecture, harness, gate, ci]
   另外**空殼頁的綠燈沒有意義** —— 一個還沒實作的頁面必然零違規，不是因為它合格，
   是因為它裡面什麼都沒有，所以 gate 會對這種頁面另外發警告
 - A18 c5：只看得到路徑層面的直接 import，**經由 `core/` 的間接耦合看不到** ——
-  而那是 c5 真正想防的東西之一
+  而那是 c5 真正想防的東西之一。#2542 起也守分層方向（`core/`、`shared/` 不得 import `features/`），
+  但那只是擋反向的直接 import，間接耦合一樣看不到
+- A31 ESLint 帳：只比總筆數。同一個 PR 修掉一筆、又用 `--suppress-all` 記進另一筆新的，總數不變、它看不到 ——
+  ESLint 本身會擋「修掉沒 prune」，但擋不住「帳被重錄」。靠 review 看 `eslint-suppressions.json` 的 diff
 - mobile-first：只數 `respond-to` 的出現與否，不判斷寫得好不好
 
 ## 四、gate 自己也會壞，而且是安靜地壞
@@ -156,11 +165,11 @@ node 內建 test runner，沒有框架沒有設定。
 
 太慢的 gate 會被關掉。所以每次加東西都要量，並且知道自己在花誰的時間：
 
-| 層               | 誰在等     | 現況                                                         |
-| ---------------- | ---------- | ------------------------------------------------------------ |
-| PreToolUse guard | 每一次編輯 | 毫秒級（regex）                                              |
-| Stop gate        | 每一次收工 | harness + `nx affected -t typecheck/test`；typecheck 約 7 秒 |
-| CI verify        | push 之後  | 整套約 1.5 分鐘                                              |
+| 層               | 誰在等     | 現況                                                              |
+| ---------------- | ---------- | ----------------------------------------------------------------- |
+| PreToolUse guard | 每一次編輯 | 毫秒級（regex）                                                   |
+| Stop gate        | 每一次收工 | harness + `nx affected -t typecheck/test`；typecheck 約 7 秒      |
+| CI verify        | push 之後  | 整套約 1.5 分鐘；#2542 起多一步 lint（全庫 type-aware 約 1 分鐘） |
 
 A17 加進 Stop gate 時特別量過 **+7 秒**（`ngc` 冷跑 7.46s、有 nx cache 6.68s）——
 不是因為好奇，是因為那個數字決定人會不會把 gate 關掉。
