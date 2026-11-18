@@ -112,7 +112,8 @@ export const DEVIATIONS = [
     status: '樣式',
     a6: '^>landmark:banner\\[\\]>control:link\\[Clessia\\]$',
     // #2495 B2 起稿的手機 Logo 也是 20px，剩下 display／gap：app 字標前多了品牌 mark（flex 排 mark＋字）
-    detail: '^(fontSize 22px → 20px；lineHeight 22px → 20px；)?display block → flex(；rowGap normal → \\d+px；columnGap normal → \\d+px)?$',
+    detail:
+      '^(fontSize 22px → 20px；lineHeight 22px → 20px；)?display block → flex(；rowGap normal → \\d+px；columnGap normal → \\d+px)?$',
     reason: '字標前多了品牌 mark（Logo 用 flex 排 mark＋字）；手機字級 20 稿已回寫',
     source: `${rule('R5')}「品牌 mark 進 app 內（三處）」2026-11-12；「手機頂欄一列」2026-10-22；#1866`,
   },
@@ -377,10 +378,21 @@ const SELECT_FIELD_SOURCE =
 const NO_SUB_SOURCE = `${rule('R5')}「彈窗與抽屜不放副標」2026-11-06；#2396`;
 const noSubDeviations = (pop, title, sub, { deleted = false, extra = [] } = {}) =>
   [
-    { status: '位置', a6: `>landmark:dialog\\[${title}\\]>(heading:h2\\[${title}\\]|control:button\\[關閉\\])$` },
-    { status: '尺寸', a6: `>landmark:dialog\\[${title}\\]>heading:h2\\[${title}\\]$`, detail: '^寬 ' },
+    {
+      status: '位置',
+      a6: `>landmark:dialog\\[${title}\\]>(heading:h2\\[${title}\\]|control:button\\[關閉\\])$`,
+    },
+    {
+      status: '尺寸',
+      a6: `>landmark:dialog\\[${title}\\]>heading:h2\\[${title}\\]$`,
+      detail: '^寬 ',
+    },
     // 副標進了內容區（或刪掉後內容區上移／下移）：同一個彈出物裡的部件只上下位移、不左右偏
-    { status: '位置', a6: `>landmark:dialog\\[${title}\\]>`, detail: '^相對「[^」]*」 Δx 0、Δy [+-]\\d+（' },
+    {
+      status: '位置',
+      a6: `>landmark:dialog\\[${title}\\]>`,
+      detail: '^相對「[^」]*」 Δx 0、Δy [+-]\\d+（',
+    },
     ...(sub
       ? (deleted ? ['缺'] : ['位置', '尺寸', '樣式', '文案']).map((status) => ({
           status,
@@ -719,7 +731,8 @@ export const PAGES = {
         status,
         pop: 'acset',
         a6: '>landmark:region\\[家長身份\\]>text:p\\[已啟用\\]$',
-        reason: '資料：量測帳號沒有家長身份，顯示「請洽補習班行政」那一句（有家長身份時照稿 ✓ 已啟用，spec 守）',
+        reason:
+          '資料：量測帳號沒有家長身份，顯示「請洽補習班行政」那一句（有家長身份時照稿 ✓ 已啟用，spec 守）',
         source: `${rule('R2')}；#1844；#2390`,
       })),
       // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 courses／grades-class 那條
@@ -758,51 +771,28 @@ export const PAGES = {
       {
         status: '缺',
         pop: 'filt',
-        a6: 'landmark:popover\\[\\]>(text:span\\[(今天|年級)\\]|control:button\\[[^\\]]*\\])$',
+        a6: 'landmark:(popover|dialog)\\[(篩選)?\\]>(text:span\\[(今天|年級)\\]|control:button\\[[^\\]]*\\])$',
         reason: '連帶：篩選面板五列被認成清單列，稿的兩列配不上（app 同樣是今天／年級兩列文字鈕）',
+        source: rule('R2'),
+      },
+      {
+        // 手機貼底抽屜：多出的三列把抽屜撐高（根高已歸資料差），底部列的「完成」跟著往下。只放過往下、左右不差的
+        status: '位置',
+        widths: [360],
+        pop: 'filt',
+        a6: 'landmark:dialog\\[篩選\\]>control:button\\[完成\\]$',
+        detail: '^相對「篩選」 Δx -?[0-4]、Δy \\+\\d+（',
+        reason: '連帶：篩選面板多「狀態」「學校」「卡片」三列，抽屜變高，底部「完成」往下',
         source: rule('R2'),
       },
       {
         // PrimeNG Popover（非原生 popover）：浮層根是 role=dialog，有焦點管理、Esc 關
         status: '角色',
         pop: 'filt',
-        a6: 'landmark:popover\\[\\]$',
+        a6: 'landmark:(popover|dialog)\\[(篩選)?\\]$',
         detail: '^landmark:popover → landmark:dialog$',
         reason: '篩選浮層用 PrimeNG Popover，根元素 role=dialog（非原生 popover）',
         source: rule('R7'),
-      },
-      // #2206：≤860 篩選改成貼底抽屜（全站 p-dialog 手機樣式，#1776），稿手機是內縮 16px 的浮層
-      {
-        status: '樣式',
-        widths: [360],
-        pop: 'filt',
-        a6: 'landmark:popover\\[\\]$',
-        reason: '手機篩選是貼底抽屜（全站 p-dialog 手機樣式），不是稿那種四邊有框的浮層',
-        source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2206 issuecomment-6593157592`,
-      },
-      {
-        status: '多',
-        widths: [360],
-        pop: 'filt',
-        app: 'landmark:dialog\\[篩選\\]>heading:h2\\[篩選\\]$',
-        reason: '手機篩選抽屜的標題「篩選」（稿的浮層沒有標題）',
-        source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2206 issuecomment-6593157592`,
-      },
-      {
-        status: '多',
-        widths: [360],
-        pop: 'filt',
-        app: 'landmark:dialog\\[篩選\\]>control:button\\[完成\\]$',
-        reason: '手機篩選抽屜底部的「完成」（只關閉；稿的浮層點外面關）',
-        source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2206 issuecomment-6593157592`,
-      },
-      {
-        status: '文案',
-        widths: [360],
-        pop: 'filt',
-        a6: 'landmark:popover\\[\\]$',
-        reason: '手機篩選抽屜以標題「篩選」為可及名稱（aria-labelledby），稿的浮層沒有名稱',
-        source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2208 二讀`,
       },
       {
         // 「篩選」鈕被「新增學生」「⋯」推到左邊，貼著它開的浮層跟著左移
@@ -1519,7 +1509,9 @@ export const PAGES = {
       ...noSubDeviations('import', 'Excel匯入名冊', '[^\\]]*每列一位學生[^\\]]*'),
       ...noSubDeviations('off', '停用「[^」\\]]*」', '目前#位學生在籍', {
         // 稿的 form 帶內距、副標又搬進內容區：form 同時左右與上下位移（同教室）
-        extra: [{ status: '位置', a6: '>landmark:dialog\\[停用「[^」\\]]*」\\]>landmark:form\\[\\]$' }],
+        extra: [
+          { status: '位置', a6: '>landmark:dialog\\[停用「[^」\\]]*」\\]>landmark:form\\[\\]$' },
+        ],
       }),
       // 加入學生、Excel 匯入的關閉鈕：手機 44×44（稿 34／35 寬）
       ...['add', 'import'].flatMap((pop) =>
@@ -2209,7 +2201,8 @@ export const PAGES = {
         a6: '>landmark:dialog\\[[^\\]]*\\]>row$',
         detail: '^相對「[^」]*」 Δx 0、Δy -\\d+（',
         reason: '資料：seed-demo 的課程沒有簡介（稿每門課一句），詳情裡的課程列整段往上',
-        source: 'supabase/seed-demo.sql（courses 沒有 description）；add-course.component.html courseDescription 有才畫；#2495',
+        source:
+          'supabase/seed-demo.sql（courses 沒有 description）；add-course.component.html courseDescription 有才畫；#2495',
       },
     ],
   },
@@ -2400,7 +2393,9 @@ export const PAGES = {
       ...noSubDeviations('campus-form', '新增分校', '建好之後[^\\]]*', { deleted: true }),
       // 教室：清單從副標搬進內容區第一行（#2396 D 類），下面的新增教室表單跟著下移
       ...noSubDeviations('rooms', '教室：\\{分校\\}', '[^\\]]*教室[^\\]]*', {
-        extra: [{ status: '位置', a6: '>landmark:dialog\\[教室：\\{分校\\}\\]>landmark:form\\[\\]$' }],
+        extra: [
+          { status: '位置', a6: '>landmark:dialog\\[教室：\\{分校\\}\\]>landmark:form\\[\\]$' },
+        ],
       }),
       noCampusSwitch('這頁就是分校清單本身'),
       ...[
@@ -3206,18 +3201,21 @@ export const PAGES = {
       {
         status: '角色',
         pop: 'filt',
-        a6: '(^|>)landmark:popover\\[\\]$',
+        a6: '(^|>)landmark:(popover|dialog)\\[(篩選)?\\]$',
         reason: 'PrimeNG Popover 固定宣告 role=dialog，跟稿的原生 popover 只差在語意',
         source: `${rule('R5')}「成績學生頁篩選浮層的根角色」2026-11-02`,
       },
       // 篩選浮層的六個下拉是 app-select-field（稿 .dd 是 label 裡的按鈕；app 是欄位外框＋combobox＋箭頭鈕）
       ...[
-        { status: '缺', a6: '(^|>)landmark:popover\\[\\]>row>control:button>text:span$' },
+        {
+          status: '缺',
+          a6: '(^|>)landmark:(popover|dialog)\\[(篩選)?\\]>row>control:button>text:span$',
+        },
         ...['位置', '樣式'].map((status) => ({
           status,
-          a6: '(^|>)landmark:popover\\[\\]>row>control:button$',
+          a6: '(^|>)landmark:(popover|dialog)\\[(篩選)?\\]>row>control:button$',
         })),
-        { status: '樣式', a6: '(^|>)landmark:popover\\[\\]>row$' },
+        { status: '樣式', a6: '(^|>)landmark:(popover|dialog)\\[(篩選)?\\]>row$' },
         // 手機抽屜有可及名稱「篩選」（#2208 二讀），桌機浮層沒有
         { status: '多', app: '(^|>)landmark:dialog\\[(篩選)?\\]>row>control:combobox$' },
       ].map((d) => ({ ...d, pop: 'filt', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
@@ -3226,35 +3224,15 @@ export const PAGES = {
         status: '位置',
         pop: 'filt',
         widths: [1440],
-        a6: '(^|>)landmark:popover\\[\\]>control:button\\[完成\\]$',
+        a6: '(^|>)landmark:(popover|dialog)\\[(篩選)?\\]>control:button\\[完成\\]$',
         reason: '連帶：稿的「新」小標各佔一行、欄位多一個分校，浮層比 app 高；完成鈕貼底跟著差',
         source: '.design-explorations a6.js ddLabel（剔除 .new）；列數差見同頁資料差',
       },
-      // #2206：≤860 篩選改成貼底抽屜（全站 p-dialog 手機樣式，#1776）：根貼底、無框、以標題「篩選」為名，
-      // 多一個標題列；「完成」是抽屜底部滿寬的主要鈕（稿是浮層右下的小鈕）
-      ...[
-        { status: '文案', a6: '(^|>)landmark:popover\\[\\]$' },
-        { status: '位置', a6: '(^|>)landmark:popover\\[\\]$' },
-        { status: '樣式', a6: '(^|>)landmark:popover\\[\\]$' },
-        { status: '多', app: '(^|>)landmark:dialog\\[篩選\\]>heading:h2\\[篩選\\]$' },
-        { status: '位置', a6: '(^|>)landmark:popover\\[\\]>row$' },
-        ...['位置', '尺寸', '樣式'].map((status) => ({
-          status,
-          a6: '(^|>)landmark:popover\\[\\]>control:button\\[完成\\]$',
-        })),
-      ].map((d) => ({
-        ...d,
-        pop: 'filt',
-        widths: [360],
-        reason:
-          '手機篩選是貼底抽屜（全站 p-dialog 手機樣式）：標題列「篩選」、底部滿寬「完成」，不是稿的浮層',
-        source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2206 issuecomment-6593157592`,
-      })),
       // 稿的「新」標記是設計說明；app 欄位標籤的 span 被配到它身上（同批次請假）
       ...['位置', '樣式'].map((status) => ({
         status,
         pop: 'filt',
-        a6: '(^|>)landmark:popover\\[\\]>row>text:span\\[新\\]$',
+        a6: '(^|>)landmark:(popover|dialog)\\[(篩選)?\\]>row>text:span\\[新\\]$',
         reason: '工具限制：稿的「新」標記是設計說明，app 欄位標籤的 span 被配到它身上',
         source: '.design-explorations a6.js ddLabel（剔除 .new）',
       })),
@@ -3589,9 +3567,7 @@ export const PAGES = {
     a6: 't-notifications.html',
     app: '/teacher/notifications',
     state: path.join(cache, 'state-teacher.json'),
-    deviations: [
-      ...INBOX_DEVIATIONS,
-    ],
+    deviations: [...INBOX_DEVIATIONS],
   },
   'p-schedule': {
     a6: 'p-schedule.html',
@@ -3720,7 +3696,8 @@ export const PAGES = {
       {
         // #2446 的兩句已回寫稿（#2495）；稿的預設孩子沒有逾期只畫得出「下一張」，量的張宇軒兩句都有
         status: '文案',
-        detail: '^「(最久的逾期#（#天）)?(。)?(下一張#到期)?」→「(最久的逾期#（#天）)?(。)?(下一張#到期)?」$',
+        detail:
+          '^「(最久的逾期#（#天）)?(。)?(下一張#到期)?」→「(最久的逾期#（#天）)?(。)?(下一張#到期)?」$',
         reason: '資料：副行出現哪幾句看有沒有逾期、有沒有還沒到期的帳單（兩邊同一套句子）',
         source: `${rule('R5')}「家長繳費頁副行改兩句」2026-11-12；#2446、#2495`,
       },
