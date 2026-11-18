@@ -39,7 +39,6 @@ import billingRunsRoute from './routes/billing-runs';
 import reportsRoute from './routes/reports';
 import leaveStreaksRoute from './routes/leave-streaks';
 import { isPubliclyBlockedAuthPath } from './lib/auth-paths';
-import { createServiceClientFromEnv } from './lib/supabase';
 import campusesRoute from './routes/campuses';
 import schoolsRoute from './routes/schools';
 import coursesRoute from './routes/courses';

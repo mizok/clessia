@@ -863,7 +863,6 @@ function createEventsQuery(data: MockSupabaseData) {
       const filtered = data.events.filter((event) => {
         const session = event.sessions[0];
         const courseId = session?.classes?.course_id;
-        const classCampusId = session?.classes?.campus_id;
         const classId = session?.class_id;
         const status = session?.status;
 

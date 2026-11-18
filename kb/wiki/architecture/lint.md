@@ -43,6 +43,8 @@ updated: 2026-11-18
 - ESLint 擋不住的只有「重跑 `--suppress-all` 把新違規記進帳」—— harness **A31** 擋：帳上總筆數不得比
   origin/main 多。**不要用 `--suppress-all` 讓 CI 變綠**；要修
 - `packages/*` 不是 Nx project，跟著 web 的 lint target 一起掃
+- **歸零的 project 把帳檔刪掉、lint target 拿掉 `--suppressions-location`**（帳檔不存在時 ESLint 會以 exit 2 失敗）。
+  api 已於 #2542 PR2 歸零。A31 對 main 上沒有帳檔的路徑以 0 為基準，重錄一份就紅
 
 ## c5 與分層方向不在 ESLint
 

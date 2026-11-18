@@ -16,7 +16,7 @@ import sessionPacksApp from './session-packs';
 describe('GET /api/session-packs —— 停課的課堂不扣堂數', () => {
   const ENROLLMENT_ID = '00000000-0000-4000-8000-0000000000e1';
 
-  function createApp(options?: { dropCancelledFilter?: never }) {
+  function createApp() {
     // 這個班有兩堂課，各自有 event、各自有一筆 present：
     //   ev-live      → 正常上的課
     //   ev-cancelled → 已停課的課（event 還在，因為停課不刪 event）

@@ -1,5 +1,4 @@
-import { generateKeyPairSync, sign } from 'node:crypto';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
   createAuth,
@@ -319,85 +318,24 @@ describe('socialProvidersFromEnv 的 google', () => {
   });
 });
 
-// **idToken 入口不看 disableSignUp**（better-auth 1.5.5）：`sign-in.mjs` 的 idToken 分支讀
-// `provider.disableSignUp`，但 `create-context.mjs` 建 provider 時只複製了 `disableImplicitSignUp`，
-// `disableSignUp` 只在 `provider.options` 裡 —— 所以這條路**會建帳號**。Google 發得出
-// `response_type=id_token`，知道 client id 的人都拿得到 aud 是我們的 id_token。
-// 這裡用自己簽、驗得過的 id_token（JWKS 用 fetch 替身回），證明入口在驗簽那一步就被擋。
+// **idToken 入口關著**（#1842）。better-auth 1.5.5 的這條路不看 disableSignUp、**會建帳號**；1.7 修了（#2540），
+// 但我們用不到這個入口，`disableIdTokenSignIn` 留著當縱深。
+// **行為證明在契約** `auth-google.contract.ts`（CI 以 CONTRACT_REQUIRED 跑）：1.7 起 createAuth 第一個請求就連 DB
+// 驗 schema，這裡沒有 DB。契約斷言 404 `ID_TOKEN_NOT_SUPPORTED` —— 拿掉旗標會變成驗簽失敗的 401 `INVALID_TOKEN`，分得出來。
 describe('Google 的 idToken 登入入口被關掉（#1842）', () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  function signedGoogleIdToken(aud: string) {
-    const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
-    const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
-    const now = Math.floor(Date.now() / 1000);
-    const input = `${b64({ alg: 'RS256', kid: 'k1', typ: 'JWT' })}.${b64({
-      iss: 'https://accounts.google.com',
-      aud,
-      sub: '1234567890',
-      iat: now,
-      exp: now + 600,
-    })}`;
-    const token = `${input}.${Buffer.from(sign('sha256', Buffer.from(input), privateKey)).toString('base64url')}`;
-    const jwk = { ...publicKey.export({ format: 'jwk' }), kid: 'k1', alg: 'RS256', use: 'sig' };
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => Response.json({ keys: [jwk] })),
-    );
-    return token;
-  }
-
-  it('POST /sign-in/social 帶 idToken → INVALID_TOKEN，走不到建帳號那一步', async () => {
-    const auth = createAuth({
-      DATABASE_URL: 'postgres://user:pass@127.0.0.1:1/db',
-      BETTER_AUTH_SECRET: 'test-secret-at-least-32-characters-long',
-      BETTER_AUTH_URL: 'https://demo.clessia.cc',
-      WEB_URL: 'https://demo.clessia.cc',
-      ALLOWED_ORIGINS: '',
-      LINE_CLIENT_ID: '',
-      LINE_CLIENT_SECRET: '',
-      GOOGLE_CLIENT_ID: 'gid',
-      GOOGLE_CLIENT_SECRET: 'gsecret',
-    });
-    const token = signedGoogleIdToken('gid');
-
-    await expect(
-      auth.api.signInSocial({ body: { provider: 'google', idToken: { token } } }),
-    ).rejects.toMatchObject({ body: { code: 'INVALID_TOKEN' } });
+  it('provider 設定帶 disableIdTokenSignIn', () => {
+    expect(
+      socialProvidersFromEnv({ GOOGLE_CLIENT_ID: 'gid', GOOGLE_CLIENT_SECRET: 'gsecret' })['google'],
+    ).toMatchObject({ disableIdTokenSignIn: true });
   });
 });
 
-// 使用者 11-02：LINE 的 idToken 入口也關。理由同 Google（better-auth 1.5.5 那條路不看 disableSignUp）；
+// 使用者 11-02：LINE 的 idToken 入口也關。理由同 Google；
 // LINE 要 channel secret 才換得到 id_token，難利用，但入口本身沒有用途，關掉比留著好。
 describe('LINE 的 idToken 登入入口被關掉', () => {
-  afterEach(() => vi.unstubAllGlobals());
-
   it('provider 設定帶 disableIdTokenSignIn', () => {
     expect(
       socialProvidersFromEnv({ LINE_CLIENT_ID: 'cid', LINE_CLIENT_SECRET: 'secret' })['line'],
     ).toMatchObject({ disableIdTokenSignIn: true });
-  });
-
-  // LINE 的 verifyIdToken 打 LINE 的 verify 端點；替身讓它「驗得過」，證明擋下來的是這個旗標
-  it('POST /sign-in/social 帶 idToken → INVALID_TOKEN，走不到建帳號那一步', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => Response.json({ aud: 'cid', sub: 'U123', iss: 'https://access.line.me' })),
-    );
-    const auth = createAuth({
-      DATABASE_URL: 'postgres://user:pass@127.0.0.1:1/db',
-      BETTER_AUTH_SECRET: 'test-secret-at-least-32-characters-long',
-      BETTER_AUTH_URL: 'https://demo.clessia.cc',
-      WEB_URL: 'https://demo.clessia.cc',
-      ALLOWED_ORIGINS: '',
-      LINE_CLIENT_ID: 'cid',
-      LINE_CLIENT_SECRET: 'secret',
-    });
-    const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
-    const token = `${b64({ alg: 'HS256' })}.${b64({ sub: 'U123', aud: 'cid' })}.sig`;
-
-    await expect(
-      auth.api.signInSocial({ body: { provider: 'line', idToken: { token } } }),
-    ).rejects.toMatchObject({ body: { code: 'INVALID_TOKEN' } });
   });
 });

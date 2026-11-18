@@ -160,6 +160,16 @@ stdout。同一個機制服務三種送達方式。
 - `storeToken: 'hashed'`（#2540）：magic-link token 與 OAuth state 共用 `ba_verification`，plain 時 state 可被當 token
   兌換（GHSA-965c-763c-88jm，知道 email 就能登入成他）。`disableSignUp` 擋不住這條；契約
   `auth-google.contract.ts` 有重現案例。**不要把全域 `verification.storeIdentifier` 設成 hashed**，那會讓它失效
+- **better-auth 1.7 起（#2540）兩條新行為：**
+  - 兌換連結時若帳號 `emailVerified = false`，會**刪光它所有 `ba_account`、撤銷所有 session**
+    （`revoke-unproven-account-access`）。我們的流程碰不到：帳號由 `createUser` 建（false），第一次兌換就變 true，
+    綁 LINE／Google 一定在那之後。**哪天有「沒兌換過連結就先綁 provider」的路徑，這條會把綁定吃掉。**
+    契約「綁定後再兌換一張新連結」守著
+  - `unlink-account` 吃本地 `ba_account.id`（不吃 providerId），且要 24 小時內建立的 session，
+    不新鮮回 `SESSION_NOT_FRESH` → 畫面說「請重新登入後再解除綁定」（不調 `freshAge`，計畫席 11-18 裁）
+- **schema 必須跟 Better Auth 期待的完全一致**：1.7 起初始化就驗 schema（含 production），缺欄位會讓**所有**
+  認證請求失敗。升 better-auth 前先用同版 CLI `auth check schema`／`auth generate` 對 DB 乾跑（#2540 就是這樣
+  抓到 2026-02 建表時就漏掉的 `ba_session.impersonatedBy`）
 
 > ⚠️ **magic-link 需要一個 email 當識別碼。** 家長的佔位 email（`0912345678@phone.internal`）
 > 完全夠用 —— 那個 domain 不存在於公開網路，而我們本來就不寄信。

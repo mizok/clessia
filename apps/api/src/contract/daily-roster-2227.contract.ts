@@ -104,7 +104,7 @@ run('#2227 第 2 張：今天有課的在籍學生在 DB 端篩（作業台日�
       "insert into courses (org_id, campus_id, name, subject_id) values ($1, $2, '數學', $3) returning id",
       [ctx.orgId, fx.campusA, subject!.id],
     );
-    const classes = await q<{ id: string; campus_id: string; name: string }>(
+    await q(
       `insert into classes (org_id, campus_id, course_id, name)
        select $1::uuid, $2::uuid, $4::uuid, '班 ' || lpad(n::text, 3, '0') from generate_series(1, ${BIG}) n
        union all select $1::uuid, $2::uuid, $4::uuid, '停課班'

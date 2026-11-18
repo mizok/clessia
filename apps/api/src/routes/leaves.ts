@@ -1,9 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import {
-  isCancelledSession,
-  toSessionRows,
-  type CancellableSession,
-} from '../lib/cancelled-session';
+import { isCancelledSession, toSessionRows } from '../lib/cancelled-session';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Context } from 'hono';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -30,8 +26,6 @@ import {
 import {
   LEAVE_SESSIONS_EMBED,
   LEAVE_WINDOW_COLUMNS,
-  leaveCoversSession,
-  leavesConflict,
   toLeaveWindow,
   type LeaveWindow,
 } from '../lib/leave-covers-session';

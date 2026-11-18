@@ -61,7 +61,8 @@ function app(
   return a;
 }
 
-const post = (a: Hono, path: string, body?: unknown, ip = '203.0.113.7') =>
+// async：Hono 的 request() 型別是 `Response | Promise<Response>`，包成 Promise 才是「並發」測試真的在等的東西
+const post = async (a: Hono, path: string, body?: unknown, ip = '203.0.113.7') =>
   a.request(
     path,
     {
