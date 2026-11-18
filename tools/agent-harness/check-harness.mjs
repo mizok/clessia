@@ -28,7 +28,7 @@ import { orphanModuleImports } from './lib/orphan-imports.mjs';
 import { destructivePrimaryActions, headerActionButtons } from './lib/page-actions.mjs';
 import { matchWriteRules } from './lib/rules.mjs';
 import { crossFeatureImports, layerImportsIntoFeatures } from './lib/feature-boundaries.mjs';
-import { suppressionTotal } from './lib/eslint-suppressions.mjs';
+import { suppressionBase, suppressionTotal } from './lib/eslint-suppressions.mjs';
 import { dualTrackTables } from './lib/dual-track-table.mjs';
 import { blankComments } from './lib/comments.mjs';
 import { inlineCarriers, inlineStyles, inlineTemplate } from './lib/inline-carriers.mjs';
@@ -2631,6 +2631,9 @@ checkScanScope();
 // 跟 origin/main 的同一份檔 —— 多了就紅。基準同 A16（三點 origin/main...HEAD 的 merge-base 端）；
 // 拿不到 origin/main 時只警告。main 上沒有這份檔時基準算 0 —— 歸零刪檔之後（#2542 PR2），
 // 重錄一份新帳就是「比 0 多」，一樣紅。
+// main 上還沒有帳檔、但這個 PR 要立一份新帳時的筆數上限（#2558 PR1 立 web a11y 帳 116 筆）。
+// 立帳之後 main 有檔，這筆就不再生效；帳歸零刪檔的 PR（#2558 PR2）一併刪掉這筆登記。
+const A31_SEED = { 'apps/web/eslint-suppressions.json': 116 };
 for (const rel of ['apps/web/eslint-suppressions.json', 'apps/api/eslint-suppressions.json']) {
   if (!existsSync(join(ROOT, rel))) continue;
   const mine = suppressionTotal(readFileSync(join(ROOT, rel), 'utf8'));
@@ -2646,8 +2649,8 @@ for (const rel of ['apps/web/eslint-suppressions.json', 'apps/api/eslint-suppres
     cwd: ROOT,
     encoding: 'utf8',
   });
-  // main 上沒有這份帳（已歸零刪檔）＝基準 0
-  const before = theirs.status === 0 ? suppressionTotal(theirs.stdout) : 0;
+  // main 上沒有這份帳（已歸零刪檔）＝基準 0，除非有登記立帳上限
+  const before = suppressionBase(theirs.status === 0 ? theirs.stdout : null, A31_SEED[rel] ?? 0);
   if (mine > before) {
     fail(
       `${rel} 帳上 ${mine} 筆，比 main 的 ${before} 筆多（A31）—— 新違規要修，不能 --suppress-all 記進帳。` +

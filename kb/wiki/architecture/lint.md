@@ -28,7 +28,20 @@ updated: 2026-11-18
 | `@eslint/js` recommended 的 bug 類                     | `no-dupe-keys`、`no-unreachable`、`no-fallthrough`…                    |
 | `reportUnusedDisableDirectives`                        | 失效的 `eslint-disable` 註解                                           |
 
-刻意關掉的與理由寫在 `eslint.config.mjs` 旁邊的註解。a11y 模板規則另案評估（#2558）。
+刻意關掉的與理由寫在 `eslint.config.mjs` 旁邊的註解。
+
+### a11y 模板規則（#2558）
+
+angular-eslint `templateAccessibility` 的 11 條全開：`alt-text`、`click-events-have-key-events`、
+`elements-content`、`interactive-supports-focus`、`label-has-associated-control`、
+`mouse-events-have-key-events`、`no-autofocus`、`no-distracting-elements`、`role-has-required-aria`、
+`table-scope`、`valid-aria`。與 harness 已守的 aria-icon-button、touch-target 不重疊。
+inline template（`.ts` 內的 `template:`）也掃。立法時存量 116 筆（label 85、click 22、focus 7、autofocus 2）
+記在 `apps/web/eslint-suppressions.json`，PR2 要**真修到 0**：
+
+- label：用 `for`＋`id`，或把 input 包進 `<label>`；PrimeNG 元件用 `inputId` 對 `for`
+- click 非互動元素：改成 `<button type="button">`；不能改時補 `(keydown.enter)`／`(keydown.space)` 與 `tabindex="0"`＋`role`
+- 不准用 `eslint-disable` 或 `--suppress-all` 蓋掉
 
 ## 存量：原生 bulk suppressions，只減不增
 
@@ -44,7 +57,7 @@ updated: 2026-11-18
   origin/main 多。**不要用 `--suppress-all` 讓 CI 變綠**；要修
 - `packages/*` 不是 Nx project，跟著 web 的 lint target 一起掃
 - **歸零的 project 把帳檔刪掉、lint target 拿掉 `--suppressions-location`**（帳檔不存在時 ESLint 會以 exit 2 失敗）。
-  api 已於 #2542 PR2 歸零。A31 對 main 上沒有帳檔的路徑以 0 為基準，重錄一份就紅
+  api 已於 #2542 PR2 歸零。A31 對 main 上沒有帳檔的路徑以 0 為基準，重錄一份就紅；**重新開規則要立新帳時**，在 `check-harness.mjs` 的 `A31_SEED` 登記該路徑的筆數上限（一次性，帳歸零刪檔的 PR 一併刪掉登記）
 
 ## c5 與分層方向不在 ESLint
 
