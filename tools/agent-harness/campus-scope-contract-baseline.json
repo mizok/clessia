@@ -28,10 +28,6 @@
   "GET /api/classes/:id": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/classes/:id/school-calendar": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/classes/:id/sessions/preview": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "GET /api/contact-book": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "GET /api/contact-book/missing": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "GET /api/contact-book/missing/summary": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "GET /api/contact-logs": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/courses": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/enrollments": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/enrollments/event-counts": "舊端點：#2493 盤點範圍 OK，缺契約認領",
@@ -101,8 +97,6 @@
   "POST /api/classes/:id/schedules": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "POST /api/classes/:id/schedules/:sid/split": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "POST /api/classes/:id/sessions/generate": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "POST /api/contact-book/remind": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "POST /api/contact-logs": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "POST /api/courses": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "POST /api/daily-checkins": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "POST /api/enrollments": "舊端點：#2493 盤點範圍 OK，缺契約認領",
@@ -130,7 +124,6 @@
   "PUT /api/campuses/:id/classrooms/:roomId": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "PUT /api/class-logs": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "PUT /api/classes/:id/schedules/:sid": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "PUT /api/contact-book": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "PUT /api/parents/:id": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "PUT /api/students/:id": "舊端點：#2493 盤點範圍 OK，缺契約認領"
 }

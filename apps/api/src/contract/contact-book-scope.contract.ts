@@ -1,3 +1,8 @@
+// scope-contract: GET /api/contact-book
+// scope-contract: GET /api/contact-book/missing
+// scope-contract: GET /api/contact-book/missing/summary
+// scope-contract: PUT /api/contact-book
+// scope-contract: POST /api/contact-book/remind
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -213,6 +218,7 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
   afterAll(async () => {
     if (!ctx.orgId) return;
     for (const sql of [
+      'delete from notifications where org_id = $1',
       'delete from contact_book_entries where org_id = $1',
       'delete from sessions where org_id = $1',
       'delete from staff where org_id = $1',
@@ -413,6 +419,88 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
   it('PUT 回應的班名（老師）：跨班的學生只露出老師現任的那班', async () => {
     const res = await asTeacher(() => put('all', fx.ab, '2026-09-04'));
     expect(res.classNames).toEqual(['班 c1']);
+  });
+
+  // #2493：寫入與提醒的範圍外一律 403、不寫
+  const writeCall = async (
+    scope: 'all' | 'c1' | 'none',
+    path: string,
+    body: unknown,
+    method = 'PUT',
+  ) => {
+    ctx.campusScope = scope === 'all' ? null : scope === 'c1' ? [fx.c1] : [];
+    try {
+      return await app.request(
+        path,
+        { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) },
+        env,
+      );
+    } finally {
+      ctx.campusScope = null;
+    }
+  };
+  const entriesOf = async (studentId: string, date: string) =>
+    (
+      await q('select 1 from contact_book_entries where student_id = $1 and entry_date = $2', [
+        studentId,
+        date,
+      ])
+    ).length;
+  const notices = async () =>
+    (await q('select 1 from notifications where org_id = $1', [ctx.orgId])).length;
+
+  it('PUT：受限 C1 替只在 C2 的學生寫 → 403 不寫；空範圍 403；不存在 404；跨校與 C1 學生 200；不受限寫得進 C2', async () => {
+    const body = (studentId: string, entryDate: string) => ({
+      studentId,
+      entryDate,
+      content: '契約寫入',
+    });
+    expect((await writeCall('c1', '/api/contact-book', body(fx.b, '2026-09-10'))).status).toBe(403);
+    expect(await entriesOf(fx.b, '2026-09-10')).toBe(0);
+    expect((await writeCall('none', '/api/contact-book', body(fx.a, '2026-09-10'))).status).toBe(
+      403,
+    );
+    expect(await entriesOf(fx.a, '2026-09-10')).toBe(0);
+    const ghost = body(crypto.randomUUID(), '2026-09-10');
+    expect((await writeCall('c1', '/api/contact-book', ghost)).status).toBe(404);
+    expect((await writeCall('c1', '/api/contact-book', body(fx.a, '2026-09-10'))).status).toBe(200);
+    expect((await writeCall('c1', '/api/contact-book', body(fx.ab, '2026-09-10'))).status).toBe(
+      200,
+    );
+    expect((await writeCall('all', '/api/contact-book', body(fx.b, '2026-09-10'))).status).toBe(
+      200,
+    );
+    expect(await entriesOf(fx.b, '2026-09-10')).toBe(1);
+  });
+
+  it('POST /remind：受限 C1 提醒 C2 的班 → 403 不發通知；空範圍 403；不存在的班 404；C1 的班與不受限照常', async () => {
+    const remind = (scope: 'all' | 'c1' | 'none', classId: string) =>
+      writeCall(scope, '/api/contact-book/remind', { classId, date: MISSING }, 'POST');
+    expect((await remind('c1', fx.c2Class)).status).toBe(403);
+    expect(await notices()).toBe(0);
+    expect((await remind('none', fx.c1Class)).status).toBe(403);
+    expect((await remind('c1', crypto.randomUUID())).status).toBe(404);
+    expect(await notices()).toBe(0);
+    // 通知只發給有 teacher 角色的上課老師：把 C1 那堂暫時排給契約的那位一校老師，測完還原
+    const [t] = await q<{ id: string; prev: string | null }>(
+      `select s.id, (select teacher_id from sessions where org_id = $1 and class_id = $2 and session_date = $3 limit 1) as prev
+       from staff s where s.org_id = $1 and s.user_id = $4`,
+      [ctx.orgId, fx.c1Class, MISSING, fx.teacherUser],
+    );
+    const setTeacher = (id: string | null) =>
+      q(
+        'update sessions set teacher_id = $4 where org_id = $1 and class_id = $2 and session_date = $3',
+        [ctx.orgId, fx.c1Class, MISSING, id],
+      );
+    await setTeacher(t!.id);
+    try {
+      expect((await remind('c1', fx.c1Class)).status).toBe(200);
+    } finally {
+      await setTeacher(t!.prev);
+    }
+    expect(await notices()).toBeGreaterThan(0);
+    // 不受限的管理員不被分校擋（C2 那堂的老師不一定有 teacher 角色，只斷言不是 403／404）
+    expect([200, 409]).toContain((await remind('all', fx.c2Class)).status);
   });
 
   // K4（#1314 盤點）：頂欄「切換分校」要的 `campusId`。指名只能縮小範圍，撐不大它
