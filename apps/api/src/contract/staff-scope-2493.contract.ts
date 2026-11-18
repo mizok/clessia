@@ -40,7 +40,12 @@ const run = URL && KEY && DB ? describe : describe.skip;
 const pool = DB ? new Pool({ connectionString: DB }) : null;
 afterAll(() => pool?.end());
 
-const ctx = { orgId: '', userId: '', campusScope: null as string[] | null };
+const ctx = {
+  orgId: '',
+  userId: '',
+  campusScope: null as string[] | null,
+  authApi: null as unknown,
+};
 
 vi.mock('../middleware/auth', async (importOriginal) => {
   const original = await importOriginal<typeof import('../middleware/auth')>();
@@ -63,6 +68,7 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('childDb', createChildDb(supabase as never, null, ctx.orgId));
       set('campusScope', ctx.campusScope);
       set('auth', {
+        api: ctx.authApi,
         pool: {
           query: pool!.query.bind(pool),
           connect: pool!.connect.bind(pool),
@@ -123,6 +129,7 @@ run('#2493 人員單筆讀寫看分校範圍', () => {
     fx.tX = await staff('乙老師', [fx.c2]);
     fx.tBoth = await staff('跨校老師', [fx.c1, fx.c2]);
     fx.tNone = await staff('沒分校', []);
+    ctx.authApi = auth.api;
     app = (await import('../index')).default as never;
   }, 120_000);
 
@@ -134,6 +141,8 @@ run('#2493 人員單筆讀寫看分校範圍', () => {
     );
     await q('delete from staff where org_id = $1', [ctx.orgId]);
     const authCtx = await auth.$context;
+    const made = await q<{ id: string }>("select id from ba_user where email like 'n2493-%'");
+    users.push(...made.map((r) => r.id));
     for (const userId of users) {
       await q('delete from user_roles where user_id = $1', [userId]);
       await authCtx.internalAdapter.deleteUser(userId);
@@ -248,6 +257,29 @@ run('#2493 人員單筆讀寫看分校範圍', () => {
     );
     expect((await call('none', 'POST', '', body({}))).status).toBe(403);
     expect(await count()).toBe(before);
+  });
+
+  it('POST /（正控）：受限 C1 建 C1 人員 → 201 建出、分校只有 C1；不受限建 C2 人員 → 201', async () => {
+    const make = async (scope: Scope, campusIds: string[]) => {
+      const email = `n2493-${crypto.randomUUID()}@phone.internal`;
+      const res = await call(scope, 'POST', '', {
+        displayName: '正控新人',
+        email,
+        roles: ['admin'],
+        campusIds,
+        permissions: [],
+      });
+      return { res, email };
+    };
+    const inC1 = await make('c1', [fx.c1]);
+    expect(inC1.res.status).toBe(201);
+    const created = ((await inC1.res.json()) as { data: { id: string } }).data.id;
+    const campuses = await q<{ campus_id: string }>(
+      'select campus_id from staff_campuses where staff_id = $1',
+      [created],
+    );
+    expect(campuses.map((r) => r.campus_id)).toEqual([fx.c1]);
+    expect((await make('all', [fx.c2])).res.status).toBe(201);
   });
 
   it('DELETE /:id：任何範圍都不會刪人（409，人員仍在）；不存在 404', async () => {
