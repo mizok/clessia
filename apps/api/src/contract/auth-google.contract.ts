@@ -7,7 +7,7 @@ import { createAuth, type MagicLinkPayload } from '../auth';
  * #1842 Google 登入：對**本機 Postgres** 跑 better-auth 的真 handler，只有 Google 的 token 端點用 fetch 替身
  * （回一張自己組的 id_token；code flow 的 `getUserInfo` 只 `decodeJwt`、不驗簽）。
  * 守的是使用者 10-22 裁定 A 的幾條：不能建帳號、真 email 對不上既有帳號、只能經綁定連結綁上、
- * idToken 入口關著（better-auth 1.5.5 那條路不看 disableSignUp，見 auth.ts）。
+ * idToken 入口關著（`disableIdTokenSignIn`；1.7 起在驗簽前就回 404 `ID_TOKEN_NOT_SUPPORTED`，見 auth.ts）。
  *
  * 帳號一律經 better-auth 自己的 API 建立與刪除（`createUser`／`internalAdapter.deleteUser`），不直寫 ba_*（c2）。
  */
@@ -129,6 +129,14 @@ run('Google 登入對真 Postgres（#1842）', () => {
     ((await (await b('/api/auth/get-session')).json()) as { user?: { id: string } } | null)?.user
       ?.id;
 
+  /** 1.7 的 unlink-account 吃本地 `ba_account.id`，不吃 providerId（#2540） */
+  const accountIdOf = async (b: Browser, provider: Provider) =>
+    (
+      (await (await b('/api/auth/list-accounts')).json()) as { id: string; providerId: string }[]
+    ).find((a) => a.providerId === provider)?.id;
+  const unlink = async (b: Browser, provider: Provider) =>
+    b('/api/auth/unlink-account', { body: { accountId: await accountIdOf(b, provider) } });
+
   async function newUser(email = `c1842-${randomUUID()}@phone.internal`) {
     const { user } = (await auth.api.createUser({ body: { email, name: 'c1842' } })) as {
       user: { id: string };
@@ -245,6 +253,24 @@ run('Google 登入對真 Postgres（#1842）', () => {
     expect(location).toContain('error=account_already_linked_to_different_user');
   });
 
+  // #2540：1.7 起 magic-link 兌換到 `emailVerified=false` 的帳號，會刪光它的 ba_account、撤銷 session
+  // （`revoke-unproven-account-access`）。我們靠「第一次兌換就把 emailVerified 設 true」避開 ——
+  // 所以已綁 Google 的人再拿一張新連結（重發 QR）登入，綁定必須還在
+  it('綁定後再兌換一張新連結：Google 綁定還在、照樣能用 Google 登入', async () => {
+    const staff = await newUser();
+    const sub = randomUUID();
+    const { b } = await signedInAs(staff.email);
+    await viaGoogle(b, '/api/auth/link-social', sub);
+
+    const { b: again } = await signedInAs(staff.email);
+
+    expect(await sessionUser(again)).toBe(staff.id);
+    expect(await accountIdOf(again, 'google')).toBeDefined();
+    const fresh = browser();
+    expect(await viaGoogle(fresh, '/api/auth/sign-in/social', sub)).toBe(`${WEB}/select-role`);
+    expect(await sessionUser(fresh)).toBe(staff.id);
+  });
+
   it('綁定連結只能用一次', async () => {
     const staff = await newUser();
     const { link } = await signedInAs(staff.email);
@@ -264,7 +290,8 @@ run('Google 登入對真 Postgres（#1842）', () => {
       body: { provider: 'google', idToken: { token } },
     });
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 'ID_TOKEN_NOT_SUPPORTED' });
     expect(await counts()).toEqual(before);
   });
 
@@ -296,8 +323,8 @@ run('Google 登入對真 Postgres（#1842）', () => {
       body: { provider: 'line', idToken: { token } },
     });
 
-    expect(res.status).toBe(401);
-    expect(await res.json()).toMatchObject({ code: 'INVALID_TOKEN' });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 'ID_TOKEN_NOT_SUPPORTED' });
     expect(await lineRows()).toEqual(before);
   });
 
@@ -306,7 +333,7 @@ run('Google 登入對真 Postgres（#1842）', () => {
     const { b } = await signedInAs(staff.email);
     await viaGoogle(b, '/api/auth/link-social', randomUUID());
 
-    const res = await b('/api/auth/unlink-account', { body: { providerId: 'google' } });
+    const res = await unlink(b, 'google');
 
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ code: 'FAILED_TO_UNLINK_LAST_ACCOUNT' });
@@ -326,7 +353,7 @@ run('Google 登入對真 Postgres（#1842）', () => {
         .sort();
     expect(await providersOf()).toEqual(['google', 'line']);
 
-    const unlinkGoogle = await b('/api/auth/unlink-account', { body: { providerId: 'google' } });
+    const unlinkGoogle = await unlink(b, 'google');
     expect(unlinkGoogle.status).toBe(200);
     expect(await providersOf()).toEqual(['line']);
 
@@ -340,7 +367,7 @@ run('Google 登入對真 Postgres（#1842）', () => {
     );
     expect(await sessionUser(fresh)).toBe(staff.id);
 
-    const unlinkLast = await b('/api/auth/unlink-account', { body: { providerId: 'line' } });
+    const unlinkLast = await unlink(b, 'line');
     expect(unlinkLast.status).toBe(400);
     expect(await unlinkLast.json()).toMatchObject({ code: 'FAILED_TO_UNLINK_LAST_ACCOUNT' });
     expect(await providersOf()).toEqual(['line']);

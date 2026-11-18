@@ -309,11 +309,22 @@ export class AuthService {
    * 契約 `auth-google.contract.ts` 證明過）；帳號設定只在綁了兩個以上時才給按鈕，這裡是第二道。
    */
   async unlinkProvider(provider: ProviderId): Promise<string | null> {
-    const { error } = await authClient.unlinkAccount({ providerId: provider });
+    const failed = `解除 ${PROVIDER_NAMES[provider]} 綁定失敗，請稍後再試`;
+    // better-auth 1.7 的 unlink 吃本地 account.id，不吃 providerId（#2540）
+    const { data } = await authClient.listAccounts();
+    const accountId = data?.find((a) => a.providerId === provider)?.id;
+    if (!accountId) return failed;
+    const { error } = await authClient.unlinkAccount({ accountId });
     if (!error) return null;
-    return error.code === 'FAILED_TO_UNLINK_LAST_ACCOUNT'
-      ? '至少要留一個登入方式'
-      : `解除 ${PROVIDER_NAMES[provider]} 綁定失敗，請稍後再試`;
+    switch (error.code) {
+      case 'FAILED_TO_UNLINK_LAST_ACCOUNT':
+        return '至少要留一個登入方式';
+      // 1.7 起解除綁定要「新鮮」session（建立 24 小時內）；計畫席 11-18 裁：不調 freshAge
+      case 'SESSION_NOT_FRESH':
+        return '為了安全，請重新登入後再解除綁定';
+      default:
+        return failed;
+    }
   }
 
   /** 回 router 的結果：`true` 才是真的到了那個 shell（被 guard 擋下或導航取消是 `false`） */

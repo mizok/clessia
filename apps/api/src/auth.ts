@@ -132,11 +132,10 @@ export function socialProvidersFromEnv(env: {
       scope: ['openid'],
       // 櫃台共用電腦上可能已經登入別人的 Google，讓使用者自己選
       prompt: 'select_account',
-      // **必要，不是加固。** better-auth 1.5.5 的 idToken 入口（`POST /sign-in/social` 帶 idToken）
-      // 不看 disableSignUp：它讀 `provider.disableSignUp`，但 `create-context.mjs` 只把
-      // `disableImplicitSignUp` 複製到 provider 上 —— 所以那條路會建帳號。Google 發得出
-      // `response_type=id_token`，知道 client id 的人就拿得到 aud 是我們的 id_token。
-      // 我們只用「跳去 Google 再跳回來」的 code flow，用不到它。/link-social 的 idToken 分支同一個函式擋。
+      // idToken 入口（`POST /sign-in/social` 帶 idToken）我們用不到 —— 只用「跳去 Google 再跳回來」的 code flow。
+      // 1.5.5 時這行是**必要**的：那條路不看 disableSignUp，會建帳號（#1842）。1.7 已修
+      // （`sign-in.mjs` 改讀 `provider.options.disableSignUp`），留著當縱深：入口在驗簽前就回 404
+      // `ID_TOKEN_NOT_SUPPORTED`（`supportsIdTokenSignIn`）。/link-social 的 idToken 分支同一個函式擋。
       disableIdTokenSignIn: true,
     };
   }
@@ -228,7 +227,7 @@ export function createAuth(
       accountLinking: {
         // 綁定時 better-auth 比對「OAuth 回來的 email」與「目前 session 的 email」。
         // 合成的 `<LINE sub>@line.internal` 永遠不等於使用者真正的 email，不放行的話
-        // link-social 一律回 `email_doesn't_match`。
+        // link-social 一律回 `email_does_not_match`（1.7 前叫 `email_doesn't_match`）。
         //
         // 型別註解警告這可能導致帳號被奪取。**在這個設定下不適用**：
         // - 它只影響**明確綁定**（account.mjs:149 / callback.mjs:107），那條路要求
