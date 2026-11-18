@@ -96,15 +96,10 @@
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "npx eslint apps/web/src packages --suppressions-location apps/web/eslint-suppressions.json",
+        "command": "npx eslint apps/web/src packages",
         "cwd": "{workspaceRoot}"
       },
-      "inputs": [
-        "default",
-        "{workspaceRoot}/eslint.config.mjs",
-        "{workspaceRoot}/packages/**/*",
-        "{workspaceRoot}/apps/web/eslint-suppressions.json"
-      ],
+      "inputs": ["default", "{workspaceRoot}/eslint.config.mjs", "{workspaceRoot}/packages/**/*"],
       "cache": true
     }
   }
