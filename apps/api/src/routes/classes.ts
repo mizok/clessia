@@ -1,3 +1,4 @@
+import { OCCUPYING_SESSION_STATUSES } from '../lib/session-occupancy';
 import { completeTakenSessions } from '../lib/session-completion';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { loadDisplayName } from '../lib/display-name';
@@ -2608,7 +2609,7 @@ app.openapi(
       .select('id, session_date, start_time, end_time')
       .eq('org_id', orgId)
       .eq('teacher_id', body.toTeacherId)
-      .eq('status', 'scheduled')
+      .in('status', OCCUPYING_SESSION_STATUSES)
       .gte('session_date', body.from)
       .lte('session_date', body.to);
 
@@ -2878,7 +2879,7 @@ app.openapi(
       .select('id, session_date, start_time, end_time, status, teacher_id')
       .eq('org_id', orgId)
       .eq('class_id', id)
-      .eq('status', 'scheduled')
+      .in('status', OCCUPYING_SESSION_STATUSES)
       .in('session_date', targetDates);
 
     if (classDateSessionsError) {
@@ -2892,7 +2893,7 @@ app.openapi(
             .from('sessions')
             .select('id, session_date, start_time, end_time, status, teacher_id')
             .eq('org_id', orgId)
-            .eq('status', 'scheduled')
+            .in('status', OCCUPYING_SESSION_STATUSES)
             .in('teacher_id', targetTeacherIds)
             .in('session_date', targetDates);
 
@@ -3338,7 +3339,7 @@ app.openapi(
       )
       .eq('org_id', orgId)
       .eq('class_id', id)
-      .eq('status', 'scheduled')
+      .in('status', OCCUPYING_SESSION_STATUSES)
       .in('session_date', targetDates);
 
     if (classDateSessionsError) {
@@ -3352,7 +3353,7 @@ app.openapi(
             .from('sessions')
             .select('id, session_date, start_time, end_time, status, teacher_id')
             .eq('org_id', orgId)
-            .eq('status', 'scheduled')
+            .in('status', OCCUPYING_SESSION_STATUSES)
             .in('teacher_id', targetTeacherIds)
             .in('session_date', targetDates);
 
