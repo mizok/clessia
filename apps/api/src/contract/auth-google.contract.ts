@@ -194,6 +194,26 @@ run('Google 登入對真 Postgres（#1842）', () => {
     expect(await counts()).toEqual(before);
   });
 
+  // #2540 GHSA-965c-763c-88jm：OAuth state 跟 magic-link token 存在同一張 ba_verification，
+  // 攻擊者用 `additionalData.email` 把受害者 email 塞進 state，再拿 state 當 token 兌換 → 登入成受害者。
+  // magic-link `storeToken: 'hashed'` 讓兌換時查的是雜湊值，state 的明文 identifier 對不上
+  it('OAuth state 不能拿去兌換 magic-link（GHSA-965c-763c-88jm）', async () => {
+    const victim = await newUser();
+    const attacker = browser();
+    const start = await attacker('/api/auth/sign-in/social', {
+      body: {
+        provider: 'google',
+        callbackURL: `${WEB}/select-role`,
+        additionalData: { email: victim.email },
+      },
+    });
+    const state = new URL(((await start.json()) as { url: string }).url).searchParams.get('state');
+
+    await attacker(`/api/auth/magic-link/verify?token=${state}&callbackURL=${WEB}/select-role`);
+
+    expect(await sessionUser(attacker)).toBeUndefined();
+  });
+
   it('Google 給的真 email 跟既有帳號一樣：也不會對上、不會登入', async () => {
     const alice = await newUser(`c1842-${randomUUID()}@gmail.com`);
     const before = await counts();
