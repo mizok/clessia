@@ -1,3 +1,5 @@
+// scope-contract: GET /api/scores
+// scope-contract: GET /api/scores/students
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
