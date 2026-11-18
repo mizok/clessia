@@ -222,7 +222,6 @@ run('#2493 帳單舊端點看分校範圍', () => {
       items: [{ type: 'tuition', enrollmentId: fx.e2, amount: 1000, periodMonth: '2026-02-01' }],
     });
     expect(created.status).toBe(201);
-    const fresh = ((await created.json()) as { data: { id: string } }).data.id;
     expect(await invoiceCount()).toBe(count + 1);
     const added = await call('all', 'POST', `/${fx.inv}/items`, { type: 'meal', amount: 500 });
     expect(added.status).toBe(201);
@@ -231,7 +230,12 @@ run('#2493 帳單舊端點看分校範圍', () => {
     const [, pay, del] = WRITES(meal);
     expect((await call('all', pay![0], pay![1], pay![2])).status).toBe(201);
     expect((await call('all', del![0], del![1], del![2])).status).toBe(200);
-    // 有收款的單不能作廢（ALREADY_PAID 類 409）：作廢剛開的那張
-    expect((await call('all', 'POST', `/${fresh}/void`, { reason: '契約作廢' })).status).toBe(200);
+    // 作廢打一張沒有明細的新單：有收款的單不能作廢（409）；作廢單的明細被 trigger
+    // guard_voided_invoice_children 鎖住，afterAll 刪不掉（#2582 CI 23514）
+    const bare = await one('insert into invoices (org_id, student_id) values ($1, $2)', [
+      ctx.orgId,
+      fx.s2,
+    ]);
+    expect((await call('all', 'POST', `/${bare}/void`, { reason: '契約作廢' })).status).toBe(200);
   });
 });
