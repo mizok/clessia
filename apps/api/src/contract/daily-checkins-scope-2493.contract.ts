@@ -183,6 +183,18 @@ run('#2493 到班打卡看分校範圍', () => {
     expect((await post('all', fx.sX, ctx.c2)).status).toBeLessThan(300);
   });
 
+  it('POST：受限 C1 替自己的 C1 學生打卡、但 campusId 填 C2（範圍外）→ 403 且打卡不增', async () => {
+    const before = await checkins(fx.sA);
+    const res = await call('c1', 'POST', '', {
+      studentId: fx.sA,
+      campusId: ctx.c2,
+      checkinDate: addDay(day),
+      source: 'manual',
+    });
+    expect(res.status).toBe(403);
+    expect(await checkins(fx.sA)).toBe(before);
+  });
+
   it('DELETE /:id：受限 C1 刪 C2 的打卡（記分校的、沒記分校退回學生分校的）→ 403 且還在；空範圍 403；不受限刪得掉', async () => {
     expect((await call('c1', 'DELETE', `/${fx.dCampus}`)).status).toBe(403);
     expect((await call('c1', 'DELETE', `/${fx.dLegacy}`)).status).toBe(403);
