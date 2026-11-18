@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createChildDb } from '../lib/child-db';
 import { createServiceClientFromEnv } from '../lib/supabase';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { SEED_STAFF_USER } from '../test-utils/seed-borrow';
 
 /**
  * **老師拿到的班名只有自己教的班**（計畫席 10-30，保留類：授權面），對真的本機 PostgREST 跑 ——
@@ -72,7 +73,7 @@ run('老師拿到的班名只有自己教的班（GET /students 的 classNames�
 
   beforeAll(async () => {
     const users = await q<{ user_id: string }>(
-      "select distinct user_id from user_roles where role = 'teacher' order by user_id limit 2",
+      `select distinct user_id from user_roles where role = 'teacher' and ${SEED_STAFF_USER} order by user_id limit 2`,
     );
     [fx.userA, fx.userB] = users.map((u) => u.user_id) as [string, string];
     ctx.orgId = (

@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { PERMISSIONS } from '../lib/permissions';
 import { createServiceClientFromEnv } from '../lib/supabase';
+import { SEED_STAFF_USER } from '../test-utils/seed-borrow';
 
 /**
  * **`GET /api/workbench/today` 整支不碰 PostgREST**（#1595 P2 ①），對本機真 DB 跑。
@@ -101,7 +102,7 @@ run('作業台今天：整支走 pg，內容與範圍照舊（#1595 P2 ①）', 
       "select user_id from user_roles where role = 'admin' order by user_id limit 1",
     );
     const [teacherUser] = await q<{ user_id: string }>(
-      "select user_id from user_roles where role = 'teacher' order by user_id limit 1",
+      `select user_id from user_roles where role = 'teacher' and ${SEED_STAFF_USER} order by user_id limit 1`,
     );
     ctx.userId = admin!.user_id;
     ctx.orgId = await one(

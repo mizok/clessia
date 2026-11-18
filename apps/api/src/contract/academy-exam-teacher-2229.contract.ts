@@ -5,6 +5,7 @@ import { createChildDb } from '../lib/child-db';
 import { PERMISSIONS } from '../lib/permissions';
 import { createServiceClientFromEnv } from '../lib/supabase';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { SEED_STAFF_USER } from '../test-utils/seed-borrow';
 
 /**
  * **#2229：老師的校內考列表範圍在 DB 端篩（embed）、不吞錯**（保留類：授權範圍），對真的本機 PostgREST 跑。
@@ -92,7 +93,7 @@ run('#2229 老師的校內考列表（現任＋前任任期）', () => {
   beforeAll(async () => {
     const [teacherA, teacherB] = (
       await q<{ user_id: string }>(
-        "select distinct user_id from user_roles where role = 'teacher' order by user_id limit 2",
+        `select distinct user_id from user_roles where role = 'teacher' and ${SEED_STAFF_USER} order by user_id limit 2`,
       )
     ).map((u) => u.user_id) as [string, string];
     ctx.userA = teacherA;

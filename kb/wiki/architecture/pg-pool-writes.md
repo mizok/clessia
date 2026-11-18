@@ -3,7 +3,7 @@ title: 經過 pg 連線池寫入
 summary: PostgREST 一次請求一個交易，要「全有或全無」的多步寫入只能走 auth.pool 的交易（repo 不引入 RPC）。規則：只在多步寫入必須原子時用；用 withTx 包；只用參數化 SQL 且每句帶 org_id；範圍判斷在交易裡用 FOR UPDATE 重做；23503 → 409、其他 → 500；池不在就 500，不退回沒有交易的舊寫法。第一個用的是刪班級（#1652）。
 category: architecture
 status: active
-updated: 2026-11-05
+updated: 2026-11-18
 tags: [architecture, database, transaction, authorization]
 ---
 
@@ -76,10 +76,13 @@ Better Auth 每個請求本來就建一個 `pg` 池（`getAuth(c).pool`，正式
 寫入之外，**慢的列表**也走池：PostgREST 每支 100ms 以上，而且多半慢在往返，不在 DB。目前有 `/api/courses`
 （`lib/course-list-sql.ts`，#1933）和 `/api/staff`（`lib/staff-list-sql.ts`）。模式：
 
-1. **SQL 在 lib、池是主路徑，失敗就退回原本的 query builder**：拋錯、超量、結果形狀不對都回 `null`，
-   不用猜的值。builder 留著，所以兩份條件會並存。
+1. **SQL 在 lib、有池就只走它，失敗直接丟例外 → 500，不退回 builder**（#2230 (c)；學生、課程、人員三支
+   列表都是）：拋錯、超量、結果形狀不對都丟，不用猜的值。理由：builder 在大 org 本來就會撞 URL 上限 414→500，
+   「退回去救得回來」只對小 org 成立，而兩條程式路徑要逐欄對齊的維護成本比它救的那幾次還貴。
+   builder 只留給**沒有池**的單元測試環境，所以兩份條件仍然並存。（`/api/staff` 的路由註解曾經還寫著
+   「失敗就走 builder」，#2554 時改掉；契約另有一條「池的 query 丟錯 → 500、不打 PostgREST」把它釘住。）
 2. **授權條件由 TS 算一次再傳進去**（例：`campusFilterIds` 的結果）。`null`＝不篩、空陣列＝零筆。
-3. **契約逐欄比對兩條路**（`contract/*-list.contract.ts`）：有 pool 走 SQL、pool 拋錯走 builder，各種範圍與篩選下
+3. **契約逐欄比對兩條路**（`contract/*-list.contract.ts`）：有 pool 走 SQL、不給 pool 走 builder，各種範圍與篩選下
    回應要逐字相同，另外建一個別的 org 來抓漏寫的 `org_id`。改之前先錄一份 builder 的回應當基準。
 4. **只回原料，計數規則留在 TS**（staff）：SQL 回 builder 拿到的那些列，摘要照用同一組 TS 函式。
 
@@ -89,7 +92,8 @@ Better Auth 每個請求本來就建一個 `pg` 池（`getAuth(c).pool`，正式
   順序都不固定，沒辦法逐欄比對；人員各關聯的陣列也一樣。兩邊都補 `id`。
 - **builder 本來就會撞 URL 上限**：多分校範圍加角色篩選時，章節 head count 要同時帶約 260 個 uuid，結果 414
   → 500（#1928 同一類，supabase-js 給的是空訊息）。SQL 那條沒有 URL。契約把這種題單獨列出來，再用獨立 SQL
-  驗它的數字。
+  驗它的數字。**撞到哪幾題隨 DB 人數而變**（#2554：共用 DB 留著別支契約的資料時會多一題）—— 只釘乾淨 seed
+  一定撞到的那題，不釘整張清單。
 
 ## 誰在用
 

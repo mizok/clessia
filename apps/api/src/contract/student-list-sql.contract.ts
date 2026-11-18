@@ -10,6 +10,7 @@ import { STUDENT_TODAY_SQL } from '../lib/student-today-sql';
 import { restBackedSummaryPool } from '../test-utils/rest-backed-summary-pool';
 import { PERMISSIONS } from '../lib/permissions';
 import { createServiceClientFromEnv } from '../lib/supabase';
+import { SEED_STAFF_USER } from '../test-utils/seed-borrow';
 
 /**
  * **`GET /api/students` 的兩條路對真 DB 逐欄相同**（#1595 P2 ② 刀 1a，計畫席 11-05 裁定）。
@@ -130,6 +131,7 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     const [teacher, ...edgeTeachers] = await q<{ user_id: string }>(
       `select r.user_id from user_roles r where r.role = 'teacher'
          and not exists (select 1 from user_roles a where a.user_id = r.user_id and a.role = 'admin')
+         and r.${SEED_STAFF_USER}
        order by r.user_id limit 3`,
     );
     ctx.edgeTeachers = edgeTeachers.map((t) => t.user_id);
