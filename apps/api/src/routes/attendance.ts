@@ -2,7 +2,6 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { waitUntilFrom } from '../lib/wait-until';
 import { resolveTeacherScope } from './attendance/teacher-scope';
 import type { AppEnv } from '../index';
-import { isAttendanceEditable } from '../lib/attendance-window';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { assertAttendanceWindow } from '../lib/attendance-window-check';
 import { teacherCanReadEvent } from '../lib/attendance-read-scope';
@@ -11,8 +10,6 @@ import { annotateArrivals, checkinCoversSession } from '../lib/session-arrivals'
 import { resolveAttendanceMode } from '../lib/attendance-mode';
 import { writeDailyCheckin } from '../lib/daily-checkin-write';
 import { completeTakenSessions } from '../lib/session-completion';
-import { isSubstituteSession } from '../lib/session-substitute';
-import { countExamsBySession, sessionExamKey } from '../lib/session-exams';
 import { resolveRecordedByRole } from '../lib/recorded-by-role';
 import {
   LEAVE_WINDOW_COLUMNS,
@@ -23,14 +20,7 @@ import { buildStudentDay, leavesTouchingSessions } from '../lib/student-day';
 import { requireRoles } from '../middleware/auth';
 import { cancelLeaveForDate } from '../lib/cancel-leave-for-date';
 import { toSessionRows } from '../lib/cancelled-session';
-import {
-  countEnrolledOn,
-  isEnrolledOn,
-  tallyAttendance,
-  type EnrollmentRange,
-  ENROLLED_STATUSES,
-  ENROLLED_STATUS_OR,
-} from '../lib/session-roster';
+import { isEnrolledOn, ENROLLED_STATUSES, ENROLLED_STATUS_OR } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 import {
   teacherAttendanceWriteAccess,
@@ -43,7 +33,7 @@ function teacherWriteDenied(access: Exclude<TeacherAttendanceWriteAccess, 'ok'>)
     ? { error: '本機構由行政人員負責點名，老師端只能查看', code: 'NOT_RESPONSIBLE' }
     : { error: '這不是你的課堂', code: 'FORBIDDEN' };
 }
-import { applyCampusFilter, type CampusScope, getCampusScope } from '../lib/campus-scope';
+import { applyCampusFilter, getCampusScope } from '../lib/campus-scope';
 import { resourceCampusAllowed } from '../lib/campus-write-guard';
 import {
   ATTENDANCE_SELECT,

@@ -16,9 +16,9 @@ export const INVOICE_SELECT =
   ' invoice_items(id, type, enrollment_id, amount, billing_period_id, period_month, note, created_at),' +
   ' payment_records(id, kind, amount, method, paid_at, proof_path, receipt_no, note, recorded_by, created_at)';
 
-const ITEM_TYPES = ['tuition', 'meal', 'session_pack', 'adjustment'] as const;
-const PAYMENT_KINDS = ['payment', 'refund'] as const;
-const PAYMENT_METHODS = ['cash', 'transfer'] as const;
+type ItemType = 'tuition' | 'meal' | 'session_pack' | 'adjustment';
+type PaymentKind = 'payment' | 'refund';
+type PaymentMethod = 'cash' | 'transfer';
 
 /** postgrest 的 numeric 回來是字串，加總前一定要 Number() */
 function num(value: unknown): number {
@@ -31,7 +31,7 @@ export function toInvoiceResponse(row: Record<string, unknown>) {
 
   const items = rawItems.map((item) => ({
     id: item['id'] as string,
-    type: item['type'] as (typeof ITEM_TYPES)[number],
+    type: item['type'] as ItemType,
     enrollmentId: (item['enrollment_id'] as string | null) ?? null,
     amount: num(item['amount']),
     billingPeriodId: (item['billing_period_id'] as string | null) ?? null,
@@ -41,9 +41,9 @@ export function toInvoiceResponse(row: Record<string, unknown>) {
 
   const payments = rawPayments.map((payment) => ({
     id: payment['id'] as string,
-    kind: payment['kind'] as (typeof PAYMENT_KINDS)[number],
+    kind: payment['kind'] as PaymentKind,
     amount: num(payment['amount']),
-    method: payment['method'] as (typeof PAYMENT_METHODS)[number],
+    method: payment['method'] as PaymentMethod,
     paidAt: payment['paid_at'] as string,
     proofPath: (payment['proof_path'] as string | null) ?? null,
     receiptNo: (payment['receipt_no'] as number | null) ?? null,

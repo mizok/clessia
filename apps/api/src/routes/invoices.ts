@@ -26,12 +26,7 @@ import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-d
 import { dueStateOn, whereDueWithin, whereOverdue } from '../lib/invoice-overdue';
 import { summarizeInvoices } from '../lib/invoice-summary';
 import { fetchAllPages } from '../lib/fetch-all-pages';
-import {
-  invoiceTotals,
-  isOpenInvoice,
-  type PaymentRow,
-  voidBlockReason,
-} from '../lib/invoice-status';
+import { invoiceTotals, isOpenInvoice, voidBlockReason } from '../lib/invoice-status';
 
 /**
  * 帳單、明細、收款、催繳。

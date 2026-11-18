@@ -15,7 +15,7 @@ vi.mock('./notify-leave', () => ({
 }));
 vi.mock('./leave-streak', () => ({ notifyLeaveStreaks: vi.fn(async () => undefined) }));
 import { notifyNewApplication, notifyRenewalRequest } from './notify-events';
-import { createChildDb, type ScopedIds } from './child-db';
+import { createChildDb } from './child-db';
 
 /** 只實作 `.from().select().in()` 這條鏈，並記下每次呼叫收到的參數。 */
 function fakeSupabase() {

@@ -63,8 +63,6 @@ vi.mock('../middleware/auth', async (importOriginal) => {
   };
 });
 
-const BIG = 260;
-
 run('存成績超過 200 位學生（#2232 ②）', () => {
   let app: { request: (path: string, init?: RequestInit, env?: unknown) => Promise<Response> };
   const env = { ENVIRONMENT: 'contract', WEB_URL: 'http://localhost:4200', ALLOWED_ORIGINS: '' };

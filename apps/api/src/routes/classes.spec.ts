@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as classesRoute from './classes';
 
 const deleteClassesMock = vi.hoisted(() => vi.fn());
