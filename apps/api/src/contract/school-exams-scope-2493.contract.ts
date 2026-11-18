@@ -1,3 +1,6 @@
+// scope-contract: GET /api/school-exams/:id
+// scope-contract: GET /api/school-exams/:id/students
+// scope-contract: GET /api/school-exams/todo-count
 // scope-contract: GET /api/school-exams
 // scope-contract: GET /api/school-exams/:id/scores
 // scope-contract: POST /api/school-exams/:id/scores
@@ -215,5 +218,85 @@ run('#2493 學校段考每生成績看分校範圍', () => {
     expect(await scoreOf(fx.sX)).toBe(70);
     expect((await save(fx.sA, 88)).status).toBe(200);
     expect(await scoreOf(fx.sA)).toBe(88);
+  });
+  it('GET /:id：summary 的登錄筆數受限 C1 只算 1、空範圍 0、不受限 2', async () => {
+    const recorded = async (scope: Scope) =>
+      (
+        (await (await call(scope, 'GET', `/${fx.e}`)).json()) as {
+          data: { summary: { totalRecordedCount: number } };
+        }
+      ).data.summary.totalRecordedCount;
+    expect(await recorded('c1')).toBe(1);
+    expect(await recorded('none')).toBe(0);
+    expect(await recorded('all')).toBe(2);
+  });
+
+  it('GET /:id/students：受限 C1 只列 sA；空範圍空；不受限兩位', async () => {
+    const path = `/${fx.e}/students`;
+    const studentIds = async (scope: Scope) =>
+      ((await json(scope, path)).data as Array<Record<string, unknown>>)
+        .map((r) => r['studentId'])
+        .sort();
+    expect(await studentIds('c1')).toEqual([fx.sA]);
+    expect(await studentIds('none')).toEqual([]);
+    expect(await studentIds('all')).toEqual([fx.sA, fx.sX].sort());
+  });
+
+  it('GET /todo-count：只算範圍內學生還沒登的場；別校學生的成績不讓範圍內的場消失', async () => {
+    const mk = async (name: string, campuses: string[]) => {
+      const school = await one('insert into schools (org_id, name) values ($1, $2)', [
+        ctx.orgId,
+        name,
+      ]);
+      const studentIds: string[] = [];
+      for (const campus of campuses) {
+        const course = await one(
+          'insert into courses (org_id, campus_id, name, subject_id) values ($1, $2, $3, $4)',
+          [ctx.orgId, campus, `課 ${name}`, fx.subject],
+        );
+        const klass = await one(
+          'insert into classes (org_id, campus_id, course_id, name) values ($1, $2, $3, $4)',
+          [ctx.orgId, campus, course, `班 ${name}`],
+        );
+        const id = await one(
+          "insert into students (org_id, name, grade, school_id) values ($1, $2, 'J2', $3)",
+          [ctx.orgId, `${name}生`, school],
+        );
+        await q(
+          `insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from)
+           values ($1, $2, $3, 'active', 'monthly', 1000, '2026-01-01')`,
+          [ctx.orgId, klass, id],
+        );
+        studentIds.push(id);
+      }
+      return { school, studentIds };
+    };
+    const exam = (school: string, label: string) =>
+      one(
+        `insert into school_exams (org_id, academic_year, semester, exam_type, label, exam_date, school_id, status)
+         values ($1, 115, 1, 'term_exam', $2, '2026-10-02', $3, 'active')`,
+        [ctx.orgId, label, school],
+      );
+    const count = async (scope: Scope) =>
+      ((await (await call(scope, 'GET', '/todo-count')).json()) as { count: number }).count;
+    const base = { c1: await count('c1'), none: await count('none'), all: await count('all') };
+
+    const s2 = await mk('只 C1 校', [fx.c1]);
+    await exam(s2.school, '沒登一');
+    const s3 = await mk('只 C2 校', [fx.c2]);
+    await exam(s3.school, '沒登二');
+    await exam(s3.school, '沒登三');
+    // 兩校都有學生；成績只有 C2 學生的 → 對 C1 仍是待登錄，對不受限不是
+    const s4 = await mk('兩校', [fx.c1, fx.c2]);
+    const e4 = await exam(s4.school, '只有 C2 登');
+    await q(
+      `insert into school_scores (school_exam_id, student_id, subject_id, score, status)
+       values ($1, $2, $3, 60, 'scored')`,
+      [e4, s4.studentIds[1], fx.subject],
+    );
+
+    expect(await count('c1')).toBe(base.c1 + 2);
+    expect(await count('none')).toBe(base.none);
+    expect(await count('all')).toBe(base.all + 3);
   });
 });
