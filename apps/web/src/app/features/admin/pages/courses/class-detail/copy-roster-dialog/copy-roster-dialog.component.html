@@ -15,10 +15,13 @@
       <!-- 課程 + 年級篩選 -->
       <div class="grid grid-cols-[1fr_auto] items-end gap-3">
         <div class="flex flex-col gap-2">
-          <label class="text-xs font-semibold tracking-[0.05em] text-zinc-500 uppercase"
+          <label
+            for="copy-roster-dialog-1"
+            class="text-xs font-semibold tracking-[0.05em] text-zinc-500 uppercase"
             >課程</label
           >
           <p-select
+            inputId="copy-roster-dialog-1"
             [options]="courseOptions()"
             [ngModel]="selectedCourseId()"
             (ngModelChange)="selectedCourseId.set($event ?? ''); selectedClassId.set(null)"
@@ -29,10 +32,13 @@
           />
         </div>
         <div class="flex min-w-[110px] flex-col gap-2">
-          <label class="text-xs font-semibold tracking-[0.05em] text-zinc-500 uppercase"
+          <label
+            for="copy-roster-dialog-2"
+            class="text-xs font-semibold tracking-[0.05em] text-zinc-500 uppercase"
             >適合年級</label
           >
           <p-select
+            inputId="copy-roster-dialog-2"
             [options]="gradeLevelOptions"
             [ngModel]="selectedGradeLevel()"
             (ngModelChange)="
@@ -50,13 +56,16 @@
 
       <!-- 班級選擇 -->
       <div class="flex flex-col gap-2">
-        <label class="text-xs font-semibold tracking-[0.05em] text-zinc-500 uppercase"
+        <label
+          for="copy-roster-dialog-3"
+          class="text-xs font-semibold tracking-[0.05em] text-zinc-500 uppercase"
           >來源班級</label
         >
         @if (classesLoading()) {
           <p-skeleton height="42px" borderRadius="8px" />
         } @else {
           <p-select
+            inputId="copy-roster-dialog-3"
             [options]="classOptions()"
             [ngModel]="selectedClassId()"
             (ngModelChange)="selectedClassId.set($event ?? null); onClassSelect($event ?? null)"
@@ -135,7 +144,10 @@
         </p>
         <div class="grid grid-cols-2 gap-x-4 gap-y-2">
           @for (opt of statusOptions; track opt.value) {
-            <label class="flex min-h-11 cursor-pointer items-center gap-2 select-none">
+            <label
+              class="flex min-h-11 cursor-pointer items-center gap-2 select-none"
+              [for]="'status-' + opt.value"
+            >
               <p-checkbox
                 [ngModel]="isStatusChecked(opt.value)"
                 (ngModelChange)="toggleStatus(opt.value, $event)"

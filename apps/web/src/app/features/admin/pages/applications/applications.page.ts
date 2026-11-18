@@ -41,6 +41,7 @@ import {
 import { ParentFormDialogComponent } from '@shared/components/parent-form-dialog/parent-form-dialog.component';
 import { ApproveRequestDialogComponent } from './approve-request-dialog/approve-request-dialog.component';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
+import { BackdropCloseDirective } from '../../../../shared/directives/backdrop-close.directive';
 
 const STATUS_OPTIONS: Array<{ label: string; value: PublicApplicationStatus }> = [
   { label: '新申請', value: 'new' },
@@ -151,6 +152,7 @@ const RELATION_LABELS = { father: '父親', mother: '母親', other: '其他' } 
 @Component({
   selector: 'app-applications',
   imports: [
+    BackdropCloseDirective,
     SkeletonComponent,
     DatePipe,
     FormsModule,
@@ -466,11 +468,6 @@ export class ApplicationsPage {
 
   protected closeApprove(): void {
     this.approveDialog()?.nativeElement.close();
-  }
-
-  /** 點背景（dialog 本身，不是裡面的表單）關掉，同 A6 `form()` */
-  protected onApproveBackdrop(event: MouseEvent): void {
-    if (event.target === event.currentTarget) this.closeApprove();
   }
 
   /** 成功：toast 帳單編號、重抓（這筆移到「進行中」）；取消只關 */

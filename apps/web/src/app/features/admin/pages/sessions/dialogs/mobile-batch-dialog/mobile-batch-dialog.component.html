@@ -81,8 +81,11 @@
             修改 {{ selectedCount() }} 堂課的時間
           </h4>
           <div class="flex items-center gap-3">
-            <label class="min-w-10 text-sm font-semibold text-zinc-600">開始</label>
+            <label for="mobile-batch-dialog-1" class="min-w-10 text-sm font-semibold text-zinc-600"
+              >開始</label
+            >
             <input
+              id="mobile-batch-dialog-1"
               pInputText
               type="time"
               [ngModel]="batchStartTime()"
@@ -90,8 +93,11 @@
             />
           </div>
           <div class="flex items-center gap-3">
-            <label class="min-w-10 text-sm font-semibold text-zinc-600">結束</label>
+            <label for="mobile-batch-dialog-2" class="min-w-10 text-sm font-semibold text-zinc-600"
+              >結束</label
+            >
             <input
+              id="mobile-batch-dialog-2"
               pInputText
               type="time"
               [ngModel]="batchEndTime()"
@@ -119,8 +125,11 @@
             />
           </div>
           <div class="flex items-center gap-3">
-            <label class="min-w-10 text-sm font-semibold text-zinc-600">開始</label>
+            <label for="mobile-batch-dialog-3" class="min-w-10 text-sm font-semibold text-zinc-600"
+              >開始</label
+            >
             <input
+              id="mobile-batch-dialog-3"
               pInputText
               type="time"
               step="900"
@@ -129,8 +138,11 @@
             />
           </div>
           <div class="flex items-center gap-3">
-            <label class="min-w-10 text-sm font-semibold text-zinc-600">結束</label>
+            <label for="mobile-batch-dialog-4" class="min-w-10 text-sm font-semibold text-zinc-600"
+              >結束</label
+            >
             <input
+              id="mobile-batch-dialog-4"
               pInputText
               type="time"
               step="900"

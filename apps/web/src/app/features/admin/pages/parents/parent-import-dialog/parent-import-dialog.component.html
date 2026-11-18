@@ -7,10 +7,10 @@
         Excel
         的欄位依序：家長姓名、電話、Email、家長備註、學生姓名、年級、學校、生日、性別（前兩列是表頭）
       </p>
-      <div
+      <!-- label 包著 file input：點擊與鍵盤（Tab 到 input、Enter／空白）都走原生的開檔 -->
+      <label
         class="import-dialog__upload-area min-h-11"
         [class.import-dialog__upload-area--drag-over]="dragging()"
-        (click)="fileInput.click()"
         (dragover)="onDragOver($event)"
         (dragleave)="onDragLeave($event)"
         (drop)="onDrop($event)"
@@ -22,12 +22,12 @@
           accept=".xlsx,.xls,.csv"
           (change)="onFileChange($event)"
         />
-        <div class="import-dialog__upload-icon">
+        <span class="import-dialog__upload-icon">
           <i class="pi pi-cloud-upload"></i>
-        </div>
+        </span>
         <span class="import-dialog__upload-title">點擊或拖曳 Excel 檔案至此</span>
         <span class="import-dialog__upload-hint">支援 .xlsx / .xls / .csv</span>
-      </div>
+      </label>
 
       @if (fileError()) {
         <app-inline-notice

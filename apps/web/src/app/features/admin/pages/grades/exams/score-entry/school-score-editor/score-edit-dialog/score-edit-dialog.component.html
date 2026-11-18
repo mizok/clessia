@@ -200,8 +200,13 @@
 
     <div class="flex flex-col gap-4">
       <div class="flex flex-col gap-2">
-        <label class="text-xs font-semibold tracking-[0.02em] text-zinc-600 uppercase">分數</label>
+        <label
+          for="score-edit-dialog-1"
+          class="text-xs font-semibold tracking-[0.02em] text-zinc-600 uppercase"
+          >分數</label
+        >
         <p-inputnumber
+          inputId="score-edit-dialog-1"
           [ngModel]="row.score"
           (ngModelChange)="onScoreChange(row, $event)"
           [min]="0"
@@ -211,8 +216,13 @@
         />
       </div>
       <div class="flex flex-col gap-2">
-        <label class="text-xs font-semibold tracking-[0.02em] text-zinc-600 uppercase">狀態</label>
+        <label
+          for="score-edit-dialog-2"
+          class="text-xs font-semibold tracking-[0.02em] text-zinc-600 uppercase"
+          >狀態</label
+        >
         <p-select
+          inputId="score-edit-dialog-2"
           [options]="scoreStatusOptions"
           [ngModel]="row.status"
           (ngModelChange)="onStatusChange(row, $event)"
@@ -224,8 +234,13 @@
         />
       </div>
       <div class="flex flex-col gap-2">
-        <label class="text-xs font-semibold tracking-[0.02em] text-zinc-600 uppercase">備註</label>
+        <label
+          for="score-edit-dialog-3"
+          class="text-xs font-semibold tracking-[0.02em] text-zinc-600 uppercase"
+          >備註</label
+        >
         <input
+          id="score-edit-dialog-3"
           type="text"
           pInputText
           [ngModel]="row.notes"

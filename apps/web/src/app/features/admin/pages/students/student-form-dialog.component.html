@@ -2,8 +2,11 @@
 <app-dialog-frame [title]="isCreateMode() ? '新增學生' : '編輯學生資料'" (closed)="cancel()">
   <!-- 姓名 -->
   <div class="form-dialog__field">
-    <label class="form-dialog__label"> 姓名<span class="form-dialog__required">*</span> </label>
+    <label for="student-form-dialog-1" class="form-dialog__label">
+      姓名<span class="form-dialog__required">*</span>
+    </label>
     <input
+      id="student-form-dialog-1"
       type="text"
       pInputText
       [ngModel]="formData().name"
@@ -21,8 +24,9 @@
   <!-- 家長（選填，僅在未預填家長時顯示 —— 對齊「新增學生」兩個入口的能力） -->
   @if (showParentPicker()) {
     <div class="form-dialog__field">
-      <label class="form-dialog__label">家長（選填）</label>
+      <label for="student-form-dialog-2" class="form-dialog__label">家長（選填）</label>
       <p-autocomplete
+        inputId="student-form-dialog-2"
         [ngModel]="selectedParent()"
         (ngModelChange)="onParentChange($event)"
         [suggestions]="parentSuggestions()"
@@ -46,8 +50,11 @@
   <!-- 年級 + 學校 -->
   <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
     <div class="form-dialog__field">
-      <label class="form-dialog__label"> 年級<span class="form-dialog__required">*</span> </label>
+      <label for="student-form-dialog-3" class="form-dialog__label">
+        年級<span class="form-dialog__required">*</span>
+      </label>
       <p-select
+        inputId="student-form-dialog-3"
         [options]="gradeOptions"
         [ngModel]="formData().grade"
         (ngModelChange)="updateForm('grade', $event)"
@@ -63,11 +70,12 @@
       }
     </div>
     <div class="form-dialog__field">
-      <label class="form-dialog__label">
+      <label for="student-form-dialog-4" class="form-dialog__label">
         就讀學校<span class="form-dialog__required">*</span>
       </label>
       <div class="flex items-stretch gap-2 [&>:first-child]:flex-1">
         <p-select
+          inputId="student-form-dialog-4"
           [options]="schools()"
           [ngModel]="formData().schoolId"
           (ngModelChange)="updateForm('schoolId', $event)"
@@ -125,8 +133,9 @@
   <!-- 生日 + 性別 -->
   <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
     <div class="form-dialog__field">
-      <label class="form-dialog__label">生日</label>
+      <label for="student-form-dialog-5" class="form-dialog__label">生日</label>
       <p-datepicker
+        inputId="student-form-dialog-5"
         [ngModel]="formData().birthday"
         (ngModelChange)="updateForm('birthday', $event)"
         placeholder="選擇生日"
@@ -137,8 +146,9 @@
       />
     </div>
     <div class="form-dialog__field">
-      <label class="form-dialog__label">性別</label>
+      <label for="student-form-dialog-6" class="form-dialog__label">性別</label>
       <p-select
+        inputId="student-form-dialog-6"
         [options]="genderOptions"
         [ngModel]="formData().gender"
         (ngModelChange)="updateForm('gender', $event)"
@@ -155,8 +165,9 @@
   <!-- 電話 + Email -->
   <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
     <div class="form-dialog__field">
-      <label class="form-dialog__label">學生電話</label>
+      <label for="student-form-dialog-7" class="form-dialog__label">學生電話</label>
       <input
+        id="student-form-dialog-7"
         type="tel"
         pInputText
         [ngModel]="formData().phone"
@@ -167,8 +178,9 @@
       />
     </div>
     <div class="form-dialog__field">
-      <label class="form-dialog__label">學生 Email</label>
+      <label for="student-form-dialog-8" class="form-dialog__label">學生 Email</label>
       <input
+        id="student-form-dialog-8"
         type="email"
         pInputText
         [ngModel]="formData().email"
@@ -182,8 +194,9 @@
 
   <!-- 地址 -->
   <div class="form-dialog__field">
-    <label class="form-dialog__label">居住地址</label>
+    <label for="student-form-dialog-9" class="form-dialog__label">居住地址</label>
     <input
+      id="student-form-dialog-9"
       type="text"
       pInputText
       [ngModel]="formData().address"
@@ -197,8 +210,9 @@
   <!-- 緊急聯絡人 -->
   <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
     <div class="form-dialog__field">
-      <label class="form-dialog__label">緊急聯絡人姓名</label>
+      <label for="student-form-dialog-10" class="form-dialog__label">緊急聯絡人姓名</label>
       <input
+        id="student-form-dialog-10"
         type="text"
         pInputText
         [ngModel]="formData().emergencyContactName"
@@ -209,8 +223,9 @@
       />
     </div>
     <div class="form-dialog__field">
-      <label class="form-dialog__label">緊急聯絡人電話</label>
+      <label for="student-form-dialog-11" class="form-dialog__label">緊急聯絡人電話</label>
       <input
+        id="student-form-dialog-11"
         type="tel"
         pInputText
         [ngModel]="formData().emergencyContactPhone"
@@ -224,8 +239,9 @@
 
   <!-- 備註 -->
   <div class="form-dialog__field">
-    <label class="form-dialog__label">備註</label>
+    <label for="student-form-dialog-12" class="form-dialog__label">備註</label>
     <textarea
+      id="student-form-dialog-12"
       pTextarea
       [ngModel]="formData().notes"
       (ngModelChange)="updateForm('notes', $event)"

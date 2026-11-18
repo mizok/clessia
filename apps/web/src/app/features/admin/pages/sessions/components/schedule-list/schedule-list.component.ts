@@ -2,11 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, output } f
 import { CampusContextService } from '@core/campus-context.service';
 import type { Session } from '@core/sessions.service';
 import { isLive, type StartGroup } from '../../schedule-day.util';
-import {
-  pickEvent,
-  type ScheduleMenuRequest,
-  type SchedulePickRequest,
-} from '../schedule-gantt/schedule-gantt.component';
+import { PickClickDirective, type SchedulePickRequest } from '../pick-click.directive';
+import type { ScheduleMenuRequest } from '../schedule-gantt/schedule-gantt.component';
 import { SessionTagsComponent } from '../session-tags/session-tags.component';
 
 /**
@@ -14,7 +11,7 @@ import { SessionTagsComponent } from '../session-tags/session-tags.component';
  */
 @Component({
   selector: 'app-schedule-list',
-  imports: [SessionTagsComponent],
+  imports: [SessionTagsComponent, PickClickDirective],
   templateUrl: './schedule-list.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -37,10 +34,6 @@ export class ScheduleListComponent {
   /** 手機長按一堂（A6）：頁面勾起它並打開快速選取面板 */
   readonly longPress = output<string>();
 
-  protected onPickClick(event: MouseEvent, id: string): void {
-    const req = pickEvent(event, id);
-    if (req) this.pickToggle.emit(req);
-  }
   /** 長按已觸發：接下來那一下 click 不再開選單 */
   protected pressed = false;
   private timer: ReturnType<typeof setTimeout> | undefined;

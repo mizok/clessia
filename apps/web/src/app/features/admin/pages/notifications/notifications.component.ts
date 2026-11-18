@@ -38,6 +38,7 @@ import { PageOpenComponent } from '@shared/components/page-open/page-open.compon
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
+import { BackdropCloseDirective } from '../../../../shared/directives/backdrop-close.directive';
 
 type Tab = 'inbox' | 'publish';
 
@@ -65,6 +66,7 @@ const OTHER_KIND = { label: '系統通知', icon: 'pi-bell', go: '前往' };
 @Component({
   selector: 'app-notifications',
   imports: [
+    BackdropCloseDirective,
     DialogFrameComponent,
     SkeletonComponent,
     ReloadVeilComponent,
@@ -394,11 +396,6 @@ export class NotificationsComponent {
   /** 關掉不清草稿 —— 再打開時內容還在，送出成功才清空 */
   protected closeComposer(): void {
     this.composer()?.nativeElement.close();
-  }
-
-  /** 點背景關掉：dialog 沒有內距，點到 dialog 本身就是點到 backdrop */
-  protected onComposerBackdrop(event: MouseEvent): void {
-    if (event.target === event.currentTarget) this.closeComposer();
   }
 
   constructor() {

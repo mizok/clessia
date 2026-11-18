@@ -70,7 +70,7 @@
 
     @if (isSessionPackMode()) {
       <div class="flex flex-col gap-3" data-testid="session-pack">
-        <label class="text-sm font-medium text-zinc-600">堂數帳</label>
+        <span class="text-sm font-medium text-zinc-600">堂數帳</span>
 
         @if (packSummary(); as summary) {
           @if (summary.remaining <= 0) {

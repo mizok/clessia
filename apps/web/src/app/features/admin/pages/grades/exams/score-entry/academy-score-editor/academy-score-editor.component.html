@@ -251,9 +251,10 @@
         </ng-template>
 
         <div class="flex flex-col gap-4">
-          <label class="flex flex-col gap-2">
+          <label for="academy-score-editor-1" class="flex flex-col gap-2">
             <span class="text-sm font-semibold text-zinc-700">分數 ／{{ exam().totalScore }}</span>
             <p-inputnumber
+              inputId="academy-score-editor-1"
               [ngModel]="row.score"
               (ngModelChange)="onScoreChange(row, $event)"
               [min]="0"

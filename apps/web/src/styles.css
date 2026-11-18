@@ -1625,6 +1625,7 @@
     /* ---- Step 1: Upload zone ---- */
   }
   .import-dialog__upload-area {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1671,8 +1672,17 @@
   .import-dialog__upload-area--drag-over .import-dialog__upload-icon {
     transform: translateY(-3px);
   }
+  /* 視覺隱藏但可聚焦（display:none 會讓鍵盤到不了它）；焦點環畫在外框上 */
   .import-dialog__file-input {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+  }
+  .import-dialog__upload-area:has(.import-dialog__file-input:focus-visible) {
+    outline: 2px solid var(--accent-500);
+    outline-offset: 2px;
   }
   .import-dialog__upload-title {
     font-size: var(--text-lg);

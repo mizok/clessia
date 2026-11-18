@@ -25,6 +25,7 @@ import {
   SelectFieldComponent,
   type SelectFieldOption,
 } from '@shared/components/select-field/select-field.component';
+import { BackdropCloseDirective } from '../../../../shared/directives/backdrop-close.directive';
 
 type Mode = '' | 'per_session' | 'daily_checkin';
 
@@ -43,13 +44,13 @@ type Mode = '' | 'per_session' | 'daily_checkin';
 @Component({
   selector: 'app-campus-form-dialog',
   standalone: true,
-  imports: [DialogFrameComponent, FormsModule, SelectFieldComponent],
+  imports: [BackdropCloseDirective, DialogFrameComponent, FormsModule, SelectFieldComponent],
   template: `
     <dialog
       #dialog
       class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(520px,calc(100%-32px))] overflow-y-auto overscroll-contain rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-(--sheet-bg)"
       role="dialog"
-      (click)="onBackdrop($event)"
+      (backdropClose)="close()"
       (close)="onClosed()"
     >
       @if (isOpen()) {
@@ -96,8 +97,8 @@ type Mode = '' | 'per_session' | 'daily_checkin';
             </div>
             <div class="min-w-0">
               <!-- 稿是 label（同其他欄位）；radiogroup 沒有單一控制項可以 for，靠 aria-labelledby 指回來 -->
-              <label class="mb-1 block text-md font-semibold text-zinc-700" id="campus-status-label"
-                >狀態</label
+              <span class="mb-1 block text-md font-semibold text-zinc-700" id="campus-status-label"
+                >狀態</span
               >
               <!-- A6 .fdlg__seg／.fdlg__opt：radio 包成框，選中的框加深 -->
               <div
@@ -270,10 +271,6 @@ export class CampusFormDialogComponent {
    * **不能寫成模板裡的 `target === dialog && close()`**：點裡面時那個運算式回 false，
    * Angular 會當成 preventDefault —— radio 點不下去。
    */
-  protected onBackdrop(event: MouseEvent): void {
-    if (event.target === this.dialog().nativeElement) this.close();
-  }
-
   protected onClosed(): void {
     this.isOpen.set(false);
     this.closed.emit(this.saved);

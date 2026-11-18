@@ -130,10 +130,14 @@
 
     <!-- 角色、服務分校、教學科目：稿是單選，現況多選 —— ST7 待使用者裁定，選取方式不動 -->
     <div class="form-dialog__field min-w-0">
-      <label class="mb-1 block text-md font-semibold text-zinc-700"
-        >角色 <span class="text-error-700" aria-hidden="true">*</span></label
+      <span id="staff-roles-label" class="mb-1 block text-md font-semibold text-zinc-700"
+        >角色 <span class="text-error-700" aria-hidden="true">*</span></span
       >
-      <div class="flex flex-wrap gap-4 rounded-md bg-zinc-50 p-3">
+      <div
+        class="flex flex-wrap gap-4 rounded-md bg-zinc-50 p-3"
+        role="group"
+        aria-labelledby="staff-roles-label"
+      >
         @for (role of roleOptions; track role.value) {
           <div class="flex items-center gap-2">
             <p-checkbox
@@ -158,10 +162,11 @@
 
     <!-- Campuses -->
     <div class="form-dialog__field min-w-0">
-      <label class="mb-1 block text-md font-semibold text-zinc-700">
+      <label for="staff-form-dialog-1" class="mb-1 block text-md font-semibold text-zinc-700">
         服務分校 <span class="text-error-700" aria-hidden="true">*</span></label
       >
       <p-multiselect
+        inputId="staff-form-dialog-1"
         [options]="campusOptions()"
         [ngModel]="formData().campusIds"
         (ngModelChange)="updateForm('campusIds', $event)"
@@ -180,7 +185,7 @@
     @if (isTeacherRole()) {
       <div class="form-dialog__field col-span-full min-w-0">
         <div class="form-dialog__label-row">
-          <label class="mb-1 block text-md font-semibold text-zinc-700">
+          <label for="staff-form-dialog-2" class="mb-1 block text-md font-semibold text-zinc-700">
             教學科目 <span class="text-error-700" aria-hidden="true">*</span></label
           >
           <p-button
@@ -193,6 +198,7 @@
           />
         </div>
         <p-multiselect
+          inputId="staff-form-dialog-2"
           [options]="subjectOptions()"
           [ngModel]="formData().subjectIds"
           (ngModelChange)="updateForm('subjectIds', $event)"

@@ -3,8 +3,9 @@
   <div class="flex flex-col gap-3">
     @if (campuses().length > 1) {
       <div class="flex flex-col gap-1">
-        <label class="text-sm font-semibold text-zinc-600">分校</label>
+        <label for="mobile-filter-dialog-1" class="text-sm font-semibold text-zinc-600">分校</label>
         <p-select
+          inputId="mobile-filter-dialog-1"
           [options]="campuses()"
           optionLabel="name"
           optionValue="id"
@@ -21,8 +22,9 @@
     }
     @if (availableCourses().length > 0) {
       <div class="flex flex-col gap-1">
-        <label class="text-sm font-semibold text-zinc-600">課程</label>
+        <label for="mobile-filter-dialog-2" class="text-sm font-semibold text-zinc-600">課程</label>
         <p-multiselect
+          inputId="mobile-filter-dialog-2"
           [options]="availableCourses()"
           optionLabel="name"
           optionValue="id"
@@ -52,8 +54,9 @@
       </div>
     }
     <div class="flex flex-col gap-1">
-      <label class="text-sm font-semibold text-zinc-600">老師</label>
+      <label for="mobile-filter-dialog-3" class="text-sm font-semibold text-zinc-600">老師</label>
       <p-multiselect
+        inputId="mobile-filter-dialog-3"
         [options]="availableTeacherGroups()"
         [group]="true"
         optionGroupLabel="label"
@@ -82,8 +85,9 @@
     </div>
     @if (availableClasses().length > 0) {
       <div class="flex flex-col gap-1">
-        <label class="text-sm font-semibold text-zinc-600">班級</label>
+        <label for="mobile-filter-dialog-4" class="text-sm font-semibold text-zinc-600">班級</label>
         <p-multiselect
+          inputId="mobile-filter-dialog-4"
           [options]="classDisplayOptions()"
           optionLabel="name"
           optionValue="id"
@@ -113,8 +117,9 @@
       </div>
     }
     <div class="flex flex-col gap-1">
-      <label class="text-sm font-semibold text-zinc-600">學生</label>
+      <label for="mobile-filter-dialog-5" class="text-sm font-semibold text-zinc-600">學生</label>
       <p-multiselect
+        inputId="mobile-filter-dialog-5"
         [options]="availableStudents()"
         optionLabel="name"
         optionValue="id"
@@ -131,8 +136,11 @@
       />
     </div>
     <div class="flex flex-col gap-1">
-      <label class="text-sm font-semibold text-zinc-600">課堂狀態</label>
+      <label for="mobile-filter-dialog-6" class="text-sm font-semibold text-zinc-600"
+        >課堂狀態</label
+      >
       <p-multiselect
+        inputId="mobile-filter-dialog-6"
         [options]="statusOptions"
         optionLabel="label"
         optionValue="value"

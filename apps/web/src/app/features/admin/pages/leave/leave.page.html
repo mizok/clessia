@@ -101,11 +101,13 @@
         />
       </div>
       <label
+        for="leave-1"
         class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700"
         data-testid="course-filter"
       >
         課程
         <p-select
+          inputId="leave-1"
           styleClass="w-full"
           [options]="courseOptions()"
           optionLabel="label"
@@ -119,11 +121,13 @@
         />
       </label>
       <label
+        for="leave-2"
         class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700"
         data-testid="class-filter"
       >
         開課班
         <p-select
+          inputId="leave-2"
           styleClass="w-full"
           [options]="classOptions()"
           optionLabel="label"

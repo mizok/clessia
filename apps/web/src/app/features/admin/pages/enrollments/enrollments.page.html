@@ -102,9 +102,13 @@
         class="grid grid-cols-2 gap-3 pb-1 wide:grid wide:grid-cols-3 wide:pb-0"
         [class.hidden]="!filtersOpen()"
       >
-        <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
+        <label
+          for="enrollments-1"
+          class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700"
+        >
           開課班
           <p-select
+            inputId="enrollments-1"
             styleClass="w-full"
             [options]="classOptions()"
             [ngModel]="classId()"
@@ -115,9 +119,13 @@
             ariaLabel="開課班"
           />
         </label>
-        <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
+        <label
+          for="enrollments-2"
+          class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700"
+        >
           事件
           <p-select
+            inputId="enrollments-2"
             styleClass="w-full"
             [options]="eventOptions"
             [ngModel]="event()"
@@ -127,9 +135,13 @@
             ariaLabel="事件"
           />
         </label>
-        <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
+        <label
+          for="enrollments-3"
+          class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700"
+        >
           狀態
           <p-select
+            inputId="enrollments-3"
             styleClass="w-full"
             [options]="statusOptions"
             [ngModel]="status()"
