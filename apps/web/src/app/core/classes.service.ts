@@ -66,7 +66,7 @@ export interface Class {
   scheduleCount?: number;
   scheduleTeacherIds?: string[];
   hasUpcomingSessions?: boolean;
-  // TODO: 待老師點名功能完成後，改為依據 status='completed' 判斷
+  // 由 API 判（lib/class-past-sessions.ts，#2544）：點名制看 completed、日到班看日期且沒停課
   hasPastSessions?: boolean;
   upcomingCancelledCount?: number;
   upcomingUnassignedCount?: number;
