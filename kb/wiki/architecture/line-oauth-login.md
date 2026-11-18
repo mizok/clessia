@@ -3,7 +3,7 @@ title: LINE 登入的設計
 summary: 密碼雜湊超過 Cloudflare Workers 免費方案的 10ms CPU 上限，登入間歇性 503。密碼登入完全移除、改用 OAuth（首發 LINE，Google 延後但架構預留）；破窗改成持有 DATABASE_URL 的人用 CLI 產生一次性登入連結，客戶換掉 DB 密碼就能切斷供應商存取。OAuth 身分靠一次性綁定連結／QR 對應到既有的人員或家長記錄。
 category: architecture
 status: active
-updated: 2026-08-28
+updated: 2026-11-18
 tags: [architecture, auth, oauth, line, cloudflare]
 ---
 
@@ -157,6 +157,9 @@ stdout。同一個機制服務三種送達方式。
 - **不需要自寫兌換端點** —— `magic-link/verify` 已經處理過期、單次使用（`allowedAttempts`
   預設 1）、以及 session 建立
 - `disableSignUp: true` 防止綁定連結被拿來建新帳號
+- `storeToken: 'hashed'`（#2540）：magic-link token 與 OAuth state 共用 `ba_verification`，plain 時 state 可被當 token
+  兌換（GHSA-965c-763c-88jm，知道 email 就能登入成他）。`disableSignUp` 擋不住這條；契約
+  `auth-google.contract.ts` 有重現案例。**不要把全域 `verification.storeIdentifier` 設成 hashed**，那會讓它失效
 
 > ⚠️ **magic-link 需要一個 email 當識別碼。** 家長的佔位 email（`0912345678@phone.internal`）
 > 完全夠用 —— 那個 domain 不存在於公開網路，而我們本來就不寄信。

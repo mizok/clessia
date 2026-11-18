@@ -165,6 +165,10 @@ export function magicLinkOptions(capture?: (payload: MagicLinkPayload) => void) 
     disableSignUp: true,
     // 櫃檯當場掃是主流程，但一定會有人說「我回家再用」。可重發，所以不必更長。
     expiresIn: 60 * 60 * 24,
+    // #2540 GHSA-965c-763c-88jm（< 1.7.7）：預設 plain 時，OAuth state 會被當成 magic-link token 收下 ——
+    // 知道 email 就能登入成那個人。hashed 讓兌換查的是雜湊值，state 對不上。升到 1.7.7+ 後仍保留（無害）。
+    // 全域 `verification.storeIdentifier` 不可設成 hashed，那會讓這行失效（advisory 原文）
+    storeToken: 'hashed' as const,
     sendMagicLink: async (payload: MagicLinkPayload) => {
       capture?.(payload);
     },
