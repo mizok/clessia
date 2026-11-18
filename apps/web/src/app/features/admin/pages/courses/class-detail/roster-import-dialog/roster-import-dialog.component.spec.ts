@@ -326,4 +326,18 @@ describe('RosterImportDialogComponent', () => {
     expect(component['busy']()).toBe(false);
     expect(TestBed.inject(AppVersionService).isStale()).toBe(true);
   });
+
+  // #2540 補償控制：超大檔不進 SheetJS 解析器
+  it('超過 2MB：不解析，直接說檔案太大', async () => {
+    await setup();
+    const parseSpy = vi.spyOn(
+      component as never as { parseWorkbook(f: File): Promise<unknown[][]> },
+      'parseWorkbook',
+    );
+    await (component as never as { readFile(f: File): Promise<void> }).readFile(
+      new File([new Uint8Array(2 * 1024 * 1024 + 1)], '大檔.xlsx'),
+    );
+    expect(parseSpy).not.toHaveBeenCalled();
+    expect(component['parseError']()).toContain('檔案太大');
+  });
 });

@@ -265,7 +265,7 @@
       },
     });
     eitherOne(d); kidPicker(d, kids);
-    d.querySelector('.acset__f:has([data-k="email"])').insertAdjacentHTML('afterend', '<p class="acset__hint" style="grid-column:1/-1;margin-top:-8px">Email 和手機至少填一個；兩個都不能跟別的帳號重複</p>');
+    d.querySelector('.acset__f:has([data-k="phone"])').insertAdjacentHTML('afterend', '<p class="acset__hint" style="grid-column:1/-1;margin-top:-8px">Email 和手機至少填一個；兩個都不能跟別的帳號重複</p>');
   };
   // 一次性登入連結＋QR（建立後自動出現；之後從 ⋯ 重發）
   function showLink(p, fresh) {

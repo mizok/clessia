@@ -220,4 +220,40 @@ describe('ParentImportDialogComponent', () => {
     expect(error).not.toHaveBeenCalled();
     vi.restoreAllMocks();
   });
+
+  // #2540 補償控制：SheetJS 讀檔有過原型污染／ReDoS 公告，超大檔不進解析器
+  describe('匯入上限（#2540）', () => {
+    const fileError = () => (component as never as { fileError(): string | null }).fileError();
+
+    it('超過 2MB：不解析，選檔那一步說檔案太大', async () => {
+      const parseSpy = vi.spyOn(
+        component as never as { parseExcelFile(f: File): Promise<unknown[][]> },
+        'parseExcelFile',
+      );
+      const big = new File([new Uint8Array(2 * 1024 * 1024 + 1)], '大檔.xlsx');
+
+      expect(await parse(big)).toEqual([]);
+      expect(parseSpy).not.toHaveBeenCalled();
+      expect(fileError()).toContain('檔案太大');
+      vi.restoreAllMocks();
+    });
+
+    it('超過 2000 列：整份擋下、帶出列數，不做預檢', async () => {
+      const row = ['王大明', '0912345678', '', '', '王小明', '國一', '測試國中', '', ''];
+      const rows = await parse(xlsxFile([...HEADER, ...Array.from({ length: 2001 }, () => row)]));
+
+      expect(rows).toEqual([]);
+      expect(fileError()).toContain('2000');
+      expect(fileError()).toContain('2001');
+      expect(parentsServiceMock.batchCheck).not.toHaveBeenCalled();
+    });
+
+    it('剛好 2000 列照常解析', async () => {
+      const row = ['王大明', '0912345678', '', '', '王小明', '國一', '測試國中', '', ''];
+      const rows = await parse(xlsxFile([...HEADER, ...Array.from({ length: 2000 }, () => row)]));
+
+      expect(rows.length).toBe(2000);
+      expect(fileError()).toBeNull();
+    });
+  });
 });
