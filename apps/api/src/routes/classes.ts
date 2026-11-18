@@ -1,4 +1,5 @@
 import { OCCUPYING_SESSION_STATUSES } from '../lib/session-occupancy';
+import { completeTakenSessions } from '../lib/session-completion';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { loadDisplayName } from '../lib/display-name';
 import { createMiddleware } from 'hono/factory';
@@ -3149,12 +3150,12 @@ app.openapi(
     const processableIds: string[] = [];
 
     for (const target of targetSessions) {
-      if (target.status !== 'scheduled') {
+      if (target.status === 'cancelled') {
         conflicts.push({
           sessionId: target.id,
           sessionDate: target.session_date,
           reason: 'status_not_cancellable',
-          detail: '僅可停課狀態為「scheduled」的課堂',
+          detail: '僅可停課狀態為「scheduled」或「completed」的課堂',
         });
         continue;
       }
@@ -3501,6 +3502,9 @@ app.openapi(
       if (reopenError) {
         return c.json({ error: reopenError.message, code: 'DB_ERROR' }, 500);
       }
+
+      // #2546：復課的堂若已點名過，回到 completed（不是 scheduled）
+      await completeTakenSessions(supabase, orgId, processableIds);
 
       // #1693：這支不寫流水，通知照樣發（Q3）
       const batchId = crypto.randomUUID();

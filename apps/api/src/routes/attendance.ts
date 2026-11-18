@@ -10,6 +10,7 @@ import { sessionSummarySelect, summariseSessions } from '../lib/session-summary'
 import { annotateArrivals, checkinCoversSession } from '../lib/session-arrivals';
 import { resolveAttendanceMode } from '../lib/attendance-mode';
 import { writeDailyCheckin } from '../lib/daily-checkin-write';
+import { completeTakenSessions } from '../lib/session-completion';
 import { isSubstituteSession } from '../lib/session-substitute';
 import { countExamsBySession, sessionExamKey } from '../lib/session-exams';
 import { resolveRecordedByRole } from '../lib/recorded-by-role';
@@ -629,7 +630,7 @@ app.openapi(
     const { data: ev } = await supabase
       .from('events')
       .select(
-        'id, attendance_taken_at, event_date, start_time, end_time, campus_id, sessions(id, class_id, classes(name, courses(name)))',
+        'id, attendance_taken_at, event_date, start_time, end_time, campus_id, sessions(id, status, class_id, classes(name, courses(name)))',
       )
       .eq('id', eventId)
       .eq('org_id', orgId)
@@ -793,6 +794,18 @@ app.openapi(
         .update({ attendance_taken_at: takenAt })
         .eq('id', eventId)
         .eq('org_id', orgId);
+    }
+
+    // #2546：點名提交過的堂 → completed（只動 scheduled、日到班分校不動，見 completeTakenSessions）。
+    // 每次提交都收斂而不只「第一次」：taken_at 寫了但這步失敗時，下一次提交會補上
+    const scheduledIds = toSessionRows(
+      (ev as any).sessions as { id: string; status?: string } | null,
+    )
+      .filter((s) => s.status === 'scheduled')
+      .map((s) => s.id);
+    if (scheduledIds.length > 0) {
+      const done = await completeTakenSessions(supabase, orgId, scheduledIds);
+      if (done.error) console.error('[attendance/batch] 課堂狀態收斂失敗：', done.error.message);
     }
 
     const auditContext = extractAttendanceAuditContext(ev as Record<string, any>);

@@ -1,4 +1,5 @@
 import { OCCUPYING_SESSION_STATUSES } from '../lib/session-occupancy';
+import { completeTakenSessions } from '../lib/session-completion';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { loadDisplayName } from '../lib/display-name';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -2130,9 +2131,10 @@ app.openapi(cancelSessionRoute, async (c) => {
   if (!resourceCampusAllowed(getCampusScope(c), sessionState.campusId)) {
     return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
-  if (sessionState.status !== 'scheduled') {
+  // #2546：已點名（completed）的堂也能停課 → cancelled，出勤紀錄保留；已停課的才擋
+  if (sessionState.status === 'cancelled') {
     return c.json(
-      { error: '僅可停課狀態為「scheduled」的課堂', code: 'STATUS_NOT_CANCELLABLE' },
+      { error: '僅可停課狀態為「scheduled」或「completed」的課堂', code: 'STATUS_NOT_CANCELLABLE' },
       409,
     );
   }
@@ -2265,7 +2267,7 @@ app.openapi(substituteSessionRoute, async (c) => {
     return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
   try {
-    assertSessionOperable(sessionState);
+    assertSessionOperable(sessionState, { allowCompleted: true });
   } catch (error) {
     if (error instanceof SessionUnassignedError) {
       return c.json({ error: error.message, code: error.code }, 409);
@@ -4128,12 +4130,12 @@ app.openapi(batchCancelRoute, async (c) => {
   const processableIds: string[] = [];
 
   for (const target of targetSessions) {
-    if (target.status !== 'scheduled') {
+    if (target.status === 'cancelled') {
       conflicts.push({
         sessionId: target.id,
         sessionDate: target.session_date,
         reason: 'status_not_cancellable',
-        detail: '僅可停課狀態為「scheduled」的課堂',
+        detail: '僅可停課狀態為「scheduled」或「completed」的課堂',
       });
       continue;
     }
@@ -4572,6 +4574,9 @@ app.openapi(batchUncancelRoute, async (c) => {
       'batch-uncancel',
     );
     if (failed) return failed as never; // 409／500，見 runSessionBatchWrite
+
+    // #2546：復課的堂若已點名過，回到 completed（不是 scheduled）
+    await completeTakenSessions(supabase, orgId, processableIds);
 
     // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
     await queueScheduleChangeNotice(c, changeRows);

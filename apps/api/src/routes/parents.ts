@@ -1362,10 +1362,9 @@ app.openapi(
       return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
     }
 
-    if (dbParents.length === 0) {
-      return c.json({ warnings: [], errors: [] }, 200);
-    }
-
+    // #2525：查不到同名家長**不能提早回空** —— 原本在這裡 return，Step 5 的電話／Email 反查就不跑，
+    // 「新名字＋別人已經在用的電話」預檢說沒問題、要到真的匯入才失敗。沒有同名家長時 Step 3／3.5 的
+    // `inChunks` 收到空陣列一支都不查、Step 4 比不到任何人，自然空轉
     // Step 3: 查詢每個 DB 家長的聯絡資訊
     const userIds = dbParents.map((p: { user_id: string }) => p.user_id);
     const { data: baUsers, error: baUsersError } = await inChunks(userIds, (part) =>

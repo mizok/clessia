@@ -115,7 +115,8 @@
 - [[lessons/unpinned-ci-tool-version]] — verify.yml 的 supabase/setup-cli 用 version latest，Supabase CLI 3.0.0 拒收 config.toml 的 [inbucket]，main 的 verify 紅、deploy 被 skip，而 migrate.yml 早就釘在 2.119.0（#2158）；對策是三處 setup-cli 釘同一個版本變數，加 harness 檢查。
 - [[lessons/workers-fanout-costs-before-the-db]] — 儀表板一次打 8 支 API，量測發現「完全不碰 DB」的請求在並行 8 條時 TTFB 從 0.46s 惡化到 1.1s（2.4 倍）。Workers 的 per-request 建池模型下，fan-out 的成本在 DB 工作之前就發生了；先量再猜，別一開始就假設是查詢慢。
 
-## Patterns (1)
+## Patterns (2)
+- [[patterns/dev-setup-two-lockfiles]] — 乾淨 clone 要跑兩次 npm ci（根、apps/api）；缺 apps/api 的依賴（例如 pg）會讓 harness 紅得像程式碼問題，npm run harness 第一步的 deps:check 會直接印出該跑的指令。
 - [[patterns/tables-use-responsive-table]] — 表格破版的正解是 responsive-table(欄位收合),不是 overflow 捲動;列印版面與臨時止血除外。
 
 ## Rules (8)
@@ -255,4 +256,4 @@
 - [[summaries/interview-insider-2026-08-29]] — 目標補習班內部員工的一手訪談（20 題，透過使用者當傳聲筒），P1 資料模型的主要輸入。
 
 ---
-**Total: 231 pages**
+**Total: 232 pages**
