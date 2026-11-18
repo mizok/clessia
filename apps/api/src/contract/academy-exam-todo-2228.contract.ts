@@ -1,3 +1,6 @@
+// scope-contract: GET /api/academy-exams
+// scope-contract: GET /api/academy-exams/todo-count
+// scope-contract: GET /api/academy-exams/todo-by-class
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -27,7 +30,7 @@ const run = URL && KEY && DB ? describe : describe.skip;
 const pool = DB ? new Pool({ connectionString: DB }) : null;
 afterAll(() => pool?.end());
 
-type Who = 'admin' | 'c1' | 'broken';
+type Who = 'admin' | 'c1' | 'none' | 'broken';
 const ctx = { orgId: '', userId: '', who: 'admin' as Who, c1: '' };
 
 vi.mock('../middleware/auth', async (importOriginal) => {
@@ -55,7 +58,7 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('activeRole', 'admin');
       set('studentScope', null);
       set('childDb', createChildDb(supabase as never, null, ctx.orgId));
-      set('campusScope', ctx.who === 'c1' ? [ctx.c1] : null);
+      set('campusScope', ctx.who === 'c1' ? [ctx.c1] : ctx.who === 'none' ? [] : null);
       set('auth', { pool: { query, connect: pool!.connect.bind(pool), end: async () => {} } });
       set('selfRows', { staff: null, parent: null, assignedCampusIds: [] });
       await next();
@@ -279,6 +282,19 @@ run('#2228 校內考待登錄 N／M（todo-count、todo、todo-by-class）', () 
       data: Array<{ classId: string; count: number; firstExamId: string }>;
     }>('c1', '/todo-by-class');
     expect(body.data).toEqual([{ classId: fx.smallClass, count: 2, firstExamId: fx.none }]);
+  });
+
+  it('範圍（#2493）：列表／todo-count／todo-by-class —— 受限 C1 不見二校；空範圍什麼都沒有；不受限看全部', async () => {
+    const c1 = await json<List>('c1', '?pageSize=200');
+    expect(c1.meta.total).toBe(FILLER + 2);
+    expect(c1.data.map((r) => r.id)).not.toContain(fx.other);
+    const none = await json<List>('none', '?pageSize=200');
+    expect(none.meta.total).toBe(0);
+    expect(none.data).toEqual([]);
+    expect(await json<Counts>('none', '/todo-count')).toEqual({ count: 0, none: 0, partial: 0 });
+    expect(await json<{ data: unknown[] }>('none', '/todo-by-class')).toEqual({ data: [] });
+    const all = await json<List>('admin', '?pageSize=200');
+    expect(all.meta.total).toBe(FILLER + 3 + MANY);
   });
 
   it('N／M 查詢失敗 → 500，不吞成 0', async () => {
