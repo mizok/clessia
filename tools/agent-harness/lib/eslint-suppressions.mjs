@@ -15,3 +15,16 @@ export function suppressionTotal(text) {
   }
   return total;
 }
+
+/**
+ * A31 的基準：main 上有這份帳就用它的總筆數；沒有時（已歸零刪檔，或帳還沒建）用 `seed`
+ * （預設 0）。`seed` 是**一次性的立帳上限** —— 重新開規則（例：#2558 a11y）要記一份新帳時，
+ * 在 check-harness 的 A31_SEED 登記該路徑與筆數；那份帳歸零刪檔的 PR 同時刪掉這筆登記。
+ *
+ * @param {string|null} mainText main 上同一份檔的內容，沒有就 null
+ * @param {number} [seed]
+ * @returns {number}
+ */
+export function suppressionBase(mainText, seed = 0) {
+  return mainText == null ? seed : suppressionTotal(mainText);
+}

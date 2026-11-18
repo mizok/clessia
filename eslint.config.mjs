@@ -80,6 +80,20 @@ export default tseslint.config(
       '@angular-eslint/template/no-negated-async': 'error',
       // `!= null` 同時擋 null 與 undefined，是刻意的寫法
       '@angular-eslint/template/eqeqeq': ['error', { allowNullOrUndefined: true }],
+
+      // a11y（#2558）：angular-eslint templateAccessibility 的全套。存量記在 web 的 suppressions 帳，
+      // 要真修（label 用 for/id 或包住 input、click 元素補 keydown＋tabindex 或改 button），不加 disable
+      '@angular-eslint/template/alt-text': 'error',
+      '@angular-eslint/template/click-events-have-key-events': 'error',
+      '@angular-eslint/template/elements-content': 'error',
+      '@angular-eslint/template/interactive-supports-focus': 'error',
+      '@angular-eslint/template/label-has-associated-control': 'error',
+      '@angular-eslint/template/mouse-events-have-key-events': 'error',
+      '@angular-eslint/template/no-autofocus': 'error',
+      '@angular-eslint/template/no-distracting-elements': 'error',
+      '@angular-eslint/template/role-has-required-aria': 'error',
+      '@angular-eslint/template/table-scope': 'error',
+      '@angular-eslint/template/valid-aria': 'error',
     },
   },
 );
