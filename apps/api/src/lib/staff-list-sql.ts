@@ -144,7 +144,7 @@ const isArrayOf = (v: unknown, key: string) =>
   Array.isArray(v) &&
   v.every((r) => typeof (r as Record<string, unknown> | null)?.[key] === 'string');
 
-/** 一次往返拿完。失敗或形狀不對回 `null`（呼叫端走 builder），**絕不用猜的值** */
+/** 一次往返拿完。失敗或形狀不對**丟出去**（路由回 500，不退回 builder，#2230 ③），**絕不用猜的值** */
 export async function loadStaffListViaSql(
   db: Queryable,
   p: StaffListParams,

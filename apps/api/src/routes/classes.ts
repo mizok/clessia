@@ -98,7 +98,7 @@ const ClassSchema = z
     scheduleCount: z.number().optional(),
     scheduleTeacherIds: z.array(z.string()).optional(),
     hasUpcomingSessions: z.boolean().optional(),
-    // TODO: 待老師點名功能完成後，改為依據 status='completed' 判斷
+    // 判準在 lib/class-past-sessions.ts（#2544）：點名制看 completed、日到班看日期且沒停課
     hasPastSessions: z.boolean().optional(),
     upcomingCancelledCount: z.number().optional(),
     upcomingUnassignedCount: z.number().optional(),
@@ -477,7 +477,7 @@ interface ClassExtras {
   scheduleCount?: number;
   scheduleTeacherIds?: string[];
   hasUpcomingSessions?: boolean;
-  // TODO: 待老師點名功能完成後，改為依據 status='completed' 判斷
+  // 判準在 lib/class-past-sessions.ts（#2544）：點名制看 completed、日到班看日期且沒停課
   hasPastSessions?: boolean;
   upcomingCancelledCount?: number;
   upcomingUnassignedCount?: number;

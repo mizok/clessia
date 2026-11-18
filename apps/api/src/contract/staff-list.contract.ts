@@ -35,11 +35,19 @@ const run = URL && KEY && DB ? describe : describe.skip;
 const pool = DB ? new Pool({ connectionString: DB }) : null;
 afterAll(() => pool?.end());
 
-const ctx: { orgId: string; userId: string; campusScope: string[] | null; usePool: boolean } = {
+const ctx: {
+  orgId: string;
+  userId: string;
+  campusScope: string[] | null;
+  usePool: boolean;
+  /** #2554：池在、但 query 丟錯（Hyperdrive 斷線、SQL 壞掉）→ 要 500，不能悄悄改走 PostgREST */
+  poolThrows: boolean;
+} = {
   orgId: '',
   userId: '',
   campusScope: null,
   usePool: true,
+  poolThrows: false,
 };
 
 vi.mock('../middleware/auth', async (importOriginal) => {
@@ -65,7 +73,12 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       // builder 模式：不給 pool。SQL 失敗已經不退回 builder（#2230 ③，回 500），
       // builder 只剩「沒有 pool」這條路（單元測試的環境）
       if (ctx.usePool) {
-        set('auth', { pool: { query: pool!.query.bind(pool), end: async () => undefined } });
+        const query = ctx.poolThrows
+          ? async () => {
+              throw Object.assign(new Error('pool down'), { code: 'ECONNRESET' });
+            }
+          : pool!.query.bind(pool);
+        set('auth', { pool: { query, end: async () => undefined } });
       }
       set('selfRows', { staff: null, parent: null, assignedCampusIds: [] });
       await next();
@@ -261,9 +274,29 @@ run('GET /api/staff：SQL 與 builder 對真 DB 逐欄相同（#1595 P2）', () 
     expect(cases).toHaveLength(156);
     expect(diffs).toEqual([]);
     // 多分校範圍＋角色篩選：章節 head count 要同時帶 ~88 個 staff id 與兩份 ~87 個 user id，URL 超過上限，
-    // PostgREST 回 414、supabase-js 給空訊息 → 500（#1928 同一類）。改前就是這樣；SQL 這條沒有 URL。
-    // 依 seed 而定 —— seed 改了這張清單跟著改，差異本身就是有用的訊號
-    expect(builderBroken).toEqual(['many|none|role=teacher']);
+    // PostgREST 回 414、supabase-js 給空訊息 → 500（#1928 同一類）。SQL 這條沒有 URL，上面已逐題確認回 200。
+    // **builder 只在沒有池時跑**（單元測試；正式站 SQL 失敗直接 500，#2230 ③）—— 它撞上限不是線上風險。
+    // 撞到哪幾題隨 DB 裡的人數而變：乾淨 seed 只有這一題，共用 DB 留著別支契約的資料時會多（#2554），
+    // 所以只釘「乾淨 seed 一定撞到的那題」，不釘整張清單
+    expect(builderBroken).toContain('many|none|role=teacher');
+  });
+
+  // #2554：把 #2230 ③ 的裁定釘住 —— 池的 query 丟錯時回 500，不退回 builder（builder 在大 org 會 414，
+  // 而且退回去就是「同一份資料兩條路」的維護成本）。不打 PostgREST 才算沒退回
+  it('池的 query 丟錯：回 500，不退回 builder（不打 PostgREST）', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    ctx.poolThrows = true;
+    try {
+      const res = await hit('/api/staff', true);
+      expect(res.status).toBe(500);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(log.mock.calls.flat().join(' ')).toContain('[staff-sql] /api/staff 查詢失敗');
+    } finally {
+      ctx.poolThrows = false;
+      fetchSpy.mockRestore();
+      log.mockRestore();
+    }
   });
 
   it('builder 撞 URL 上限的那題：SQL 的總數與章節等於直接數 DB', async () => {

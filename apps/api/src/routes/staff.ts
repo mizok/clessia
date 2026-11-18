@@ -759,7 +759,8 @@ app.openapi(listRoute, async (c) => {
       200,
     );
 
-  // 先走 SQL（Hyperdrive，一次往返，#1595 P2）；失敗或形狀不對就走下面原本的 builder。
+  // 有池就走 SQL（Hyperdrive，一次往返，#1595 P2）；失敗或形狀不對 loadStaffListViaSql 直接丟 → 500，
+  // **不退回 builder**（#2230 ③，計畫席裁定 c）。builder 只在沒有池時跑（單元測試）
   // 分校條件在這裡用 campusFilterIds 算好再傳進去 —— 判準只有 lib/campus-scope.ts 一份
   const pool = c.get('auth')?.pool;
   const viaSql = pool
@@ -815,7 +816,8 @@ app.openapi(listRoute, async (c) => {
     );
   }
 
-  // ── 退路：原本的 query builder（條件跟 lib/staff-list-sql.ts 各一份，由 contract/staff-list.contract.ts 逐欄比對）──
+  // ── 沒有池時的 query builder（單元測試；條件跟 lib/staff-list-sql.ts 各一份，由 contract/staff-list.contract.ts 逐欄比對）──
+  // 多分校＋角色篩選時清單塞 URL 會 414（#2554）—— 正式站一定有池，走不到這裡
 
   // #949：四個篩選查詢（分校、角色、科目、搜尋）彼此互不相依 —— 同一輪發出去。
   // 線上每一輪都是一段 Worker↔DB 往返，原本依序發最多是五段（角色要先查 ba_user）。

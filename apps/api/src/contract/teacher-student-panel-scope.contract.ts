@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createChildDb } from '../lib/child-db';
 import { createServiceClientFromEnv } from '../lib/supabase';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { SEED_STAFF_USER } from '../test-utils/seed-borrow';
 
 /**
  * **老師學生面板的三支端點**（TST1，`kb/wiki/architecture/teacher-students-view.md`「學生面板」的守門測試），
@@ -71,7 +72,7 @@ run('老師學生面板：三支端點只給老師自己教的班', () => {
 
   beforeAll(async () => {
     const users = await q<{ user_id: string }>(
-      "select distinct user_id from user_roles where role = 'teacher' order by user_id limit 2",
+      `select distinct user_id from user_roles where role = 'teacher' and ${SEED_STAFF_USER} order by user_id limit 2`,
     );
     [fx.userA, fx.userB] = users.map((u) => u.user_id) as [string, string];
     ctx.orgId = (

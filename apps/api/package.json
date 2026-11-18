@@ -7,12 +7,12 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.1",
+    "@hono/node-server": "^2.1.9",
     "@neondatabase/serverless": "latest",
     "@types/pg": "^8.18.0",
     "altcha-lib": "2.5.0",
     "better-auth": "1.7.25",
-    "hono": "4.11.9",
+    "hono": "^4.13.19",
     "pg": "^8.20.0"
   }
 }

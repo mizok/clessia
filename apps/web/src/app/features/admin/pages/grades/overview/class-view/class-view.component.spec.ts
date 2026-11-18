@@ -29,7 +29,8 @@ describe('ClassViewComponent', () => {
         MessageService,
         provideHttpClient(),
         provideHttpClientTesting(),
-        provideRouter([]),
+        // Angular 21.2 起 RouterLink 導航失敗會丟給 ErrorHandler（#2540）；空路由表點連結就是 NG04002
+        provideRouter([{ path: '**', children: [] }]),
         { provide: DialogService, useValue: { open: openMock } },
       ],
     })
