@@ -1373,7 +1373,8 @@ BEGIN
       ('all_parents',  120,   '展示用：週六補習班停課一天', '本週六配合大樓消防檢查停課，補課時間另行通知。'),
       ('all_parents',  14500, '展示用：期中考週加開自習室', '期中考前兩週，週一到週五 21:00 前自習室開放。'),
       ('all_teachers', 150,   '展示用：本週五教學會議',     '週五 13:00 在文山旗艦校開教學會議，請準時出席。'),
-      ('all_teachers', 11600, '展示用：成績請在考後三天內登完', '家長端會在登錄後立即看到成績，請盡量在三天內登完。')
+      -- 老師端做得到的事（#2501）：原本叫老師「三天內登成績」，但老師端沒有登分功能
+      ('all_teachers', 11600, '展示用：本週聯絡簿請在週五前寫完', '家長每天晚上會看聯絡簿，請在週五下課前把本週的聯絡簿寫完。')
     ) AS a(audience, mins, title, body)
    WHERE NOT EXISTS (SELECT 1 FROM public.announcements x WHERE x.org_id = demo_org_id AND x.title = a.title);
 

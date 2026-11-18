@@ -345,7 +345,8 @@ app.openapi(getRoute, async (c) => {
 
   // 別 org 的 id 跟不存在一樣回 404（c1，#1133）—— 原本只 `.eq('id', id)`，任一 org 的管理員都讀得到
   const data = await findInOrg(supabase, 'campuses', orgId, id, '*');
-  if (!data) {
+  // #2493 R2：範圍外的分校跟不存在一樣（回應含收款帳戶 paymentInfo）
+  if (!data || !resourceCampusAllowed(getCampusScope(c), id)) {
     return c.json({ error: '分校不存在', code: 'NOT_FOUND' }, 404);
   }
 
@@ -414,6 +415,12 @@ app.openapi(createCampusRoute, async (c) => {
   const orgId = c.get('orgId');
   const userId = c.get('userId');
   const body = c.req.valid('json');
+
+  // #2493 ?2（計畫席 11-13 裁）：新增分校是機構層的事，受分校限制的管理員一律 403
+  //（同 grade-promotions 的 campusRestricted）——建了自己也不在那個分校，卻多了一個分校
+  if (getCampusScope(c) !== null) {
+    return c.json({ error: '新增分校需要「所有分校」權限', code: 'REQUIRES_ALL_CAMPUSES' }, 403);
+  }
 
   const insertData: Record<string, unknown> = {
     org_id: orgId,

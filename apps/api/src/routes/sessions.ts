@@ -35,7 +35,12 @@ import {
   ENROLLED_STATUSES,
   ENROLLED_STATUS_OR,
 } from '../lib/session-roster';
-import { getCampusScope, isCampusAllowed, type CampusScope } from '../lib/campus-scope';
+import {
+  campusFilterIds,
+  getCampusScope,
+  isCampusAllowed,
+  type CampusScope,
+} from '../lib/campus-scope';
 import { changeLogViaSql } from '../lib/change-log-sql';
 import {
   attendanceCountsViaSql,
@@ -1545,12 +1550,15 @@ app.openapi(getSubstitutedAwayRoute, async (c) => {
 
   // 代課時 sessions.teacher_id 已被改寫成代課老師，所以原老師只能從
   // schedule_changes.original_teacher_id 找回來（見 substituted-away.ts 的說明）。
-  const { data, error } = await supabase
+  // #2493 R4：受限管理員只看範圍內分校的課堂（原本帶任一老師 id 就看得到他在別校被代的課）
+  const awayCampusIds = campusFilterIds(getCampusScope(c), undefined);
+  if (awayCampusIds !== null && awayCampusIds.length === 0) return c.json({ data: [] }, 200);
+  let awayQuery = supabase
     .from('schedule_changes')
     .select(
       `
       id, session_id, created_at, original_teacher_id, reason,
-      sessions!inner ( session_date, start_time, end_time, classes ( name ) ),
+      sessions!inner ( session_date, start_time, end_time, classes!inner ( name, campus_id ) ),
       staff!substitute_teacher_id ( id, display_name )
     `,
     )
@@ -1559,6 +1567,8 @@ app.openapi(getSubstitutedAwayRoute, async (c) => {
     .eq('original_teacher_id', teacherId)
     .gte('sessions.session_date', from)
     .lte('sessions.session_date', to);
+  if (awayCampusIds) awayQuery = awayQuery.in('sessions.classes.campus_id', [...awayCampusIds]);
+  const { data, error } = await awayQuery;
 
   if (error) {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
@@ -1717,19 +1727,23 @@ app.openapi(getSessionChangesRoute, async (c) => {
   const orgId = c.get('orgId');
   const { id } = c.req.valid('param');
 
-  const { data: sessionData, error: sessionError } = await supabase
+  // #2493 R4：範圍外分校的課堂跟不存在一樣（本支對不存在回 200 空陣列，範圍外同一個回應）
+  const changeCampusIds = campusFilterIds(getCampusScope(c), undefined);
+  let sessionQuery = supabase
     .from('sessions')
     .select(
       `
       id,
       created_at,
       created_by,
-      creator:ba_user!created_by ( name )
+      creator:ba_user!created_by ( name ),
+      classes!inner ( campus_id )
     `,
     )
     .eq('org_id', orgId)
-    .eq('id', id)
-    .maybeSingle();
+    .eq('id', id);
+  if (changeCampusIds) sessionQuery = sessionQuery.in('classes.campus_id', [...changeCampusIds]);
+  const { data: sessionData, error: sessionError } = await sessionQuery.maybeSingle();
 
   if (sessionError) {
     return c.json({ error: sessionError.message, code: 'DB_ERROR' }, 500);
