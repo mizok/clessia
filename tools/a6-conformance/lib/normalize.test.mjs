@@ -1296,7 +1296,7 @@ test('#1639：稿的 button 沒重設 padding（瀏覽器預設 1px 6px）→ ap
   );
 });
 
-test('#1689：通知中心發布表單改彈窗（R5）—— 稿的 main>form 缺、app 的「發送通知」多都算偏離；兩邊都量 #publish 分頁', async () => {
+test('#1689：通知中心發布表單改彈窗（R5）—— #2495 B7 已回寫稿，不再登偏離；兩邊都量 #publish 分頁', async () => {
   const { classify } = await import('./diff.mjs');
   const { DEVIATIONS, PAGES } = await import('./config.mjs');
   const n = PAGES['notifications-publish'];
@@ -1307,12 +1307,12 @@ test('#1689：通知中心發布表單改彈窗（R5）—— 稿的 main>form �
     { status: '多', kind: 'control', a6: null, app: 'landmark:main[]>control:button[發送通知]' },
     { status: '多', kind: 'control', a6: null, app: 'landmark:main[]>control:button[別的]' },
   ];
+  // 稿也改成彈窗之後，頁內 form 缺／「發送通知」多 都不該再被放過（真的出現就是回歸，要報）
   const out = classify(rows, [...DEVIATIONS, ...n.deviations], 1440);
   assert.deepEqual(
     out.map((x) => x.bucket),
-    ['已記錄偏離', '已記錄偏離', '待修'],
+    ['待修', '待修', '待修'],
   );
-  assert.match(out[0].dev.source, /（R5）「通知中心發布表單」2026-10-16；#1689/);
 });
 
 test('#1665 PR-4：公開表單「選項清單長度」的位置資料差只放過試聽／報名頁的純 Δy；/login 品牌面位移照報', async () => {
@@ -1411,7 +1411,12 @@ test('#1697：整塊搬走的偏離（whole）—— 表單整個進彈窗，裡
       { key: `${form}>control:button[發布]`, kind: 'control', tpl: '發布' },
     ],
   };
-  const devs = [...DEVIATIONS, ...PAGES['notifications-publish'].deviations];
+  // 測的是 whole 機制本身：用自帶的一條偏離（原本借 notifications-publish 那條，#2495 B7 回寫稿後已刪）
+  const devs = [
+    ...DEVIATIONS,
+    ...PAGES['notifications-publish'].deviations,
+    { status: '缺', whole: true, a6: 'landmark:main\\[\\]>landmark:form\\[\\]$', reason: '整個表單搬進彈窗', source: 'test' },
+  ];
   const out = classify([row], devs, 1440);
   assert.deepEqual(
     out.map((x) => [x.a6, x.bucket]),

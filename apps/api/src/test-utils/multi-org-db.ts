@@ -293,7 +293,7 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
       },
       single: () => Promise.resolve(one(true)),
       maybeSingle: () => Promise.resolve(one(false)),
-      /** PostgREST 的 `or('a.lt.x,b.eq.y')`：只支援 eq / neq / lt / lte / gt / gte、`is.null` 與一層以上的 `and(…)`，值一律字串比較 */
+      /** PostgREST 的 `or('a.lt.x,b.eq.y')`：只支援 eq / neq / lt / lte / gt / gte、`is.null`、陣列的 `eq.{}`／`ov.{a,b}` 與一層以上的 `and(…)`，值一律字串比較 */
       or(expression: string) {
         const ops: Record<string, (a: string, b: string) => boolean> = {
           eq: (a, b) => a === b,
@@ -309,8 +309,8 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
           let depth = 0;
           let current = '';
           for (const ch of text) {
-            if (ch === '(') depth++;
-            if (ch === ')') depth--;
+            if (ch === '(' || ch === '{') depth++;
+            if (ch === ')' || ch === '}') depth--;
             if (ch === ',' && depth === 0) {
               parts.push(current);
               current = '';
@@ -330,6 +330,17 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
           const value = rest.join('.');
           if (op === 'is' && value === 'null') {
             return (row: Row) => (row[column as string] ?? null) === null;
+          }
+          // 陣列欄位（#2496 audit_logs.campus_ids）：`eq.{}` 整個相等、`ov.{a,b}` 有交集
+          if ((op === 'eq' || op === 'ov') && /^\{.*\}$/.test(value)) {
+            const values = value.slice(1, -1).split(',').filter(Boolean);
+            return (row: Row) => {
+              const cell = row[column as string];
+              if (!Array.isArray(cell)) return false;
+              return op === 'eq'
+                ? cell.length === values.length && values.every((v) => cell.includes(v))
+                : cell.some((v) => values.includes(String(v)));
+            };
           }
           if (op === 'in' && /^\(.*\)$/.test(value)) {
             const values = value.slice(1, -1).split(',').filter(Boolean);

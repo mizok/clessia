@@ -3,7 +3,7 @@ title: 憲法強制機制索引
 summary: 每條 clause 用什麼機制守、在哪一層擋、目前接上了沒有。改機制不算修法。
 category: architecture
 status: active
-updated: 2026-11-13
+updated: 2026-11-18
 tags: [architecture, constitution-enforcement]
 ---
 
@@ -54,7 +54,7 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 | c2 `ba_*` 不得寫入         | Deterministic | **雙層**：pre-guard regex（只擋 insert/update/upsert/delete，讀取放行；**單寫 `orgId` 已豁免**，見下）+ harness gate A15（存量，債 4 + 永久豁免 1）                                    | ⚠️ 雙重，剩 4 筆真債待 billing-api 驗證 API 路徑                            |
 | c3 已提交 migration 不可改 | Deterministic | **雙層**：pre-guard + `whenTracked`（寫入當下）+ harness gate A16（分支對照 `origin/main...HEAD` 的 M/D/R）                                                                            | ✅ 雙重 —— A16 看不到「直接推 main」的情形，理由見下                        |
 | c4 migration 檔名          | Deterministic | 由 `supabase migration new` 保證                                                                                                                                                       | 依賴工具，未另外 gate                                                       |
-| c5 feature 不互相 import   | Semantic      | **部分機器化**：harness gate A18（路徑層面的直接 import，含 `@features/` 與 `@app/` 別名）+ 人工 review                                                                                | ⚠️ 部分 —— **經由 `core/` / `shared/` 的間接耦合看不到**，那一半仍靠 review |
+| c5 feature 不互相 import   | Semantic      | **部分機器化**：harness gate A18（路徑層面的直接 import，含 `@features/` 與 `@app/` 別名；#2542 起含分層方向 `core/`／`shared/` 不得 import `features/`）+ 人工 review                 | ⚠️ 部分 —— **經由 `core/` / `shared/` 的間接耦合看不到**，那一半仍靠 review |
 | c6 禁 viewport 單位        | Deterministic | **雙層**：pre-guard regex（`.scss`／`.ts`／`.html`／`.css`，新違規、即時）+ harness gate A12（存量、CI，掃 `apps/web/src/**` 的 `.scss`／`.ts`／`.html`／`.css`，含全域 `styles.css`） | ✅ 雙重 —— 兩層共用 `pre-guard.rules.json` 的同一條規則，見下方邊界記錄     |
 | c7 原生 control flow       | Deterministic | **雙層**：pre-guard regex（`.html`）+ harness gate A13（存量，掃 `apps/web/src/**/*.html`）                                                                                            | ✅ 雙重 —— 存量 0，gate 是防回歸                                            |
 | c8 functional API          | Deterministic | **雙層**：pre-guard regex（`apps/web/**`，排除 `.spec.ts`）+ harness gate A14（存量，**allowlist 4 筆**）                                                                              | ⚠️ 雙重但有 allowlist —— 「等」字的範圍見下方邊界記錄                       |

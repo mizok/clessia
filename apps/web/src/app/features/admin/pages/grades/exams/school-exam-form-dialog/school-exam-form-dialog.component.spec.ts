@@ -249,7 +249,6 @@ describe('SchoolExamFormDialogComponent', () => {
       't1',
       expect.objectContaining({ examDate: '2026-05-01', name: '五月補充考' }),
     );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const payload = (schoolExamsServiceMock.update as any).mock.lastCall![1] as Record<
       string,
       unknown

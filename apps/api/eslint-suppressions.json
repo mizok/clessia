@@ -1,0 +1,102 @@
+{
+  "apps/api/src/contract/daily-roster-2227.contract.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "apps/api/src/contract/scores-save-chunks-2232.contract.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "apps/api/src/index.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "apps/api/src/lib/child-db.spec.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "apps/api/src/lib/invoice-query.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    }
+  },
+  "apps/api/src/lib/push-run.spec.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 1
+    }
+  },
+  "apps/api/src/mount-authz.spec.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "apps/api/src/routes/attendance.spec.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "apps/api/src/routes/attendance.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 8
+    }
+  },
+  "apps/api/src/routes/auth-handoff.spec.ts": {
+    "@typescript-eslint/await-thenable": {
+      "count": 2
+    }
+  },
+  "apps/api/src/routes/classes.spec.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "apps/api/src/routes/enrollments.spec.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "apps/api/src/routes/invoices.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "apps/api/src/routes/leaves.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    }
+  },
+  "apps/api/src/routes/me-identity-cache.spec.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "apps/api/src/routes/parents.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "apps/api/src/routes/school-exams.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "apps/api/src/routes/scores.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  },
+  "apps/api/src/routes/session-packs.spec.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "apps/api/src/routes/students.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    }
+  }
+}

@@ -134,7 +134,6 @@ describe('ResponsiveTableComponent', () => {
   let fixture: ComponentFixture<HostComponent>;
 
   beforeEach(async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).ResizeObserver = MockResizeObserver;
     resizeObservers.clear();
     mockedWidth = 960;
