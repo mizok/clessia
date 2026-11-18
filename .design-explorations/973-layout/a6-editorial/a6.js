@@ -297,9 +297,17 @@
     const body = Object.assign(document.createElement('div'), { className: 'pop__body' });
     body.append(...filt.childNodes);
     filt.append(Object.assign(document.createElement('div'), { className: 'pop__headrow', innerHTML: '<h2 class="pop__h" id="filt-h">篩選</h2>' }), body);
-    if (!body.querySelector('.ff__foot')) filt.insertAdjacentHTML('beforeend', '<div class="pop__foot"><button class="pop__done" type="button" popovertarget="filt" popovertargetaction="hide">完成</button></div>');
+    // 成績兩頁自帶的完成列（.ff grid 的最後一格）：手機搬到抽屜底層（跟標頭、內容同層，同 app 的 p-dialog footer），
+    // 桌機放回 .ff；其餘頁補一列
+    const ownFoot = body.querySelector('.ff__foot');
+    const ownHome = ownFoot && ownFoot.parentElement;
+    if (!ownFoot) filt.insertAdjacentHTML('beforeend', '<div class="pop__foot"><button class="pop__done" type="button" popovertarget="filt" popovertargetaction="hide">完成</button></div>');
     const mq = matchMedia('(max-width: 860px)');
-    const sheet = () => (mq.matches ? (filt.setAttribute('role', 'dialog'), filt.setAttribute('aria-labelledby', 'filt-h')) : (filt.removeAttribute('role'), filt.removeAttribute('aria-labelledby')));
+    const sheet = () => {
+      if (ownFoot) (mq.matches ? filt : ownHome).append(ownFoot);
+      if (mq.matches) { filt.setAttribute('role', 'dialog'); filt.setAttribute('aria-labelledby', 'filt-h'); }
+      else { filt.removeAttribute('role'); filt.removeAttribute('aria-labelledby'); }
+    };
     sheet(); mq.addEventListener('change', sheet);
   });
   // R5 10-16「摺疊摘要列同組互斥」（#2495 B3 回寫）：同一個 .colls 一次只開一個（app 用原生 <details name>）
