@@ -25,6 +25,7 @@ import {
 import { SchoolsService } from '@core/schools.service';
 import { AppVersionService } from '@core/app-version.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
+import { importFileTooLarge } from '@shared/utils/import-file-limit.util';
 
 import {
   MAX_ROSTER_ROWS,
@@ -163,6 +164,11 @@ export class RosterImportDialogComponent {
 
   private async readFile(file: File): Promise<void> {
     this.parseError.set(null);
+    const tooLarge = importFileTooLarge(file);
+    if (tooLarge) {
+      this.parseError.set(tooLarge);
+      return;
+    }
     this.busy.set(true);
 
     try {

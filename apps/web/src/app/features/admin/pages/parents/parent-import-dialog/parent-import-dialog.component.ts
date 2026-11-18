@@ -10,6 +10,7 @@ import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { AppVersionService } from '@core/app-version.service';
+import { importFileTooLarge } from '@shared/utils/import-file-limit.util';
 /**
  * **`xlsx` 只在真的要解析檔案時才載入。**
  *
@@ -26,6 +27,11 @@ import {
   type BatchCheckError,
   type BatchCheckResponse,
 } from '@core/parents.service';
+
+/**
+ * 家長匯入一次最多幾列（#2540 補償控制，計畫席 11-18 裁）。解析完立刻擋，不進後續對應與預檢。
+ */
+export const MAX_PARENT_IMPORT_ROWS = 2000;
 
 // 年級對照表
 const GRADE_MAP: Record<string, string> = {
@@ -103,6 +109,8 @@ export class ParentImportDialogComponent {
   protected readonly submitting = signal(false);
   protected readonly submitResult = signal<BatchImportResponse | null>(null);
   protected readonly dragging = signal(false);
+  /** 選檔那一步擋下來的原因（檔案太大、列數太多）；null＝沒擋 */
+  protected readonly fileError = signal<string | null>(null);
   // 記錄每筆送出行對應的原始 Excel 序號（1-based），用於結果頁顯示
   protected readonly submittedIndexes = signal<number[]>([]);
 
@@ -162,8 +170,24 @@ export class ParentImportDialogComponent {
 
   private async processFile(file: File): Promise<void> {
     this.lastFile = file;
+    this.fileError.set(null);
+    const tooLarge = importFileTooLarge(file);
+    if (tooLarge) {
+      this.fileError.set(tooLarge);
+      return;
+    }
     try {
       const sheetRows = await this.parseExcelFile(file);
+      // 前兩列是標題與說明
+      const dataRowCount = sheetRows.length - 2;
+      if (dataRowCount > MAX_PARENT_IMPORT_ROWS) {
+        this.fileError.set(
+          `一次最多匯入 ${MAX_PARENT_IMPORT_ROWS} 列，這份檔案有 ${dataRowCount} 列，請分批匯入`,
+        );
+        this.rows.set([]);
+        this.step.set(1);
+        return;
+      }
       const parsedRows = this.parseRows(sheetRows);
 
       // DB 衝突預檢（靜默降級：API 失敗不阻擋流程）
