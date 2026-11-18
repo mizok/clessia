@@ -32,11 +32,18 @@ export interface SessionOperationState {
   readonly status: 'scheduled' | 'completed' | 'cancelled';
 }
 
-export function assertSessionOperable(session: SessionOperationState): void {
+/**
+ * `allowCompleted`：代課是資料更正（老師點完名才發現代課沒登），已點名的堂照樣能改老師（#2546 gate）。
+ * 其他動作維持擋 completed。
+ */
+export function assertSessionOperable(
+  session: SessionOperationState,
+  options: { readonly allowCompleted?: boolean } = {},
+): void {
   if (session.status === 'cancelled') {
     throw new SessionCancelledError();
   }
-  if (session.status === 'completed') {
+  if (session.status === 'completed' && !options.allowCompleted) {
     throw new SessionCompletedError();
   }
   if (session.assignmentStatus === 'unassigned') {
