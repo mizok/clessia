@@ -68,6 +68,15 @@ DECLARE
   v_class_names   text[] := ARRAY['國三數學 A 班','國二英文 B 班','國三國文 A 班',
                                   '國二自然 A 班','國小六年級數學班','國小五年級英文班'];
   v_course_names  text[] := ARRAY['國中數學','國中英文','國中國文','國中自然','國小數學','國小英文'];
+  -- 課程簡介（#2534）：一兩行，像真的補習班招生單會寫的 —— 年級、內容、節奏。順序同 v_course_names
+  v_course_descs  text[] := ARRAY[
+    '國一至國三數學，從代數、幾何到會考題型；每週一堂 90 分鐘，隨堂小考、錯題訂正。',
+    '國一至國三英文，文法、閱讀與聽力並重；每週一堂 90 分鐘，單字每週抽考。',
+    '國一至國三國文，字詞、閱讀理解與作文；每週一堂 90 分鐘，每兩週一篇作文批改。',
+    '國一至國三自然，理化與生物觀念整理加實驗題；每週一堂 90 分鐘，段考前加強複習。',
+    '國小五、六年級數學，銜接國中的分數、比例與應用題；每週一堂 90 分鐘，口算與解題並進。',
+    '國小五、六年級英文，自然發音、常用字彙與簡單會話；每週一堂 90 分鐘，以遊戲帶動開口。'
+  ];
   v_starts        time[] := ARRAY['17:00','19:00','17:00','19:00','15:00','15:00']::time[];
   v_ends          time[] := ARRAY['18:30','20:30','18:30','20:30','16:30','16:30']::time[];
 
@@ -189,8 +198,8 @@ BEGIN
 
   -- ── 課程 / 班級 / 時段 / 一學期的課堂 ────────────────────────────────────
   FOR i IN 1 .. 6 LOOP
-    INSERT INTO public.courses (org_id, campus_id, name, subject_id, grade_levels, is_active)
-    VALUES (v_org, v_campus, v_course_names[i],
+    INSERT INTO public.courses (org_id, campus_id, name, description, subject_id, grade_levels, is_active)
+    VALUES (v_org, v_campus, v_course_names[i], v_course_descs[i],
       v_subj[1 + ((i - 1) % 4)],
       CASE WHEN i <= 4 THEN ARRAY['J1','J2','J3']::grade_level[]
            ELSE ARRAY['P5','P6']::grade_level[] END,

@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
+import { getCampusScope } from '../lib/campus-scope';
 
 // ============================================================
 // Schemas
@@ -77,6 +78,13 @@ app.openapi(
       .order('created_at', { ascending: false })
       .range(offset, offset + pageSize - 1);
 
+    // 分校範圍（#2496）：受限的管理員只看 campus_ids 跟自己範圍有交集的、或機構層級（{}）的。
+    // NULL（推不出分校）看不到 —— fail-closed。篩在 DB 端，count 跟著篩，meta.total 不洩漏看不到的列數。
+    // campus_ids 由 DB trigger 寫入時填（migration 20261113132234）
+    const scope = getCampusScope(c);
+    if (scope !== null) {
+      dbQuery = dbQuery.or(`campus_ids.eq.{},campus_ids.ov.{${scope.join(',')}}`);
+    }
     if (query.resourceTypes) {
       const types = query.resourceTypes
         .split(',')

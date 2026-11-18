@@ -57,8 +57,10 @@ function createApp(classCampus: string, campusScope: string[] | null, status = '
               return (onfulfilled?: (value: unknown) => unknown) =>
                 Promise.resolve({ data, error: null }).then(onfulfilled);
             }
-            return () => {
-              recorded.ops.push(prop);
+            return (...args: unknown[]) => {
+              // `.in('status', …)` 是衝突偵測的「佔用時段」篩選（#2551），不是「依 id 撈目標」，
+              // 不能讓下面的 `ops.includes('in')` 把它當成目標查詢而回出那一堂自己
+              if (!(prop === 'in' && args[0] === 'status')) recorded.ops.push(prop);
               return query;
             };
           },

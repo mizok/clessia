@@ -426,7 +426,6 @@ describe('AcademyExamFormDialogComponent', () => {
       'exam-1',
       expect.objectContaining({ name: '已登錄考試', examDate: '2026-03-20', passScore: 65 }),
     );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const payload = (academyExamsServiceMock.update as any).mock.lastCall![1] as Record<
       string,
       unknown
