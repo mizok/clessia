@@ -1,5 +1,4 @@
 {
-  "DELETE /api/daily-checkins/:id": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "DELETE /api/invoices/:id/items/:itemId": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/academy-exams": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/academy-exams/todo-by-class": "舊端點：#2493 盤點範圍 OK，缺契約認領",
@@ -45,7 +44,6 @@
   "POST /api/billing-runs/repair": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "POST /api/class-logs/:id/publish": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "POST /api/courses": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "POST /api/daily-checkins": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "POST /api/invoices": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "POST /api/invoices/:id/items": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "POST /api/invoices/:id/payments": "舊端點：#2493 盤點範圍 OK，缺契約認領",
