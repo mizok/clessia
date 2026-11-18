@@ -3,10 +3,7 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
   "sourceRoot": "apps/api/src",
-  "tags": [
-    "type:app",
-    "scope:backend"
-  ],
+  "tags": ["type:app", "scope:backend"],
   "targets": {
     "serve": {
       "executor": "nx:run-commands",
@@ -42,6 +39,15 @@
         "command": "npx tsc -p tsconfig.json --noEmit",
         "cwd": "apps/api"
       }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx eslint apps/api/src",
+        "cwd": "{workspaceRoot}"
+      },
+      "inputs": ["default", "{workspaceRoot}/eslint.config.mjs", "{workspaceRoot}/packages/**/*"],
+      "cache": true
     }
   }
 }

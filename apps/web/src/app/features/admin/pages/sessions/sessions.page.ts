@@ -37,7 +37,6 @@ import { catchError, forkJoin, map, of, switchMap } from 'rxjs';
 import { MessageService, type MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
-import type { Campus } from '@core/campuses.service';
 import { ClassesService } from '@core/classes.service';
 import { CoursesService, type Course } from '@core/courses.service';
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';

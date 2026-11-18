@@ -2,6 +2,7 @@
   "name": "clessia",
   "version": "0.0.0",
   "scripts": {
+    "lint": "nx run-many -t lint",
     "dev": "nx run-many -t serve -p web api",
     "dev:web": "nx serve web",
     "dev:api": "nx serve api",
@@ -12,7 +13,8 @@
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
-    "harness": "node tools/agent-harness/check-harness.mjs && node tools/agent-harness/feature-map.mjs",
+    "deps:check": "node tools/agent-harness/check-deps.mjs",
+    "harness": "node tools/agent-harness/check-deps.mjs && node tools/agent-harness/check-harness.mjs && node tools/agent-harness/feature-map.mjs",
     "harness:write": "node tools/agent-harness/check-harness.mjs --write && node tools/agent-harness/feature-map.mjs --write",
     "harness:test": "node --test 'tools/agent-harness/**/*.test.mjs'",
     "test:baseline": "npx nx affected -t test --base=main 2>&1 | node tools/agent-harness/test-gate.mjs --write",
@@ -63,7 +65,7 @@
     "primeng": "^21.1.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
-    "xlsx": "^0.18.5",
+    "xlsx": "file:vendor/xlsx-0.20.3.tgz",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -73,11 +75,14 @@
     "@angular/cli": "^21.2.30",
     "@angular/compiler-cli": "^21.2.26",
     "@cloudflare/workers-types": "^5.20260829.1",
+    "@eslint/js": "^9.39.5",
     "@nx/angular": "22.5.0",
     "@nx/workspace": "22.5.0",
     "@schematics/angular": "^21.2.30",
     "@tailwindcss/node": "^4.3.3",
     "@tailwindcss/postcss": "^4.3.3",
+    "angular-eslint": "^21.4.0",
+    "eslint": "^9.39.5",
     "exceljs": "^4.4.0",
     "jsdom": "^27.1.0",
     "nx": "^22.5.0",
@@ -87,6 +92,7 @@
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.12",
     "typescript": "~5.9.2",
+    "typescript-eslint": "^8.73.0",
     "vitest": "^4.1.12",
     "wrangler": "^4.127.1"
   }

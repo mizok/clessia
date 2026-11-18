@@ -3,7 +3,7 @@ import { provideRouter } from '@angular/router';
 import { addDays, endOfWeek, format, parseISO, startOfWeek } from 'date-fns';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NEVER, of, throwError } from 'rxjs';
-import { afterEach, beforeEach, vi } from 'vitest';
+import { vi } from 'vitest';
 import { AttendanceService } from '@core/attendance.service';
 import { ContactBookService } from '@core/contact-book.service';
 import { AcademyExamsService } from '@core/academy-exams.service';

@@ -1,5 +1,3 @@
-// TODO(exam-redesign): 測試覆蓋率不完整，close/reopen, candidate list, recent-students 等行為
-//                     待後續加入 e2e 或更完整的 Supabase mock 後補齊。
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 import scoresApp, { sumPairsOrNull } from './scores';

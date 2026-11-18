@@ -423,7 +423,7 @@ export class StudentPickerDialogComponent implements OnInit {
           this.confirming.set(false);
           this.enrolledResult.set(res);
           this.step.set('result');
-          if (this.issueInvoice()) this.issueInvoices(res);
+          if (this.issueInvoice()) this.issueInvoices();
         },
         error: (err) => {
           this.confirming.set(false);
@@ -458,7 +458,7 @@ export class StudentPickerDialogComponent implements OnInit {
    * 兩種殘留也不對等：分開的殘留**看得見**（報名在、帳單不在，畫面當場說出來、
    * 而且重試得了）；綁一起的殘留看不見（什麼都沒發生，而櫃檯前的人以為報好了）。
    */
-  private issueInvoices(res: BatchCreateResult): void {
+  private issueInvoices(): void {
     const targets = this.enrolledTargets().filter(
       (t) => !this.invoicedStudentIds().has(t.studentId),
     );
@@ -505,7 +505,7 @@ export class StudentPickerDialogComponent implements OnInit {
       this.notice.set('要開帳的話，回上一步選價目表或填議定金額。');
       return;
     }
-    this.issueInvoices(res);
+    this.issueInvoices();
   }
 
   /** 只對沒開成的重試 —— `issueInvoices` 自己會濾掉已經開過的，所以走同一條路 */

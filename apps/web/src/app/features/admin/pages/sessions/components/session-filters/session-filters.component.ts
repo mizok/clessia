@@ -12,7 +12,6 @@ export {
   SESSION_STATUS_OPTIONS,
   statusesAreFiltering,
 } from '@shared/utils/session-status';
-import { SESSION_STATUS_OPTIONS as STATUS_OPTIONS } from '@shared/utils/session-status';
 
 @Component({
   selector: 'app-session-filters',

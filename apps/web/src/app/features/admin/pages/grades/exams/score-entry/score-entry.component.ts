@@ -21,11 +21,7 @@ import { PageOpenComponent } from '@shared/components/page-open/page-open.compon
 import { AcademyScoreEditorComponent } from './academy-score-editor/academy-score-editor.component';
 import { SchoolScoreEditorComponent } from './school-score-editor/school-score-editor.component';
 
-import {
-  AcademyExamsService,
-  type AcademyExamDetail,
-  type AcademyExamDetailSummary,
-} from '@core/academy-exams.service';
+import { AcademyExamsService, type AcademyExamDetail } from '@core/academy-exams.service';
 import { SchoolExamsService, type SchoolExamDetail } from '@core/school-exams.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';

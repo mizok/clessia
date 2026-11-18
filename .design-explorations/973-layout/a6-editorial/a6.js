@@ -20,6 +20,7 @@
     swap: P('<path d="M3 5.5h9l-2.5-2.5M13 10.5H4l2.5 2.5"/>'),
     x: P('<path d="M4 4l8 8M12 4l-8 8"/>'),
     bell: P('<path d="M4 11V7a4 4 0 018 0v4l1.2 1.5H2.8zM6.5 14h3"/>'),
+    send: P('<path d="M2 8l12-5.5L8.5 14 7 9z"/>'),
     leave: P('<rect x="3" y="2.5" width="10" height="11" rx="1.5"/><path d="M5.5 6h5M5.5 9h3"/>'),
     // A4 第四輪
     info: P('<circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.8M8 5h.01"/>'),
@@ -373,6 +374,8 @@
     const fid = (f) => `f-${f.k}`;
     const input = (f) => {
       if (f.type === 'select') return `<select class="acset__in" id="${fid(f)}" data-k="${f.k}">${(f.ph ? [['', f.ph]] : []).concat(f.options.map((o) => (Array.isArray(o) ? o : [o, o]))).map(([v, l]) => `<option value="${esc(v)}"${String(f.value ?? '') === String(v) ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+      // 多選（#2495 B7 回寫 R5 11-02「新增考試的開課班多選」）：外框寫 placeholder／「N 個班級」，點開勾選清單；值是逗號串在隱藏欄位
+      if (f.type === 'multi') return `<div class="acset__in fdlg__multi" id="${fid(f)}" tabindex="0"><div class="fdlg__mlabel">${esc(f.ph || '')}</div>${icon.down}</div><input type="hidden" data-k="${f.k}" value=""><div class="fdlg__mlist" hidden>${f.options.map(([v, l]) => `<label class="fdlg__mopt"><input type="checkbox" value="${esc(v)}">${esc(l)}</label>`).join('')}</div>`;
       if (f.type === 'textarea') return `<textarea class="acset__in" id="${fid(f)}" data-k="${f.k}" rows="4"${f.ph ? ` placeholder="${esc(f.ph)}"` : ''}>${esc(f.value ?? '')}</textarea>`;
       if (f.type === 'radio') return `<div class="fdlg__seg" role="radiogroup" aria-labelledby="${fid(f)}-l">${f.options.map((o, i) => `<label class="fdlg__opt"><input type="radio" name="${f.k}" value="${esc(o)}" data-k="${f.k}"${(f.value ?? f.options[0]) === o ? ' checked' : ''}>${esc(o)}</label>`).join('')}</div>`;
       return `<input class="acset__in" id="${fid(f)}" data-k="${f.k}" type="${f.type === 'money' ? 'text' : f.type || 'text'}"${f.type === 'money' ? ' inputmode="numeric"' : ''} value="${esc(f.value ?? '')}"${f.ph ? ` placeholder="${esc(f.ph)}"` : ''} autocomplete="off">`;
@@ -389,6 +392,11 @@
       go.setAttribute('aria-disabled', miss.length ? 'true' : 'false');
       why.textContent = miss.length ? `還沒填：${miss.map((f) => f.label).join('、')}` : '';
     };
+    d.querySelectorAll('.fdlg__multi').forEach((box) => {
+      const list = box.nextElementSibling.nextElementSibling, hid = box.nextElementSibling, lab = box.firstElementChild, ph = lab.textContent;
+      box.addEventListener('click', () => (list.hidden = !list.hidden));
+      list.addEventListener('change', () => { const on = [...list.querySelectorAll(':checked')].map((x) => x.value); hid.value = on.join(','); lab.textContent = on.length ? `${on.length} 個班級` : ph; });
+    });
     d.addEventListener('input', check); d.addEventListener('change', check);
     d.addEventListener('click', (e) => {
       if (e.target === d || e.target.closest('[data-x]')) d.close();

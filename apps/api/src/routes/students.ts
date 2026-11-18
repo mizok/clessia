@@ -3,7 +3,7 @@ import { waitUntilFrom } from '../lib/wait-until';
 import { attachParentContacts, type ParentRelationRow } from '../lib/student-parents';
 import { resolveStudentScope } from './students/teacher-scope';
 import { outOfCampusScope, teacherCannotRead } from './students/read-scope';
-import { taughtClassIds, taughtStudentIds, tenureFromSchedules } from '../lib/teacher-scope';
+import { taughtClassIds, tenureFromSchedules } from '../lib/teacher-scope';
 import { loadTeacherRosterViaSql } from '../lib/teacher-roster-sql';
 import { loadStudentTodayBase } from '../lib/student-today-sql';
 import type { AppEnv } from '../index';
@@ -393,7 +393,7 @@ app.openapi(
         ];
       } else {
         // 只在記憶體裡用（今日到班濾掉別人的學生、沒有學生就提早回空）—— 列表本身的老師範圍在 DB 端篩（#1928，
-        // 見 `scopeEmbed`），這份清單不進 URL。分頁撈齊，免得 max_rows 1000 靜默截斷
+        // 範圍經 listParams 的 campusIds／classIds 進 SQL 與 builder），這份清單不進 URL。分頁撈齊，免得 max_rows 1000 靜默截斷
         const { rows: enrolledRows, error: enrolledError } = await fetchAllPages((from, to) =>
           supabase
             .from('enrollments')
@@ -421,16 +421,6 @@ app.openapi(
     // 這支查詢**不濾 enrollment status**（enrollment-rules 第 8 節）：分校主任要看得到
     // 自家剛退班的學生。改這裡等於改授權可見性，不是改篩選
     const campusIds = campusFilterIds(getCampusScope(c), campusId);
-    /**
-     * 範圍（#1928）：條件放進 embed 的 `!inner` 在 DB 端篩，**不先撈範圍內學生 id 再 `.in('id', …)`**
-     * （兩三百位就 414，整頁 500）。分校＝任一筆報名的班在範圍內（不分狀態）；老師＝在他任課班有
-     * 在籍（active／pending_payment）的報名 —— 同一個 alias 上的兩個條件落在同一筆報名，同原本。
-     * 列表、在籍數、章節計數**共用同一份**（#815：算兩次就會分岔一次）
-     */
-    const scopeEmbed =
-      (campusIds ? ', scope_campus:enrollments!inner(classes!inner(campus_id))' : '') +
-      (myClassIds ? ', scope_taught:enrollments!inner(class_id, status)' : '');
-
     if (taughtStudentIds !== null) {
       // 空陣列代表這位老師沒有任何任課班 —— 結果必須是空的，不是「不篩」
       if (taughtStudentIds.length === 0) {

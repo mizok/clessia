@@ -10,5 +10,11 @@
     "reason": "只組 select 欄位字串、自己不查詢；分校條件由呼叫端 enrollments.ts 的 filtersCampus／applyListFilters 下（enrollments.ts:459-464、539-545）",
     "evidence": "apps/api/src/routes/enrollments/list-query.ts:74-111",
     "ruling": "計畫席 11-02（#2154）"
+  },
+  {
+    "file": "apps/api/src/routes/attendance/rows.ts",
+    "reason": "只有型別（PostgREST 查詢結果的 interface），編譯後不存在、自己不查詢；分校條件在 attendance.ts 各 handler 原處（applyCampusFilter／resourceCampusAllowed）。leaves.ts 第二片的 rows 檔同理",
+    "evidence": "apps/api/src/routes/attendance/rows.ts:1-114",
+    "ruling": "計畫席 11-18（#2545）"
   }
 ]

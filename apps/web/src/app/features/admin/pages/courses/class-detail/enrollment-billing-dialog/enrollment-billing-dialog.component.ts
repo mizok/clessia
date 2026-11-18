@@ -15,7 +15,6 @@ import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dy
 
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import {
-  BILLING_MODE_LABELS,
   FeeTemplatesService,
   type BillingMode,
   type FeeTemplate,

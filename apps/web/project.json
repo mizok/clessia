@@ -4,10 +4,7 @@
   "projectType": "application",
   "prefix": "app",
   "sourceRoot": "apps/web/src",
-  "tags": [
-    "type:app",
-    "scope:frontend"
-  ],
+  "tags": ["type:app", "scope:frontend"],
   "targets": {
     "build": {
       "executor": "@angular/build:application",
@@ -26,10 +23,7 @@
           "apps/web/src/styles.css",
           "apps/web/src/tailwind.css"
         ],
-        "allowedCommonJsDependencies": [
-          "qrcode",
-          "jsqr"
-        ]
+        "allowedCommonJsDependencies": ["qrcode", "jsqr"]
       },
       "configurations": {
         "production": {
@@ -98,6 +92,15 @@
         "tsConfig": "apps/web/tsconfig.spec.json",
         "runnerConfig": "apps/web/vitest.config.mts"
       }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx eslint apps/web/src packages",
+        "cwd": "{workspaceRoot}"
+      },
+      "inputs": ["default", "{workspaceRoot}/eslint.config.mjs", "{workspaceRoot}/packages/**/*"],
+      "cache": true
     }
   }
 }

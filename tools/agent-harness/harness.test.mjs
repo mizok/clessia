@@ -12,7 +12,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { formatGenerated } from './lib/format.mjs';
-import { crossFeatureImports } from './lib/feature-boundaries.mjs';
+import { crossFeatureImports, layerImportsIntoFeatures } from './lib/feature-boundaries.mjs';
+import { suppressionTotal } from './lib/eslint-suppressions.mjs';
 import { dualTrackTables } from './lib/dual-track-table.mjs';
 import { touchTargetViolations } from './lib/touch-target.mjs';
 import { ariaIconButtonViolations } from './lib/aria-icon-button.mjs';
@@ -1576,6 +1577,41 @@ test('c5 的別名清單與 tsconfig 對得上', () => {
   );
 });
 
+// #2542：分層方向 —— core／shared 不得 import features；app 根目錄（路由表）與 features 自己不掃
+test('A18 分層：core／shared 往 features 的 import 要抓（相對與別名），其他放行', () => {
+  const root = mkdtempSync(join(tmpdir(), 'c5l-'));
+  const app = join(root, 'app');
+  const mk = (rel, body) => {
+    mkdirSync(dirname(join(app, rel)), { recursive: true });
+    writeFileSync(join(app, rel), body);
+  };
+  const aliases = { '@features/': join(app, 'features'), '@app/': app };
+
+  mk('core/a.service.ts', "import { x } from '../features/admin/x';");
+  mk('shared/b.component.ts', "import { y } from '@features/teacher/y';");
+  mk('shared/c.component.ts', "import { z } from '@app/features/parent/z';");
+  mk('shared/ok.ts', "import { s } from '../core/a.service';"); // shared → core 放行
+  mk('app.routes.ts', "import { r } from './features/admin/r';"); // 路由表放行
+  mk('features/admin/x.ts', "import { s } from '../../shared/ok';"); // feature → shared 放行
+
+  const hits = layerImportsIntoFeatures(app, root, aliases);
+  assert.deepEqual(
+    hits.map((h) => `${h.layer}->${h.to}`),
+    ['core->admin', 'shared->teacher', 'shared->parent'],
+  );
+});
+
+// #2542 A31：ESLint 原生 suppressions 帳的筆數（只減不增要比的那個數）
+test('A31 suppressionTotal 加總每檔每規則的 count；壞 JSON 直接丟', () => {
+  const text = JSON.stringify({
+    'a.ts': { 'r/one': { count: 2 }, 'r/two': { count: 1 } },
+    'b.ts': { 'r/one': { count: 3 } },
+  });
+  assert.equal(suppressionTotal(text), 6);
+  assert.equal(suppressionTotal('{}'), 0);
+  assert.throws(() => suppressionTotal('{'));
+});
+
 // ── A19：家長端檔案不得出現 c.get('supabase') ──────────────────────────────────────────
 // 兩個方向都要測：抓得到真違規、不誤判解釋「不要這樣寫」的註解。後者不是假設性的 ——
 // `routes/parent/children.ts` 自己的檔頭說明就寫了 `c.get('supabase')` 這個字面值，
@@ -2637,6 +2673,7 @@ test('A7c：檔案例外帳本每條都有理由、出處、裁定', () => {
     ledger.map((e) => e.file).sort(),
     [
       'apps/api/src/routes/announcements/visibility.ts',
+      'apps/api/src/routes/attendance/rows.ts', // 只有型別（計畫席 11-18，#2545）
       'apps/api/src/routes/enrollments/list-query.ts',
     ],
     '例外帳本多了或少了一條：加例外要有計畫席裁定，並同步更新這個斷言',

@@ -20,5 +20,5 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 export class FilterChipComponent {
   readonly active = input(false);
   readonly icon = input<string>();
-  readonly toggle = output<void>();
+  readonly toggled = output<void>();
 }

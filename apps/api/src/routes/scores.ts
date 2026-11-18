@@ -151,32 +151,6 @@ const ClassExamStatsResponseSchema = z
   })
   .openapi('ClassExamStatsResponse');
 
-interface AcademyScoreRow {
-  id: string;
-  exam_id: string;
-  student_id: string;
-  score: number | null;
-  status: string;
-  exam_name: string;
-  exam_date: string;
-  subject_name: string | null;
-  total_score: number | null;
-  student_name: string;
-}
-
-interface SchoolScoreRow {
-  id: string;
-  school_exam_id: string;
-  student_id: string;
-  score: number | null;
-  status: string;
-  exam_label: string;
-  exam_date: string | null;
-  exam_created_at: string;
-  subject_name: string;
-  student_name: string;
-}
-
 interface ScoreRecord {
   id: string;
   examId: string;

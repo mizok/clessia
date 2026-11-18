@@ -134,10 +134,6 @@ const RecentSchoolExamStudentSchema = z
   })
   .openapi('RecentSchoolExamStudent');
 
-const SchoolExamStudentStatusSchema = z
-  .enum(['pending', 'scored', 'absent', 'makeup'])
-  .openapi('SchoolExamStudentStatus');
-
 const SchoolExamStudentRowSchema = z
   .object({
     studentId: DbUuidSchema,

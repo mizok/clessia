@@ -1,9 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import {
-  isCancelledSession,
-  toSessionRows,
-  type CancellableSession,
-} from '../lib/cancelled-session';
+import { isCancelledSession, toSessionRows } from '../lib/cancelled-session';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Context } from 'hono';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -11,7 +7,7 @@ import { notifyLeaveForTeachers } from '../lib/notify-leave';
 import { notifyLeaveStreaks } from '../lib/leave-streak';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
-import { logAudit } from '../utils/audit';
+import { auditCampusIdsBeforeDelete, logAudit } from '../utils/audit';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { studentWriteScope } from '../lib/campus-write-guard';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
@@ -30,12 +26,17 @@ import {
 import {
   LEAVE_SESSIONS_EMBED,
   LEAVE_WINDOW_COLUMNS,
-  leaveCoversSession,
-  leavesConflict,
   toLeaveWindow,
   type LeaveWindow,
 } from '../lib/leave-covers-session';
 import { isEnrolledOn } from '../lib/session-roster';
+import type { PostgrestSingleResponse } from '@supabase/supabase-js';
+import type {
+  LeaveWithEmbeds,
+  LeaveWithStudentWindow,
+  OnLeaveRecordWithEvent,
+  SessionForBinding,
+} from './leaves/rows';
 import {
   LEAVE_COVERED_SESSIONS_SQL,
   coveredSessionsOf,
@@ -264,7 +265,7 @@ async function resolveBoundSessions(
     .select('id, session_date, class_id, status')
     .eq('org_id', orgId)
     .in('id', ids);
-  const byId = new Map(((data ?? []) as Array<Record<string, any>>).map((r) => [r['id'], r]));
+  const byId = new Map(((data ?? []) as SessionForBinding[]).map((r) => [r['id'], r]));
 
   const { data: enrollments } = await supabase
     .from('enrollments')
@@ -339,9 +340,9 @@ async function planLeaveAttendance(
 
   // 這張假蓋不蓋得到那堂 —— 跟 roster 推導同一支判斷（綁定堂次、單日時間窗）。
   // #1114 之前這裡完全不看時間：roster 說只蓋下午那堂，紀錄卻把整天都寫成請假。
-  const events = ((rawEvents ?? []) as Array<Record<string, any>>).filter((ev) =>
+  const events = ((rawEvents ?? []) as Array<Record<string, unknown>>).filter((ev) =>
     coversEvent(input.window, ev),
-  ) as LeaveAttendanceEventRow[];
+  ) as unknown as LeaveAttendanceEventRow[];
   if (events.length === 0) return { eventIds: [], sessionIds: [] };
 
   // 生效區間（那天在不在班）仍由 `buildLeaveAttendanceUpserts` 判，跟其他路徑同一支
@@ -397,7 +398,7 @@ async function planLeaveRevert(input: LeaveAttendanceRangeInput): Promise<string
   if (readError) throw new Error(`讀請假出勤失敗：${readError.message}`);
 
   // 跟 apply 對稱：只回這張假蓋得到的堂。綁定型不能把同日別堂（別張假寫的）on_leave 一起帶走
-  return ((rawRecords ?? []) as Array<Record<string, any>>)
+  return ((rawRecords ?? []) as unknown as OnLeaveRecordWithEvent[])
     .filter((r) => coversEvent(input.window, r['events']))
     .map((r) => r['id'] as string);
 }
@@ -451,7 +452,7 @@ async function leaveAttendanceImpact(
     .gte('event_date', from)
     .lte('event_date', to);
   if (eventsError) throw new Error(`讀出勤事件失敗：${eventsError.message}`);
-  const events = ((rawEvents ?? []) as Array<Record<string, any>>).filter((ev) =>
+  const events = ((rawEvents ?? []) as Array<Record<string, unknown>>).filter((ev) =>
     coversEvent(input.window, ev),
   );
   if (events.length === 0) return { revertCount: 0, keptCount: 0 };
@@ -619,7 +620,7 @@ async function updateBoundSessions(
   const syncedCount = applied.eventIds.length;
 
   // 取鎖 → 查重疊 → 改區間與綁定 → 撤／寫出勤，同一筆交易（#1957、#2237）
-  let updated: Record<string, unknown> | null;
+  let updated: LeaveWithEmbeds | null;
   let revertedCount = 0;
   try {
     const out = await withTx(pool, async (tx) => {
@@ -657,7 +658,7 @@ async function updateBoundSessions(
       return { overlap: null, row, reverted };
     });
     if (out.overlap) return c.json(OVERLAP(out.overlap), 409);
-    updated = out.row;
+    updated = out.row as LeaveWithEmbeds | null;
     revertedCount = out.reverted;
   } catch (err) {
     console.error('[leaves] 改綁定失敗（已回滾）:', err instanceof Error ? err.message : err);
@@ -728,8 +729,8 @@ async function updateBoundSessions(
 
   const row = {
     ...updated,
-    student_name: (updated as any).students?.name ?? input.studentName,
-    submitted_by_name: (updated as any).ba_user?.name ?? null,
+    student_name: updated.students?.name ?? input.studentName,
+    submitted_by_name: updated.ba_user?.name ?? null,
     leave_request_sessions: nextWindow.boundSessions.map((b) => ({
       session_id: b.sessionId,
       sessions: { session_date: b.date },
@@ -849,7 +850,7 @@ app.openapi(
       return c.json({ error: '讀取請假紀錄失敗', message: error.message }, 500);
     }
 
-    const rows = (data ?? []).map((r: any) => ({
+    const rows = ((data ?? []) as unknown as LeaveWithEmbeds[]).map((r) => ({
       ...r,
       student_name: r.students?.name ?? '',
       submitted_by_name: r.ba_user?.name ?? null,
@@ -863,7 +864,7 @@ app.openapi(
       const scope = getCampusScope(c);
       const { rows: found } = await pool.query(LEAVE_COVERED_SESSIONS_SQL, [
         orgId,
-        rows.map((r: any) => r.id as string),
+        rows.map((r) => r.id),
         scope ? [...scope] : null,
       ]);
       for (const row of found as CoveredSessionCandidate[]) {
@@ -874,9 +875,9 @@ app.openapi(
     const total = count ?? 0;
     return c.json(
       {
-        data: rows.map((r: any) => ({
+        data: rows.map((r) => ({
           ...toLeaveResponse(r),
-          studentGrade: (r.students?.grade as string | null) ?? null,
+          studentGrade: r.students?.grade ?? null,
           coveredSessions: coveredSessionsOf(toLeaveWindow(r), candidates.get(r.id) ?? []),
         })),
         meta: { total, page, pageSize, totalPages: Math.ceil(total / pageSize) },
@@ -975,7 +976,7 @@ app.openapi(
     // 2～3. 取鎖 → 查重疊（判準 `leavesConflict`）→ 建立請假與綁定堂次 → 出勤寫成 on_leave，同一筆交易
     // （#1957、#2237）。兩支 REST 各自一個交易的話，同時進來的兩個請求都查到「沒有重疊」而兩張都寫進去；
     // 出勤在交易外寫的話，寫失敗時假已經在，重送撞 409
-    let leave: { id: string } & Record<string, unknown>;
+    let leave: LeaveWithEmbeds;
     try {
       const out = await withTx(pool, async (tx) => {
         await lockStudentLeaves(tx, orgId, body.studentId);
@@ -988,7 +989,7 @@ app.openapi(
           reason: body.reason ?? null,
           userId,
           role: 'admin',
-        })) as { id: string } & Record<string, unknown>;
+        })) as LeaveWithEmbeds;
         await writeLeaveAttendance(tx, {
           orgId,
           studentId: body.studentId,
@@ -1014,7 +1015,7 @@ app.openapi(
           resourceType: 'attendance',
           resourceId: leave.id as string,
           resourceName: buildLeaveAuditResourceName({
-            studentName: (leave as any).students?.name ?? '',
+            studentName: leave.students?.name ?? '',
             startDate: window.startDate,
             endDate: window.endDate,
           }),
@@ -1025,18 +1026,13 @@ app.openapi(
       );
     }
 
-    await queueLeaveNotice(
-      c,
-      leave.id as string,
-      (leave as any).students?.name ?? '',
-      coveredSessionIds,
-    );
+    await queueLeaveNotice(c, leave.id as string, leave.students?.name ?? '', coveredSessionIds);
     await queueLeaveStreakCheck(c, body.studentId, window);
 
     const row = {
       ...leave,
-      student_name: (leave as any).students?.name ?? '',
-      submitted_by_name: (leave as any).ba_user?.name ?? null,
+      student_name: leave.students?.name ?? '',
+      submitted_by_name: leave.ba_user?.name ?? null,
       leave_request_sessions: window.boundSessions.map((b) => ({
         session_id: b.sessionId,
         sessions: { session_date: b.date },
@@ -1117,18 +1113,18 @@ app.openapi(
       return c.json({ error: '請假資料無效', message: '沒有要更新的欄位' }, 400);
     }
 
-    const { data: existing } = await supabase
+    const { data: existing } = (await supabase
       .from('leave_requests')
       .select(`id, student_id, students(name), ${LEAVE_WINDOW_COLUMNS}`)
       .eq('id', id)
       .eq('org_id', orgId)
-      .single();
+      .single()) as PostgrestSingleResponse<LeaveWithStudentWindow>;
 
     if (!existing) {
       return c.json({ error: '找不到請假紀錄' }, 404);
     }
 
-    const studentId = (existing as any).student_id as string;
+    const studentId = existing.student_id;
     const scoped = await studentWriteScope(supabase, orgId, getCampusScope(c), studentId);
     if (scoped === 'not-found') {
       return c.json({ error: '學生不存在', code: 'NOT_FOUND' }, 404);
@@ -1144,7 +1140,7 @@ app.openapi(
       return updateBoundSessions(c, {
         id,
         studentId,
-        studentName: (existing as any).students?.name ?? '',
+        studentName: existing.students?.name ?? '',
         prevWindow,
         sessionIds: body.sessionIds,
         hasTime: !!(body.startTime || body.endTime),
@@ -1167,8 +1163,8 @@ app.openapi(
     }
 
     const previous: LeaveDateRange = {
-      startDate: (existing as any).start_date as string,
-      endDate: (existing as any).end_date as string,
+      startDate: existing.start_date,
+      endDate: existing.end_date,
     };
     const next: LeaveDateRange = {
       startDate: body.startDate ?? previous.startDate,
@@ -1177,9 +1173,8 @@ app.openapi(
 
     // 時間比較前先正規化 —— DB 回的是 `HH:MM:SS`、body 帶的是 `HH:MM`，
     // 混著比會讓 `15:00 < 15:00:00` 成立，於是同一個時間被判成顛倒
-    const startTime =
-      body.startTime !== undefined ? body.startTime : toHHmm((existing as any).start_time);
-    const endTime = body.endTime !== undefined ? body.endTime : toHHmm((existing as any).end_time);
+    const startTime = body.startTime !== undefined ? body.startTime : toHHmm(existing.start_time);
+    const endTime = body.endTime !== undefined ? body.endTime : toHHmm(existing.end_time);
 
     const validationError = getLeaveValidationError({
       startDate: next.startDate,
@@ -1209,7 +1204,7 @@ app.openapi(
     const { removed, added } = rangeChanged
       ? diffLeaveDateRanges(previous, next)
       : { removed: [], added: [] };
-    let updated: Record<string, unknown> | null;
+    let updated: LeaveWithEmbeds | null;
     let revertedCount = 0;
     let syncedCount = 0;
     const addedSessionIds: string[] = [];
@@ -1268,7 +1263,7 @@ app.openapi(
           return { overlap: null, row, reverted };
         });
         if (out.overlap) return c.json(OVERLAP(out.overlap), 409);
-        updated = out.row;
+        updated = out.row as LeaveWithEmbeds | null;
         revertedCount = out.reverted;
       } catch (err) {
         console.error(
@@ -1287,14 +1282,14 @@ app.openapi(
         .select(`*, ${LEAVE_SESSIONS_EMBED}, students(name), ba_user!submitted_by(name)`)
         .single();
       if (updateError) console.error('[leaves] 更新請假失敗:', updateError.message);
-      updated = data as Record<string, unknown> | null;
+      updated = data as unknown as LeaveWithEmbeds | null;
     }
 
     if (!updated) {
       return c.json({ error: '更新請假失敗' }, 500);
     }
 
-    const studentName = (existing as any).students?.name ?? '';
+    const studentName = existing.students?.name ?? '';
 
     if (rangeChanged) {
       await queueLeaveNotice(c, id, studentName, addedSessionIds);
@@ -1365,8 +1360,8 @@ app.openapi(
 
     const row = {
       ...updated,
-      student_name: (updated as any).students?.name ?? studentName,
-      submitted_by_name: (updated as any).ba_user?.name ?? null,
+      student_name: updated.students?.name ?? studentName,
+      submitted_by_name: updated.ba_user?.name ?? null,
     };
 
     return c.json(toLeaveResponse(row), 200);
@@ -1473,22 +1468,17 @@ app.openapi(
     const { mode = 'truncate' } = c.req.valid('query');
 
     // 1. 找到請假紀錄
-    const { data: leave } = await supabase
+    const { data: leave } = (await supabase
       .from('leave_requests')
       .select(`id, student_id, students(name), ${LEAVE_WINDOW_COLUMNS}`)
       .eq('id', id)
       .eq('org_id', orgId)
-      .single();
+      .single()) as PostgrestSingleResponse<LeaveWithStudentWindow>;
 
     if (!leave) {
       return c.json({ error: '找不到請假紀錄' }, 404);
     }
-    const scoped = await studentWriteScope(
-      supabase,
-      orgId,
-      getCampusScope(c),
-      (leave as any).student_id as string,
-    );
+    const scoped = await studentWriteScope(supabase, orgId, getCampusScope(c), leave.student_id);
     if (scoped === 'not-found') {
       return c.json({ error: '學生不存在', code: 'NOT_FOUND' }, 404);
     }
@@ -1499,12 +1489,14 @@ app.openapi(
     // 台北時間，不是 UTC —— Workers 跑在 UTC，`new Date().toISOString()` 在
     // 台北時間 00:00–08:00 之間會算成前一天（2026-09-06 main 全紅的根因）。
     const today = getCurrentTaipeiDateString();
-    const startDate = (leave as any).start_date as string;
-    const endDate = (leave as any).end_date as string;
+    const startDate = leave.start_date;
+    const endDate = leave.end_date;
 
     const window = toLeaveWindow(leave as Record<string, unknown>);
-    const studentId = (leave as any).student_id as string;
+    const studentId = leave.student_id;
     const plan = cancelPlan(mode, window, today);
+    // 完整刪除後 trigger 反查不到這張假（#2496）：刪之前先算好分校（綁的堂次的班，沒綁就看學生）
+    const auditCampusIds = await auditCampusIdsBeforeDelete(supabase, 'leave', id);
 
     const pool = c.get('auth')?.pool;
     if (!pool) {
@@ -1564,7 +1556,7 @@ app.openapi(
           resourceType: 'leave',
           resourceId: id,
           resourceName: buildLeaveAuditResourceName({
-            studentName: (leave as any).students?.name ?? '',
+            studentName: leave.students?.name ?? '',
             startDate,
             endDate,
           }),
@@ -1583,7 +1575,7 @@ app.openapi(
             resourceType: 'attendance',
             resourceId: id,
             resourceName: buildLeaveAuditResourceName({
-              studentName: (leave as any).students?.name ?? '',
+              studentName: leave.students?.name ?? '',
               startDate,
               endDate,
             }),
@@ -1606,11 +1598,12 @@ app.openapi(
         resourceType: 'leave',
         resourceId: id,
         resourceName: buildLeaveAuditResourceName({
-          studentName: (leave as any).students?.name ?? '',
+          studentName: leave.students?.name ?? '',
           startDate,
           endDate,
         }),
         action: 'delete',
+        campusIds: auditCampusIds,
       },
       waitUntilFrom(c),
     );
@@ -1624,11 +1617,12 @@ app.openapi(
           resourceType: 'attendance',
           resourceId: id,
           resourceName: buildLeaveAuditResourceName({
-            studentName: (leave as any).students?.name ?? '',
+            studentName: leave.students?.name ?? '',
             startDate,
             endDate,
           }),
           action: 'revert_leave_attendance',
+          campusIds: auditCampusIds,
           details: buildLeaveAttendanceAuditDetails(revertedCount),
         },
         waitUntilFrom(c),

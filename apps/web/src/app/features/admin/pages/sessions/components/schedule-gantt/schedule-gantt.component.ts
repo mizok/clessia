@@ -49,10 +49,10 @@ export class ScheduleGanttComponent {
   /** 快速選取模式（桌機）：每塊的勾選框都露出來，不用滑過 */
   readonly picking = input(false);
 
-  readonly toggle = output<SchedulePickRequest>();
+  readonly pickToggle = output<SchedulePickRequest>();
   protected onPickClick(event: MouseEvent, id: string): void {
     const req = pickEvent(event, id);
-    if (req) this.toggle.emit(req);
+    if (req) this.pickToggle.emit(req);
   }
   readonly menu = output<ScheduleMenuRequest>();
 

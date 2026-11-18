@@ -36,7 +36,7 @@ export class ScheduleQuickSheetComponent {
   readonly teacherOptions = input.required<readonly SelectFieldOption<string>[]>();
   readonly classOptions = input.required<readonly SelectFieldOption<string>[]>();
 
-  readonly toggle = output<string>();
+  readonly pickToggle = output<string>();
   readonly pickDay = output<void>();
   readonly pickTeacher = output<string>();
   readonly pickClass = output<string>();

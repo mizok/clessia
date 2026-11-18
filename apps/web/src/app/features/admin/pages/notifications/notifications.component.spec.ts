@@ -52,7 +52,12 @@ describe('NotificationsComponent（管理端發布）', () => {
   const campusesMock = vi.fn();
   /** #1686：發布要 `send_announcements`。多數測試的主題不是權限，預設有 */
   let canSend = true;
-  const authStub = { hasPermission: (p: string) => p === 'send_announcements' && canSend };
+  /** #2493 ?1：`all_campuses`＝不受分校限制。多數測試的主題不是範圍，預設不受限 */
+  let allCampuses = true;
+  const authStub = {
+    hasPermission: (p: string) =>
+      (p === 'send_announcements' && canSend) || (p === 'all_campuses' && allCampuses),
+  };
 
   /**
    * #1692：預設分頁是「收到的」。發布那半的既有測試都在 `#publish` 上跑（fragment 預設 publish），
@@ -118,7 +123,14 @@ describe('NotificationsComponent（管理端發布）', () => {
     campusesMock.mockReset();
     listMock.mockReturnValue(of({ data, meta: { total: data.length, unread: 0 } }));
     createMock.mockReturnValue(of({ data: announcement() }));
-    campusesMock.mockReturnValue(of({ data: [{ id: 'c1', name: '本校' }] }));
+    campusesMock.mockReturnValue(
+      of({
+        data: [
+          { id: 'c1', name: '本校' },
+          { id: 'c2', name: '分校二' },
+        ],
+      }),
+    );
 
     await TestBed.configureTestingModule({
       imports: [NotificationsComponent],
@@ -947,6 +959,27 @@ describe('NotificationsComponent（管理端發布）', () => {
       fixture.detectChanges();
       expect(qa('announcement')).toHaveLength(1);
       expect(fixture.nativeElement.querySelector('app-page-actions')).toBeNull();
+    });
+  });
+
+  describe('分校下拉看範圍（#2493 ?1）', () => {
+    const labels = () =>
+      (component['campusOptions']() as { label: string; value: string | null }[]).map(
+        (o) => o.label,
+      );
+    afterEach(() => (allCampuses = true));
+
+    it('只管部分分校的管理員：沒有「全部分校」，預設範圍內第一個分校（後端省略分校回 403）', async () => {
+      allCampuses = false;
+      await setup();
+      expect(labels()).toEqual(['本校', '分校二']);
+      expect(component['campusId']()).toBe('c1');
+    });
+
+    it('不受限的管理員：照舊有「全部分校」、預設全部分校', async () => {
+      await setup();
+      expect(labels()).toEqual(['全部分校', '本校', '分校二']);
+      expect(component['campusId']()).toBeNull();
     });
   });
 });

@@ -93,3 +93,57 @@ export function crossFeatureImports(featuresRoot, repoRoot, aliases = {}) {
 
   return found.sort((a, b) => `${a.file}:${a.line}`.localeCompare(`${b.file}:${b.line}`));
 }
+
+/**
+ * 分層方向（#2542）：`core/`、`shared/` 不得 import `features/`。
+ *
+ * AGENTS.md 寫的分層是 features → shared／core 單向；反過來就是 feature 的東西被拉進共用層，
+ * 下一個 feature 一 import 共用層就間接依賴了別的 feature —— c5 從後門破掉。
+ * `crossFeatureImports` 只看 feature↔feature，看不到這個方向。立法時 0 違規。
+ *
+ * `app.routes.ts` 這類 `app/` 根目錄的檔案 import features 是正常的（路由表），不在掃描範圍。
+ *
+ * @param {string} appRoot `apps/web/src/app` 的絕對路徑
+ * @param {string} repoRoot
+ * @param {Record<string, string>} aliases 同 `crossFeatureImports`
+ * @returns {Array<{file: string, line: number, layer: string, to: string, spec: string}>}
+ */
+export function layerImportsIntoFeatures(appRoot, repoRoot, aliases = {}) {
+  const featuresRoot = join(appRoot, 'features');
+  const found = [];
+
+  for (const layer of ['core', 'shared']) {
+    const dir = join(appRoot, layer);
+    let files;
+    try {
+      files = collectTs(dir);
+    } catch {
+      continue; // 沒有這一層
+    }
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8');
+      for (const m of source.matchAll(/from\s+'([^']+)'/g)) {
+        const spec = m[1];
+        let target = null;
+        if (spec.startsWith('.')) {
+          target = resolve(dirname(file), spec);
+        } else {
+          const hit = Object.entries(aliases).find(([prefix]) => spec.startsWith(prefix));
+          if (!hit) continue;
+          target = resolve(hit[1], spec.slice(hit[0].length));
+        }
+        const to = featureOf(target, featuresRoot);
+        if (!to) continue;
+        found.push({
+          file: file.slice(repoRoot.length + 1),
+          line: source.slice(0, m.index).split('\n').length,
+          layer,
+          to,
+          spec,
+        });
+      }
+    }
+  }
+
+  return found.sort((a, b) => `${a.file}:${a.line}`.localeCompare(`${b.file}:${b.line}`));
+}

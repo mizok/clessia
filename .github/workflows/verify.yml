@@ -102,6 +102,12 @@ jobs:
       - name: typecheck
         run: npx nx run-many -t typecheck
 
+      # ── ESLint（#2542）：只開會抓真 bug 的規則，存量記在各 project 的 eslint-suppressions.json。
+      #    新違規、或修掉了卻沒 --prune-suppressions，這步都會紅；帳只減不增由 harness A31 守。
+      #    用 run-many 而不是 affected：跟上面 typecheck 一致，也不必在 CI 準備 nx 的 base SHA（全庫約 1 分鐘）
+      - name: lint
+        run: npx nx run-many -t lint
+
       # `--output-style=stream` 不是為了好看，是**為了讓 web 的測試結果存在**。
       #
       # nx 在多專案時會**捕捉**每個任務的輸出、最後分組重播。而重播出來的

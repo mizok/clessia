@@ -25,6 +25,7 @@ import {
 import { SchoolsService } from '@core/schools.service';
 import { AppVersionService } from '@core/app-version.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
+import { importFileTooLarge } from '@shared/utils/import-file-limit.util';
 
 import {
   MAX_ROSTER_ROWS,
@@ -140,7 +141,7 @@ export class RosterImportDialogComponent {
   protected onFileChange(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (file) this.readFile(file);
+    if (file) void this.readFile(file); // readFile 自己 try/catch，錯誤顯示在 parseError
     input.value = '';
   }
 
@@ -158,11 +159,16 @@ export class RosterImportDialogComponent {
     event.preventDefault();
     this.dragging.set(false);
     const file = event.dataTransfer?.files?.[0];
-    if (file) this.readFile(file);
+    if (file) void this.readFile(file); // readFile 自己 try/catch，錯誤顯示在 parseError
   }
 
   private async readFile(file: File): Promise<void> {
     this.parseError.set(null);
+    const tooLarge = importFileTooLarge(file);
+    if (tooLarge) {
+      this.parseError.set(tooLarge);
+      return;
+    }
     this.busy.set(true);
 
     try {

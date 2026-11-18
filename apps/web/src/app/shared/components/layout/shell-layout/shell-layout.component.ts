@@ -188,6 +188,7 @@ export class ShellLayoutComponent {
 
   protected signOut() {
     this.hide('shell-account');
-    this.auth.signOut();
+    // signOut 的失敗（推播訂閱刪不掉已在裡面吞了）不該安靜消失
+    this.auth.signOut().catch((e: unknown) => console.error('登出失敗', e));
   }
 }

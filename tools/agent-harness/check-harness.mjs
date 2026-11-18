@@ -27,7 +27,8 @@ import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
 import { orphanModuleImports } from './lib/orphan-imports.mjs';
 import { destructivePrimaryActions, headerActionButtons } from './lib/page-actions.mjs';
 import { matchWriteRules } from './lib/rules.mjs';
-import { crossFeatureImports } from './lib/feature-boundaries.mjs';
+import { crossFeatureImports, layerImportsIntoFeatures } from './lib/feature-boundaries.mjs';
+import { suppressionTotal } from './lib/eslint-suppressions.mjs';
 import { dualTrackTables } from './lib/dual-track-table.mjs';
 import { blankComments } from './lib/comments.mjs';
 import { inlineCarriers, inlineStyles, inlineTemplate } from './lib/inline-carriers.mjs';
@@ -1402,6 +1403,13 @@ if (existsSync(FEATURES_DIR)) {
         `要共用就往 shared/ 提（元件）或 core/ 提（狀態），不要橫向拉`,
     );
   }
+  // 分層方向（#2542）：core／shared 反向 import features 等於把 feature 拉進共用層。立法時 0 違規
+  for (const v of layerImportsIntoFeatures(join(ROOT, 'apps/web/src/app'), ROOT, aliases)) {
+    fail(
+      `${v.file}:${v.line} 是 ${v.layer}/，卻 import 了 features/${v.to}（c5 分層）：${v.spec} —— ` +
+        `共用層不能依賴 feature；要共用的東西整個搬進 ${v.layer}/`,
+    );
+  }
 }
 
 // ── A19. 家長端檔案不得出現 c.get('supabase') ────────────────────────────────────────────
@@ -2616,6 +2624,37 @@ function checkAdminScopeContracts() {
 checkAdminScopeContracts();
 
 checkScanScope();
+
+// ── A31. ESLint suppressions 帳只減不增（#2542）──────────────────────────────────────────
+// ESLint 原生 bulk suppressions 自己就是 ratchet：新違規照紅、修掉沒 prune 也報錯。
+// 它擋不住的只有一件事：有人重跑 `--suppress-all`，把新違規也記進帳。所以這裡比**帳上總筆數**
+// 跟 origin/main 的同一份檔 —— 多了就紅。基準同 A16（三點 origin/main...HEAD 的 merge-base 端）；
+// 拿不到 origin/main 時只警告。main 上沒有這份檔時基準算 0 —— 歸零刪檔之後（#2542 PR2），
+// 重錄一份新帳就是「比 0 多」，一樣紅。
+for (const rel of ['apps/web/eslint-suppressions.json', 'apps/api/eslint-suppressions.json']) {
+  if (!existsSync(join(ROOT, rel))) continue;
+  const mine = suppressionTotal(readFileSync(join(ROOT, rel), 'utf8'));
+  const base = spawnSync('git', ['merge-base', 'origin/main', 'HEAD'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  });
+  if (base.status !== 0) {
+    warnings.push(`拿不到 origin/main，跳過 ${rel} 的只減不增檢查（A31）`);
+    continue;
+  }
+  const theirs = spawnSync('git', ['show', `${base.stdout.trim()}:${rel}`], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  });
+  // main 上沒有這份帳（已歸零刪檔）＝基準 0
+  const before = theirs.status === 0 ? suppressionTotal(theirs.stdout) : 0;
+  if (mine > before) {
+    fail(
+      `${rel} 帳上 ${mine} 筆，比 main 的 ${before} 筆多（A31）—— 新違規要修，不能 --suppress-all 記進帳。` +
+        `修掉的違規請 npx eslint … --prune-suppressions`,
+    );
+  }
+}
 
 // ── 生成出來的 baseline 也要過 prettier ────────────────────────────────────────────────
 // **不加這段的話，排版取決於作者有沒有順手跑 prettier。** 我自己 #300 手動跑過，
