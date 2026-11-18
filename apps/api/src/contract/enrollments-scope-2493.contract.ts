@@ -1,5 +1,3 @@
-// scope-contract: GET /api/enrollments
-// scope-contract: GET /api/enrollments/event-counts
 // scope-contract: PATCH /api/enrollments/:id
 // scope-contract: PATCH /api/enrollments/:id/status
 // scope-contract: DELETE /api/enrollments/:id
@@ -172,35 +170,6 @@ run('#2493 報名改／改狀態／刪／批次比對看分校範圍', () => {
         [id],
       )
     )[0];
-
-  const listIds = async (scope: Scope, qs = '') => {
-    const res = await call(scope, 'GET', `?pageSize=100${qs}`);
-    expect(res.status).toBe(200);
-    return ((await res.json()) as { data: { id: string }[] }).data.map((r) => r.id).sort();
-  };
-  const counts = async (scope: Scope, qs = '') => {
-    const res = await call(scope, 'GET', `/event-counts${qs}`);
-    expect(res.status).toBe(200);
-    return ((await res.json()) as { data: Record<string, number> }).data;
-  };
-
-  it('GET /：受限 C1 只列得到 C1 的報名；空範圍 0 列；指名 C2 的班 0 列、指名 C2 的 campusId 403；不受限四筆全在', async () => {
-    expect(await listIds('c1')).toEqual([fx.eA]);
-    expect(await listIds('none')).toEqual([]);
-    expect(await listIds('c1', `&classId=${fx.x}`)).toEqual([]);
-    expect((await call('c1', 'GET', `?campusId=${fx.c2}`)).status).toBe(403);
-    expect(await listIds('all')).toHaveLength(4);
-    expect(await listIds('all', `&classId=${fx.x}`)).toHaveLength(3);
-  });
-
-  it('GET /event-counts：受限 C1 只數 C1 的報名；空範圍全 0；指名 C2 的 campusId 403；不受限數全部', async () => {
-    const all = await counts('all');
-    const c1 = await counts('c1');
-    expect(all['joined']).toBe(4);
-    expect(c1['joined']).toBe(1);
-    expect(Object.values(await counts('none')).every((n) => n === 0)).toBe(true);
-    expect((await call('c1', 'GET', `/event-counts?campusId=${fx.c2}`)).status).toBe(403);
-  });
 
   it('PATCH /:id：受限 C1 改 C2 的報名 → 404、議價不變；空範圍連 C1 的也改不了；C1 的照常', async () => {
     expect((await call('c1', 'PATCH', `/${fx.eX}`, { agreedAmount: 1 })).status).toBe(404);

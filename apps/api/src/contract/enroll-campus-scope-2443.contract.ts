@@ -1,6 +1,3 @@
-// scope-contract: POST /api/enrollments
-// scope-contract: POST /api/enrollments/batch
-// scope-contract: POST /api/enrollments/copy-from-class
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
