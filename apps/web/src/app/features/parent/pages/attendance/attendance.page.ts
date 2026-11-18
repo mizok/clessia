@@ -27,7 +27,6 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { LeaveFormDialogComponent } from '@shared/components/leave-form-dialog/leave-form-dialog.component';
 import type { CreateLeaveInput } from '@core/leave.service';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
-import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
 import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
 import {

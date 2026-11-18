@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { AppEnv } from '../index';
-import { getCachedIdentity } from '../lib/identity-cache';
 import { authMiddleware } from '../middleware/auth';
 import meRoute from './me';
 

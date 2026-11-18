@@ -132,7 +132,9 @@ export class EnrollmentsPage {
     if (!e) return [];
     const toClass: MenuItem = {
       label: '到班級詳情',
-      command: () => this.router.navigate(this.classRoute(e)),
+      command: () => {
+        this.router.navigate(this.classRoute(e));
+      },
     };
     // 退班／作廢是終態，API 會擋（TERMINAL_STATE），不給按
     if (['withdrawal', 'void'].includes(e.status)) return [toClass];

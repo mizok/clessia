@@ -270,7 +270,7 @@ describe('runPush —— push_status 狀態機（#1661，#1626 改版）', () =>
 
   it('不帶 orgIds（正式）＝每一句都跑全部 org；帶了就每一句都只跑那幾個', async () => {
     const all = await run([sub('d1', 's1')], () => 201);
-    const scoped = (await all.find(/FROM organizations org/))[0]!;
+    const scoped = all.find(/FROM organizations org/)[0]!;
     expect(scoped.params).toEqual(['2026-10-16', null]);
     for (const re of [
       /CLAIM_EXPIRED/,

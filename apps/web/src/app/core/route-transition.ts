@@ -70,7 +70,9 @@ export function onRouteViewTransition({ transition, from, to }: ViewTransitionIn
   const mine = ++latestRouteVt;
   root.setAttribute(ROUTE_DIR_ATTR, routeDirection(urlDepth(from), urlDepth(to)));
   // 不管成敗都要拿掉，但只在自己還是最後一個的時候（見 latestRouteVt）
-  transition.finished.finally(() => {
+  // then(成功, 失敗) 兩條都收：finished 在 update 拋例外時會 reject，`.finally` 會把它原樣傳成 unhandled rejection
+  const clear = () => {
     if (mine === latestRouteVt) root.removeAttribute(ROUTE_DIR_ATTR);
-  });
+  };
+  transition.finished.then(clear, clear);
 }

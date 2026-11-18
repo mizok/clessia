@@ -43,15 +43,10 @@
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "npx eslint apps/api/src --suppressions-location apps/api/eslint-suppressions.json",
+        "command": "npx eslint apps/api/src",
         "cwd": "{workspaceRoot}"
       },
-      "inputs": [
-        "default",
-        "{workspaceRoot}/eslint.config.mjs",
-        "{workspaceRoot}/packages/**/*",
-        "{workspaceRoot}/apps/api/eslint-suppressions.json"
-      ],
+      "inputs": ["default", "{workspaceRoot}/eslint.config.mjs", "{workspaceRoot}/packages/**/*"],
       "cache": true
     }
   }

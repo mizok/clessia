@@ -225,7 +225,6 @@ describe('mount() 的授權（#1730）', () => {
   });
 
   describe.each(Object.entries(EXPECTED))('%s', (path, exp) => {
-    const allowed = exp.roles[0]!;
     const writePerms = exp.write === undefined ? [] : [exp.write].flat();
     const allPerms = exp.all === undefined ? [] : [exp.all].flat();
     const needed = allPerms[0] ?? writePerms[0];

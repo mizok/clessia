@@ -48,7 +48,7 @@ export class SelectRoleComponent {
   }
 
   onRoleChosen(role: UserRole) {
-    this.auth.navigateToRoleShell(role);
+    void this.auth.navigateToRoleShell(role); // 導航失敗由 Router 處理，同 shell-layout
   }
 
   private async openPicker(): Promise<void> {

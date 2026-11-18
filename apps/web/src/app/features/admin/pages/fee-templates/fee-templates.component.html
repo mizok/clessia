@@ -36,7 +36,11 @@
         </p-iconfield>
       </div>
       <div class="order-3 w-full wide:order-2 wide:w-auto">
-        <app-filter-chip [active]="showInactive()" icon="pi-filter" (toggle)="toggleShowInactive()">
+        <app-filter-chip
+          [active]="showInactive()"
+          icon="pi-filter"
+          (toggled)="toggleShowInactive()"
+        >
           {{ showInactive() ? '隱藏停用方案' : '顯示停用方案（' + inactiveCount() + '）' }}
         </app-filter-chip>
       </div>
