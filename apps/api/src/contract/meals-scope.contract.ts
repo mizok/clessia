@@ -1,3 +1,5 @@
+// scope-contract: GET /api/meals
+// scope-contract: POST /api/meals/batch
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
