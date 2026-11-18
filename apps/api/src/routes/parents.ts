@@ -952,7 +952,6 @@ app.openapi(
     }
 
     // 同步 ba_user email/username
-    const auth = getAuth(c);
     const userId = existingRow['user_id'] as string;
 
     if (body.email !== undefined && body.email !== null) {

@@ -2629,7 +2629,8 @@ checkScanScope();
 // ESLint 原生 bulk suppressions 自己就是 ratchet：新違規照紅、修掉沒 prune 也報錯。
 // 它擋不住的只有一件事：有人重跑 `--suppress-all`，把新違規也記進帳。所以這裡比**帳上總筆數**
 // 跟 origin/main 的同一份檔 —— 多了就紅。基準同 A16（三點 origin/main...HEAD 的 merge-base 端）；
-// 拿不到 origin/main 時只警告。main 上還沒有這份檔（第一次引入）時，任何筆數都放行。
+// 拿不到 origin/main 時只警告。main 上沒有這份檔時基準算 0 —— 歸零刪檔之後（#2542 PR2），
+// 重錄一份新帳就是「比 0 多」，一樣紅。
 for (const rel of ['apps/web/eslint-suppressions.json', 'apps/api/eslint-suppressions.json']) {
   if (!existsSync(join(ROOT, rel))) continue;
   const mine = suppressionTotal(readFileSync(join(ROOT, rel), 'utf8'));
@@ -2645,8 +2646,8 @@ for (const rel of ['apps/web/eslint-suppressions.json', 'apps/api/eslint-suppres
     cwd: ROOT,
     encoding: 'utf8',
   });
-  if (theirs.status !== 0) continue; // main 上還沒有這份帳
-  const before = suppressionTotal(theirs.stdout);
+  // main 上沒有這份帳（已歸零刪檔）＝基準 0
+  const before = theirs.status === 0 ? suppressionTotal(theirs.stdout) : 0;
   if (mine > before) {
     fail(
       `${rel} 帳上 ${mine} 筆，比 main 的 ${before} 筆多（A31）—— 新違規要修，不能 --suppress-all 記進帳。` +
