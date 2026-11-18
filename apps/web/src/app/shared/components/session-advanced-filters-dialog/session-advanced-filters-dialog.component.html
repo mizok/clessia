@@ -35,10 +35,12 @@
       class="session-advanced-filters-dialog__row flex flex-col gap-2 rounded-[0.875rem] border border-solid border-zinc-200 bg-white px-4 py-[0.875rem]"
     >
       <label
+        for="session-advanced-filters-dialog-1"
         class="session-advanced-filters-dialog__label text-[0.8125rem] font-bold tracking-[0.01em] text-zinc-700"
         >課程</label
       >
       <p-multiselect
+        inputId="session-advanced-filters-dialog-1"
         [options]="filteredCourseOptions()"
         optionLabel="name"
         optionValue="id"
@@ -71,10 +73,12 @@
         class="session-advanced-filters-dialog__row flex flex-col gap-2 rounded-[0.875rem] border border-solid border-zinc-200 bg-white px-4 py-[0.875rem]"
       >
         <label
+          for="session-advanced-filters-dialog-2"
           class="session-advanced-filters-dialog__label text-[0.8125rem] font-bold tracking-[0.01em] text-zinc-700"
           >班級</label
         >
         <p-multiselect
+          inputId="session-advanced-filters-dialog-2"
           [options]="filteredClassOptions()"
           optionLabel="name"
           optionValue="id"
@@ -116,10 +120,12 @@
         class="session-advanced-filters-dialog__row flex flex-col gap-2 rounded-[0.875rem] border border-solid border-zinc-200 bg-white px-4 py-[0.875rem]"
       >
         <label
+          for="session-advanced-filters-dialog-3"
           class="session-advanced-filters-dialog__label text-[0.8125rem] font-bold tracking-[0.01em] text-zinc-700"
           >學生</label
         >
         <p-multiselect
+          inputId="session-advanced-filters-dialog-3"
           [options]="students()"
           optionLabel="name"
           optionValue="id"
@@ -167,10 +173,12 @@
         class="session-advanced-filters-dialog__row flex flex-col gap-2 rounded-[0.875rem] border border-solid border-zinc-200 bg-white px-4 py-[0.875rem]"
       >
         <label
+          for="session-advanced-filters-dialog-4"
           class="session-advanced-filters-dialog__label text-[0.8125rem] font-bold tracking-[0.01em] text-zinc-700"
           >老師</label
         >
         <p-multiselect
+          inputId="session-advanced-filters-dialog-4"
           [options]="filteredTeacherOptions()"
           optionLabel="displayName"
           optionValue="id"
@@ -213,10 +221,12 @@
         class="session-advanced-filters-dialog__row flex flex-col gap-2 rounded-[0.875rem] border border-solid border-zinc-200 bg-white px-4 py-[0.875rem]"
       >
         <label
+          for="session-advanced-filters-dialog-5"
           class="session-advanced-filters-dialog__label text-[0.8125rem] font-bold tracking-[0.01em] text-zinc-700"
           >課堂狀態</label
         >
         <p-multiselect
+          inputId="session-advanced-filters-dialog-5"
           [options]="statusOptions"
           optionLabel="label"
           optionValue="value"

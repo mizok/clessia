@@ -58,6 +58,7 @@ import {
 import { PushPromptComponent } from './push-prompt/push-prompt.component';
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
+import { BackdropCloseDirective } from '../../../../shared/directives/backdrop-close.directive';
 
 type Detail =
   | { kind: 'session'; session: ParentSession }
@@ -83,6 +84,7 @@ interface Loaded {
   selector: 'app-dashboard',
   standalone: true,
   imports: [
+    BackdropCloseDirective,
     SkeletonComponent,
     DialogFrameComponent,
     DecimalPipe,
@@ -262,10 +264,6 @@ export class DashboardComponent implements OnInit {
 
   protected closeDetail(): void {
     this.detailDialog()?.nativeElement.close();
-  }
-
-  protected onDialogClick(event: MouseEvent): void {
-    if (event.target === event.currentTarget) this.closeDetail();
   }
 
   private load(childId: string): void {

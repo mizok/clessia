@@ -105,15 +105,18 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
         <p class="m-0 text-sm text-zinc-600" data-part="dialog-context">{{ s.name }}</p>
       } @else if (fixedStudentName(); as fixedName) {
         <div class="flex w-full flex-col gap-1.5">
-          <label class="text-sm font-medium text-zinc-700">學生</label>
+          <span class="text-sm font-medium text-zinc-700">學生</span>
           <strong>{{ fixedName }}</strong>
         </div>
       } @else {
         <div class="contents" [class.max-wide:hidden]="step() !== 1" data-step="1">
           <div class="grid grid-cols-2 gap-3">
             <div class="flex flex-col gap-1.5">
-              <label class="text-sm font-medium text-zinc-700">分校</label>
+              <label for="leave-form-dialog-1" class="text-sm font-medium text-zinc-700"
+                >分校</label
+              >
               <p-select
+                inputId="leave-form-dialog-1"
                 [(ngModel)]="selectedCampusId"
                 [options]="campusOptions()"
                 optionLabel="label"
@@ -124,8 +127,11 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
               />
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-sm font-medium text-zinc-700">年級</label>
+              <label for="leave-form-dialog-2" class="text-sm font-medium text-zinc-700"
+                >年級</label
+              >
               <p-select
+                inputId="leave-form-dialog-2"
                 [(ngModel)]="selectedGrade"
                 [options]="gradeOptions"
                 optionLabel="label"

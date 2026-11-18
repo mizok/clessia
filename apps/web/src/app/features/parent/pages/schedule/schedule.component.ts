@@ -56,6 +56,7 @@ import {
   type StepMotion,
 } from '@shared/directives/step-motion.directive';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
+import { BackdropCloseDirective } from '../../../../shared/directives/backdrop-close.directive';
 
 const CHANGE_KIND_LABEL = { reschedule: '調課', substitute: '代課', cancellation: '停課' } as const;
 
@@ -70,6 +71,7 @@ const CHANGE_KIND_LABEL = { reschedule: '調課', substitute: '代課', cancella
   selector: 'app-schedule',
   standalone: true,
   imports: [
+    BackdropCloseDirective,
     TextSwapDirective,
     DialogFrameComponent,
     SkeletonComponent,
@@ -435,10 +437,5 @@ export class ScheduleComponent implements OnInit {
 
   protected closeDetail(): void {
     this.dialog()?.nativeElement.close();
-  }
-
-  protected onDialogClick(event: MouseEvent): void {
-    // 點到 <dialog> 本身（＝backdrop）才關；點內容不關
-    if (event.target === event.currentTarget) this.closeDetail();
   }
 }

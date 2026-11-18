@@ -26,6 +26,7 @@ import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-sco
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
 import { effectiveFromSuffix } from '@shared/utils/schedule-effective.util';
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
+import { BackdropCloseDirective } from '../../../../shared/directives/backdrop-close.directive';
 
 /**
  * 家長端加選課程（#1727 ⑤，A6 p-add-course，設計稿 kb/wiki/specs/parent/applications.md）。
@@ -49,6 +50,7 @@ const SENT = ['pending', 'awaiting_payment'];
   selector: 'app-add-course',
   standalone: true,
   imports: [
+    BackdropCloseDirective,
     DialogFrameComponent,
     TextSwapDirective,
     PageOpenComponent,
@@ -207,10 +209,6 @@ export class AddCourseComponent {
 
   protected close(): void {
     this.dialog()?.nativeElement.close();
-  }
-
-  protected onBackdrop(event: MouseEvent): void {
-    if (event.target === event.currentTarget) this.close();
   }
 
   protected onClosed(): void {

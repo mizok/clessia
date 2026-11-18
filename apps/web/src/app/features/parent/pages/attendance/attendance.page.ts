@@ -40,6 +40,7 @@ import {
 } from './attendance.util';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
+import { BackdropCloseDirective } from '../../../../shared/directives/backdrop-close.directive';
 
 type RangeMode = 'recent10' | 'recent30' | 'month';
 
@@ -56,6 +57,7 @@ const DAYS_STEP = 14;
   selector: 'app-attendance',
   standalone: true,
   imports: [
+    BackdropCloseDirective,
     SkeletonComponent,
     PageOpenComponent,
     ChildSwitcherComponent,
@@ -218,11 +220,6 @@ export class AttendancePage implements OnInit {
 
   protected closeLeave(): void {
     this.leaveDialog()?.nativeElement.close();
-  }
-
-  /** 點背景（dialog 本身，不是裡面的表單）關掉，同 A6 `form()` */
-  protected onLeaveBackdrop(event: MouseEvent): void {
-    if (event.target === event.currentTarget) this.closeLeave();
   }
 
   protected onLeaveClosed(result: unknown): void {

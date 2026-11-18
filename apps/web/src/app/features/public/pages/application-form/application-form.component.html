@@ -711,7 +711,7 @@
   #privacy
   role="dialog"
   class="overlay-motion--from-bottom-narrow m-0 mt-auto min-h-11 max-h-[calc(100%-24px)] w-full max-w-none rounded-t-xl border-0 bg-(--sheet-bg) p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-[rgb(26_22_20/40%)] wide:m-auto wide:max-h-[calc(100%-48px)] wide:w-[min(var(--dlg-w-md),calc(100%-32px))] wide:rounded-lg wide:bg-white"
-  (click)="closePrivacy($event)"
+  (backdropClose)="closePrivacy()"
 >
   <app-dialog-frame title="個資使用聲明" (closed)="closePrivacy()">
     <p class="m-0 text-base leading-[1.7] text-zinc-800">
