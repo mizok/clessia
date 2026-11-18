@@ -50,13 +50,9 @@ import { DeactivateClassDialogComponent } from './deactivate-class-dialog/deacti
 // Services
 import { ClassesService, Class, Schedule } from '@core/classes.service';
 import { CoursesService, Course } from '@core/courses.service';
-import type { Campus } from '@core/campuses.service';
-import type { Subject } from '@core/subjects.service';
-// `Subject` 這個名字被上面的科目型別佔走了，所以 rxjs 的取別名。
 import { EMPTY, Subject as RxSubject, catchError, debounceTime, skip, switchMap } from 'rxjs';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
-import type { Staff } from '@core/staff.service';
 import { SessionsService } from '@core/sessions.service';
 import { BrowserStateService } from '@core/browser-state.service';
 

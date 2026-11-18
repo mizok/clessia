@@ -32,14 +32,14 @@ export class ScheduleListComponent {
   private readonly campusCtx = inject(CampusContextService);
   protected readonly showCampus = computed(() => this.campusCtx.id() === null);
 
-  readonly toggle = output<SchedulePickRequest>();
+  readonly pickToggle = output<SchedulePickRequest>();
   readonly menu = output<ScheduleMenuRequest>();
   /** 手機長按一堂（A6）：頁面勾起它並打開快速選取面板 */
   readonly longPress = output<string>();
 
   protected onPickClick(event: MouseEvent, id: string): void {
     const req = pickEvent(event, id);
-    if (req) this.toggle.emit(req);
+    if (req) this.pickToggle.emit(req);
   }
   /** 長按已觸發：接下來那一下 click 不再開選單 */
   protected pressed = false;

@@ -58,7 +58,7 @@ export class LinkLineComponent {
     // （這條路由掛 authGuard，所以 roles 已經載入）
     const roles = this.auth.roles();
     if (roles.length === 1 && roles[0] === 'kiosk') {
-      this.auth.navigateToRoleShell('kiosk');
+      void this.auth.navigateToRoleShell('kiosk'); // 導航失敗由 Router 處理，同 shell-layout
     }
   }
 

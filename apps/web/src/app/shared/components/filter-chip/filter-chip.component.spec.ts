@@ -7,7 +7,7 @@ import { FilterChipComponent } from './filter-chip.component';
   selector: 'app-filter-chip-host',
   imports: [FilterChipComponent],
   template: `
-    <app-filter-chip [active]="active" [icon]="icon" (toggle)="onToggle()">{{
+    <app-filter-chip [active]="active" [icon]="icon" (toggled)="onToggle()">{{
       label
     }}</app-filter-chip>
   `,

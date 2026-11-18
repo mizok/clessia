@@ -20,13 +20,7 @@ import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.
 import { PagerComponent } from '@shared/components/pager/pager.component';
 
 // Services
-import {
-  CampusesService,
-  Campus,
-  CampusListResponse,
-  CreateCampusInput,
-  UpdateCampusInput,
-} from '@core/campuses.service';
+import { CampusesService, Campus, CampusListResponse } from '@core/campuses.service';
 import { OrgSettingsService, type AttendanceMode } from '@core/org-settings.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { ReferenceDataService } from '@core/reference-data.service';

@@ -1,5 +1,4 @@
 import { TestBed } from '@angular/core/testing';
-import { Location } from '@angular/common';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { of, Subject } from 'rxjs';
 import { vi } from 'vitest';

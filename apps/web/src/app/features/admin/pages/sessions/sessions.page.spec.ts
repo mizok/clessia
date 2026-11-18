@@ -831,7 +831,7 @@ describe('SessionsPage', () => {
       }),
     );
 
-    await (
+    (
       component as unknown as {
         openAdvancedFiltersDialog: () => void;
       }

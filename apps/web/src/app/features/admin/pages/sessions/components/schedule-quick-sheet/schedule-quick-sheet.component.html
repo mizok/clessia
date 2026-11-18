@@ -49,7 +49,7 @@
                 type="checkbox"
                 class="mt-0.5 size-5 cursor-pointer accent-zinc-900"
                 [checked]="selectedIds().has(s.id)"
-                (change)="toggle.emit(s.id)"
+                (change)="pickToggle.emit(s.id)"
               />
               <span class="min-w-0">
                 <span class="block text-md font-semibold">{{ s.className }}</span>

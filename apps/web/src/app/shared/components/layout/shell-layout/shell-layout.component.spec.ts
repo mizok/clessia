@@ -30,7 +30,7 @@ function stubAuth(roles: UserRole[], activeRole: UserRole | null) {
     permissions: signal<string[]>(['*']),
     hasPermission: () => true,
     navigateToRoleShell: vi.fn().mockResolvedValue(true),
-    signOut: vi.fn(),
+    signOut: vi.fn(async () => undefined), // 真的是 async（#2542 起元件會接它的 rejection）
   };
 }
 

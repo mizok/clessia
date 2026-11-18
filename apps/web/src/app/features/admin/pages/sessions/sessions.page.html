@@ -284,7 +284,7 @@
             [groups]="ch.groups"
             [selectedIds]="selectedIds()"
             [now]="now()"
-            (toggle)="toggleSelect($event)"
+            (pickToggle)="toggleSelect($event)"
             (longPress)="onLongPress($event)"
             (menu)="onMenuRequested($event)"
           />
@@ -346,7 +346,7 @@
               [clashIds]="d.clashIds"
               [now]="now()"
               [compact]="true"
-              (toggle)="toggleSelect($event)"
+              (pickToggle)="toggleSelect($event)"
               (menu)="onMenuRequested($event)"
             />
           </section>
@@ -399,7 +399,7 @@
           [now]="now()"
           [isToday]="isToday()"
           [picking]="picking()"
-          (toggle)="toggleSelect($event)"
+          (pickToggle)="toggleSelect($event)"
           (menu)="onMenuRequested($event)"
         />
       </div>
@@ -410,7 +410,7 @@
           [selectedIds]="selectedIds()"
           [clashIds]="clashIds()"
           [now]="now()"
-          (toggle)="toggleSelect($event)"
+          (pickToggle)="toggleSelect($event)"
           (longPress)="onLongPress($event)"
           (menu)="onMenuRequested($event)"
         />
@@ -440,7 +440,7 @@
   [dayName]="mode() === 'day' ? dayName() : null"
   [teacherOptions]="teacherPickOptions()"
   [classOptions]="classPickOptions()"
-  (toggle)="toggleSelect({ id: $event, shiftKey: false })"
+  (pickToggle)="toggleSelect({ id: $event, shiftKey: false })"
   (pickDay)="pickDay(dayIso())"
   (pickTeacher)="pickTeacher($event)"
   (pickClass)="pickClass($event)"

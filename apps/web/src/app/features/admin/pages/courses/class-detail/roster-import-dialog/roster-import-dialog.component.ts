@@ -141,7 +141,7 @@ export class RosterImportDialogComponent {
   protected onFileChange(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (file) this.readFile(file);
+    if (file) void this.readFile(file); // readFile 自己 try/catch，錯誤顯示在 parseError
     input.value = '';
   }
 
@@ -159,7 +159,7 @@ export class RosterImportDialogComponent {
     event.preventDefault();
     this.dragging.set(false);
     const file = event.dataTransfer?.files?.[0];
-    if (file) this.readFile(file);
+    if (file) void this.readFile(file); // readFile 自己 try/catch，錯誤顯示在 parseError
   }
 
   private async readFile(file: File): Promise<void> {
