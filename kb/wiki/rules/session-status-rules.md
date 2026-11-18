@@ -3,7 +3,7 @@ title: 課堂狀態（sessions.status）規則
 summary: sessions.status 目前只有 scheduled 與 cancelled 會被寫入，completed 沒有任何寫入路徑；這一頁記錄哪些程式碼依賴這個現況、誰會在 completed 第一次被寫入的那天改變行為，以及刪除守門為什麼用 OR 而不是替換條件。
 category: rule
 status: active
-updated: 2026-11-04
+updated: 2026-11-18
 tags: [rules, sessions, attendance, classes]
 ---
 
@@ -108,7 +108,24 @@ API 側對應的預設值在 `routes/attendance.ts:1002` 與 `routes/sessions.ts
 計畫席 2026-09-13 的裁定：**現階段不做** —— 三個答案各有失敗模式，等真的有排程需求
 再開。
 
-## 刪除守門為什麼是 `OR`，不是替換（#762）
+## 「曾發生課堂」的判準（#2544 起）
+
+**現行**（計畫席 11-18 裁，#2544）：判準只有一份 `lib/class-past-sessions.ts` 的 `pastSessionSql`，
+刪除守門（`lib/class-delete.ts`）與列表的 `hasPastSessions`（`lib/class-list-stats.ts`）共用：
+
+- **點名制分校**：只有點過名（`completed`）才算發生。過期但沒點名、停課的都不算 —— 這種班**可以刪**
+- **日到班分校**：沒有點名這個動作（#2546 的 `completeTakenSessions` 刻意不動日到班，`completed` 不會出現），
+  維持日期判斷：台北今天以前、**且沒停課**
+- 停課的堂無論哪種模式都沒發生；分校模式 `coalesce(campuses.attendance_mode, organizations.attendance_mode)`
+- 查詢失敗照舊 fail-closed（刪除在交易裡丟出 → 500、什麼都沒刪；列表 → 500 不回 0）
+
+前提是 #2546：點名提交（`PATCH /api/attendance/batch`、停課／復課／代課的遷移）就把那堂寫成 `completed`，
+#2559 回填了正式站的舊資料。**不設 `completed` 的出勤寫入**只有請假同步的 `on_leave`（請假單本身還在）和
+前端沒在用的 `POST /api/attendance` 單筆新增。契約：`class-delete.contract.ts` 的 #2544 六條。
+
+下面是 #762 當時（還沒有 `completed` 寫入路徑）為什麼用 `OR` 的紀錄，留著當歷史。
+
+### 歷史：刪除守門為什麼曾經是 `OR`，不是替換（#762）
 
 「這個班有沒有歷史課堂」現在有兩處 SQL，**條件逐字相同**：`lib/class-delete.ts`
 （刪除守門，單筆與批次）與 `lib/class-list-stats.ts`（列表顯示，#2226）。原本的
@@ -143,7 +160,7 @@ SQL 之後沒有呼叫端，已刪。**改其中一處時，另一處要一起�
 
 ## 相關
 
-- `lib/class-delete.ts`、`lib/class-list-stats.ts` —— 「有歷史課堂」的兩處 SQL（條件相同）
+- `lib/class-past-sessions.ts` —— 「曾發生課堂」的判準（#2544）；`lib/class-delete.ts`、`lib/class-list-stats.ts` 共用
 - `lib/session-end-time.ts` / `session-time.util.ts` —— 「時間過了」的現成判定
 - `domain/session-assignment/session-operation-guard.ts` —— 等 `completed` 的守衛
 - issue #488（影響半徑報告）、#762（`OR` 修法）

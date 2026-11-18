@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import type { CampusScope } from './campus-scope';
 import { isFkViolation, withTx } from './pg-tx';
 import { getCurrentTaipeiDateString } from './taipei-date';
+import { pastSessionSql } from './class-past-sessions';
 
 /**
  * 刪班級 —— 單筆與批次**共用**這一支，範圍判斷與守門只有這一份（#1652）。
@@ -14,7 +15,7 @@ import { getCurrentTaipeiDateString } from './taipei-date';
  * 3. 守門：
  *    - 報名有帳單明細指著（**含已作廢的單**；`invoice_items.enrollment_id` 是 SET NULL，
  *      不擋就會默默斷鏈）→ **不論模式整批不刪**，回 `has-invoice-items` 標出哪幾班（使用者 10-16 裁定）
- *    - 有過去課堂（台北今天之前，或 completed）、報名有堂數包 → `abort`（單筆）什麼都不刪；
+ *    - 有過去課堂（`class-past-sessions.ts`：點名制看 completed、日到班看日期）、報名有堂數包 → `abort`（單筆）什麼都不刪；
  *      `skip`（批次）略過被擋的，刪其餘。
  * 4. 刪報名（`enrollments.class_id` 是 RESTRICT，非刪不可）再刪班級；sessions／schedules 等
  *    由 CASCADE 帶走。
@@ -68,9 +69,9 @@ export async function deleteClasses(
       }
 
       const { rows: past } = await db.query<{ class_id: string }>(
-        `SELECT DISTINCT class_id FROM sessions
+        `SELECT DISTINCT class_id FROM sessions s
          WHERE class_id = ANY($1::uuid[]) AND org_id = $2
-           AND (session_date < $3::date OR status = 'completed')`,
+           AND ${pastSessionSql('$3::date')}`,
         [ids, orgId, getCurrentTaipeiDateString()],
       );
       const { rows: packs } = await db.query<{ class_id: string }>(

@@ -3,6 +3,8 @@ import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { deleteClasses } from '../lib/class-delete';
+import { loadClassListStats } from '../lib/class-list-stats';
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
 /**
  * #1652：刪班級的交易對**真的** Postgres 跑 —— org 條件、分校範圍、守門、FK 回滾，
@@ -31,12 +33,16 @@ run('刪班級交易對真 Postgres（#1652）', () => {
     );
 
   /** 一個 org：一個分校、一門課、一個學生；`klass()` 開一個班（含一筆報名、一個排課、一堂未來課） */
-  async function org() {
+  async function org(mode?: 'per_session' | 'daily_checkin') {
     const orgId = await one(`INSERT INTO organizations (name) VALUES ($1)`, [
       `c1652-${randomUUID()}`,
     ]);
     orgs.push(orgId);
-    const campusId = await one(`INSERT INTO campuses (org_id, name) VALUES ($1, 'x')`, [orgId]);
+    // #2544：分校模式明設（不設＝沿用機構預設；新機構預設是 daily_checkin，靠它測不到點名制）
+    const campusId = await one(
+      `INSERT INTO campuses (org_id, name, attendance_mode) VALUES ($1, 'x', $2)`,
+      [orgId, mode ?? null],
+    );
     const subjectId = await one(`INSERT INTO subjects (org_id, name) VALUES ($1, 'x')`, [orgId]);
     const courseId = await one(
       `INSERT INTO courses (org_id, campus_id, subject_id, name) VALUES ($1, $2, $3, 'x')`,
@@ -216,6 +222,137 @@ run('刪班級交易對真 Postgres（#1652）', () => {
     expect((await snapshot(past.classId))[0]).toBe(1);
     expect(await snapshot(packed.classId)).toEqual([1, 1, 1, 1]);
     expect(await snapshot(clean.classId)).toEqual([0, 0, 0, 0]);
+  });
+
+  // ── #2544「曾發生課堂」：點名制看 completed、日到班看日期且沒停課（lib/class-past-sessions.ts）──
+  /** 給班加一堂課：`daysFromToday` 負數＝過去 */
+  const addSession = (orgId: string, classId: string, daysFromToday: number, status: string) =>
+    q(
+      `INSERT INTO sessions (org_id, class_id, session_date, start_time, end_time, assignment_status, status)
+       VALUES ($1, $2, CURRENT_DATE + $3::int, '14:00', '15:00', 'unassigned', $4)`,
+      [orgId, classId, daysFromToday, status],
+    );
+  const abortDelete = (orgId: string, classId: string) =>
+    deleteClasses(pool, { orgId, ids: [classId], scope: null, onBlocked: 'abort' });
+
+  it('#2544 點名制：過期但沒點名（scheduled）→ 可刪', async () => {
+    const a = await org('per_session');
+    const { classId } = await a.klass();
+    await addSession(a.orgId, classId, -7, 'scheduled');
+
+    expect(await abortDelete(a.orgId, classId)).toMatchObject({
+      status: 'done',
+      deletedIds: [classId],
+      pastSessionIds: [],
+    });
+    expect(await snapshot(classId)).toEqual([0, 0, 0, 0]);
+  });
+
+  it('#2544 點名制：有一堂點過名（completed）→ 不可刪，什麼都沒動', async () => {
+    const a = await org('per_session');
+    const { classId } = await a.klass();
+    await addSession(a.orgId, classId, -7, 'completed');
+
+    expect(await abortDelete(a.orgId, classId)).toMatchObject({
+      status: 'done',
+      deletedIds: [],
+      pastSessionIds: [classId],
+    });
+    expect(await snapshot(classId)).toEqual([1, 1, 2, 1]);
+  });
+
+  it('#2544 日到班：過期（scheduled）→ 不可刪', async () => {
+    const a = await org('daily_checkin');
+    const { classId } = await a.klass();
+    await addSession(a.orgId, classId, -7, 'scheduled');
+
+    expect(await abortDelete(a.orgId, classId)).toMatchObject({
+      deletedIds: [],
+      pastSessionIds: [classId],
+    });
+    expect(await snapshot(classId)).toEqual([1, 1, 2, 1]);
+  });
+
+  it('#2544 日到班：過期但停課（cancelled）→ 可刪（停課的堂沒發生）', async () => {
+    const a = await org('daily_checkin');
+    const { classId } = await a.klass();
+    await addSession(a.orgId, classId, -7, 'cancelled');
+
+    expect(await abortDelete(a.orgId, classId)).toMatchObject({
+      deletedIds: [classId],
+      pastSessionIds: [],
+    });
+    expect(await snapshot(classId)).toEqual([0, 0, 0, 0]);
+  });
+
+  it('#2544 「曾發生」那句查詢失敗 → 丟出去（路由回 500），班級與報名一筆都沒少', async () => {
+    const a = await org('per_session');
+    const { classId } = await a.klass();
+    // 獨立的池：被換掉 query 的連線不能還回共用的 pool
+    const failing = new Pool({ connectionString: DB });
+    const realConnect = failing.connect.bind(failing);
+    (failing as unknown as { connect: () => Promise<unknown> }).connect = async () => {
+      const client = await realConnect();
+      const real = client.query.bind(client) as (...args: unknown[]) => Promise<unknown>;
+      (client as unknown as { query: (...args: unknown[]) => Promise<unknown> }).query = (
+        ...args: unknown[]
+      ) =>
+        typeof args[0] === 'string' && args[0].includes('attendance_mode')
+          ? Promise.reject(Object.assign(new Error('boom'), { code: 'XX000' }))
+          : real(...args);
+      return client;
+    };
+    try {
+      await expect(
+        deleteClasses(failing, { orgId: a.orgId, ids: [classId], scope: null, onBlocked: 'abort' }),
+      ).rejects.toThrow('boom');
+      expect(await snapshot(classId)).toEqual([1, 1, 1, 1]);
+    } finally {
+      await failing.end();
+    }
+  });
+
+  // 「分校與機構模式都 NULL」用真資料造不出來：organizations.attendance_mode NOT NULL DEFAULT 'daily_checkin'、
+  // classes.campus_id NOT NULL。pastSessionSql 的 coalesce(…, 'daily_checkin') 與 left join 是為了那天被放寬時
+  // 仍然當日到班擋刪（不變成 NULL → 可刪）。這條釘住它現在依賴的不變量：哪天放寬了這裡會紅，提醒去補真資料的契約
+  it('#2544 模式兩邊都 NULL 的前提：機構模式與班級分校都不可為 NULL（放寬時要補契約）', async () => {
+    const cols = await q<{ table_name: string; column_name: string; is_nullable: string }>(
+      `SELECT table_name, column_name, is_nullable FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND ((table_name = 'organizations' AND column_name = 'attendance_mode')
+            OR (table_name = 'classes' AND column_name = 'campus_id'))
+        ORDER BY table_name`,
+    );
+    expect(cols).toEqual([
+      { table_name: 'classes', column_name: 'campus_id', is_nullable: 'NO' },
+      { table_name: 'organizations', column_name: 'attendance_mode', is_nullable: 'NO' },
+    ]);
+  });
+
+  it('#2544 列表的 hasPastSessions 跟刪除保護同一個判準', async () => {
+    const per = await org('per_session');
+    const daily = await org('daily_checkin');
+    const overdue = await per.klass();
+    const taken = await per.klass();
+    const dailyPast = await daily.klass();
+    const dailyCancelled = await daily.klass();
+    await addSession(per.orgId, overdue.classId, -7, 'scheduled');
+    await addSession(per.orgId, taken.classId, -7, 'completed');
+    await addSession(daily.orgId, dailyPast.classId, -7, 'scheduled');
+    await addSession(daily.orgId, dailyCancelled.classId, -7, 'cancelled');
+    const today = getCurrentTaipeiDateString();
+
+    const p = await loadClassListStats(pool, per.orgId, [overdue.classId, taken.classId], today);
+    const d = await loadClassListStats(
+      pool,
+      daily.orgId,
+      [dailyPast.classId, dailyCancelled.classId],
+      today,
+    );
+    expect(p.get(overdue.classId)?.hasPastSessions).toBe(false);
+    expect(p.get(taken.classId)?.hasPastSessions).toBe(true);
+    expect(d.get(dailyPast.classId)?.hasPastSessions).toBe(true);
+    expect(d.get(dailyCancelled.classId)?.hasPastSessions).toBe(false);
   });
 
   /**

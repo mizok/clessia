@@ -1,5 +1,7 @@
 import type { Pool } from 'pg';
 
+import { pastSessionSql } from './class-past-sessions';
+
 /**
  * 班級列表每列的課堂與在籍統計（#2226，#1928 A#5）—— **一支 SQL、在 DB 端數好**。
  *
@@ -12,7 +14,7 @@ import type { Pool } from 'pg';
  * - 「未來」＝`session_date >= today`（台北日期，呼叫端給）
  * - 班內衝突＝同班同日、時間重疊（`a.start < b.end and b.start < a.end`，同 `isTimeOverlap`）的**堂對**數
  * - 老師衝突＝同老師同日、時間重疊的堂對，**兩邊的班各 +1**；只看這批班裡的課堂（跟原本一樣）
- * - 過去課堂＝`session_date < today` **或** `status = completed`（見 `class-past-sessions.ts` 的 #762）
+ * - 過去課堂＝`class-past-sessions.ts` 的 `pastSessionSql`（#2544：點名制看 completed、日到班看日期且沒停課）
  * - 在籍＝active 且 today 在生效區間內（同 `countEnrolledOn`，結束當天還算）
  */
 export interface ClassListStats {
@@ -54,8 +56,8 @@ teacher_conflict as (
    group by class_id
 ),
 past as (
-  select distinct class_id from sessions
-   where org_id = $2 and class_id = any($1::uuid[]) and (session_date < $3 or status = 'completed')
+  select distinct class_id from sessions s
+   where org_id = $2 and class_id = any($1::uuid[]) and ${pastSessionSql('$3::date')}
 ),
 cancelled as (
   select class_id, count(*)::int as n from sessions

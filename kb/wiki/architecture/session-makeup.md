@@ -3,7 +3,7 @@ title: 補課（課堂標記「補的是哪一堂停課」）
 summary: 停課的課堂可以被另一堂課補回來，一對一。連結存在 sessions.makeup_for_session_id（部分唯一索引只約束「有效的」補課），同時寫一筆 schedule_changes 當歷史。計費完全不需要這個連結——補課那堂本來就會扣、停掉的那堂本來就不扣。
 category: architecture
 status: active
-updated: 2026-09-06
+updated: 2026-11-18
 tags: [architecture, sessions, makeup, billing-adjacent]
 ---
 
@@ -309,9 +309,9 @@ WHERE class_id = <這堂課的班>
 
 `ON DELETE SET NULL`（決策 1）。補課那堂留著、連結斷掉、退回一般課堂。
 
-**但實務上碰不到**：刪班會擋在「有過去課堂」那道守衛上（`classes.ts:1191`），
-而停課的課堂**只看日期不看 status**，所以它算「過去課堂」。
-這裡的 `SET NULL` 是**防禦性的**，不是常見路徑。
+~~實務上碰不到：刪班會擋在「有過去課堂」那道守衛上，而停課的課堂只看日期不看 status。~~
+**#2544 起走得到**：停課的堂不再算「曾發生」（`lib/class-past-sessions.ts`），一個只有停課堂、過期沒點名堂的班
+可以被刪 —— 被補的那堂跟著班級 CASCADE 刪掉時，別班的補課那堂照決策 1 `SET NULL`、退回一般課堂。
 
 ### 5.4 一堂課可不可以既是補課、又被別人補 —— **1:1 之下仍然成立**
 
