@@ -1,9 +1,3 @@
-// scope-contract: PATCH /api/academy-exams/:id/close
-// scope-contract: PATCH /api/academy-exams/:id/reopen
-// scope-contract: PATCH /api/school-exams/:id/close
-// scope-contract: PATCH /api/school-exams/:id/reopen
-// scope-contract: GET /api/school-exams/:id/students
-// scope-contract: GET /api/school-exams/:id/recent-students
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
