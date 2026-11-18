@@ -46,6 +46,7 @@
 | 建置               | `npm run build`                                                                           |
 | 測試               | `npm test`                                                                                |
 | 型別檢查（api）    | `npx nx typecheck api`                                                                    |
+| Lint               | `npm run lint`（規則與存量帳見 `kb/wiki/architecture/lint.md`）                           |
 | Harness gate       | `npm run harness`（守 roadmap 現況表；**kb/ 的內容健康度**由 kb-wiki skill 的 lint 負責） |
 | 兩者重生成         | `npm run harness:write`                                                                   |
 | Harness 自我測試   | `npm run harness:test`                                                                    |

@@ -8,7 +8,7 @@
 - [[overview]] — 本文件整理 PRD 第 1-5 章，說明專案背景、系統目標、核心名詞與角色邊界，作為各流程與功能規格的共同語意基準。
 - [[roadmap]] — 功能區現況（自動生成、由 gate 盯著）與接下來的優先順序。取代先前手畫的 BACKLOG 依賴圖。
 
-## Architecture (62)
+## Architecture (63)
 - [[architecture/a6-adoption-rules]] — A6 設計稿全採；現況有、稿沒畫的功能收進「⋯」或篩選而不刪；可點元素基底 44px；對齊以 conformance 工具報告為準，偏離逐條要有出處。
 - [[architecture/admin-contact-book-page]] — 管理端的聯絡簿是監看不是撰寫：日期區間列表＋未簽收篩選（API 無分頁且 count 是 exact，所以前端篩是誠實的），編輯已存在的一則走同一支 upsert，但不做「挑學生開新的一則」——那是老師端 P3 的工作流。「今天哪些該寫還沒寫」這輪不做，現有 API 做出來會漏班且是 N+1。
 - [[architecture/admin-dashboard-v1]] — 把四張死卡片接上真資料並補行政待辦卡：零後端改動（六種資料既有 API 全有）、未點名卡回溯 7 天且只在逐堂點名模式顯示、報名卡只取 meta.total 以免分頁截斷、經營區用 permission 蓋住、卡片是索引不是工作場。
@@ -38,6 +38,7 @@
 - [[architecture/kiosk-checkin]] — 使用者裁 #1127：掃碼頁搬到登入後、不做免登入端點。機台身分用新角色 kiosk（user_roles 列舉加值），不用「零權限 admin」—— ADMIN_ONLY 的掛載多半只擋寫，零權限 admin 讀得到學生／家長名冊，機台放在門口等於公開名冊。kiosk 綁單一分校（staff_campuses），只掛得進 POST /api/daily-checkins 與掃碼頁要的那幾支窄讀；分校強制取帳號的、不吃 body。帳號由有 manage_staff 的管理員在人員頁建立，用既有的一次性登入連結 QR 在平板上登入。行政人員也可從管理端開同一頁。公開入口拿掉、/qr-checkin 轉登入。
 - [[architecture/leave-session-binding]] — 請假單可以綁定「勾選的課堂」（規格 specs/admin/student-affairs/leave.md 多選課堂）。新增關聯表 leave_request_sessions（帶 org_id、PK (leave_request_id, session_id)、cascade）；沒有綁定列的假沿用舊語意（整天／單日時間窗），所以既有資料與 seed 不用遷移。判斷核心仍是 leaveCoversSession，加一條「有綁定就只比 id」。寫入面 create／update 收 sessionIds、server 驗在籍與非停課；update 以堂次 diff 做 revert／apply。cancel-leave、日到班 onLeave、報名回補、重疊 409 的新語意已由計畫席裁定（2026-10-03）。
 - [[architecture/line-oauth-login]] — 密碼雜湊超過 Cloudflare Workers 免費方案的 10ms CPU 上限，登入間歇性 503。密碼登入完全移除、改用 OAuth（首發 LINE，Google 延後但架構預留）；破窗改成持有 DATABASE_URL 的人用 CLI 產生一次性登入連結，客戶換掉 DB 密碼就能切斷供應商存取。OAuth 身分靠一次性綁定連結／QR 對應到既有的人員或家長記錄。
+- [[architecture/lint]] — 只開會抓真 bug 的規則、存量用 ESLint 原生 suppressions 當只減不增的帳；c5 與分層方向由 harness A18 守，不在 ESLint。
 - [[architecture/list-loading-skeleton-batch]] — #508——#426 掃到但根因不同的 10 個檔案，逐檔分類後發現「整塊被文字取代」與「沒有骨架尺寸／會跳版」在這批檔案裡是同一件事，分三類統一做法，全部重用既有 .p-skeleton／.skeleton-list，不新增第三種配方。
 - [[architecture/load-failed-state]] — 「失敗」與「成功但沒有資料」在 catchError 回 EMPTY 之後狀態完全相同，於是頁面渲染成「尚未有資料」還附上新增按鈕；修法是一支共用的失敗狀態元件 + 每頁一個 failed 訊號，而不是動 #689 的管線修法。
 - [[architecture/login-experience]] — 登入頁重設計（品牌卡片 + LINE 官方規範按鈕）與角色選擇回歸彈窗體感 —— /select-role 路由保留為唯一入口，薄殼自動開動態載入的彈窗，bundle 不回胖、無限重導向不回歸。
@@ -256,4 +257,4 @@
 - [[summaries/interview-insider-2026-08-29]] — 目標補習班內部員工的一手訪談（20 題，透過使用者當傳聲筒），P1 資料模型的主要輸入。
 
 ---
-**Total: 232 pages**
+**Total: 233 pages**

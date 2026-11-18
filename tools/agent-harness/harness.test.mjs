@@ -12,7 +12,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { formatGenerated } from './lib/format.mjs';
-import { crossFeatureImports } from './lib/feature-boundaries.mjs';
+import { crossFeatureImports, layerImportsIntoFeatures } from './lib/feature-boundaries.mjs';
+import { suppressionTotal } from './lib/eslint-suppressions.mjs';
 import { dualTrackTables } from './lib/dual-track-table.mjs';
 import { touchTargetViolations } from './lib/touch-target.mjs';
 import { ariaIconButtonViolations } from './lib/aria-icon-button.mjs';
@@ -1574,6 +1575,41 @@ test('c5 的別名清單與 tsconfig 對得上', () => {
     ['@app/*', '@features/*'],
     `能走到 features 的別名變了（現有：${paths.join(', ')}）—— check-harness 的 aliases 要跟著改`,
   );
+});
+
+// #2542：分層方向 —— core／shared 不得 import features；app 根目錄（路由表）與 features 自己不掃
+test('A18 分層：core／shared 往 features 的 import 要抓（相對與別名），其他放行', () => {
+  const root = mkdtempSync(join(tmpdir(), 'c5l-'));
+  const app = join(root, 'app');
+  const mk = (rel, body) => {
+    mkdirSync(dirname(join(app, rel)), { recursive: true });
+    writeFileSync(join(app, rel), body);
+  };
+  const aliases = { '@features/': join(app, 'features'), '@app/': app };
+
+  mk('core/a.service.ts', "import { x } from '../features/admin/x';");
+  mk('shared/b.component.ts', "import { y } from '@features/teacher/y';");
+  mk('shared/c.component.ts', "import { z } from '@app/features/parent/z';");
+  mk('shared/ok.ts', "import { s } from '../core/a.service';"); // shared → core 放行
+  mk('app.routes.ts', "import { r } from './features/admin/r';"); // 路由表放行
+  mk('features/admin/x.ts', "import { s } from '../../shared/ok';"); // feature → shared 放行
+
+  const hits = layerImportsIntoFeatures(app, root, aliases);
+  assert.deepEqual(
+    hits.map((h) => `${h.layer}->${h.to}`),
+    ['core->admin', 'shared->teacher', 'shared->parent'],
+  );
+});
+
+// #2542 A31：ESLint 原生 suppressions 帳的筆數（只減不增要比的那個數）
+test('A31 suppressionTotal 加總每檔每規則的 count；壞 JSON 直接丟', () => {
+  const text = JSON.stringify({
+    'a.ts': { 'r/one': { count: 2 }, 'r/two': { count: 1 } },
+    'b.ts': { 'r/one': { count: 3 } },
+  });
+  assert.equal(suppressionTotal(text), 6);
+  assert.equal(suppressionTotal('{}'), 0);
+  assert.throws(() => suppressionTotal('{'));
 });
 
 // ── A19：家長端檔案不得出現 c.get('supabase') ──────────────────────────────────────────
