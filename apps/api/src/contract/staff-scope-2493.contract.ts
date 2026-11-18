@@ -1,3 +1,6 @@
+// scope-contract: GET /api/staff
+// scope-contract: POST /api/staff
+// scope-contract: DELETE /api/staff/:id
 // scope-contract: GET /api/staff/:id
 // scope-contract: PUT /api/staff/:id
 // scope-contract: PATCH /api/staff/:id/archive
@@ -207,5 +210,51 @@ run('#2493 人員單筆讀寫看分校範圍', () => {
     }
     expect((await call('c1', 'PATCH', `/${fx.tA}/deactivate`)).status).toBe(200);
     expect((await row(fx.tA)).status).toBe('inactive');
+  });
+  const listIds = async (scope: Scope, qs = '') => {
+    const res = await call(scope, 'GET', `?pageSize=100${qs}`);
+    expect(res.status).toBe(200);
+    return ((await res.json()) as { data: { id: string }[] }).data.map((r) => r.id);
+  };
+
+  it('GET /：受限 C1 的列表有 C1 與跨校人員、沒有 C2 與沒分校的；空範圍 0 列；指名 C2 的 campusId 403；不受限都在', async () => {
+    const c1 = await listIds('c1');
+    expect(c1).toEqual(expect.arrayContaining([fx.tA, fx.tBoth]));
+    expect(c1).not.toContain(fx.tX);
+    expect(c1).not.toContain(fx.tNone);
+    expect(await listIds('none')).toEqual([]);
+    expect((await call('c1', 'GET', `?campusId=${fx.c2}`)).status).toBe(403);
+    expect(await listIds('all')).toEqual(
+      expect.arrayContaining([fx.tA, fx.tX, fx.tBoth, fx.tNone]),
+    );
+  });
+
+  it('POST /：受限 C1 把人員指派到 C2 → 403 不建；發 all_campuses 權限 → 403 不建；空範圍指派 C1 也 403', async () => {
+    const count = async () =>
+      (await q('select 1 from staff where org_id = $1', [ctx.orgId])).length;
+    const before = await count();
+    const body = (extra: Record<string, unknown>) => ({
+      displayName: '新人',
+      email: `n2493-${crypto.randomUUID()}@phone.internal`,
+      roles: ['admin'],
+      campusIds: [fx.c1],
+      permissions: [],
+      ...extra,
+    });
+    expect((await call('c1', 'POST', '', body({ campusIds: [fx.c2] }))).status).toBe(403);
+    expect((await call('c1', 'POST', '', body({ campusIds: [fx.c1, fx.c2] }))).status).toBe(403);
+    expect((await call('c1', 'POST', '', body({ permissions: ['all_campuses'] }))).status).toBe(
+      403,
+    );
+    expect((await call('none', 'POST', '', body({}))).status).toBe(403);
+    expect(await count()).toBe(before);
+  });
+
+  it('DELETE /:id：任何範圍都不會刪人（409，人員仍在）；不存在 404', async () => {
+    for (const scope of ['c1', 'none', 'all'] as const) {
+      expect((await call(scope, 'DELETE', `/${fx.tX}`)).status).toBe(409);
+      expect((await row(fx.tX)).status).toBe('active');
+    }
+    expect((await call('c1', 'DELETE', `/${crypto.randomUUID()}`)).status).toBe(404);
   });
 });
