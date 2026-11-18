@@ -27,7 +27,8 @@ import { getCurrentTaipeiDateString } from '../lib/taipei-date';
  *
  * fixture：C1、C2 各一班；C2 班下週一堂課（帶一筆停課異動，原因「二校異動」）。管理員只被指派 C1。
  * 受限 C1：列表、異動清單讀不到那堂；補課候選、單堂三支、補課連結、六支批次、在 C2 班加開一律 403，
- * 那堂課與課堂數都沒變。不受限同樣的請求過得了範圍那一關（不是 403／404）。
+ * 那堂課與課堂數都沒變。範圍內放：C1 也有一堂一樣的課（一筆「一校異動」），受限 C1 讀得到它、
+ * 12 支對它都過得了範圍那一關（不是 403／404）；不受限對 C2 也一樣。
  */
 
 const URL = process.env['SUPABASE_URL'];
@@ -90,6 +91,8 @@ run('#2493 課堂舊端點看分校範圍', () => {
     (await q<{ id: string }>(`${sql} returning id`, values))[0]!.id;
   const DAY = shift(getCurrentTaipeiDateString(), 7);
   const fx = { c1: '', c2: '', class2: '', session: '', staff: '' };
+  /** C1 那一份（範圍內放）：同樣一堂課、一筆異動 */
+  const own = { class1: '', session: '' };
 
   beforeAll(async () => {
     const [admin] = await q<{ user_id: string }>(
@@ -117,19 +120,31 @@ run('#2493 課堂舊端點看分校範圍', () => {
         'insert into classes (org_id, campus_id, course_id, name) values ($1, $2, $3, $4)',
         [ctx.orgId, campus, course, `班 C${key}`],
       );
-      if (key === '1') fx.c1 = campus;
-      else Object.assign(fx, { c2: campus, class2: klass });
+      if (key === '1') {
+        fx.c1 = campus;
+        own.class1 = klass;
+      } else Object.assign(fx, { c2: campus, class2: klass });
     }
     fx.session = await one(
       `insert into sessions (org_id, class_id, session_date, start_time, end_time, status, assignment_status)
        values ($1, $2, $3, '18:00', '19:00', 'scheduled', 'unassigned')`,
       [ctx.orgId, fx.class2, DAY],
     );
-    await q(
-      `insert into schedule_changes (org_id, session_id, change_type, reason)
-       values ($1, $2, 'cancellation', '二校異動')`,
-      [ctx.orgId, fx.session],
+    own.session = await one(
+      `insert into sessions (org_id, class_id, session_date, start_time, end_time, status, assignment_status)
+       values ($1, $2, $3, '18:00', '19:00', 'scheduled', 'unassigned')`,
+      [ctx.orgId, own.class1, DAY],
     );
+    for (const [session, reason] of [
+      [fx.session, '二校異動'],
+      [own.session, '一校異動'],
+    ]) {
+      await q(
+        `insert into schedule_changes (org_id, session_id, change_type, reason)
+         values ($1, $2, 'cancellation', $3)`,
+        [ctx.orgId, session, reason],
+      );
+    }
     app = (await import('../index')).default as never;
   }, 120_000);
 
@@ -182,26 +197,18 @@ run('#2493 課堂舊端點看分校範圍', () => {
       ),
     );
 
-  it('列表、異動清單：受限 C1 讀不到二校那堂；不受限讀得到', async () => {
-    const list = `?dateFrom=${DAY}&dateTo=${DAY}`;
-    expect(await text('c1', list)).not.toContain(fx.session);
-    expect(await text('all', list)).toContain(fx.session);
-    const changes = `/changes?from=${DAY}&to=${DAY}`;
-    expect(await text('c1', changes)).not.toContain('二校異動');
-    expect(await text('all', changes)).toContain('二校異動');
-  });
-
-  it('單堂、補課、批次、加開共 12 支：受限 C1 → 403、那堂沒動；不受限過得了範圍那一關', async () => {
-    const ids = [fx.session];
-    const calls: Array<[string, string, unknown]> = [
-      ['GET', `/${fx.session}/makeup-candidates`, undefined],
-      ['PATCH', `/${fx.session}/makeup`, { makeupForSessionId: null }],
-      ['POST', '', { classId: fx.class2, sessionDate: DAY, startTime: '20:00', endTime: '21:00' }],
-      ['POST', `/${fx.session}/cancel`, { reason: '受限停課' }],
-      ['POST', `/${fx.session}/substitute`, { substituteTeacherId: fx.staff }],
+  /** 12 支：session 是哪一堂、klass 是加開到哪一班 */
+  const callsFor = (session: string, klass: string): Array<[string, string, unknown]> => {
+    const ids = [session];
+    return [
+      ['GET', `/${session}/makeup-candidates`, undefined],
+      ['PATCH', `/${session}/makeup`, { makeupForSessionId: null }],
+      ['POST', '', { classId: klass, sessionDate: DAY, startTime: '20:00', endTime: '21:00' }],
+      ['POST', `/${session}/cancel`, { reason: '停課' }],
+      ['POST', `/${session}/substitute`, { substituteTeacherId: fx.staff }],
       [
         'POST',
-        `/${fx.session}/reschedule`,
+        `/${session}/reschedule`,
         { newSessionDate: shift(DAY, 1), newStartTime: '18:00', newEndTime: '19:00' },
       ],
       ['PATCH', '/batch-assign-teacher', { sessionIds: ids, teacherId: fx.staff }],
@@ -211,6 +218,28 @@ run('#2493 課堂舊端點看分校範圍', () => {
       ['PATCH', '/batch-cancel', { sessionIds: ids }],
       ['PATCH', '/batch-uncancel', { sessionIds: ids }],
     ];
+  };
+  const expectPasses = async (scope: 'all' | 'c1', calls: Array<[string, string, unknown]>) => {
+    for (const [method, path, body] of calls) {
+      expect(
+        `${scope} ${method} ${path} → ${(await call(scope, method, path, body)).status}`,
+      ).not.toMatch(/→ 40[34]$/);
+    }
+  };
+
+  it('列表、異動清單：受限 C1 讀不到二校那堂、讀得到一校那堂；不受限讀得到二校', async () => {
+    const list = `?dateFrom=${DAY}&dateTo=${DAY}`;
+    expect(await text('c1', list)).not.toContain(fx.session);
+    expect(await text('all', list)).toContain(fx.session);
+    expect(await text('c1', list)).toContain(own.session);
+    const changes = `/changes?from=${DAY}&to=${DAY}`;
+    expect(await text('c1', changes)).not.toContain('二校異動');
+    expect(await text('all', changes)).toContain('二校異動');
+    expect(await text('c1', changes)).toContain('一校異動');
+  });
+
+  it('單堂、補課、批次、加開共 12 支：受限 C1 → 403、那堂沒動；不受限過得了範圍那一關', async () => {
+    const calls = callsFor(fx.session, fx.class2);
     const before = await snapshot();
     for (const [method, path, body] of calls) {
       expect(`${method} ${path} → ${(await call('c1', method, path, body)).status}`).toBe(
@@ -218,10 +247,10 @@ run('#2493 課堂舊端點看分校範圍', () => {
       );
     }
     expect(await snapshot()).toBe(before);
-    for (const [method, path, body] of calls) {
-      expect(`${method} ${path} → ${(await call('all', method, path, body)).status}`).not.toMatch(
-        /→ 40[34]$/,
-      );
-    }
+    await expectPasses('all', calls);
+  });
+
+  it('範圍內放：受限 C1 對一校那堂，同樣 12 支都過得了範圍那一關', async () => {
+    await expectPasses('c1', callsFor(own.session, own.class1));
   });
 });
