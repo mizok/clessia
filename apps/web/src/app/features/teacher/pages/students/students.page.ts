@@ -20,6 +20,7 @@ import { SelectFieldComponent } from '@shared/components/select-field/select-fie
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 import { StudentPanelComponent } from './student-panel.component';
+import { BackdropCloseDirective } from '../../../../shared/directives/backdrop-close.directive';
 
 /** 列表 API 單頁上限（`students.ts` 的 `max(100)`） */
 const PAGE_SIZE = 100;
@@ -44,6 +45,7 @@ interface PanelTarget {
 @Component({
   selector: 'app-students',
   imports: [
+    BackdropCloseDirective,
     TextSwapDirective,
     SkeletonComponent,
     SelectFieldComponent,
@@ -93,7 +95,9 @@ export class StudentsPage {
 
   protected readonly classOptions = computed(() => [
     { label: '全部班級', value: null as string | null },
-    ...[...new Map(this.students().flatMap((s) => (s.classes ?? []).map((k) => [k.id, k]))).values()]
+    ...[
+      ...new Map(this.students().flatMap((s) => (s.classes ?? []).map((k) => [k.id, k]))).values(),
+    ]
       .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'))
       .map((k) => ({ label: k.name, value: k.id as string | null })),
   ]);
@@ -163,11 +167,6 @@ export class StudentsPage {
 
   protected closePanel(): void {
     this.panelDialog()?.nativeElement.close();
-  }
-
-  /** 點背景（dialog 本身）關掉，同 A6 */
-  protected onPanelBackdrop(event: MouseEvent): void {
-    if (event.target === event.currentTarget) this.closePanel();
   }
 
   protected gradeLabel(grade: string): string {

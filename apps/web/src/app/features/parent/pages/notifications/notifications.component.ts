@@ -14,6 +14,7 @@ import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { AnnouncementInboxComponent } from '@shared/components/announcement-inbox/announcement-inbox.component';
 import { PushSettingsComponent } from '../../shared/push-settings/push-settings.component';
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
+import { BackdropCloseDirective } from '../../../../shared/directives/backdrop-close.directive';
 
 /**
  * 家長的通知中心 —— 收件匣本身在 `shared/components/announcement-inbox`，
@@ -25,7 +26,12 @@ import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-fra
  */
 @Component({
   selector: 'app-notifications',
-  imports: [DialogFrameComponent, PushSettingsComponent, AnnouncementInboxComponent],
+  imports: [
+    BackdropCloseDirective,
+    DialogFrameComponent,
+    PushSettingsComponent,
+    AnnouncementInboxComponent,
+  ],
   templateUrl: './notifications.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -58,10 +64,6 @@ export class NotificationsComponent {
 
   protected closeSettings(): void {
     this.dialog()?.nativeElement.close();
-  }
-
-  protected onBackdrop(event: MouseEvent): void {
-    if (event.target === event.currentTarget) this.closeSettings();
   }
 
   /** 提示列的開啟鈕 —— 要從按鈕直接呼叫（iOS 規定權限要由使用者操作觸發） */

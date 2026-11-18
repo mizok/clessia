@@ -119,9 +119,13 @@
         你所有已開啟通知的裝置都會一起套用。關掉只是手機不跳通知，通知中心照樣會有、照樣算未讀。
       </p>
       @for (pref of preferences(); track pref.kind) {
-        <label class="flex min-h-11 items-center justify-between gap-4 text-md text-zinc-900">
+        <label
+          class="flex min-h-11 items-center justify-between gap-4 text-md text-zinc-900"
+          [for]="'push-pref-' + pref.kind"
+        >
           {{ kindLabels[pref.kind] }}
           <p-toggleswitch
+            [inputId]="'push-pref-' + pref.kind"
             [ngModel]="pref.enabled"
             (ngModelChange)="togglePreference(pref.kind, $event)"
           />

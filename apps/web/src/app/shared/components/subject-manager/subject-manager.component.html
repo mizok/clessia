@@ -47,13 +47,13 @@
             @if (editingId() === subject.id) {
               <!-- Inline edit mode -->
               <input
+                #editInput
                 pInputText
                 class="subject-manager__input flex-1 text-[0.9375rem]"
                 [ngModel]="editingName()"
                 (ngModelChange)="editingName.set($event)"
                 (keydown)="onEditNameKeydown($event)"
                 [disabled]="saving()"
-                autofocus
               />
               <div class="flex gap-1">
                 <p-button

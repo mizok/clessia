@@ -35,6 +35,7 @@ import {
 } from '../../shared/request-row/request-row.component';
 import { effectiveFromSuffix } from '@shared/utils/schedule-effective.util';
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
+import { BackdropCloseDirective } from '../../../../shared/directives/backdrop-close.directive';
 
 /**
  * 家長端試聽申請（#1727 ④，A6 p-trial，設計稿 kb/wiki/specs/parent/applications.md）。
@@ -73,6 +74,7 @@ interface CourseOption {
   selector: 'app-trial',
   standalone: true,
   imports: [
+    BackdropCloseDirective,
     DialogFrameComponent,
     PageOpenComponent,
     ChildScopeGateComponent,
@@ -316,10 +318,6 @@ export class TrialComponent {
 
   protected closeDetail(): void {
     this.detailDialog()?.nativeElement.close();
-  }
-
-  protected onDetailBackdrop(event: MouseEvent): void {
-    if (event.target === event.currentTarget) this.closeDetail();
   }
 
   protected isOpen(r: ParentTrialRequest): boolean {

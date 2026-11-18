@@ -36,12 +36,30 @@ angular-eslint `templateAccessibility` 的 11 條全開：`alt-text`、`click-ev
 `elements-content`、`interactive-supports-focus`、`label-has-associated-control`、
 `mouse-events-have-key-events`、`no-autofocus`、`no-distracting-elements`、`role-has-required-aria`、
 `table-scope`、`valid-aria`。與 harness 已守的 aria-icon-button、touch-target 不重疊。
-inline template（`.ts` 內的 `template:`）也掃。立法時存量 116 筆（label 85、click 22、focus 7、autofocus 2）
-記在 `apps/web/eslint-suppressions.json`，PR2 要**真修到 0**：
+inline template（`.ts` 內的 `template:`）也掃。立法時存量 116 筆，已於 PR2 **真修到 0**、帳檔刪除（不是用
+`eslint-disable` 蓋掉）。修法：
 
-- label：用 `for`＋`id`，或把 input 包進 `<label>`；PrimeNG 元件用 `inputId` 對 `for`
-- click 非互動元素：改成 `<button type="button">`；不能改時補 `(keydown.enter)`／`(keydown.space)` 與 `tabindex="0"`＋`role`
+- label：用 `for`＋`id`，或把 input 包進 `<label>`；PrimeNG 元件用 `inputId` 對 `for`（迴圈裡用 `[for]`＋`[inputId]` 帶動態值）。
+  沒有對應控制項的群組標題（radiogroup、selectbutton）不是 label —— 用 `<span id>` 搭 `aria-labelledby`
+- `autofocus` 屬性不用：一進畫面要聚焦就在 `afterNextRender` 裡對 `viewChild` 呼叫 `.focus()`；中途才長出來的欄位在顯示後再聚焦
+- click 非互動元素：**預設**改成 `<button type="button">`；不能改時在**模板**補
+  `(keydown.enter)`／`(keydown.space)` 與 `tabindex="0"`＋`role`
 - 不准用 `eslint-disable` 或 `--suppress-all` 蓋掉
+
+#### 唯一允許把 click 搬到 host（directive／`host:`）的三種情形
+
+`click-events-have-key-events` 要的是「滑鼠做得到的鍵盤也做得到」。下面三種情形，**鍵盤的對應已經存在、
+而且在別的元素上**，所以那個 click 只是滑鼠捷徑；把它從模板搬到 host 監聽，是把「對應關係」寫在
+directive 的註解裡、而不是假裝 lint 沒看見。每一種各自的鍵盤對應如下：
+
+| 情形                                             | 做法                                                | 鍵盤的對應                                  |
+| ------------------------------------------------ | --------------------------------------------------- | ------------------------------------------- |
+| 原生 `<dialog>` 點背景關閉                       | `BackdropCloseDirective`（`dialog[backdropClose]`） | 原生 dialog 的 **Esc**（`cancel`／`close`） |
+| 勾選框外層 44px `<label>` 的點擊（為了觸控面積） | `PickClickDirective`（`label[pickClick]`）          | 裡面那個 **checkbox**（Tab、空白鍵）        |
+| 列容器「點空白處＝勾選」                         | 元件 `host: { '(click)': … }`（`class-row`）        | 列上的 **checkbox** 與列內的 **button**     |
+
+**其他情況一律在模板補 `keydown`＋`tabindex`（或改成 `<button>`），不准另外寫 directive 繞過 lint。**
+新增第四種情形要先在這裡登記、寫明鍵盤的對應，審核以這張表為依據。
 
 ## 存量：原生 bulk suppressions，只減不增
 
@@ -57,7 +75,7 @@ inline template（`.ts` 內的 `template:`）也掃。立法時存量 116 筆（
   origin/main 多。**不要用 `--suppress-all` 讓 CI 變綠**；要修
 - `packages/*` 不是 Nx project，跟著 web 的 lint target 一起掃
 - **歸零的 project 把帳檔刪掉、lint target 拿掉 `--suppressions-location`**（帳檔不存在時 ESLint 會以 exit 2 失敗）。
-  api 已於 #2542 PR2 歸零。A31 對 main 上沒有帳檔的路徑以 0 為基準，重錄一份就紅；**重新開規則要立新帳時**，在 `check-harness.mjs` 的 `A31_SEED` 登記該路徑的筆數上限（一次性，帳歸零刪檔的 PR 一併刪掉登記）
+  api 已於 #2542 PR2、web 已於 #2558 PR2 歸零 —— 目前兩個 project 都沒有帳檔。A31 對 main 上沒有帳檔的路徑以 0 為基準，重錄一份就紅；**重新開規則要立新帳時**，在 `check-harness.mjs` 的 `A31_SEED` 登記該路徑的筆數上限（一次性，帳歸零刪檔的 PR 一併刪掉登記）
 
 ## c5 與分層方向不在 ESLint
 

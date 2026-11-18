@@ -1614,8 +1614,8 @@ test('A31 suppressionTotal 加總每檔每規則的 count；壞 JSON 直接丟',
 
 test('A31 suppressionBase：main 有帳用 main 的筆數；沒有用立帳上限（預設 0）', () => {
   const text = '{"a.html":{"r":{"count":4}}}';
-  assert.equal(suppressionBase(text, 116), 4);
-  assert.equal(suppressionBase(null, 116), 116);
+  assert.equal(suppressionBase(text, 10), 4);
+  assert.equal(suppressionBase(null, 10), 10);
   assert.equal(suppressionBase(null), 0);
 });
 

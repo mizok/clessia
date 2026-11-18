@@ -1,9 +1,11 @@
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { NgTemplateOutlet } from '@angular/common';
 import {
+  afterNextRender,
   Component,
   ElementRef,
   inject,
+  Injector,
   output,
   signal,
   viewChild,
@@ -75,6 +77,8 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
   protected readonly editingName = signal('');
   protected readonly newSubjectName = signal('');
   private readonly newNameInput = viewChild<ElementRef<HTMLInputElement>>('newNameInput');
+  private readonly editInput = viewChild<ElementRef<HTMLInputElement>>('editInput');
+  private readonly injector = inject(Injector);
   protected readonly saving = signal(false);
   protected readonly notice = signal<SubjectManagerNotice | null>(null);
   protected readonly isDialog = signal(!!this.ref);
@@ -114,6 +118,8 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
   protected startEdit(subject: Subject): void {
     this.editingId.set(subject.id);
     this.editingName.set(subject.name);
+    // 編輯框是這一刻才長出來的：渲染完把游標放進去（原本是 `autofocus` 屬性，a11y lint 不收）
+    afterNextRender(() => this.editInput()?.nativeElement.focus(), { injector: this.injector });
   }
 
   protected cancelEdit(): void {

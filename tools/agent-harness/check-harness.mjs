@@ -2631,9 +2631,10 @@ checkScanScope();
 // 跟 origin/main 的同一份檔 —— 多了就紅。基準同 A16（三點 origin/main...HEAD 的 merge-base 端）；
 // 拿不到 origin/main 時只警告。main 上沒有這份檔時基準算 0 —— 歸零刪檔之後（#2542 PR2），
 // 重錄一份新帳就是「比 0 多」，一樣紅。
-// main 上還沒有帳檔、但這個 PR 要立一份新帳時的筆數上限（#2558 PR1 立 web a11y 帳 116 筆）。
-// 立帳之後 main 有檔，這筆就不再生效；帳歸零刪檔的 PR（#2558 PR2）一併刪掉這筆登記。
-const A31_SEED = { 'apps/web/eslint-suppressions.json': 116 };
+// main 上還沒有帳檔、但這個 PR 要立一份新帳時的筆數上限（`{ '<路徑>': 筆數 }`）。目前沒有：
+// #2558 的 web a11y 帳（116 筆）已於 PR2 歸零刪檔、登記一併拔掉。立帳之後 main 有檔，登記就不再生效；
+// 那份帳歸零刪檔的 PR 同時刪掉登記。
+const A31_SEED = {};
 for (const rel of ['apps/web/eslint-suppressions.json', 'apps/api/eslint-suppressions.json']) {
   if (!existsSync(join(ROOT, rel))) continue;
   const mine = suppressionTotal(readFileSync(join(ROOT, rel), 'utf8'));

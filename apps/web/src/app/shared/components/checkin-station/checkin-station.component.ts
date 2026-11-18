@@ -86,6 +86,8 @@ export class CheckinStationComponent {
     });
     // `<video>` 要在 DOM 裡才接得上串流
     afterNextRender(() => {
+      // 掃碼器直接打進來：一進畫面游標就在卡號欄（原本是 `autofocus` 屬性，a11y lint 不收）
+      this.codeInput()?.nativeElement.focus();
       if (this.camera() === 'auto') void this.startCamera();
     });
   }

@@ -37,6 +37,7 @@ import {
   type PublicCatalog,
 } from './application-form.model';
 import { PublicFormsService, type CaptchaConfig } from './public-forms.service';
+import { BackdropCloseDirective } from '@shared/directives/backdrop-close.directive';
 
 type View = 'loading' | 'form' | 'done' | 'disabled' | 'load-failed';
 
@@ -78,7 +79,7 @@ const TURNSTILE_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?ren
  */
 @Component({
   selector: 'app-application-form',
-  imports: [RouterLink, SelectFieldComponent, DialogFrameComponent],
+  imports: [BackdropCloseDirective, RouterLink, SelectFieldComponent, DialogFrameComponent],
   templateUrl: './application-form.component.html',
   host: { class: 'flex w-full flex-col items-center' },
 })
@@ -193,10 +194,8 @@ export class ApplicationFormComponent {
     this.privacy()?.nativeElement.showModal();
   }
 
-  protected closePrivacy(event?: MouseEvent): void {
-    const dialog = this.privacy()?.nativeElement;
-    // 點到 dialog 本身＝點到背景（內容都包在裡面那層）
-    if (!event || event.target === dialog) dialog?.close();
+  protected closePrivacy(): void {
+    this.privacy()?.nativeElement.close();
   }
 
   // ─── 機器人驗證 ───
