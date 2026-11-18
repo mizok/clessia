@@ -7,7 +7,7 @@ import {
   taughtClassIds,
   tenureOrFilter,
 } from '../lib/teacher-scope';
-import { getCampusScope } from '../lib/campus-scope';
+import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { classWriteScope } from '../lib/campus-write-guard';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -81,6 +81,10 @@ app.openapi(
     responses: {
       200: { description: 'OK', content: { 'application/json': { schema: ListResponseSchema } } },
       403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
+      404: {
+        description: '指名的班不存在或不在分校範圍（#2493）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -98,11 +102,25 @@ app.openapi(
       return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
     }
 
+    // #2493 R7：受限管理員只看範圍內分校的班（原本不帶參數就拿到全機構的教務日誌，
+    // 帶別校 classId 也照給）。指名範圍外的班＝不存在 404；列表用 classes!inner 收在 DB 端
+    const campusIds = campusFilterIds(getCampusScope(c), undefined);
+    if (classId && campusIds !== null) {
+      const scoped = await classWriteScope(supabase, orgId, getCampusScope(c), classId);
+      if (scoped !== 'ok') return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    }
+    if (campusIds !== null && campusIds.length === 0) {
+      return c.json({ data: [], meta: { total: 0 } }, 200);
+    }
+    const select: string = campusIds
+      ? CLASS_LOG_SELECT.replace('classes(name)', 'classes!inner(name, campus_id)')
+      : CLASS_LOG_SELECT;
     let query = supabase
       .from('class_logs')
-      .select(CLASS_LOG_SELECT, { count: 'exact' })
+      .select(select, { count: 'exact' })
       .eq('org_id', orgId)
       .order('log_date', { ascending: false });
+    if (campusIds) query = query.in('classes.campus_id', [...campusIds]);
 
     if (classId) query = query.eq('class_id', classId);
     if (from) query = query.gte('log_date', from);

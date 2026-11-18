@@ -58,21 +58,29 @@ describe('SchedulePage', () => {
       examTodos?: unknown[];
       /** 網址的 `?date=`（#2500：學生卡「下一堂」連過來） */
       date?: string;
+      /** 每次查課堂依序回這幾份（第二次是「下一週」的查詢，#2501）；沒給就每次都回 `sessions` */
+      sessionsByCall?: unknown[][];
     } = {},
   ) {
     const orgSettings = signal({
       ...ORG,
       attendanceResponsible: options.attendanceResponsible ?? 'admin',
     });
+    const byCall = options.sessionsByCall ? [...options.sessionsByCall] : null;
     sessionsSpy = vi.fn(() =>
-      options.sessionsStall
-        ? NEVER
-        : options.sessionsFails
-          ? throwError(() => new Error('boom'))
-          : of({
-              data: options.sessions ?? [],
-              meta: { total: 0, page: 1, pageSize: 20, totalPages: 1 },
-            }),
+      byCall
+        ? of({
+            data: byCall.shift() ?? [],
+            meta: { total: 0, page: 1, pageSize: 20, totalPages: 1 },
+          })
+        : options.sessionsStall
+          ? NEVER
+          : options.sessionsFails
+            ? throwError(() => new Error('boom'))
+            : of({
+                data: options.sessions ?? [],
+                meta: { total: 0, page: 1, pageSize: 20, totalPages: 1 },
+              }),
     );
     missingSummarySpy = vi.fn(() =>
       options.missingSummaryFails
@@ -437,7 +445,21 @@ describe('SchedulePage', () => {
    */
   describe('週條', () => {
     it('七天都在，且不多打一支 API', async () => {
-      await setup();
+      // 今天有課：不然「今天沒課就多查下一週」（#2501）會多一支，那是另一件事
+      await setup({
+        sessions: [
+          {
+            sessionId: 't',
+            eventId: 'e',
+            status: 'scheduled',
+            className: '今天的班',
+            eventDate: FAKE_TODAY,
+            startTime: '18:00',
+            endTime: '19:00',
+            enrolledCount: 1,
+          },
+        ],
+      });
       const days = fixture.nativeElement.querySelectorAll('.schedule-page__weekbar-day');
       expect(days.length).toBe(7);
       expect(sessionsSpy).toHaveBeenCalledTimes(1);
@@ -1089,6 +1111,65 @@ describe('SchedulePage', () => {
       steps().selectDay('2027-03-02');
       expect(steps().contentMotion()?.dir).toBe('back');
       expect(steps().weekMotion()).toBeNull();
+    });
+  });
+
+  describe('今天沒課：色面寫下一堂、連到那天（#2501）', () => {
+    const at = (eventDate: string, startTime: string, className: string) => ({
+      sessionId: `${eventDate}-${startTime}`,
+      eventId: 'e',
+      status: 'scheduled',
+      isSubstitute: false,
+      examCount: 0,
+      usesContactBook: false,
+      classId: 'c',
+      className,
+      courseName: null,
+      teacherName: null,
+      campusId: null,
+      campusName: null,
+      eventDate,
+      startTime,
+      endTime: '20:00',
+      enrolledCount: 5,
+      presentCount: 0,
+      onLeaveCount: 0,
+      absentCount: 0,
+      takenAt: null,
+    });
+    const open = () => fixture.nativeElement.querySelector('app-page-open').textContent as string;
+    const selected = () => (component as unknown as { selectedDate: () => string }).selectedDate();
+
+    it('這週後面就有：不多查，直接寫那堂；按「看那天的課」選到那天', async () => {
+      await setup({ sessionsByCall: [[at('2027-03-06', '09:00', '週六班')]] });
+      expect(open()).toContain('今天沒有課，下一堂 3/6（六）09:00 週六班。');
+      expect(sessionsSpy).toHaveBeenCalledTimes(1);
+      (fixture.nativeElement as HTMLElement)
+        .querySelector<HTMLButtonElement>('[data-goto-next]')!
+        .click();
+      fixture.detectChanges();
+      expect(selected()).toBe('2027-03-06');
+    });
+
+    it('這週沒有：多查下一週（只查一週），寫下週那堂；按了換到那週那天', async () => {
+      await setup({ sessionsByCall: [[], [at('2027-03-09', '18:00', '數學 A')], []] });
+      expect(sessionsSpy.mock.calls[1][0] as { dateFrom: string; dateTo: string }).toMatchObject({
+        dateFrom: '2027-03-08',
+        dateTo: '2027-03-14',
+      });
+      expect(open()).toContain('今天沒有課，下一堂 3/9（二）18:00 數學 A。');
+      (fixture.nativeElement as HTMLElement)
+        .querySelector<HTMLButtonElement>('[data-goto-next]')!
+        .click();
+      fixture.detectChanges();
+      expect(selected()).toBe('2027-03-09');
+      expect((sessionsSpy.mock.lastCall![0] as { dateFrom: string }).dateFrom).toBe('2027-03-08');
+    });
+
+    it('兩週內都沒有：寫明，不放連結', async () => {
+      await setup({ sessionsByCall: [[], []] });
+      expect(open()).toContain('今天沒有課，兩週內也沒有你的課。');
+      expect(fixture.nativeElement.querySelector('[data-goto-next]')).toBeNull();
     });
   });
 
