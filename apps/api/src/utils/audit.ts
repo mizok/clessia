@@ -54,6 +54,12 @@ export interface AuditLogParams {
   resourceName?: string | null;
   action: string;
   details?: Record<string, unknown>;
+  /**
+   * 這筆稽核所屬的分校（#2496）。**平常不用帶** —— DB trigger 依 resource_type 反查（`audit_campus_ids()`）。
+   * 只有反查不到的時候要帶：**刪除**（寫稽核時那一列已經不在）。帶了 trigger 就不蓋。
+   * 受限的管理員只看得到 campus_ids 跟自己範圍有交集、或機構層級（{}）的紀錄
+   */
+  campusIds?: readonly string[];
 }
 
 function joinAuditResourceParts(parts: Array<string | null | undefined>): string | null {
@@ -94,6 +100,27 @@ export function formatAuditSessionResourceName(params: {
 }
 
 /**
+ * **刪除之前**先算好這筆稽核的分校（#2496）：刪完再寫稽核時 DB trigger 已經反查不到那一列，
+ * 會變成 NULL（受限的管理員看不到自己做的刪除）。跟 trigger 呼叫同一個 SQL 函式，判準只有一份。
+ * 出錯回 undefined —— 交給 trigger（結果是 NULL、fail-closed），不擋刪除本身
+ */
+export async function auditCampusIdsBeforeDelete(
+  supabase: SupabaseClient,
+  resourceType: ResourceType,
+  resourceId: string,
+): Promise<string[] | undefined> {
+  try {
+    const { data, error } = await supabase.rpc('audit_campus_ids', {
+      p_type: resourceType,
+      p_id: resourceId,
+    });
+    return error || !Array.isArray(data) ? undefined : (data as string[]);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * 寫入 audit_logs。
  * 在 Cloudflare Workers 環境中必須傳入 waitUntil，
  * 確保 response 送出後 Promise 仍能繼續執行。
@@ -119,6 +146,7 @@ export function logAudit(
         resource_name: params.resourceName ?? null,
         action: params.action,
         details: params.details ?? {},
+        ...(params.campusIds ? { campus_ids: params.campusIds } : {}),
       });
     } catch (e) {
       console.warn('[audit] log failed:', e);
