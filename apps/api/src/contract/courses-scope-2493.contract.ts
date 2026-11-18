@@ -1,3 +1,5 @@
+// scope-contract: GET /api/courses
+// scope-contract: POST /api/courses
 // scope-contract: GET /api/courses/:id
 // scope-contract: PUT /api/courses/:id
 // scope-contract: DELETE /api/courses/:id
@@ -207,5 +209,39 @@ run('#2493 課程單筆讀寫與價目表計數看分校範圍', () => {
     expect(await countAs('c1')).toBe(1);
     expect(await countAs('none')).toBe(0);
     expect(await countAs('all')).toBe(3);
+  });
+  it('GET /courses：受限 C1 只列 C1 的課程；空範圍空；不受限看全部；指名範圍外 C2 → 403', async () => {
+    const ids = async (scope: Scope, query = '') => {
+      const res = await call(scope, 'GET', `/api/courses?pageSize=0${query}`);
+      if (res.status !== 200) return res.status;
+      return ((await res.json()) as { data: Array<{ id: string }> }).data.map((r) => r.id).sort();
+    };
+    expect(await ids('c1')).toEqual([fx.cA]);
+    expect(await ids('none')).toEqual([]);
+    expect(await ids('all')).toEqual([fx.cA, fx.cX].sort());
+    expect(await ids('c1', `&campusId=${fx.c2}`)).toBe(403);
+    expect(await ids('all', `&campusId=${fx.c2}`)).toEqual([fx.cX]);
+  });
+
+  it('POST /courses：受限 C1 在 C2 建課程 → 403 沒建；空範圍 403；C1 建得出（正控）；不受限在 C2 建得出', async () => {
+    const subject = (
+      await q<{ id: string }>('select id from subjects where org_id = $1', [ctx.orgId])
+    )[0]!.id;
+    const body = (campusId: string, name: string) => ({
+      campusId,
+      name,
+      subjectId: subject,
+      gradeLevels: ['J2'],
+    });
+    const stored = async (name: string) =>
+      (await q('select 1 from courses where org_id = $1 and name = $2', [ctx.orgId, name])).length;
+    expect((await call('c1', 'POST', '/api/courses', body(fx.c2, '越界課'))).status).toBe(403);
+    expect(await stored('越界課')).toBe(0);
+    expect((await call('none', 'POST', '/api/courses', body(fx.c1, '空範圍課'))).status).toBe(403);
+    expect(await stored('空範圍課')).toBe(0);
+    expect((await call('c1', 'POST', '/api/courses', body(fx.c1, '本校課'))).status).toBe(201);
+    expect(await stored('本校課')).toBe(1);
+    expect((await call('all', 'POST', '/api/courses', body(fx.c2, '別校課'))).status).toBe(201);
+    expect(await stored('別校課')).toBe(1);
   });
 });
