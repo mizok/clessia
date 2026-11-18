@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createChildDb } from '../lib/child-db';
 import { PERMISSIONS } from '../lib/permissions';
 import { createServiceClientFromEnv } from '../lib/supabase';
+import { SEED_STAFF_USER } from '../test-utils/seed-borrow';
 
 /**
  * #2232（#1928 C 段）：課堂批次與「停掉班級未來的課」一次超過 ~200 堂就 414，對真的本機 PostgREST 跑。
@@ -102,7 +103,7 @@ run('課堂批次與停掉未來的課超過 200 堂（#2232）', () => {
     )[0]!.id;
     // 兩位老師：借 seed 裡有 teacher 角色的帳號，在這個 org 開 staff，教這科、在這間分校
     const users = await q<{ user_id: string }>(
-      "select user_id from user_roles where role = 'teacher' order by user_id limit 2",
+      `select user_id from user_roles where role = 'teacher' and ${SEED_STAFF_USER} order by user_id limit 2`,
     );
     const staff = async (userId: string, name: string) => {
       const [s] = await q<{ id: string }>(

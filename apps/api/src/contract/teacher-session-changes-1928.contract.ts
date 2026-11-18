@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createChildDb } from '../lib/child-db';
 import { createServiceClientFromEnv } from '../lib/supabase';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { SEED_STAFF_USER } from '../test-utils/seed-borrow';
 
 /**
  * `GET /api/teacher/session-changes` 不把 id 清單放進 URL（#1928 A#11，計畫席 11-05 裁定）。
@@ -74,7 +75,7 @@ run('老師課務異動：>200 堂不 414、任期外與別人的班看不到（
 
   beforeAll(async () => {
     const users = await q<{ user_id: string }>(
-      "select distinct user_id from user_roles where role = 'teacher' order by user_id limit 2",
+      `select distinct user_id from user_roles where role = 'teacher' and ${SEED_STAFF_USER} order by user_id limit 2`,
     );
     [fx.me, fx.other] = users.map((u) => u.user_id) as [string, string];
     ctx.orgId = (

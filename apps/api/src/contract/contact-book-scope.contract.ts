@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createChildDb } from '../lib/child-db';
 import { PERMISSIONS } from '../lib/permissions';
 import { createServiceClientFromEnv } from '../lib/supabase';
+import { SEED_STAFF_USER } from '../test-utils/seed-borrow';
 
 /**
  * **聯絡簿三支 GET 套分校範圍**（#1994），對真的本機 PostgREST 跑 —— 範圍條件在 join 裡
@@ -90,6 +91,7 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
     const [teacher] = await q<{ user_id: string }>(
       `select r.user_id from user_roles r where r.role = 'teacher'
          and not exists (select 1 from user_roles a where a.user_id = r.user_id and a.role = 'admin')
+         and r.${SEED_STAFF_USER}
        order by r.user_id limit 1`,
     );
     fx.teacherUser = teacher!.user_id;

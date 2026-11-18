@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createChildDb } from '../lib/child-db';
 import { PERMISSIONS } from '../lib/permissions';
 import { createServiceClientFromEnv } from '../lib/supabase';
+import { SEED_STAFF_USER } from '../test-utils/seed-borrow';
 
 /**
  * **#2230 ①：停用課程取消未來堂、班級批次啟用／停用改在 DB 端一次做完**（保留類：分校範圍），對真的本機 DB 跑。
@@ -137,7 +138,7 @@ run('#2230 ① 停用課程取消未來堂／班級批次啟用停用', () => {
     // 大班的任課老師：停用後要收到課務異動通知（通知在背景查課堂，1100 堂一條 URL 會 414、只記 log）
     fx.teacherUser = (
       await q<{ user_id: string }>(
-        "select user_id from user_roles where role = 'teacher' and user_id <> $1 order by user_id limit 1",
+        `select user_id from user_roles where role = 'teacher' and user_id <> $1 and ${SEED_STAFF_USER} order by user_id limit 1`,
         [ctx.userId],
       )
     )[0]!.user_id;

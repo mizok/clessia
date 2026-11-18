@@ -1,5 +1,6 @@
 import { Pool, type PoolClient } from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
+import { SEED_ORG_ID } from '../test-utils/seed-borrow';
 
 /**
  * **#1122：續課異動申請的 schema 約束**，對真的本機 Postgres 跑。
@@ -32,8 +33,8 @@ run('#1122 renewal_requests 約束', () => {
       await db.query('BEGIN');
       const { rows } = await db.query<Seed>(
         `SELECT e.org_id AS org, e.student_id AS student, e.id AS enrollment,
-                (SELECT id FROM ba_user ORDER BY id LIMIT 1) AS user
-           FROM enrollments e ORDER BY e.id LIMIT 1`,
+                (SELECT user_id FROM staff WHERE org_id = '${SEED_ORG_ID}' ORDER BY user_id LIMIT 1) AS user
+           FROM enrollments e WHERE e.org_id = '${SEED_ORG_ID}' ORDER BY e.id LIMIT 1`,
       );
       await fn(db, rows[0]!);
     } finally {
