@@ -49,6 +49,17 @@ import {
   type AttendanceSessionStatus,
 } from '../lib/attendance-session-events';
 import { inOrg } from '../lib/org-scope';
+import type { PostgrestSingleResponse } from '@supabase/supabase-js';
+import type {
+  AttendanceRecordWithEmbeds,
+  AuditEventSource,
+  EventForBatchWrite,
+  EventForCheckin,
+  EventForRoster,
+  RecordEventRef,
+  RosterEnrollmentRow,
+  StudentDayEnrollmentRow,
+} from './attendance/rows';
 
 const AttendanceStatusSchema = z
   .enum(['present', 'absent', 'on_leave'])
@@ -360,7 +371,7 @@ export function buildAttendanceSessionListMeta(total: number, page: number, page
   };
 }
 
-function extractAttendanceAuditContext(source: Record<string, any> | null | undefined) {
+function extractAttendanceAuditContext(source: AuditEventSource | null | undefined) {
   const event = source?.['events'] ?? source;
   const sessionRows = Array.isArray(event?.sessions)
     ? event.sessions
@@ -442,7 +453,7 @@ app.openapi(
       return c.json({ error: '讀取出勤紀錄失敗', message: error.message }, 500);
     }
 
-    const rows = (data ?? []).map((r: any) => flattenAttendanceRow(r));
+    const rows = (data ?? []).map((r) => flattenAttendanceRow(r as Record<string, unknown>));
 
     const total = count ?? 0;
     return c.json(
@@ -481,12 +492,12 @@ app.openapi(
 
     const roles = c.get('roles') ?? [];
 
-    const { data: ev } = await supabase
+    const { data: ev } = (await supabase
       .from('events')
       .select('event_date, campus_id')
       .eq('id', body.eventId)
       .eq('org_id', orgId)
-      .single();
+      .single()) as PostgrestSingleResponse<{ event_date: string; campus_id: string | null }>;
 
     if (!ev) return c.json({ error: '找不到課堂或無權限', message: undefined }, 500);
 
@@ -507,14 +518,14 @@ app.openapi(
     });
     if (writeAccess !== 'ok') return c.json(teacherWriteDenied(writeAccess), 403);
 
-    if ((ev as any).event_date > getCurrentTaipeiDateString()) {
+    if (ev.event_date > getCurrentTaipeiDateString()) {
       return c.json({ error: '未來課堂尚未開放點名', message: undefined }, 500);
     }
 
     const window = await assertAttendanceWindow(supabase, {
       orgId,
       roles,
-      eventDate: (ev as any).event_date as string,
+      eventDate: ev.event_date,
     });
     if (!window.ok) {
       return c.json({ error: '已超過補登期限，請聯繫管理員', message: undefined }, 500);
@@ -528,13 +539,13 @@ app.openapi(
           resourceType: 'attendance',
           resourceId: body.eventId,
           action: 'retroactive_edit',
-          details: { eventDate: (ev as any).event_date as string },
+          details: { eventDate: ev.event_date },
         },
         waitUntilFrom(c),
       );
     }
 
-    const { data, error } = await supabase
+    const { data, error } = (await supabase
       .from('attendance_records')
       .insert({
         org_id: orgId,
@@ -548,7 +559,7 @@ app.openapi(
       .select(
         '*, students(name), events(event_date, start_time, end_time, campus_id, campuses(name), sessions(classes(name, courses(name))))',
       )
-      .single();
+      .single()) as PostgrestSingleResponse<AttendanceRecordWithEmbeds>;
 
     if (error || !data) {
       return c.json({ error: '新增出勤紀錄失敗', message: error?.message }, 500);
@@ -556,15 +567,15 @@ app.openapi(
 
     const row = {
       ...data,
-      student_name: (data as any).students?.name ?? '',
-      event_date: (data as any).events?.event_date ?? '',
-      start_time: (data as any).events?.start_time ?? null,
-      end_time: (data as any).events?.end_time ?? null,
-      campus_name: (data as any).events?.campuses?.name ?? null,
+      student_name: data.students?.name ?? '',
+      event_date: data.events?.event_date ?? '',
+      start_time: data.events?.start_time ?? null,
+      end_time: data.events?.end_time ?? null,
+      campus_name: data.events?.campuses?.name ?? null,
       class_name: null,
     };
 
-    const auditContext = extractAttendanceAuditContext(data as Record<string, any>);
+    const auditContext = extractAttendanceAuditContext(data);
 
     logAudit(
       supabase,
@@ -617,14 +628,14 @@ app.openapi(
     const userId = c.get('userId');
     const { eventId, updates } = c.req.valid('json');
 
-    const { data: ev } = await supabase
+    const { data: ev } = (await supabase
       .from('events')
       .select(
         'id, attendance_taken_at, event_date, start_time, end_time, campus_id, sessions(id, status, class_id, classes(name, courses(name)))',
       )
       .eq('id', eventId)
       .eq('org_id', orgId)
-      .single();
+      .single()) as PostgrestSingleResponse<EventForBatchWrite>;
 
     if (!ev) return c.json({ error: '找不到課堂或無權限' }, 403);
 
@@ -647,8 +658,8 @@ app.openapi(
     });
     if (writeAccess !== 'ok') return c.json(teacherWriteDenied(writeAccess), 403);
 
-    const classId = (ev as any).sessions?.[0]?.class_id;
-    const eventDate = (ev as any).event_date as string;
+    const classId = ev.sessions?.[0]?.class_id;
+    const eventDate = ev.event_date;
 
     if (eventDate > getCurrentTaipeiDateString()) {
       return c.json({ error: '未來課堂尚未開放點名' }, 400);
@@ -687,7 +698,9 @@ app.openapi(
       .lte('effective_from', eventDate)
       .or(`and(status.eq.active,effective_to.is.null),effective_to.gte.${eventDate}`);
 
-    const validIds = new Set((validEnrollments ?? []).map((e: any) => e.student_id));
+    const validIds = new Set(
+      ((validEnrollments ?? []) as Array<{ student_id: string }>).map((e) => e.student_id),
+    );
     const invalidIds = updates.filter((u) => !validIds.has(u.studentId));
     if (invalidIds.length > 0) {
       return c.json({ error: '部分學生不在此課堂修課名單中' }, 400);
@@ -732,10 +745,10 @@ app.openapi(
 
       const sessionWindow = {
         // 綁定堂次的假只認這一堂（#1114）
-        sessionId: toSessionRows((ev as any).sessions as { id: string } | null)[0]?.id ?? null,
+        sessionId: toSessionRows(ev.sessions)[0]?.id ?? null,
         date: eventDate,
-        startTime: (ev as any).start_time ?? null,
-        endTime: (ev as any).end_time ?? null,
+        startTime: ev.start_time ?? null,
+        endTime: ev.end_time ?? null,
       };
 
       const coveredStudentIds = new Set<string>();
@@ -776,9 +789,9 @@ app.openapi(
       return c.json({ error: '儲存出勤失敗', message: upsertError.message }, 500);
     }
 
-    const takenAt = (ev as any).attendance_taken_at ?? new Date().toISOString();
+    const takenAt = ev.attendance_taken_at ?? new Date().toISOString();
 
-    if (!(ev as any).attendance_taken_at) {
+    if (!ev.attendance_taken_at) {
       await supabase
         .from('events')
         .update({ attendance_taken_at: takenAt })
@@ -788,9 +801,7 @@ app.openapi(
 
     // #2546：點名提交過的堂 → completed（只動 scheduled、日到班分校不動，見 completeTakenSessions）。
     // 每次提交都收斂而不只「第一次」：taken_at 寫了但這步失敗時，下一次提交會補上
-    const scheduledIds = toSessionRows(
-      (ev as any).sessions as { id: string; status?: string } | null,
-    )
+    const scheduledIds = toSessionRows(ev.sessions)
       .filter((s) => s.status === 'scheduled')
       .map((s) => s.id);
     if (scheduledIds.length > 0) {
@@ -798,7 +809,7 @@ app.openapi(
       if (done.error) console.error('[attendance/batch] 課堂狀態收斂失敗：', done.error.message);
     }
 
-    const auditContext = extractAttendanceAuditContext(ev as Record<string, any>);
+    const auditContext = extractAttendanceAuditContext(ev);
 
     logAudit(
       supabase,
@@ -853,12 +864,12 @@ app.openapi(
 
     const roles = c.get('roles') ?? [];
 
-    const { data: existing } = await supabase
+    const { data: existing } = (await supabase
       .from('attendance_records')
       .select('event_id, events(event_date, campus_id)')
       .eq('id', id)
       .eq('org_id', orgId)
-      .single();
+      .single()) as PostgrestSingleResponse<RecordEventRef>;
 
     if (!existing) return c.json({ error: '找不到出勤紀錄或無權限', message: undefined }, 500);
 
@@ -878,11 +889,11 @@ app.openapi(
       orgId,
       userId,
       roles,
-      eventId: (existing as any).event_id as string,
+      eventId: existing.event_id,
     });
     if (writeAccess !== 'ok') return c.json(teacherWriteDenied(writeAccess), 403);
 
-    const existingEventDate = (existing as any).events?.event_date as string | null;
+    const existingEventDate = existing.events?.event_date;
     if (existingEventDate && existingEventDate > getCurrentTaipeiDateString()) {
       return c.json({ error: '未來課堂尚未開放點名', message: undefined }, 500);
     }
@@ -919,7 +930,7 @@ app.openapi(
     if (body.status !== undefined) updates['status'] = body.status;
     if (body.note !== undefined) updates['note'] = body.note;
 
-    const { data, error } = await supabase
+    const { data, error } = (await supabase
       .from('attendance_records')
       .update(updates)
       .eq('id', id)
@@ -927,7 +938,7 @@ app.openapi(
       .select(
         '*, students(name), events(event_date, start_time, end_time, campus_id, campuses(name), sessions(classes(name, courses(name))))',
       )
-      .single();
+      .single()) as PostgrestSingleResponse<AttendanceRecordWithEmbeds>;
 
     if (error || !data) {
       return c.json({ error: '更新出勤紀錄失敗', message: error?.message }, 500);
@@ -935,15 +946,15 @@ app.openapi(
 
     const row = {
       ...data,
-      student_name: (data as any).students?.name ?? '',
-      event_date: (data as any).events?.event_date ?? '',
-      start_time: (data as any).events?.start_time ?? null,
-      end_time: (data as any).events?.end_time ?? null,
-      campus_name: (data as any).events?.campuses?.name ?? null,
+      student_name: data.students?.name ?? '',
+      event_date: data.events?.event_date ?? '',
+      start_time: data.events?.start_time ?? null,
+      end_time: data.events?.end_time ?? null,
+      campus_name: data.events?.campuses?.name ?? null,
       class_name: null,
     };
 
-    const auditContext = extractAttendanceAuditContext(data as Record<string, any>);
+    const auditContext = extractAttendanceAuditContext(data);
 
     logAudit(
       supabase,
@@ -1270,12 +1281,14 @@ app.openapi(
     // 請假單沒有分校欄位，它的範圍就是這一份（跟 GET /api/leaves 列表同一個定義）
     const scopedStudentIds = (enrollmentRows ?? []).length > 0 ? [studentId] : [];
 
-    const enrollments = ((enrollmentRows ?? []) as Array<Record<string, any>>).map((row) => ({
-      classId: row['class_id'] as string,
-      className: (row['classes']?.name as string | undefined) ?? '',
-      effectiveFrom: row['effective_from'] as string,
-      effectiveTo: (row['effective_to'] as string | null) ?? null,
-    }));
+    const enrollments = ((enrollmentRows ?? []) as unknown as StudentDayEnrollmentRow[]).map(
+      (row) => ({
+        classId: row['class_id'] as string,
+        className: (row['classes']?.name as string | undefined) ?? '',
+        effectiveFrom: row['effective_from'] as string,
+        effectiveTo: (row['effective_to'] as string | null) ?? null,
+      }),
+    );
     if (enrollments.length === 0) {
       return c.json({ data: { date, sessions: [], nextSession: null } }, 200);
     }
@@ -1323,7 +1336,7 @@ app.openapi(
     );
     if (failed?.error) return c.json({ error: failed.error.message }, 500);
 
-    const sessions = ((sessionsResult.data ?? []) as Array<Record<string, any>>).map((row) => ({
+    const sessions = ((sessionsResult.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
       sessionId: row['id'] as string,
       eventId: (row['event_id'] as string | null) ?? null,
       classId: row['class_id'] as string,
@@ -1336,17 +1349,17 @@ app.openapi(
       date,
       enrollments,
       sessions,
-      records: ((recordsResult.data ?? []) as Array<Record<string, any>>).map((row) => ({
+      records: ((recordsResult.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
         eventId: row['event_id'] as string,
         status: row['status'] as string,
       })),
       // 只留蓋到範圍內課堂的那幾張 —— 同一個學生在他校的假不進來（#970）
       leaves: leavesTouchingSessions(
-        ((leavesResult.data ?? []) as Array<Record<string, any>>).map(toLeaveWindow),
+        ((leavesResult.data ?? []) as Array<Record<string, unknown>>).map(toLeaveWindow),
         sessions,
         date,
       ),
-      upcoming: ((upcomingResult.data ?? []) as Array<Record<string, any>>).map((row) => ({
+      upcoming: ((upcomingResult.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
         classId: row['class_id'] as string,
         date: row['session_date'] as string,
         startTime: (row['start_time'] as string | null) ?? null,
@@ -1381,14 +1394,14 @@ app.openapi(
     const orgId = c.get('orgId');
     const { eventId } = c.req.valid('param');
 
-    const { data: ev, error: evError } = await supabase
+    const { data: ev, error: evError } = (await supabase
       .from('events')
       .select(
         'id, event_date, start_time, end_time, attendance_taken_at, campus_id, sessions(id, class_id)',
       )
       .eq('id', eventId)
       .eq('org_id', orgId)
-      .single();
+      .single()) as PostgrestSingleResponse<EventForRoster>;
 
     if (evError || !ev) return c.json({ error: '找不到課堂' }, 404);
 
@@ -1411,8 +1424,8 @@ app.openapi(
       return c.json({ error: '這不是你的課堂', code: 'FORBIDDEN' }, 403);
     }
 
-    const classId = (ev as any).sessions?.[0]?.class_id;
-    const eventDate = (ev as any).event_date as string;
+    const classId = ev.sessions?.[0]?.class_id;
+    const eventDate = ev.event_date;
 
     // 在籍判定走 `isEnrolledOn`（#950）—— 跟課堂列表的在籍人數同一份規則，不在 SQL 裡
     // 另寫一份。撈這個班 active＋withdrawal 的報名（量級是一個班），在記憶體裡依課堂日期過濾（#953：
@@ -1430,18 +1443,18 @@ app.openapi(
     // 同一天退班又重報同一班會有兩筆涵蓋這一天 —— 名單一人一列
     const enrollments = [
       ...new Map(
-        (classEnrollments ?? [])
-          .filter((row: any) =>
+        ((classEnrollments ?? []) as unknown as RosterEnrollmentRow[])
+          .filter((row) =>
             isEnrolledOn(
               { effectiveFrom: row.effective_from, effectiveTo: row.effective_to ?? null },
               eventDate,
             ),
           )
-          .map((row: any) => [row.student_id as string, row]),
+          .map((row) => [row.student_id, row]),
       ).values(),
     ];
 
-    const rosterIds = enrollments.map((e: any) => e.student_id as string);
+    const rosterIds = enrollments.map((e) => e.student_id);
     const [
       { data: records, error: recordsError },
       { data: checkinRows, error: checkinError },
@@ -1487,7 +1500,10 @@ app.openapi(
     );
 
     const recordMap = new Map(
-      (records ?? []).map((r: any) => [r.student_id, { id: r.id, status: r.status }]),
+      ((records ?? []) as Array<{ id: string; student_id: string; status: string }>).map((r) => [
+        r.student_id,
+        { id: r.id, status: r.status },
+      ]),
     );
 
     // 這一天蓋到這堂課的請假單。**推導不查紀錄** —— 理由見 RosterStudentSchema
@@ -1504,10 +1520,10 @@ app.openapi(
             .gte('end_date', eventDate);
 
     const sessionWindow = {
-      sessionId: toSessionRows((ev as any).sessions as { id: string } | null)[0]?.id ?? null,
+      sessionId: toSessionRows(ev.sessions)[0]?.id ?? null,
       date: eventDate,
-      startTime: ((ev as any).start_time as string | null) ?? null,
-      endTime: ((ev as any).end_time as string | null) ?? null,
+      startTime: ev.start_time ?? null,
+      endTime: ev.end_time ?? null,
     };
     // 每個學生記「被影響的區間」—— 同一天可能被兩張假蓋到，銷假會把兩張都動到，
     // 所以警告要涵蓋最早的起日到最晚的迄日。
@@ -1543,7 +1559,7 @@ app.openapi(
       }
     }
 
-    const students = (enrollments ?? []).map((e: any) => {
+    const students = (enrollments ?? []).map((e) => {
       const rec = recordMap.get(e.student_id);
       return {
         studentId: e.student_id,
@@ -1564,7 +1580,7 @@ app.openapi(
     return c.json(
       {
         eventId,
-        takenAt: (ev as any).attendance_taken_at ?? null,
+        takenAt: ev.attendance_taken_at ?? null,
         attendanceMode: modeResult.mode,
         students,
       },
@@ -1837,12 +1853,12 @@ app.openapi(
     });
     if (writeAccess !== 'ok') return c.json(teacherWriteDenied(writeAccess), 403);
 
-    const { data: ev } = await supabase
+    const { data: ev } = (await supabase
       .from('events')
       .select('id, event_date, campus_id, sessions(class_id)')
       .eq('id', eventId)
       .eq('org_id', orgId)
-      .single();
+      .single()) as PostgrestSingleResponse<EventForCheckin>;
     if (!ev) return c.json({ error: '找不到課堂' }, 404);
 
     const eventCampusId = (ev as { campus_id?: string | null }).campus_id ?? null;
@@ -1866,7 +1882,7 @@ app.openapi(
     }
 
     // 在籍：跟名單同一條（`isEnrolledOn`）—— 名單上沒有的人，這裡也記不了
-    const classId = toSessionRows<{ class_id?: string }>((ev as any).sessions)[0]?.class_id;
+    const classId = toSessionRows(ev.sessions)[0]?.class_id;
     const { data: enrollmentRows, error: enrollmentError } = classId
       ? await supabase
           .from('enrollments')
@@ -1881,7 +1897,9 @@ app.openapi(
     if (enrollmentError) {
       return c.json({ error: '讀取報名失敗', message: enrollmentError.message }, 500);
     }
-    const enrolled = ((enrollmentRows ?? []) as Array<Record<string, any>>).some((row) =>
+    const enrolled = (
+      (enrollmentRows ?? []) as Array<{ effective_from: string; effective_to: string | null }>
+    ).some((row) =>
       isEnrolledOn(
         { effectiveFrom: row['effective_from'], effectiveTo: row['effective_to'] ?? null },
         eventDate,
