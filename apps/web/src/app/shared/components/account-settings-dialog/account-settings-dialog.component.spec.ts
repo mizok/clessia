@@ -405,7 +405,7 @@ describe('AccountSettingsDialogComponent —— 登入方式（#1842 G-3）', ()
   });
 
   it('解除：先確認，確認後呼叫 unlinkProvider 並重讀已綁清單', async () => {
-    const { fixture, button, auth, confirm } = await setup(['line', 'google'], ['line', 'google']);
+    const { fixture, auth, confirm } = await setup(['line', 'google'], ['line', 'google']);
     const spy = confirm.accept((data) => expect(data.message).toContain('之後請用 LINE 登入'));
 
     const googleRow = [...fixture.nativeElement.querySelectorAll('.account-settings__method')][1];

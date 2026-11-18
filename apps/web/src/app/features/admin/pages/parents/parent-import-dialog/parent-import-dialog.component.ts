@@ -24,7 +24,6 @@ import {
   type BatchImportResponse,
   type BatchImportRow,
   type BatchCheckRow,
-  type BatchCheckError,
   type BatchCheckResponse,
 } from '@core/parents.service';
 
@@ -131,7 +130,7 @@ export class ParentImportDialogComponent {
     const target = event.target as HTMLInputElement;
     const file = target.files?.[0];
     if (!file) return;
-    this.processFile(file);
+    void this.processFile(file); // processFile 自己 try/catch，錯誤顯示在 fileError／退回選檔
     target.value = '';
   }
 
@@ -153,7 +152,7 @@ export class ParentImportDialogComponent {
     this.dragging.set(false);
     const file = event.dataTransfer?.files?.[0];
     if (!file) return;
-    this.processFile(file);
+    void this.processFile(file); // processFile 自己 try/catch，錯誤顯示在 fileError／退回選檔
   }
 
   /**

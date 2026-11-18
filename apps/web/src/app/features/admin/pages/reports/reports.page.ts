@@ -279,18 +279,7 @@ export class ReportsPage implements OnInit {
           this.exporting.set(false);
           popover?.hidePopover();
         },
-        error: async (err: { error?: unknown }) => {
-          // 413（筆數超過上限）的本體是 JSON blob，帶「請縮小日期範圍」
-          let detail = '請稍後再試';
-          try {
-            if (err.error instanceof Blob)
-              detail = (JSON.parse(await err.error.text()) as { error?: string }).error ?? detail;
-          } catch {
-            // 不是 JSON：用預設訊息
-          }
-          this.messageService.add({ severity: 'error', summary: '匯出失敗', detail });
-          this.exporting.set(false);
-        },
+        error: (err: { error?: unknown }) => void this.showExportError(err),
       });
   }
 
@@ -307,5 +296,19 @@ export class ReportsPage implements OnInit {
 
   protected isAmbiguous(group: RevenueGroup): boolean {
     return isAmbiguousKey(group.key);
+  }
+
+  /** 匯出失敗。subscribe 的 error 回呼不寫成 async —— 那樣丟出來的例外沒人接（#2542）；這裡全包在 try 裡 */
+  private async showExportError(err: { error?: unknown }): Promise<void> {
+    // 413（筆數超過上限）的本體是 JSON blob，帶「請縮小日期範圍」
+    let detail = '請稍後再試';
+    try {
+      if (err.error instanceof Blob)
+        detail = (JSON.parse(await err.error.text()) as { error?: string }).error ?? detail;
+    } catch {
+      // 不是 JSON：用預設訊息
+    }
+    this.messageService.add({ severity: 'error', summary: '匯出失敗', detail });
+    this.exporting.set(false);
   }
 }

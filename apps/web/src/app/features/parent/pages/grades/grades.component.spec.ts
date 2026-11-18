@@ -10,7 +10,6 @@ import {
   type ParentScoreRecord,
 } from '@core/parent-grades.service';
 import { SystemClockService } from '@core/system-clock.service';
-import { provideRouter } from '@angular/router';
 import { GradesComponent } from './grades.component';
 
 const PAGE = {

@@ -668,18 +668,21 @@ export class StudentViewComponent implements OnInit {
               : '已匯出全部學生的成績（CSV）',
           });
         },
-        error: async (err: { error?: unknown }) => {
-          // 413（超過筆數上限）的本體是 JSON blob，帶「請先篩選再匯出」
-          let detail = '請稍後再試';
-          try {
-            if (err.error instanceof Blob)
-              detail = (JSON.parse(await err.error.text()) as { error?: string }).error ?? detail;
-          } catch {
-            // 不是 JSON：用預設訊息
-          }
-          this.exporting.set(false);
-          this.messageService.add({ severity: 'error', summary: '匯出失敗', detail });
-        },
+        error: (err: { error?: unknown }) => void this.showExportError(err),
       });
+  }
+
+  /** 匯出失敗。subscribe 的 error 回呼不寫成 async —— 那樣丟出來的例外沒人接（#2542）；這裡全包在 try 裡 */
+  private async showExportError(err: { error?: unknown }): Promise<void> {
+    // 413（超過筆數上限）的本體是 JSON blob，帶「請先篩選再匯出」
+    let detail = '請稍後再試';
+    try {
+      if (err.error instanceof Blob)
+        detail = (JSON.parse(await err.error.text()) as { error?: string }).error ?? detail;
+    } catch {
+      // 不是 JSON：用預設訊息
+    }
+    this.exporting.set(false);
+    this.messageService.add({ severity: 'error', summary: '匯出失敗', detail });
   }
 }

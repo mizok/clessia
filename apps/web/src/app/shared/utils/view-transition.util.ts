@@ -57,7 +57,9 @@ export function injectViewTransition(): (
       return;
     }
     if (running) {
-      running.then(() => run(update, options));
+      // running 自己不會 reject（下面 catch 過），但排隊的 run 在沒有 VT 的路徑會同步呼叫 update ——
+      // 它丟的例外記到 console，不變成 unhandled rejection
+      running.then(() => run(update, options)).catch((e: unknown) => console.error(e));
       return;
     }
     const root = document.documentElement;
