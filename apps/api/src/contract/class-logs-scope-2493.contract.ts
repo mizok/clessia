@@ -1,3 +1,5 @@
+// scope-contract: PUT /api/class-logs
+// scope-contract: POST /api/class-logs/:id/publish
 // scope-contract: GET /api/class-logs
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -151,5 +153,62 @@ run('#2493 教務日誌列表看分校範圍', () => {
     expect((await get('c1', `?classId=${fx.x}`)).status).toBe(404);
     expect((await get('c1', `?classId=${fx.a}`)).body.data!.map((r) => r.classId)).toEqual([fx.a]);
     expect((await get('all', `?classId=${fx.x}`)).body.data!.map((r) => r.classId)).toEqual([fx.x]);
+  });
+  const send = async (scope: Scope, method: string, path: string, body?: unknown) => {
+    ctx.campusScope = scope === 'all' ? null : scope === 'c1' ? [fx.c1] : [];
+    try {
+      return await app.request(
+        `/api/class-logs${path}`,
+        {
+          method,
+          headers: { 'content-type': 'application/json' },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        },
+        env,
+      );
+    } finally {
+      ctx.campusScope = null;
+    }
+  };
+
+  it('PUT：受限 C1 寫 X 班 → 403 沒寫；空範圍 403；不存在的班 404；A 班照常；不受限寫 X 班照常', async () => {
+    const put = (scope: Scope, classId: string, text: string) =>
+      send(scope, 'PUT', '', { classId, logDate: '2026-10-05', teachingRecord: text });
+    const text = async (classId: string) =>
+      (
+        await q<{ teaching_record: string }>(
+          "select teaching_record from class_logs where class_id = $1 and log_date = '2026-10-05'",
+          [classId],
+        )
+      )[0]?.teaching_record;
+    expect((await put('c1', fx.x, '越界')).status).toBe(403);
+    expect(await text(fx.x)).toBeUndefined();
+    expect((await put('none', fx.a, '空範圍')).status).toBe(403);
+    expect(await text(fx.a)).toBeUndefined();
+    expect((await put('c1', crypto.randomUUID(), '無此班')).status).toBe(404);
+    expect((await put('c1', fx.a, '本校')).status).toBe(200);
+    expect(await text(fx.a)).toBe('本校');
+    expect((await put('all', fx.x, '全部分校')).status).toBe(200);
+    expect(await text(fx.x)).toBe('全部分校');
+  });
+
+  it('POST /:id/publish：受限 C1 發 X 班的 → 403 仍未發布；空範圍 403；A 班照常；不受限發 X 班照常', async () => {
+    const logOf = async (classId: string) =>
+      (
+        await q<{ id: string; published_at: string | null }>(
+          "select id, published_at from class_logs where class_id = $1 and log_date = '2026-10-02'",
+          [classId],
+        )
+      )[0]!;
+    const a = await logOf(fx.a);
+    const x = await logOf(fx.x);
+    expect((await send('c1', 'POST', `/${x.id}/publish`)).status).toBe(403);
+    expect((await send('none', 'POST', `/${a.id}/publish`)).status).toBe(403);
+    expect((await logOf(fx.x)).published_at).toBeNull();
+    expect((await logOf(fx.a)).published_at).toBeNull();
+    expect((await send('c1', 'POST', `/${a.id}/publish`)).status).toBe(200);
+    expect((await logOf(fx.a)).published_at).not.toBeNull();
+    expect((await send('all', 'POST', `/${x.id}/publish`)).status).toBe(200);
+    expect((await logOf(fx.x)).published_at).not.toBeNull();
   });
 });
