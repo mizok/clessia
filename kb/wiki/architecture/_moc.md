@@ -204,6 +204,12 @@ Tags: `architecture`, `attendance`, `authorization`, `kiosk`, `migration`
 
 Tags: `architecture`, `attendance`, `leave`, `migration`
 
+## [[architecture/lint|Lint（ESLint）]]
+
+只開會抓真 bug 的規則、存量用 ESLint 原生 suppressions 當只減不增的帳；c5 與分層方向由 harness A18 守，不在 ESLint。
+
+Tags: `architecture`, `lint`, `eslint`, `ci`, `harness`
+
 ## [[architecture/line-oauth-login|LINE 登入的設計]]
 
 密碼雜湊超過 Cloudflare Workers 免費方案的 10ms CPU 上限，登入間歇性 503。密碼登入完全移除、改用 OAuth（首發 LINE，Google 延後但架構預留）；破窗改成持有 DATABASE_URL 的人用 CLI 產生一次性登入連結，客戶換掉 DB 密碼就能切斷供應商存取。OAuth 身分靠一次性綁定連結／QR 對應到既有的人員或家長記錄。
