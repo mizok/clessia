@@ -129,7 +129,8 @@ describe('EnrollmentsPage', () => {
         { provide: ReferenceDataService, useValue: refDataMock },
         { provide: SystemClockService, useValue: clockMock },
         { provide: FeeTemplatesService, useValue: { list: feeTemplatesListMock } },
-        provideRouter([]),
+        // Angular 21.2 起 RouterLink 導航失敗會丟給 ErrorHandler（#2540）；空路由表點連結就是 NG04002
+        provideRouter([{ path: '**', children: [] }]),
       ],
     }).compileComponents();
 
@@ -182,7 +183,8 @@ describe('EnrollmentsPage', () => {
         { provide: ClassesService, useValue: { list: classesListMock } },
         { provide: ReferenceDataService, useValue: refDataMock },
         { provide: SystemClockService, useValue: clockMock },
-        provideRouter([]),
+        // Angular 21.2 起 RouterLink 導航失敗會丟給 ErrorHandler（#2540）；空路由表點連結就是 NG04002
+        provideRouter([{ path: '**', children: [] }]),
       ],
     }).compileComponents();
 
@@ -372,7 +374,8 @@ describe('EnrollmentsPage', () => {
         { provide: ClassesService, useValue: { list: classesListMock } },
         { provide: ReferenceDataService, useValue: refDataMock },
         { provide: SystemClockService, useValue: clockMock },
-        provideRouter([]),
+        // Angular 21.2 起 RouterLink 導航失敗會丟給 ErrorHandler（#2540）；空路由表點連結就是 NG04002
+        provideRouter([{ path: '**', children: [] }]),
       ],
     }).compileComponents();
 

@@ -243,7 +243,7 @@ app.openapi(
         {
           data: records.map((record) => ({
             ...record,
-            classNames: [],
+            classNames: [] as string[],
             mealDefault: false,
             onLeave: null,
           })),
