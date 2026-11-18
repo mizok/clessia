@@ -312,6 +312,23 @@ run('刪班級交易對真 Postgres（#1652）', () => {
     }
   });
 
+  // 「分校與機構模式都 NULL」用真資料造不出來：organizations.attendance_mode NOT NULL DEFAULT 'daily_checkin'、
+  // classes.campus_id NOT NULL。pastSessionSql 的 coalesce(…, 'daily_checkin') 與 left join 是為了那天被放寬時
+  // 仍然當日到班擋刪（不變成 NULL → 可刪）。這條釘住它現在依賴的不變量：哪天放寬了這裡會紅，提醒去補真資料的契約
+  it('#2544 模式兩邊都 NULL 的前提：機構模式與班級分校都不可為 NULL（放寬時要補契約）', async () => {
+    const cols = await q<{ table_name: string; column_name: string; is_nullable: string }>(
+      `SELECT table_name, column_name, is_nullable FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND ((table_name = 'organizations' AND column_name = 'attendance_mode')
+            OR (table_name = 'classes' AND column_name = 'campus_id'))
+        ORDER BY table_name`,
+    );
+    expect(cols).toEqual([
+      { table_name: 'classes', column_name: 'campus_id', is_nullable: 'NO' },
+      { table_name: 'organizations', column_name: 'attendance_mode', is_nullable: 'NO' },
+    ]);
+  });
+
   it('#2544 列表的 hasPastSessions 跟刪除保護同一個判準', async () => {
     const per = await org('per_session');
     const daily = await org('daily_checkin');
