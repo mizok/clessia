@@ -19,7 +19,8 @@ import { createServiceClientFromEnv } from '../lib/supabase';
  *
  * fixture：C1、C2；只在 C2 報名的學生一張帳單（C2 學費 1000）。管理員只被指派 C1。
  * 受限 C1：列表、彙總看不到那張；單筆讀、加明細、刪明細、收款、作廢一律 404（以 id 指名的單筆不透露存在）、
- * 什麼都沒寫；替 C2 的學生開單 404、沒開出來。不受限同樣的請求照常。
+ * 什麼都沒寫；替 C2 的學生開單 404、沒開出來；對一校生的單（範圍內）加明細或開單時指名 C2 的報名 →
+ * 404 REFERENCE_NOT_FOUND、沒寫。範圍內放：受限 C1 對一校生的單照常；不受限對 C2 也照常。
  */
 
 const URL = process.env['SUPABASE_URL'];
@@ -78,6 +79,8 @@ run('#2493 帳單舊端點看分校範圍', () => {
   const one = async (sql: string, values: unknown[]) =>
     (await q<{ id: string }>(`${sql} returning id`, values))[0]!.id;
   const fx = { c1: '', c2: '', s2: '', e2: '', inv: '', item: '' };
+  /** C1 那一份（範圍內放、明細指名別校報名）：一校生、他的 C1 報名、一張 C1 學費單 */
+  const own = { s1: '', e1: '', inv: '' };
 
   beforeAll(async () => {
     const [admin] = await q<{ user_id: string }>(
@@ -114,6 +117,31 @@ run('#2493 帳單舊端點看分校範圍', () => {
       `insert into invoice_items (invoice_id, type, enrollment_id, amount, period_month)
        values ($1, 'tuition', $2, 1000, '2026-01-01')`,
       [fx.inv, fx.e2],
+    );
+    const course1 = await one(
+      'insert into courses (org_id, campus_id, name, subject_id) values ($1, $2, $3, $4)',
+      [ctx.orgId, fx.c1, '數學 C1', subject],
+    );
+    const class1 = await one(
+      'insert into classes (org_id, campus_id, course_id, name) values ($1, $2, $3, $4)',
+      [ctx.orgId, fx.c1, course1, '班 C1'],
+    );
+    own.s1 = await one("insert into students (org_id, name, grade) values ($1, '一校生', 'J2')", [
+      ctx.orgId,
+    ]);
+    own.e1 = await one(
+      `insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from)
+       values ($1, $2, $3, 'active', 'monthly', 1000, '2026-01-01')`,
+      [ctx.orgId, class1, own.s1],
+    );
+    own.inv = await one('insert into invoices (org_id, student_id) values ($1, $2)', [
+      ctx.orgId,
+      own.s1,
+    ]);
+    await q(
+      `insert into invoice_items (invoice_id, type, enrollment_id, amount, period_month)
+       values ($1, 'tuition', $2, 1000, '2026-01-01')`,
+      [own.inv, own.e1],
     );
     app = (await import('../index')).default as never;
   }, 120_000);
@@ -175,20 +203,26 @@ run('#2493 帳單舊端點看分校範圍', () => {
     ['POST', `/${fx.inv}/void`, { reason: '契約作廢' }],
   ];
 
-  it('GET /、GET /summary：受限 C1 看不到二校生的帳單、彙總沒算它；不受限有', async () => {
+  it('GET /、GET /summary：受限 C1 看不到二校生的帳單、彙總沒算它，看得到一校生的；不受限都有', async () => {
     const listed = async (scope: 'all' | 'c1') =>
       ((await (await call(scope, 'GET', '')).json()) as { data: { id: string }[] }).data.some(
         (r) => r.id === fx.inv,
       );
     expect(await listed('c1')).toBe(false);
+    expect(
+      ((await (await call('c1', 'GET', '')).json()) as { data: { id: string }[] }).data.some(
+        (r) => r.id === own.inv,
+      ),
+    ).toBe(true);
     expect(await listed('all')).toBe(true);
     const billed = async (scope: 'all' | 'c1') => {
       const res = await call(scope, 'GET', '/summary');
       expect(res.status).toBe(200);
       return ((await res.json()) as { month: { billed: number } }).month.billed;
     };
-    expect(await billed('c1')).toBe(0);
-    expect(await billed('all')).toBe(1000);
+    // 一校生的 1000 算、二校生的 1000 不算（這條排第一，後面幾條開的單還沒出現）
+    expect(await billed('c1')).toBe(1000);
+    expect(await billed('all')).toBe(2000);
   });
 
   it('GET /:id 與四支寫入：受限 C1 → 404、帳單一筆都沒動；替二校生開單 404、沒開出來', async () => {
@@ -237,5 +271,60 @@ run('#2493 帳單舊端點看分校範圍', () => {
       fx.s2,
     ]);
     expect((await call('all', 'POST', `/${bare}/void`, { reason: '契約作廢' })).status).toBe(200);
+  });
+
+  const itemCount = async (invoice: string) =>
+    (
+      await q<{ n: number }>('select count(*)::int n from invoice_items where invoice_id = $1', [
+        invoice,
+      ])
+    )[0]!.n;
+
+  it('明細指名別校報名：受限 C1 對一校生的單加 C2 的學費 → 404 REFERENCE_NOT_FOUND、明細數不變；開單同理', async () => {
+    // 單本身在範圍內（一校生），擋下它的是 hasEnrollmentOutOfScope（#1381）
+    const tuition = {
+      type: 'tuition',
+      enrollmentId: fx.e2,
+      amount: 1000,
+      periodMonth: '2026-03-01',
+    };
+    const before = await itemCount(own.inv);
+    const added = await call('c1', 'POST', `/${own.inv}/items`, tuition);
+    expect(added.status).toBe(404);
+    expect(await added.json()).toMatchObject({ code: 'REFERENCE_NOT_FOUND' });
+    expect(await itemCount(own.inv)).toBe(before);
+
+    const count = await invoiceCount();
+    const created = await call('c1', 'POST', '', { studentId: own.s1, items: [tuition] });
+    expect(created.status).toBe(404);
+    expect(await created.json()).toMatchObject({ code: 'REFERENCE_NOT_FOUND' });
+    expect(await invoiceCount()).toBe(count);
+  });
+
+  it('範圍內放：受限 C1 對一校生的單照常 —— 讀、開單、加明細、收款、刪明細、作廢', async () => {
+    const tuition = {
+      type: 'tuition',
+      enrollmentId: own.e1,
+      amount: 1000,
+      periodMonth: '2026-04-01',
+    };
+    expect((await call('c1', 'GET', `/${own.inv}`)).status).toBe(200);
+    expect((await call('c1', 'POST', '', { studentId: own.s1, items: [tuition] })).status).toBe(
+      201,
+    );
+    const added = await call('c1', 'POST', `/${own.inv}/items`, { type: 'meal', amount: 500 });
+    expect(added.status).toBe(201);
+    const { data } = (await added.json()) as { data: { items: { id: string; type: string }[] } };
+    const meal = data.items.find((i) => i.type === 'meal')!.id;
+    expect(
+      (await call('c1', 'POST', `/${own.inv}/payments`, { amount: 100, method: 'cash' })).status,
+    ).toBe(201);
+    expect((await call('c1', 'DELETE', `/${own.inv}/items/${meal}`)).status).toBe(200);
+    // 作廢打沒有明細的新單（理由同上一條）
+    const bare = await one('insert into invoices (org_id, student_id) values ($1, $2)', [
+      ctx.orgId,
+      own.s1,
+    ]);
+    expect((await call('c1', 'POST', `/${bare}/void`, { reason: '契約作廢' })).status).toBe(200);
   });
 });
