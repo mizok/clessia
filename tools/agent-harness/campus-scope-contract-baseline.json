@@ -44,7 +44,6 @@
   "GET /api/sessions/:id/makeup-candidates": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/sessions/changes": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/staff": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "GET /api/workbench/today": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "PATCH /api/attendance/:id": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "PATCH /api/attendance/batch": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "PATCH /api/classes/:id/sessions/batch-assign-teacher": "舊端點：#2493 盤點範圍 OK，缺契約認領",

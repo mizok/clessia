@@ -1,3 +1,4 @@
+// scope-contract: GET /api/workbench/today
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
