@@ -25,6 +25,7 @@ import { CHANGE_TYPE_LABELS } from '@shared/components/change-log-list/change-lo
 import { SearchFieldComponent } from '@shared/components/search-field/search-field.component';
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
+import { BackdropCloseDirective } from '../../../../../../shared/directives/backdrop-close.directive';
 
 /** 抽屜一次拿一頁到底（API 上限 100）；超過的請到「全部異動」頁翻頁 */
 const DRAWER_PAGE_SIZE = 100;
@@ -43,6 +44,7 @@ const UNFILTERABLE = new Set(['creation', 'makeup']);
 @Component({
   selector: 'app-schedule-changes-drawer',
   imports: [
+    BackdropCloseDirective,
     TextSwapDirective,
     SkeletonComponent,
     ChangeLogListComponent,
@@ -119,11 +121,6 @@ export class ScheduleChangesDrawerComponent {
   protected onQueryChange(value: string): void {
     this.query.set(value);
     this.load();
-  }
-
-  /** 點背景＝關閉（內容蓋滿整個 dialog，點得到 dialog 本身只會是背景） */
-  protected onBackdrop(event: MouseEvent): void {
-    if (event.target === this.dialog().nativeElement) this.dialog().nativeElement.close();
   }
 
   protected close(): void {

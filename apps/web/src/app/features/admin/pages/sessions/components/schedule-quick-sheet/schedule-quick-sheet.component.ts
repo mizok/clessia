@@ -12,6 +12,7 @@ import type { SelectFieldOption } from '@shared/components/select-field/select-f
 import type { StartGroup } from '../../schedule-day.util';
 import type { BatchMode } from '../session-batch/session-batch.component';
 import { ScheduleQuickPicksComponent } from '../schedule-quick-picks/schedule-quick-picks.component';
+import { BackdropCloseDirective } from '../../../../../../shared/directives/backdrop-close.directive';
 
 /**
  * 手機的「快速選取」面板（A6 `#qs`，#1174 G3）：從底部升起，取代原地勾選框與底部批次列。
@@ -20,7 +21,7 @@ import { ScheduleQuickPicksComponent } from '../schedule-quick-picks/schedule-qu
  */
 @Component({
   selector: 'app-schedule-quick-sheet',
-  imports: [DatePipe, ScheduleQuickPicksComponent],
+  imports: [BackdropCloseDirective, DatePipe, ScheduleQuickPicksComponent],
   templateUrl: './schedule-quick-sheet.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -53,11 +54,6 @@ export class ScheduleQuickSheetComponent {
       if (this.open() && !d.open) d.showModal();
       if (!this.open() && d.open) d.close();
     });
-  }
-
-  /** 點背景＝關閉（面板內容蓋滿整個 dialog，點得到 dialog 本身只會是背景，A6） */
-  protected onBackdrop(event: MouseEvent): void {
-    if (event.target === this.dialog().nativeElement) this.dialog().nativeElement.close();
   }
 
   protected statusNote(status: string): string {

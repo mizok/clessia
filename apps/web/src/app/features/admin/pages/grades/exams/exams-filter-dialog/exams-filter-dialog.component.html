@@ -2,8 +2,9 @@
 <app-dialog-frame title="篩選條件" (closed)="dismiss()">
   <div class="flex flex-col gap-4">
     <div class="flex flex-col gap-2">
-      <label class="text-xs font-semibold text-zinc-500">時間範圍</label>
+      <span id="exams-filter-time-range" class="text-xs font-semibold text-zinc-500">時間範圍</span>
       <p-selectbutton
+        ariaLabelledBy="exams-filter-time-range"
         [options]="options?.timeRangeOptions ?? []"
         [ngModel]="timeRange()"
         (ngModelChange)="timeRange.set($event)"
@@ -15,8 +16,9 @@
     </div>
 
     <div class="flex flex-col gap-2">
-      <label class="text-xs font-semibold text-zinc-500">考試類型</label>
+      <span id="exams-filter-exam-type" class="text-xs font-semibold text-zinc-500">考試類型</span>
       <p-selectbutton
+        ariaLabelledBy="exams-filter-exam-type"
         [options]="options?.examTypeOptions ?? []"
         [ngModel]="examType()"
         (ngModelChange)="examType.set($event)"
@@ -29,8 +31,9 @@
 
     @if (!isAcademy()) {
       <div class="flex flex-col gap-2">
-        <label class="text-xs font-semibold text-zinc-500">學校</label>
+        <label for="exams-filter-dialog-1" class="text-xs font-semibold text-zinc-500">學校</label>
         <p-select
+          inputId="exams-filter-dialog-1"
           [options]="options?.schoolOptions ?? []"
           [ngModel]="schoolId()"
           (ngModelChange)="schoolId.set($event)"
@@ -44,8 +47,9 @@
     }
 
     <div class="flex flex-col gap-2">
-      <label class="text-xs font-semibold text-zinc-500">科目</label>
+      <label for="exams-filter-dialog-2" class="text-xs font-semibold text-zinc-500">科目</label>
       <p-select
+        inputId="exams-filter-dialog-2"
         [options]="options?.subjectOptions ?? []"
         [ngModel]="subjectId()"
         (ngModelChange)="subjectId.set($event)"
@@ -58,8 +62,9 @@
     </div>
 
     <div class="flex flex-col gap-2">
-      <label class="text-xs font-semibold text-zinc-500">狀態</label>
+      <label for="exams-filter-dialog-3" class="text-xs font-semibold text-zinc-500">狀態</label>
       <p-select
+        inputId="exams-filter-dialog-3"
         [options]="options?.statusOptions ?? []"
         [ngModel]="status()"
         (ngModelChange)="status.set($event)"

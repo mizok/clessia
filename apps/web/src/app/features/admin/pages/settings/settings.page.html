@@ -126,9 +126,10 @@
       </summary>
       <div class="mx-1 mb-1 rounded-md bg-white px-4 pt-2 pb-6 wide:px-5">
         <div class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
-          <label class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
+          <label for="settings-1" class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
             報名審核處理時效（天）
             <p-inputnumber
+              inputId="settings-1"
               [(ngModel)]="applicationReviewDaysValue"
               [min]="0"
               [max]="30"
@@ -138,9 +139,10 @@
               >申請送出這麼多天還沒處理，提醒管理員（0 = 不提醒）</small
             >
           </label>
-          <label class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
+          <label for="settings-2" class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
             試聽跟進啟動天數
             <p-inputnumber
+              inputId="settings-2"
               [(ngModel)]="trialFollowupDaysValue"
               [min]="0"
               [max]="30"
@@ -182,18 +184,30 @@
           -->
           <div class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
             @if (settings()?.invoiceDueDays !== undefined) {
-              <label class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
+              <label
+                for="settings-3"
+                class="flex flex-col gap-1 text-sm font-semibold text-zinc-700"
+              >
                 預設繳費期限（天）
-                <p-inputnumber [(ngModel)]="invoiceDueDaysValue" [min]="0" styleClass="w-full" />
+                <p-inputnumber
+                  inputId="settings-3"
+                  [(ngModel)]="invoiceDueDaysValue"
+                  [min]="0"
+                  styleClass="w-full"
+                />
                 <small class="font-normal text-zinc-600"
                   >建立帳單時的預設天數；已開的帳單不受影響</small
                 >
               </label>
             }
             @if (settings()?.billingReminderDays !== undefined) {
-              <label class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
+              <label
+                for="settings-4"
+                class="flex flex-col gap-1 text-sm font-semibold text-zinc-700"
+              >
                 待開單提醒（天）
                 <p-inputnumber
+                  inputId="settings-4"
                   [(ngModel)]="billingReminderDaysValue"
                   [min]="1"
                   [max]="90"
@@ -205,9 +219,13 @@
               </label>
             }
             @if (settings()?.leaveWaiverDays !== undefined) {
-              <label class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
+              <label
+                for="settings-5"
+                class="flex flex-col gap-1 text-sm font-semibold text-zinc-700"
+              >
                 連續請假可不收費（上課日）
                 <p-inputnumber
+                  inputId="settings-5"
                   [(ngModel)]="leaveWaiverDaysValue"
                   [min]="2"
                   [max]="30"
@@ -378,9 +396,10 @@
                 }
               </small>
             </label>
-            <label class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
+            <label for="settings-6" class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
               升級前提醒（天）
               <p-inputnumber
+                inputId="settings-6"
                 [(ngModel)]="gradePromotionReminderDaysValue"
                 [min]="0"
                 [max]="60"

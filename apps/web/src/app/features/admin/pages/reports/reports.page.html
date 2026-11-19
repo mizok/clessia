@@ -24,9 +24,10 @@
     role="search"
     aria-label="篩選營收報表"
   >
-    <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
+    <label for="reports-1" class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
       期間
       <p-select
+        inputId="reports-1"
         styleClass="w-full"
         [options]="periodOptions"
         optionLabel="label"
@@ -36,9 +37,10 @@
         ariaLabel="期間"
       />
     </label>
-    <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
+    <label for="reports-2" class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
       課程
       <p-select
+        inputId="reports-2"
         styleClass="w-full"
         [options]="courseOptions()"
         optionLabel="label"

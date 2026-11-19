@@ -171,7 +171,10 @@
         (prorationApplied)="applyProration()"
       />
 
-      <label class="flex min-h-11 cursor-pointer items-start gap-3 border-t border-zinc-200 pt-3">
+      <label
+        for="spd-issue-invoice"
+        class="flex min-h-11 cursor-pointer items-start gap-3 border-t border-zinc-200 pt-3"
+      >
         <p-checkbox
           [ngModel]="issueInvoice()"
           (ngModelChange)="onIssueInvoiceChange($event)"

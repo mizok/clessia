@@ -43,8 +43,9 @@
     <fieldset class="form-dialog__field m-0 border-0 p-0">
       <legend class="form-dialog__label">狀態</legend>
       <div class="flex gap-6">
-        <label class="flex min-h-11 items-center gap-2">
+        <label for="school-form-dialog-1" class="flex min-h-11 items-center gap-2">
           <p-radiobutton
+            inputId="school-form-dialog-1"
             name="school-status"
             [value]="true"
             [ngModel]="isActive()"
@@ -52,8 +53,9 @@
           />
           啟用
         </label>
-        <label class="flex min-h-11 items-center gap-2">
+        <label for="school-form-dialog-2" class="flex min-h-11 items-center gap-2">
           <p-radiobutton
+            inputId="school-form-dialog-2"
             name="school-status"
             [value]="false"
             [ngModel]="isActive()"

@@ -56,9 +56,10 @@
     </div>
   </div>
 
-  <label class="flex flex-col gap-1 text-sm text-zinc-700">
+  <label for="schedule-split-dialog-1" class="flex flex-col gap-1 text-sm text-zinc-700">
     任課老師
     <p-select
+      inputId="schedule-split-dialog-1"
       [options]="teacherSelectOptions"
       [ngModel]="form().teacherId"
       (ngModelChange)="update('teacherId', $event)"

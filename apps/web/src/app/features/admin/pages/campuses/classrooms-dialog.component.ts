@@ -27,16 +27,17 @@ import { CampusesService, type Campus, type Classroom } from '@core/campuses.ser
  * 所以每間教室的「⋯」用原生 popover（也在 top layer，後開的在上）。
  */
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
+import { BackdropCloseDirective } from '../../../../shared/directives/backdrop-close.directive';
 @Component({
   selector: 'app-classrooms-dialog',
   standalone: true,
-  imports: [DialogFrameComponent, FormsModule],
+  imports: [BackdropCloseDirective, DialogFrameComponent, FormsModule],
   template: `
     <dialog
       #dialog
       class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(520px,calc(100%-32px))] overflow-y-auto overscroll-contain rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-(--sheet-bg)"
       role="dialog"
-      (click)="onBackdrop($event)"
+      (backdropClose)="close()"
       (close)="onClosed()"
     >
       @if (campus(); as campus) {
@@ -269,10 +270,6 @@ export class ClassroomsDialogComponent {
    * **不能寫成模板裡的 `target === dialog && close()`**：點裡面時那個運算式回 false，
    * Angular 會當成 preventDefault —— radio 點不下去。
    */
-  protected onBackdrop(event: MouseEvent): void {
-    if (event.target === this.dialog().nativeElement) this.close();
-  }
-
   protected onClosed(): void {
     this.hideRoomMenu();
     this.closed.emit(this.changed);

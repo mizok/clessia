@@ -19,7 +19,8 @@
       >
         <!-- 手機沒有原地勾選框（A6）：勾課走「快速選取」面板，或長按一堂 -->
         <label
-          (click)="onPickClick($event, s.id)"
+          [pickClick]="s.id"
+          (picked)="pickToggle.emit($event)"
           class="hidden h-11 cursor-pointer place-items-center"
           [class]="pickable ? 'wide:grid' : ''"
           [class.w-11]="!compact()"

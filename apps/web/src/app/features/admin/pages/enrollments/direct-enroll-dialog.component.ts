@@ -38,6 +38,7 @@ import {
 } from '@shared/components/select-field/select-field.component';
 import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
+import { BackdropCloseDirective } from '../../../../shared/directives/backdrop-close.directive';
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
 
@@ -58,14 +59,20 @@ type InvoiceChoice = 'create' | 'none';
 @Component({
   selector: 'app-direct-enroll-dialog',
   standalone: true,
-  imports: [FormsModule, SelectFieldComponent, StudentAutocompleteComponent, DialogFrameComponent],
+  imports: [
+    BackdropCloseDirective,
+    FormsModule,
+    SelectFieldComponent,
+    StudentAutocompleteComponent,
+    DialogFrameComponent,
+  ],
   template: `
     <dialog
       #dialog
       class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(520px,calc(100%-32px))] overflow-y-auto overscroll-contain rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-(--sheet-bg)"
       role="dialog"
       data-testid="direct-enroll-dialog"
-      (click)="onBackdrop($event)"
+      (backdropClose)="close()"
       (close)="onClosed()"
     >
       @if (isOpen()) {
@@ -108,8 +115,8 @@ type InvoiceChoice = 'create' | 'none';
             </div>
             <div class="col-span-full min-w-0">
               <!-- 稿是 label；radiogroup 沒有單一控制項可以 for，靠 aria-labelledby 指回來（同 campus-form-dialog） -->
-              <label class="mb-1 block text-md font-semibold text-zinc-700" id="direct-enroll-mode"
-                >計費模式</label
+              <span class="mb-1 block text-md font-semibold text-zinc-700" id="direct-enroll-mode"
+                >計費模式</span
               >
               <div
                 class="flex flex-wrap gap-2"
@@ -457,10 +464,6 @@ export class DirectEnrollDialogComponent {
   protected clearOutcome(): void {
     this.conflicts.set([]);
     this.error.set(null);
-  }
-
-  protected onBackdrop(event: MouseEvent): void {
-    if (event.target === this.dialog().nativeElement) this.close();
   }
 
   protected onClosed(): void {

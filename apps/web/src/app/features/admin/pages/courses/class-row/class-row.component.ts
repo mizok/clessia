@@ -36,6 +36,8 @@ const LAYOUT_PLAIN = {
 @Component({
   selector: 'app-class-row',
   imports: [SlicePipe, ButtonModule],
+  // 點列的空白處＝勾選：滑鼠捷徑，鍵盤的對應是列上的 checkbox 本身。掛在 host 而不是 template 的 `(click)`（後者會被 a11y lint 要求鍵盤對應）
+  host: { '(click)': 'onRowClick($event)' },
   templateUrl: './class-row.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

@@ -26,6 +26,7 @@ import {
   SelectFieldComponent,
   type SelectFieldOption,
 } from '@shared/components/select-field/select-field.component';
+import { BackdropCloseDirective } from '../../../../../shared/directives/backdrop-close.directive';
 
 const FIELD =
   'h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg';
@@ -44,13 +45,13 @@ export interface CalendarEventFormResult {
 @Component({
   selector: 'app-calendar-event-form-dialog',
   standalone: true,
-  imports: [DialogFrameComponent, FormsModule, SelectFieldComponent],
+  imports: [BackdropCloseDirective, DialogFrameComponent, FormsModule, SelectFieldComponent],
   template: `
     <dialog
       #dialog
       class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(520px,calc(100%-32px))] overflow-y-auto overscroll-contain rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-(--sheet-bg)"
       role="dialog"
-      (click)="onBackdrop($event)"
+      (backdropClose)="close()"
       (cancel)="onCancel($event)"
       (close)="onClosed()"
     >
@@ -238,10 +239,6 @@ export class CalendarEventFormDialogComponent {
   /** Esc：瀏覽器自己關 dialog，不經 close()，要在 cancel 事件擋 */
   protected onCancel(event: Event): void {
     if (this.loading()) event.preventDefault();
-  }
-
-  protected onBackdrop(event: MouseEvent): void {
-    if (event.target === this.dialog().nativeElement) this.close();
   }
 
   protected onClosed(): void {

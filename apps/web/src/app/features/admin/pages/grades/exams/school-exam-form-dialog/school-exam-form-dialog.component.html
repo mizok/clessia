@@ -42,10 +42,11 @@
     <ng-container [formGroup]="form">
       <!-- School -->
       <div class="form-dialog__field">
-        <label class="form-dialog__label"
+        <label for="school-exam-form-dialog-1" class="form-dialog__label"
           >就讀學校<span class="form-dialog__required">*</span></label
         >
         <p-select
+          inputId="school-exam-form-dialog-1"
           [options]="schools()"
           formControlName="schoolId"
           optionLabel="name"
@@ -60,8 +61,11 @@
 
       <!-- Academic Year -->
       <div class="form-dialog__field">
-        <label class="form-dialog__label">學年度<span class="form-dialog__required">*</span></label>
+        <label for="school-exam-form-dialog-2" class="form-dialog__label"
+          >學年度<span class="form-dialog__required">*</span></label
+        >
         <p-inputnumber
+          inputId="school-exam-form-dialog-2"
           formControlName="academicYear"
           [min]="100"
           [max]="200"
@@ -74,8 +78,11 @@
 
       <!-- Semester -->
       <div class="form-dialog__field">
-        <label class="form-dialog__label">學期<span class="form-dialog__required">*</span></label>
+        <label for="school-exam-form-dialog-3" class="form-dialog__label"
+          >學期<span class="form-dialog__required">*</span></label
+        >
         <p-select
+          inputId="school-exam-form-dialog-3"
           [options]="semesterOptions"
           formControlName="semester"
           optionLabel="label"
@@ -87,10 +94,11 @@
 
       <!-- Exam Type -->
       <div class="form-dialog__field">
-        <label class="form-dialog__label"
+        <label for="school-exam-form-dialog-4" class="form-dialog__label"
           >考試類型<span class="form-dialog__required">*</span></label
         >
         <p-select
+          inputId="school-exam-form-dialog-4"
           [options]="examTypeOptions"
           formControlName="examType"
           optionLabel="label"
@@ -102,8 +110,9 @@
 
       @if (isOtherExamType()) {
         <div class="form-dialog__field">
-          <label class="form-dialog__label">科目</label>
+          <label for="school-exam-form-dialog-5" class="form-dialog__label">科目</label>
           <p-select
+            inputId="school-exam-form-dialog-5"
             [options]="subjectOptions()"
             formControlName="subjectId"
             optionLabel="label"
@@ -117,8 +126,9 @@
 
       <!-- Name -->
       <div class="form-dialog__field">
-        <label class="form-dialog__label">{{ nameLabel() }}</label>
+        <label for="school-exam-form-dialog-6" class="form-dialog__label">{{ nameLabel() }}</label>
         <input
+          id="school-exam-form-dialog-6"
           pInputText
           type="text"
           formControlName="name"
@@ -132,8 +142,9 @@
 
       <!-- Exam Date -->
       <div class="form-dialog__field">
-        <label class="form-dialog__label">考試日期</label>
+        <label for="school-exam-form-dialog-7" class="form-dialog__label">考試日期</label>
         <p-datepicker
+          inputId="school-exam-form-dialog-7"
           formControlName="examDate"
           dateFormat="yy-mm-dd"
           placeholder="選擇日期（選填）"

@@ -479,8 +479,9 @@
 
       <div class="flex flex-col gap-2">
         <span class="text-sm font-semibold text-zinc-700">歷史班級</span>
-        <label class="flex cursor-pointer items-center gap-2 text-md text-zinc-900">
+        <label for="courses-1" class="flex cursor-pointer items-center gap-2 text-md text-zinc-900">
           <p-toggleswitch
+            inputId="courses-1"
             [ngModel]="showHistorical()"
             (ngModelChange)="onToggleHistorical($event)"
           />
