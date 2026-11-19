@@ -1,3 +1,6 @@
+// scope-contract: GET /api/staff
+// scope-contract: POST /api/staff
+// scope-contract: DELETE /api/staff/:id
 // scope-contract: GET /api/staff/:id
 // scope-contract: PUT /api/staff/:id
 // scope-contract: PATCH /api/staff/:id/archive
@@ -37,7 +40,12 @@ const run = URL && KEY && DB ? describe : describe.skip;
 const pool = DB ? new Pool({ connectionString: DB }) : null;
 afterAll(() => pool?.end());
 
-const ctx = { orgId: '', userId: '', campusScope: null as string[] | null };
+const ctx = {
+  orgId: '',
+  userId: '',
+  campusScope: null as string[] | null,
+  authApi: null as unknown,
+};
 
 vi.mock('../middleware/auth', async (importOriginal) => {
   const original = await importOriginal<typeof import('../middleware/auth')>();
@@ -60,6 +68,7 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('childDb', createChildDb(supabase as never, null, ctx.orgId));
       set('campusScope', ctx.campusScope);
       set('auth', {
+        api: ctx.authApi,
         pool: {
           query: pool!.query.bind(pool),
           connect: pool!.connect.bind(pool),
@@ -120,6 +129,7 @@ run('#2493 人員單筆讀寫看分校範圍', () => {
     fx.tX = await staff('乙老師', [fx.c2]);
     fx.tBoth = await staff('跨校老師', [fx.c1, fx.c2]);
     fx.tNone = await staff('沒分校', []);
+    ctx.authApi = auth.api;
     app = (await import('../index')).default as never;
   }, 120_000);
 
@@ -131,6 +141,8 @@ run('#2493 人員單筆讀寫看分校範圍', () => {
     );
     await q('delete from staff where org_id = $1', [ctx.orgId]);
     const authCtx = await auth.$context;
+    const made = await q<{ id: string }>("select id from ba_user where email like 'n2493-%'");
+    users.push(...made.map((r) => r.id));
     for (const userId of users) {
       await q('delete from user_roles where user_id = $1', [userId]);
       await authCtx.internalAdapter.deleteUser(userId);
@@ -207,5 +219,74 @@ run('#2493 人員單筆讀寫看分校範圍', () => {
     }
     expect((await call('c1', 'PATCH', `/${fx.tA}/deactivate`)).status).toBe(200);
     expect((await row(fx.tA)).status).toBe('inactive');
+  });
+  const listIds = async (scope: Scope, qs = '') => {
+    const res = await call(scope, 'GET', `?pageSize=100${qs}`);
+    expect(res.status).toBe(200);
+    return ((await res.json()) as { data: { id: string }[] }).data.map((r) => r.id);
+  };
+
+  it('GET /：受限 C1 的列表有 C1 與跨校人員、沒有 C2 與沒分校的；空範圍 0 列；指名 C2 的 campusId 403；不受限都在', async () => {
+    const c1 = await listIds('c1');
+    expect(c1).toEqual(expect.arrayContaining([fx.tA, fx.tBoth]));
+    expect(c1).not.toContain(fx.tX);
+    expect(c1).not.toContain(fx.tNone);
+    expect(await listIds('none')).toEqual([]);
+    expect((await call('c1', 'GET', `?campusId=${fx.c2}`)).status).toBe(403);
+    expect(await listIds('all')).toEqual(
+      expect.arrayContaining([fx.tA, fx.tX, fx.tBoth, fx.tNone]),
+    );
+  });
+
+  it('POST /：受限 C1 把人員指派到 C2 → 403 不建；發 all_campuses 權限 → 403 不建；空範圍指派 C1 也 403', async () => {
+    const count = async () =>
+      (await q('select 1 from staff where org_id = $1', [ctx.orgId])).length;
+    const before = await count();
+    const body = (extra: Record<string, unknown>) => ({
+      displayName: '新人',
+      email: `n2493-${crypto.randomUUID()}@phone.internal`,
+      roles: ['admin'],
+      campusIds: [fx.c1],
+      permissions: [],
+      ...extra,
+    });
+    expect((await call('c1', 'POST', '', body({ campusIds: [fx.c2] }))).status).toBe(403);
+    expect((await call('c1', 'POST', '', body({ campusIds: [fx.c1, fx.c2] }))).status).toBe(403);
+    expect((await call('c1', 'POST', '', body({ permissions: ['all_campuses'] }))).status).toBe(
+      403,
+    );
+    expect((await call('none', 'POST', '', body({}))).status).toBe(403);
+    expect(await count()).toBe(before);
+  });
+
+  it('POST /（正控）：受限 C1 建 C1 人員 → 201 建出、分校只有 C1；不受限建 C2 人員 → 201', async () => {
+    const make = async (scope: Scope, campusIds: string[]) => {
+      const email = `n2493-${crypto.randomUUID()}@phone.internal`;
+      const res = await call(scope, 'POST', '', {
+        displayName: '正控新人',
+        email,
+        roles: ['admin'],
+        campusIds,
+        permissions: [],
+      });
+      return { res, email };
+    };
+    const inC1 = await make('c1', [fx.c1]);
+    expect(inC1.res.status).toBe(201);
+    const created = ((await inC1.res.json()) as { data: { id: string } }).data.id;
+    const campuses = await q<{ campus_id: string }>(
+      'select campus_id from staff_campuses where staff_id = $1',
+      [created],
+    );
+    expect(campuses.map((r) => r.campus_id)).toEqual([fx.c1]);
+    expect((await make('all', [fx.c2])).res.status).toBe(201);
+  });
+
+  it('DELETE /:id：任何範圍都不會刪人（409，人員仍在）；不存在 404', async () => {
+    for (const scope of ['c1', 'none', 'all'] as const) {
+      expect((await call(scope, 'DELETE', `/${fx.tX}`)).status).toBe(409);
+      expect((await row(fx.tX)).status).toBe('active');
+    }
+    expect((await call('c1', 'DELETE', `/${crypto.randomUUID()}`)).status).toBe(404);
   });
 });

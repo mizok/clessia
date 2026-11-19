@@ -1,3 +1,10 @@
+// scope-contract: GET /api/parents
+// scope-contract: GET /api/parents/:id
+// scope-contract: POST /api/parents
+// scope-contract: PUT /api/parents/:id
+// scope-contract: PATCH /api/parents/:id/activate
+// scope-contract: PATCH /api/parents/:id/deactivate
+// scope-contract: PATCH /api/parents/:id/archive
 // scope-contract: POST /api/parents/batch-check
 // scope-contract: POST /api/parents/batch-import
 import { Pool } from 'pg';
@@ -19,6 +26,9 @@ import { createServiceClientFromEnv } from '../lib/supabase';
  *
  * fixture：C1、C2 各一班；「別校家長甲」（有電話）的孩子只報在 C2。管理員只被指派 C1。
  * 帳號經 better-auth 的 API 建、刪，不直寫 ba_*（c2）。測完整個 org 刪掉。
+ *
+ * 下半是舊端點的契約認領（#2493 上半，盤點時範圍已 OK）：列表、單筆讀、改、啟用／停用／封存，
+ * 受限 C1 看不到、動不了只在 C2 有孩子的家長（403、狀態沒變）；新增掛 C2 的孩子 403、什麼都沒建；不受限照常。
  */
 
 const URL = process.env['SUPABASE_URL'];
@@ -70,7 +80,15 @@ const OTHER = '別校家長甲';
 
 run('家長匯入的反查不帶出範圍外家長姓名（#2493 R10）', () => {
   let app: { request: (path: string, init?: RequestInit, env?: unknown) => Promise<Response> };
-  const env = { ENVIRONMENT: 'contract', WEB_URL: 'http://localhost:4200', ALLOWED_ORIGINS: '' };
+  // POST / 要真的 better-auth（建帳號）與 pool（checkChildren）：由 getAuth 照 env 建
+  const env = {
+    ENVIRONMENT: 'contract',
+    WEB_URL: 'http://localhost:4200',
+    ALLOWED_ORIGINS: '',
+    DATABASE_URL: DB,
+    BETTER_AUTH_SECRET: 'contract-secret-at-least-32-characters-long',
+    BETTER_AUTH_URL: 'http://localhost:8787',
+  };
   const q = async <T>(text: string, values: unknown[] = []) =>
     (await pool!.query(text, values)).rows as T[];
   const auth = createAuth(
@@ -87,7 +105,7 @@ run('家長匯入的反查不帶出範圍外家長姓名（#2493 R10）', () => 
   );
   // 每次跑換一支電話：ba_user 的電話全域唯一，上一次沒收乾淨也不會撞
   const PHONE = `09${String(Date.now()).slice(-8)}`;
-  const fx = { c1: '', c2: '', parent: '', parentUser: '' };
+  const fx = { c1: '', c2: '', parent: '', parentUser: '', student: '', createdUser: '' };
 
   beforeAll(async () => {
     const [admin] = await q<{ user_id: string }>(
@@ -142,6 +160,7 @@ run('家長匯入的反查不帶出範圍外家長姓名（#2493 R10）', () => 
       [ctx.orgId, user.id, OTHER],
     );
     fx.parent = parent!.id;
+    fx.student = student!.id;
     await q('insert into parent_student_relations (parent_id, student_id) values ($1, $2)', [
       fx.parent,
       student!.id,
@@ -165,10 +184,11 @@ run('家長匯入的反查不帶出範圍外家長姓名（#2493 R10）', () => 
     ]) {
       await q(sql, [ctx.orgId]);
     }
-    if (fx.parentUser) {
-      const authCtx = await auth.$context;
-      await q('delete from user_roles where user_id = $1', [fx.parentUser]);
-      await authCtx.internalAdapter.deleteUser(fx.parentUser);
+    const authCtx = await auth.$context;
+    for (const userId of [fx.parentUser, fx.createdUser]) {
+      if (!userId) continue;
+      await q('delete from user_roles where user_id = $1', [userId]);
+      await authCtx.internalAdapter.deleteUser(userId);
     }
   }, 120_000);
 
@@ -252,5 +272,81 @@ run('家長匯入的反查不帶出範圍外家長姓名（#2493 R10）', () => 
       );
       expect(n!.n).toBe(1);
     });
+  });
+
+  // ── 舊端點認領（#2493 上半） ──
+  const call = async (scope: 'all' | 'c1', method: string, path: string, body?: unknown) => {
+    ctx.campusScope = scope === 'all' ? null : [fx.c1];
+    try {
+      return await app.request(
+        `/api/parents${path}`,
+        {
+          method,
+          headers: { 'content-type': 'application/json' },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        },
+        env,
+      );
+    } finally {
+      ctx.campusScope = null;
+    }
+  };
+  const row = async () =>
+    (
+      await q<{ status: string; notes: string | null }>(
+        'select status, notes from parents where id = $1',
+        [fx.parent],
+      )
+    )[0]!;
+
+  it('GET /：受限 C1 列不到別校家長；不受限列得到', async () => {
+    const names = async (scope: 'all' | 'c1') =>
+      JSON.stringify(await (await call(scope, 'GET', '?pageSize=100')).json());
+    expect(await names('c1')).not.toContain(OTHER);
+    expect(await names('all')).toContain(OTHER);
+  });
+
+  it('GET /:id、PUT /:id：受限 C1 → 403、沒改；不受限照常', async () => {
+    const read = await call('c1', 'GET', `/${fx.parent}`);
+    expect(read.status).toBe(403);
+    expect(JSON.stringify(await read.json())).not.toContain(OTHER);
+    expect((await call('c1', 'PUT', `/${fx.parent}`, { notes: '被改了' })).status).toBe(403);
+    expect((await row()).notes).toBeNull();
+    expect((await call('all', 'GET', `/${fx.parent}`)).status).toBe(200);
+    expect((await call('all', 'PUT', `/${fx.parent}`, { notes: '不受限改的' })).status).toBe(200);
+    expect((await row()).notes).toBe('不受限改的');
+  });
+
+  it('PATCH 停用／啟用／封存：受限 C1 → 403、狀態沒變；不受限照常（封存放最後）', async () => {
+    for (const action of ['deactivate', 'activate', 'archive']) {
+      expect((await call('c1', 'PATCH', `/${fx.parent}/${action}`)).status).toBe(403);
+      expect((await row()).status).toBe('active');
+    }
+    expect((await call('all', 'PATCH', `/${fx.parent}/deactivate`)).status).toBe(200);
+    expect((await row()).status).toBe('inactive');
+    expect((await call('all', 'PATCH', `/${fx.parent}/activate`)).status).toBe(200);
+    expect((await row()).status).toBe('active');
+    expect((await call('all', 'PATCH', `/${fx.parent}/archive`)).status).toBe(200);
+    expect((await row()).status).toBe('archived');
+  });
+
+  it('POST /：受限 C1 掛 C2 的孩子 → 403、沒建家長；不受限照常 201', async () => {
+    const count = async () =>
+      (
+        await q<{ n: number }>('select count(*)::int n from parents where org_id = $1', [ctx.orgId])
+      )[0]!.n;
+    const before = await count();
+    const body = (email: string) => ({ name: '新家長', email, studentIds: [fx.student] });
+    const denied = await call('c1', 'POST', '', body(`c2493-p-${crypto.randomUUID()}@example.com`));
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toMatchObject({ code: 'STUDENT_OUT_OF_SCOPE' });
+    expect(await count()).toBe(before);
+    const ok = await call('all', 'POST', '', body(`c2493-p-${crypto.randomUUID()}@example.com`));
+    expect(ok.status).toBe(201);
+    const { data } = (await ok.json()) as { data: { id: string } };
+    fx.createdUser = (
+      await q<{ user_id: string }>('select user_id from parents where id = $1', [data.id])
+    )[0]!.user_id;
+    expect(await count()).toBe(before + 1);
   });
 });
