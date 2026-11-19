@@ -1,7 +1,4 @@
 {
-  "GET /api/academy-exams": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "GET /api/academy-exams/todo-by-class": "舊端點：#2493 盤點範圍 OK，缺契約認領",
-  "GET /api/academy-exams/todo-count": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/billing-periods/upcoming-unbilled": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/billing-runs/anomalies": "舊端點：#2493 盤點範圍 OK，缺契約認領",
   "GET /api/courses": "舊端點：#2493 盤點範圍 OK，缺契約認領",
