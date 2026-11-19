@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 import { formatGenerated } from './lib/format.mjs';
 import { crossFeatureImports, layerImportsIntoFeatures } from './lib/feature-boundaries.mjs';
-import { suppressionTotal } from './lib/eslint-suppressions.mjs';
+import { suppressionBase, suppressionTotal } from './lib/eslint-suppressions.mjs';
 import { dualTrackTables } from './lib/dual-track-table.mjs';
 import { touchTargetViolations } from './lib/touch-target.mjs';
 import { ariaIconButtonViolations } from './lib/aria-icon-button.mjs';
@@ -1610,6 +1610,13 @@ test('A31 suppressionTotal 加總每檔每規則的 count；壞 JSON 直接丟',
   assert.equal(suppressionTotal(text), 6);
   assert.equal(suppressionTotal('{}'), 0);
   assert.throws(() => suppressionTotal('{'));
+});
+
+test('A31 suppressionBase：main 有帳用 main 的筆數；沒有用立帳上限（預設 0）', () => {
+  const text = '{"a.html":{"r":{"count":4}}}';
+  assert.equal(suppressionBase(text, 116), 4);
+  assert.equal(suppressionBase(null, 116), 116);
+  assert.equal(suppressionBase(null), 0);
 });
 
 // ── A19：家長端檔案不得出現 c.get('supabase') ──────────────────────────────────────────

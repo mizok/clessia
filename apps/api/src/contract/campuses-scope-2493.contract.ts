@@ -1,5 +1,12 @@
 // scope-contract: GET /api/campuses/:id
 // scope-contract: POST /api/campuses
+// scope-contract: GET /api/campuses
+// scope-contract: PUT /api/campuses/:id
+// scope-contract: DELETE /api/campuses/:id
+// scope-contract: GET /api/campuses/:id/classrooms
+// scope-contract: POST /api/campuses/:id/classrooms
+// scope-contract: PUT /api/campuses/:id/classrooms/:roomId
+// scope-contract: DELETE /api/campuses/:id/classrooms/:roomId
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -16,6 +23,9 @@ import { createServiceClientFromEnv } from '../lib/supabase';
  * 裁定（11-13）：範圍外＝404；受限者 POST 一律 403 REQUIRES_ALL_CAMPUSES（同 grade-promotions）。
  *
  * fixture：C1、C2（C2 帶收款帳戶）。管理員只被指派 C1。
+ *
+ * 下半是舊端點的契約認領（#2493 上半，盤點時範圍已 OK）：列表只剩範圍內；改、刪分校與教室四支
+ * 範圍外 403 且沒動到；不受限照常。
  */
 
 const URL = process.env['SUPABASE_URL'];
@@ -73,7 +83,7 @@ run('#2493 分校單筆讀與新增看分校範圍', () => {
     (await pool!.query(text, values)).rows as T[];
   const one = async (sql: string, values: unknown[]) =>
     (await q<{ id: string }>(`${sql} returning id`, values))[0]!.id;
-  const fx = { c1: '', c2: '' };
+  const fx = { c1: '', c2: '', room2: '' };
 
   beforeAll(async () => {
     const [admin] = await q<{ user_id: string }>(
@@ -86,12 +96,17 @@ run('#2493 分校單筆讀與新增看分校範圍', () => {
       "insert into campuses (org_id, name, address) values ($1, 'C2', '別校的地址 99 號')",
       [ctx.orgId],
     );
+    fx.room2 = await one(
+      "insert into classrooms (org_id, campus_id, name) values ($1, $2, '別校教室')",
+      [ctx.orgId, fx.c2],
+    );
     app = (await import('../index')).default as never;
   }, 120_000);
 
   afterAll(async () => {
     if (!ctx.orgId) return;
     for (const sql of [
+      'delete from classrooms where org_id = $1',
       'delete from campuses where org_id = $1',
       'delete from audit_logs where org_id = $1',
       'delete from organizations where id = $1',
@@ -141,5 +156,67 @@ run('#2493 分校單筆讀與新增看分校範圍', () => {
     expect(await campusCount()).toBe(before);
     expect((await call('all', 'POST', '', { name: 'C5' })).status).toBe(201);
     expect(await campusCount()).toBe(before + 1);
+  });
+
+  // ── 舊端點認領（#2493 上半） ──
+  const campusName = async (id: string) =>
+    (await q<{ name: string }>('select name from campuses where id = $1', [id]))[0]?.name;
+  const roomName = async () =>
+    (await q<{ name: string }>('select name from classrooms where id = $1', [fx.room2]))[0]?.name;
+
+  it('GET /：受限 C1 只列 C1、空範圍 0 列；不受限兩校都在', async () => {
+    const ids = async (scope: Scope) =>
+      ((await (await call(scope, 'GET', '?pageSize=0')).json()) as { data: { id: string }[] }).data
+        .map((r) => r.id)
+        .filter((id) => id === fx.c1 || id === fx.c2)
+        .sort();
+    expect(await ids('c1')).toEqual([fx.c1]);
+    expect(await ids('none')).toEqual([]);
+    expect(await ids('all')).toEqual([fx.c1, fx.c2].sort());
+  });
+
+  it('PUT /:id、DELETE /:id：受限 C1 對 C2 → 403、沒改沒刪；不受限改得動', async () => {
+    expect((await call('c1', 'PUT', `/${fx.c2}`, { name: '被改了' })).status).toBe(403);
+    expect((await call('c1', 'DELETE', `/${fx.c2}`)).status).toBe(403);
+    expect(await campusName(fx.c2)).toBe('C2');
+    expect((await call('c1', 'PUT', `/${fx.c1}`, { name: 'C1' })).status).toBe(200);
+    expect((await call('all', 'PUT', `/${fx.c2}`, { name: 'C2' })).status).toBe(200);
+  });
+
+  it('教室四支：受限 C1 對 C2 → 403、沒動到；不受限照常', async () => {
+    expect((await call('c1', 'GET', `/${fx.c2}/classrooms`)).status).toBe(403);
+    expect((await call('c1', 'POST', `/${fx.c2}/classrooms`, { name: '偷建' })).status).toBe(403);
+    expect(
+      (await call('c1', 'PUT', `/${fx.c2}/classrooms/${fx.room2}`, { name: '被改了' })).status,
+    ).toBe(403);
+    expect((await call('c1', 'DELETE', `/${fx.c2}/classrooms/${fx.room2}`)).status).toBe(403);
+    expect(await roomName()).toBe('別校教室');
+    const [n] = await q<{ n: number }>(
+      'select count(*)::int n from classrooms where campus_id = $1',
+      [fx.c2],
+    );
+    expect(n!.n).toBe(1);
+
+    const list = await call('all', 'GET', `/${fx.c2}/classrooms`);
+    expect(list.status).toBe(200);
+    expect(JSON.stringify(await list.json())).toContain('別校教室');
+    expect((await call('c1', 'GET', `/${fx.c1}/classrooms`)).status).toBe(200);
+    const created = await call('all', 'POST', `/${fx.c2}/classrooms`, { name: '新教室' });
+    expect(created.status).toBe(201);
+    const { data: room } = (await created.json()) as { data: { id: string } };
+    expect(
+      (await call('all', 'PUT', `/${fx.c2}/classrooms/${room.id}`, { name: '新教室 2' })).status,
+    ).toBe(200);
+    expect((await call('all', 'DELETE', `/${fx.c2}/classrooms/${room.id}`)).status).toBe(200);
+  });
+
+  it('DELETE /:id：不受限刪得掉（放最後：C5 是上面 POST 建的）', async () => {
+    const [c5] = await q<{ id: string }>(
+      "select id from campuses where org_id = $1 and name = 'C5'",
+      [ctx.orgId],
+    );
+    expect((await call('c1', 'DELETE', `/${c5!.id}`)).status).toBe(403);
+    expect((await call('all', 'DELETE', `/${c5!.id}`)).status).toBe(200);
+    expect(await campusName(c5!.id)).toBeUndefined();
   });
 });
